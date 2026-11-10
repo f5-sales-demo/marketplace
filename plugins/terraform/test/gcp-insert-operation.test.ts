@@ -145,3 +145,19 @@ test('documented RFC3339 operation timestamps preserve UTC offsets and subsecond
   const candidate = await f.reader.insertOperation('us-central1-a', operation.name, 'example-node');
   expect(JSON.parse(await readFile(candidate.path, 'utf8')).insertTime).toBe(insertTime);
 });
+
+test('operation evidence is reader-issued and privately rechecks original bytes and scope', async () => {
+  const f = await fixture([operation]);
+  const candidate = await f.reader.insertOperation('us-central1-a', operation.name, 'example-node');
+  await expect(f.reader.readEvidence({ ...candidate })).rejects.toThrow('original');
+  const read = await f.reader.readEvidence(candidate);
+  expect(read.scope).toEqual({ project: 'example-project', zone: 'us-central1-a', node: 'example-node' });
+  expect(read.raw.toString()).toBe(JSON.stringify(operation));
+  expect(read.authentication.accountSha256).toBe(hash('principal@example.com'));
+});
+
+test('failed completed operations retain raw evidence and refuse success candidates', async () => {
+  const f = await fixture([{ ...operation, status: 'DONE', error: { errors: [{ code: 'EXAMPLE_ERROR' }] } }]);
+  await expect(f.reader.insertOperation('us-central1-a', operation.name, 'example-node')).rejects.toThrow();
+  expect((await readdir(f.root)).some((name) => name.endsWith('.body.private.bin'))).toBe(true);
+});

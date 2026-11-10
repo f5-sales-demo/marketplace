@@ -220,3 +220,54 @@ test('same-byte applied-checkpoint replacement refuses verification before any c
   await expect(new TerraformRunner(f.root, f.execute, f.recovery).resume('cleanup-fixture')).rejects.toThrow();
   expect(f.calls).toHaveLength(0);
 });
+
+test('completed cleanup read-only resume verifies empty state and plan without executor submission', async () => {
+  const f = await fixture();
+  const owner = JSON.parse(await readFile(join(f.dir, 'deployment.json'), 'utf8'));
+  const state = JSON.stringify({
+    version: 4,
+    lineage: f.recovery.state.lineage,
+    serial: f.recovery.state.serial + 1,
+    resources: [],
+  });
+  await writeFile(join(f.dir, 'terraform.tfstate'), state, { mode: 0o600 });
+  const plan = Buffer.from('example-verified-empty-plan');
+  await writeFile(join(f.dir, 'saved.tfplan'), plan, { mode: 0o600 });
+  await writeFile(
+    join(f.dir, 'plan-receipt.json'),
+    JSON.stringify({
+      state: 'planned',
+      receipt: {
+        schemaVersion: 1,
+        deploymentId: owner.deploymentId,
+        engine: 'terraform',
+        backendIdentity: owner.backendIdentity,
+        configurationSha256: owner.configurationSha256,
+        providerLockSha256: owner.providerLockSha256,
+        planSha256: hash(plan),
+        changes: [],
+        noChanges: true,
+        operation: 'destroy',
+      },
+    }),
+    { mode: 0o600 },
+  );
+  const before = await readFile(join(f.lock, 'capture-unresolved.json'));
+  for (let i = 0; i < 2; i++) {
+    const runner = new TerraformRunner(f.root, f.execute, f.recovery);
+    const snapshot = await runner.resumeCompletedCleanupReadOnly('cleanup-fixture');
+    expect(snapshot.readOnly).toBe(true);
+    expect(snapshot.stateSha256).toBe(hash(state));
+    await expect(runner.planDestroy({})).rejects.toThrow();
+  }
+  expect(f.calls).toHaveLength(0);
+  expect(await readFile(join(f.lock, 'capture-unresolved.json'))).toEqual(before);
+});
+
+test('read-only completed cleanup cannot admit owned resources that still remain', async () => {
+  const f = await fixture();
+  await expect(
+    new TerraformRunner(f.root, f.execute, f.recovery).resumeCompletedCleanupReadOnly('cleanup-fixture'),
+  ).rejects.toThrow();
+  expect(f.calls).toHaveLength(0);
+});

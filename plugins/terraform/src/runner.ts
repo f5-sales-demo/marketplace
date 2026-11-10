@@ -783,6 +783,117 @@ export class TerraformRunner {
     this.#manifest = recoveredManifest;
     await this.#verifyInputs();
   }
+  /** Resume inspection after typed cleanup without recovering a writer or granting
+   * any executor capability. This method never prepares mutable runner state.
+   * The independent closure gate and all original failed lock bytes still apply.
+   */
+  async resumeCompletedCleanupReadOnly(deploymentId: string) {
+    const scope = this.#cleanup;
+    if (!scope || scope.deploymentId !== deploymentId || !safeId.test(deploymentId))
+      throw new Error('Original completed cleanup inspection scope required');
+    const directory = join(this.root, deploymentId);
+    const files = [
+      'deployment.json',
+      'main.tf.json',
+      '.terraform.lock.hcl',
+      'deployment.tfrc',
+      'terraform.tfstate',
+      'plan-receipt.json',
+      'saved.tfplan',
+    ];
+    const snapshots = new Map<string, Buffer>();
+    const inputs: Record<string, OriginalInputBinding> = { ...scope.retainedLockInputs };
+    for (const name of files) {
+      const path = join(directory, name),
+        parent = await lstat(directory, { bigint: true });
+      const first = await lstat(path, { bigint: true });
+      const raw = await privateRead(path);
+      const second = await lstat(path, { bigint: true });
+      const identity = (value: typeof first) =>
+        Object.fromEntries(
+          ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].map((key) => [
+            key,
+            String(value[key as keyof typeof value]),
+          ]),
+        ) as Record<'dev' | 'ino' | 'uid' | 'nlink' | 'mode' | 'size' | 'mtimeNs' | 'ctimeNs', string>;
+      if (canonical(identity(first)) !== canonical(identity(second)))
+        throw new Error('Original cleanup inspection inputs changed');
+      snapshots.set(name, raw);
+      inputs[`inspection:${name}`] = {
+        path,
+        sha256: digest(raw),
+        expectedIdentity: identity(second),
+        expectedParentIdentity: {
+          dev: String(parent.dev),
+          ino: String(parent.ino),
+          uid: String(parent.uid),
+          mode: String(parent.mode),
+        },
+      };
+    }
+    const monitor = await monitorOriginalInputs(inputs);
+    try {
+      await monitor.assertOriginal();
+      await assertExecutorProcessGroupAbsent(join(directory, '.terraform-executor-lock'));
+      await scope.assertIndependentClosure();
+      const raw = (name: string) => {
+        const value = snapshots.get(name);
+        if (!value) throw new Error('Original inspection snapshot missing');
+        return value;
+      };
+      const owner = decode(raw('deployment.json').toString()),
+        state = decode(raw('terraform.tfstate').toString());
+      const checkpoint = decode(raw('plan-receipt.json').toString()),
+        receipt = object(checkpoint.receipt);
+      if (
+        digest(raw('deployment.json')) !== scope.deploymentManifestSha256 ||
+        owner.engine !== 'terraform' ||
+        owner.deploymentId !== deploymentId ||
+        digest(raw('main.tf.json')) !== owner.configurationSha256 ||
+        digest(raw('.terraform.lock.hcl')) !== owner.providerLockSha256 ||
+        digest(raw('deployment.tfrc')) !== digest(cliConfig) ||
+        state.lineage !== scope.state.lineage ||
+        !Number.isSafeInteger(state.serial) ||
+        (state.serial as number) <= scope.state.serial ||
+        !Array.isArray(state.resources) ||
+        state.resources.length ||
+        checkpoint.state !== 'planned' ||
+        receipt.schemaVersion !== 1 ||
+        receipt.engine !== 'terraform' ||
+        receipt.deploymentId !== deploymentId ||
+        receipt.backendIdentity !== owner.backendIdentity ||
+        receipt.configurationSha256 !== owner.configurationSha256 ||
+        receipt.providerLockSha256 !== owner.providerLockSha256 ||
+        receipt.operation !== 'destroy' ||
+        receipt.noChanges !== true ||
+        !Array.isArray(receipt.changes) ||
+        receipt.changes.length ||
+        (receipt.actionInvocations !== undefined &&
+          (!Array.isArray(receipt.actionInvocations) || receipt.actionInvocations.length)) ||
+        receipt.planSha256 !== digest(raw('saved.tfplan'))
+      )
+        throw new Error('Original stable empty state and recorded empty destroy plan required');
+      await scope.assertIndependentClosure();
+      await assertExecutorProcessGroupAbsent(join(directory, '.terraform-executor-lock'));
+      await monitor.assertOriginal();
+      return Object.freeze({
+        schemaVersion: 1 as const,
+        kind: 'completed-cleanup-read-only-resume' as const,
+        readOnly: true as const,
+        deploymentId,
+        engine: 'terraform' as const,
+        stateSha256: digest(raw('terraform.tfstate')),
+        stateSerial: state.serial,
+        lineage: state.lineage,
+        emptyPlanSha256: receipt.planSha256,
+        executorSubmissions: 0 as const,
+        originalFailedLocksRetained: true as const,
+      });
+    } finally {
+      monitor.close();
+    }
+  }
+
   #state(): { directory: string; manifest: Manifest } {
     if (!this.#directory || !this.#manifest) throw new Error('Prepare or resume the deployment first');
     return { directory: this.#directory, manifest: this.#manifest };

@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdtemp, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { openGcpCloudSerialReader, openInstalledGcpCloudSerialReader } from '../src/gcp-cloud-serial-reader';
@@ -522,5 +522,41 @@ test('VM creation timestamps cannot coerce arbitrary dates into original incarna
   for (const creationTimestamp of ['1', '2026-02-30T00:00:00Z', '2026-11-09']) {
     const f = await fixture([{ ...vm, creationTimestamp }]);
     await expect(f.reader.instance('us-central1-a', 'example-node')).rejects.toThrow();
+  }
+});
+
+test('private evidence access rejects same-byte replacement and credential rotation without adopting a new record', async () => {
+  const replaced = await fixture([vm]);
+  const record = await replaced.reader.instance('us-central1-a', 'example-node');
+  const raw = await readFile(record.path);
+  await rename(record.path, `${record.path}.original`);
+  await writeFile(record.path, raw, { mode: 0o400, flag: 'wx' });
+  await expect(replaced.reader.readEvidence(record)).rejects.toThrow();
+  await expect(replaced.reader.readEvidence(record)).rejects.toThrow('retired');
+  const rotated = await fixture([vm]);
+  const original = await rotated.reader.instance('us-central1-a', 'example-node');
+  rotated.change();
+  await expect(rotated.reader.readEvidence(original)).rejects.toThrow();
+});
+
+test('VM evidence cannot cross reader invocations and returned bytes cannot mutate retained evidence', async () => {
+  const first = await fixture([vm]);
+  const second = await fixture([]);
+  const original = await first.reader.instance('us-central1-a', 'example-node');
+  await expect(second.reader.readEvidence(original)).rejects.toThrow('original');
+  const read = await first.reader.readEvidence(original);
+  read.raw.fill(0);
+  expect((await first.reader.readEvidence(original)).raw.toString()).toBe(JSON.stringify(vm));
+  expect(Object.isFrozen(read.scope)).toBe(true);
+});
+
+test('same numeric VM cannot rotate ownership labels or service accounts during capture', async () => {
+  for (const change of [
+    { labels: { 'xcsh-deployment': 'example-foreign-owner' } },
+    { serviceAccounts: [{ email: 'default' }] },
+  ]) {
+    const f = await fixture([vm, { ...vm, ...change }]);
+    await f.reader.instance('us-central1-a', 'example-node');
+    await expect(f.reader.instance('us-central1-a', 'example-node')).rejects.toThrow('identity changed');
   }
 });

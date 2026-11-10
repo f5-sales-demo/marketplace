@@ -8,6 +8,16 @@ import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } fr
 import type { PlanReceipt } from './runner';
 import type { TerraformApplyHookCandidate } from './terraform-apply-hooks';
 
+export type OriginalGcpInsertSourceCandidate = ReturnType<typeof joinOriginalGcpInsertSource>;
+const sourceBodies = new WeakMap<OriginalGcpInsertSourceCandidate, OriginalGoogleHttpRpcBodies>();
+export function readOriginalGcpInsertSourceBodies(
+  source: OriginalGcpInsertSourceCandidate,
+): OriginalGoogleHttpRpcBodies {
+  const bodies = sourceBodies.get(source);
+  if (!bodies) throw new Error('An original insert source candidate is required');
+  assertOriginalGoogleHttpRpcBodies(bodies);
+  return bodies;
+}
 type Json = Record<string, unknown>;
 const insertOrigins = new WeakMap<OriginalComputeInstanceInsertHttpCandidate, OriginalGoogleHttpRpcBodies>();
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -397,7 +407,7 @@ export function joinOriginalGcpInsertSource(input: OriginalGcpInsertSourceJoinIn
   ])
     if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest))
       throw new Error('Original source record digests required');
-  return Object.freeze({
+  const joined = Object.freeze({
     ...insert,
     schemaVersion: 1 as const,
     kind: 'original-gcp-instance-insert-source-candidate' as const,
@@ -417,4 +427,6 @@ export function joinOriginalGcpInsertSource(input: OriginalGcpInsertSourceJoinIn
     applyRpcQualified: false as const,
     originalInsertQualified: false as const,
   });
+  sourceBodies.set(joined, bodies);
+  return joined;
 }

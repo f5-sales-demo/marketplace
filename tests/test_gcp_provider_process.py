@@ -6,6 +6,7 @@ import select
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from contextlib import ExitStack
@@ -338,6 +339,70 @@ class ProviderProcessTests(unittest.TestCase):
             pytest.raises(ValueError, match="identity changed"),
         ):
             reader.inspect_executor(dict(self.original))
+
+    def test_original_parent_zombie_exit_race_requires_independent_group_closure(
+        self,
+    ) -> None:
+        """A naturally exiting original parent is not a stopped or replaced actor."""
+        reapers: list[threading.Thread] = []
+
+        def departed():
+            original_pipe(self.parent.stdin).close()
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                raw = (Path("/proc") / str(self.parent.pid) / "stat").read_text()
+                if raw[raw.rfind(")") + 2 :].split()[0] == "Z":
+                    break
+                time.sleep(0.01)
+            else:
+                message = "Original fixture did not exit naturally"
+                raise RuntimeError(message)
+
+            def reap():
+                time.sleep(0.05)
+                assert self.parent.wait(timeout=3) == 0
+
+            thread = threading.Thread(target=reap)
+            reapers.append(thread)
+            thread.start()
+            message = "Original actor is unavailable or stopped"
+            raise ValueError(message)
+
+        try:
+            available, closed, candidates = reader.collect_cohort(
+                dict(self.original), departed, assert_inputs=self.guard
+            )
+            assert not available
+            assert closed
+            assert not candidates
+        finally:
+            for thread in reapers:
+                thread.join(timeout=5)
+                assert not thread.is_alive()
+
+    def test_unavailable_message_with_live_original_actor_cannot_claim_exit(
+        self,
+    ) -> None:
+        """The exception text alone never proves a natural original exit."""
+
+        def failed():
+            message = "Original actor is unavailable or stopped"
+            raise ValueError(message)
+
+        with pytest.raises(ValueError, match="unavailable"):
+            reader.collect_cohort(dict(self.original), failed, assert_inputs=self.guard)
+
+    def test_initial_unavailable_executor_with_live_group_is_not_completed_capture(
+        self,
+    ) -> None:
+        """Unavailable or stopped group members cannot become empty success."""
+        with (
+            patch.object(reader, "inspect_executor", return_value=(False, False)),
+            pytest.raises(ValueError, match="unavailable"),
+        ):
+            reader.collect_cohort(
+                dict(self.original), lambda: (), assert_inputs=self.guard
+            )
 
     def test_source_never_sends_signals_or_selects_by_latest_pid(self) -> None:
         """Verify source never sends signals or selects by latest pid."""

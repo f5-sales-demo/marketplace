@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.59
+- **`terraform`** bumped to v2.4.60
 
 - **`gcloud` 1.7.38 / `platform` 6.3.16 / `terraform` 2.4.57** reconcile
   Bun 1.4.4 and type dependencies with current main while retaining exact
@@ -225,7 +225,7 @@ and this project adheres to
   scoped Google APIs, with exact image/license/document binding, server dry runs
   and independent acceptance checks. Live procurement grant remains unqualified; the BYOL path uses its separate
   qualified terms mechanism and no usage fee is treated as acceptance (#1559).
-- **`gcloud`** v1.7.34 adds GCP registration/interface correlation, restricted bootstrap
+- **`gcloud`** v1.7.39 adds GCP registration/interface correlation, restricted bootstrap
   checkout, current-provider Terraform site/VM configuration, scoped NAT/static-route
   and power/resize candidates, immutable SLO replacement classification, and exact
   async resource identity. Resize candidates reject non-integer and non-finite

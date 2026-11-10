@@ -17,7 +17,7 @@ import {
 import type { InstalledCaptureContext } from './installed-capture-context';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
-import { assertSameOriginalInput } from './original-input-monitor';
+import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
 import { assertFinalReaderReserve, type FinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
 import type { ExecutionCaptureAdmission } from './signal-free-executor';
 
@@ -105,6 +105,16 @@ export async function openGcpCloudSerialReader(
   };
   const client = await openGoogleAdcComputeReader(authentication, signal, fetcher);
   const admitted = new WeakSet<OriginalGcpVm>();
+  const issuedEvidence = new WeakSet<GcpCloudReadEvidence>();
+  const evidenceInputs = new Map<
+    string,
+    { binding: OriginalInputBinding; scope: Readonly<{ project: string; zone: string; node: string }> }
+  >();
+  const issue = <T extends GcpCloudReadEvidence>(value: T): T => {
+    if (!evidenceInputs.has(value.path)) throw new Error('Original retained cloud evidence required');
+    issuedEvidence.add(value);
+    return value;
+  };
   const originals = new Map<string, OriginalGcpVm>();
   let retired = false;
   const run = async <T>(operation: () => Promise<T>) => {
@@ -175,7 +185,13 @@ export async function openGcpCloudSerialReader(
       await directory.close();
     }
     await requireRoot();
-    return evidence;
+    const retained = await readOwnedInstalledInput(path, 4 * 1024 * 1024);
+    if (retained.binding.sha256 !== evidence.sha256) throw new Error('Original retained cloud bytes changed');
+    evidenceInputs.set(path, {
+      binding: retained.binding,
+      scope: Object.freeze({ project: authentication.project, zone, node }),
+    });
+    return issue(evidence);
   };
   const read = async (operation: () => Promise<GoogleComputeRead>, kind: string, zone: string, node: string) => {
     try {
@@ -206,7 +222,7 @@ export async function openGcpCloudSerialReader(
           !error.errors.some((v) => object(v).reason === 'notFound')
         )
           throw new Error('Attributed original cloud absence required');
-        return Object.freeze({ ...evidence, present: false as const });
+        return issue(Object.freeze({ ...evidence, present: false as const }));
       }
       if (response.status !== 200) throw new Error('Original cloud read HTTP failure');
       const zoneUrl = `https://www.googleapis.com/compute/v1/projects/${authentication.project}/zones/${zone}`;
@@ -244,12 +260,14 @@ export async function openGcpCloudSerialReader(
         (prior.value.id !== original.value.id ||
           prior.value.creationTimestamp !== original.value.creationTimestamp ||
           JSON.stringify(prior.value.metadata) !== JSON.stringify(original.value.metadata) ||
-          JSON.stringify(prior.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces))
+          JSON.stringify(prior.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces) ||
+          JSON.stringify(prior.value.labels) !== JSON.stringify(original.value.labels) ||
+          JSON.stringify(prior.value.serviceAccounts) !== JSON.stringify(original.value.serviceAccounts))
       )
         throw new Error('Original VM identity changed during cloud capture');
       originals.set(key, prior ?? original);
       admitted.add(original);
-      return original;
+      return issue(original);
     });
   };
   const serial = async (original: OriginalGcpVm, start: string) => {
@@ -264,7 +282,9 @@ export async function openGcpCloudSerialReader(
           current.value.id !== original.value.id ||
           current.value.creationTimestamp !== original.value.creationTimestamp ||
           JSON.stringify(current.value.metadata) !== JSON.stringify(original.value.metadata) ||
-          JSON.stringify(current.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces)
+          JSON.stringify(current.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces) ||
+          JSON.stringify(current.value.labels) !== JSON.stringify(original.value.labels) ||
+          JSON.stringify(current.value.serviceAccounts) !== JSON.stringify(original.value.serviceAccounts)
         )
           throw new Error('Original VM identity changed during serial capture');
       };
@@ -290,7 +310,7 @@ export async function openGcpCloudSerialReader(
         linuxMonotonicMs() - began > 60000
       )
         throw new Error('Complete original serial offsets and contents required');
-      return Object.freeze({ ...evidence, instanceId: original.value.id, value: Object.freeze(value) });
+      return issue(Object.freeze({ ...evidence, instanceId: original.value.id, value: Object.freeze(value) }));
     });
   };
   const operations = new Map<string, GcpInsertOperationCandidate>();
@@ -314,6 +334,7 @@ export async function openGcpCloudSerialReader(
         !returnedOperationName.test(value.name) ||
         (/^[0-9]+$/.test(operation) ? value.id !== operation : value.name !== operation) ||
         value.operationType !== 'insert' ||
+        value.error !== undefined ||
         value.zone !== scope ||
         value.selfLink !== `${scope}/operations/${value.name}` ||
         value.targetLink !== `${scope}/instances/${node}` ||
@@ -346,7 +367,7 @@ export async function openGcpCloudSerialReader(
       )
         throw new Error('Original Compute insert operation changed');
       operations.set(key, candidate);
-      return candidate;
+      return issue(candidate);
     });
   };
   const insertAudit = async (zone: string, node: string, input: GcpInsertAuditWindow) => {
@@ -477,7 +498,34 @@ export async function openGcpCloudSerialReader(
       });
     });
   };
-  return Object.freeze({ instance, serial, insertOperation, insertAudit });
+  const readEvidence = async (evidence: GcpCloudReadEvidence) => {
+    if (!issuedEvidence.has(evidence)) throw new Error('An original reader-issued cloud evidence record is required');
+    const admittedInput = evidenceInputs.get(evidence.path);
+    if (!admittedInput) throw new Error('Original cloud evidence binding unavailable');
+    return run(async () => {
+      await authentication.assertOriginal();
+      await requireRoot();
+      const retained = await readOwnedInstalledInput(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(admittedInput.binding, retained.binding);
+      if (retained.binding.sha256 !== evidence.sha256) throw new Error('Original cloud evidence bytes changed');
+      await authentication.assertOriginal();
+      await requireRoot();
+      const final = await readOwnedInstalledInput(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(admittedInput.binding, final.binding);
+      if (final.binding.sha256 !== evidence.sha256)
+        throw new Error('Original cloud evidence changed after input checks');
+      return Object.freeze({
+        raw: Buffer.from(retained.bytes),
+        scope: admittedInput.scope,
+        authentication: Object.freeze({
+          accountSha256: authentication.accountSha256,
+          audienceSha256: authentication.audienceSha256,
+          adcSha256: hash(authentication.credentialBytes),
+        }),
+      });
+    });
+  };
+  return Object.freeze({ instance, serial, insertOperation, insertAudit, readEvidence });
 }
 
 export interface InstalledCloudFinalCapture {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import stat
 import sys
@@ -32,6 +33,7 @@ ASCII_DELETE = 127
 ARGUMENT_COUNT = 5
 ORIGINAL_BUDGET_MS = 7200000
 FINAL_RESERVE_MS = 300000
+EXIT_STAT_FIELDS = 20
 PINS = {
     "bootstrap": "aac3ade3f7d90fbf63e3ea0c46120a0cfbd159e1e503dde04721979507a1548b",
     "terraform": "00a240950f88f51a03ad90975f1647737e40ddcd5df30a703fd840aa07dccced",
@@ -174,24 +176,99 @@ def inspect_executor(executor: dict[str, object]) -> tuple[bool, bool]:
     return available, transport.group_absent(executor)
 
 
+def original_exit_transition(executor: dict[str, object]) -> bool:
+    """Corroborate a gone or naturally dying original actor, never a stop."""
+    transport = importlib.import_module(
+        (__package__ or "xcsh_provider_capture") + ".guest_pty"
+    )
+    folder = Path("/proc") / str(executor["pid"])
+    try:
+        owned = folder.stat()
+        raw = (folder / "stat").read_text()
+    except FileNotFoundError:
+        return True
+    fields = raw[raw.rfind(")") + 2 :].split()
+    if len(fields) < EXIT_STAT_FIELDS or fields[0] not in ("Z", "X"):
+        return False
+    if (
+        int(fields[2]) != executor["group"]
+        or fields[19] != executor["start"]
+        or Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+        != executor["boot"]
+        or owned.st_uid != os.getuid()
+    ):
+        reject("Original exiting executor identity differs")
+    try:
+        sdk = transport.psutil.Process(executor["pid"])
+        ticks = os.sysconf("SC_CLK_TCK")
+        birth = (
+            int(
+                next(
+                    line.split()[1]
+                    for line in Path("/proc/stat").read_text().splitlines()
+                    if line.startswith("btime ")
+                )
+            )
+            + int(fields[19]) / ticks
+        )
+        if (
+            sdk.uids().real != os.getuid()
+            or os.getpgid(sdk.pid) != executor["group"]
+            or sdk.status()
+            not in (transport.psutil.STATUS_ZOMBIE, transport.psutil.STATUS_DEAD)
+            or not math.isfinite(sdk.create_time())
+            or abs(sdk.create_time() - birth) > 1 / ticks
+        ):
+            reject("Independent original executor exit identity differs")
+    except (FileNotFoundError, ProcessLookupError, transport.psutil.NoSuchProcess):
+        try:
+            folder.lstat()
+        except FileNotFoundError:
+            return True
+        raise
+    return True
+
+
 def collect_cohort(
     executor: dict[str, object],
     discover: Callable[[], tuple[ProviderCandidate, ...]],
     *,
     assert_inputs: Callable[[], None] | None = None,
+    closure_deadline_ms: int | None = None,
 ) -> tuple[bool, bool, tuple[ProviderCandidate, ...]]:
     """Accept an exit race only after independent original group absence."""
     if assert_inputs is not None:
         assert_inputs()
     available, closed = inspect_executor(executor)
+    if not available and not closed and not original_exit_transition(executor):
+        reject("Original executor unavailable while its group remains live")
     candidates: tuple[ProviderCandidate, ...] = ()
     if available:
         try:
             candidates = discover()
-        except (FileNotFoundError, ProcessLookupError):
+        except (FileNotFoundError, ProcessLookupError, ValueError) as error:
+            if (
+                isinstance(error, ValueError)
+                and str(error) != "Original actor is unavailable or stopped"
+            ):
+                raise
             if assert_inputs is not None:
                 assert_inputs()
+            if not original_exit_transition(executor):
+                raise
             available, closed = inspect_executor(executor)
+            closure_end = time.monotonic_ns() // 1000000 + 1000
+            if closure_deadline_ms is not None:
+                closure_end = min(closure_end, closure_deadline_ms)
+            while (
+                not available
+                and not closed
+                and time.monotonic_ns() // 1000000 < closure_end
+            ):
+                time.sleep(0.01)
+                if assert_inputs is not None:
+                    assert_inputs()
+                available, closed = inspect_executor(executor)
             if available or not closed:
                 raise
     if assert_inputs is not None:
@@ -263,7 +340,11 @@ def provider_request_profile(request: dict[str, object]) -> str:
 
 
 def collect_window_cohort(
-    monitor: OriginalProviderCandidates, *, coherent: bool, verify: Callable[[], None]
+    monitor: OriginalProviderCandidates,
+    *,
+    coherent: bool,
+    verify: Callable[[], None],
+    deadline: int,
 ) -> tuple[bool, bool, tuple[ProviderCandidate, ...], dict[int, ProviderStderrPipe]]:
     """Collect one original cohort with explicitly versioned acquisition semantics."""
     acquired: dict[int, ProviderStderrPipe] = {}
@@ -279,6 +360,7 @@ def collect_window_cohort(
         dict(monitor.parent),
         discover_joint if coherent else monitor.discover,
         assert_inputs=verify,
+        closure_deadline_ms=deadline,
     )
     return available, closed, candidates, acquired
 
@@ -306,7 +388,7 @@ def capture_stderr_window(
         emit({"kind": "ready", "windowStartedMs": started, "windowDeadlineMs": ended})
         while clock() < ended:
             available, closed, candidates, acquired = collect_window_cohort(
-                monitor, coherent=coherent, verify=verify
+                monitor, coherent=coherent, verify=verify, deadline=ended
             )
             captured = clock()
             if captured >= ended:
@@ -352,6 +434,8 @@ def capture_stderr_window(
             pause()
         verify()
         available, closed = inspect_executor(dict(monitor.parent))
+        if not available and not closed:
+            reject("Original executor unavailable while its group remains live")
         if closed:
             for value in observations.values():
                 value["presentAtLastSample"] = False

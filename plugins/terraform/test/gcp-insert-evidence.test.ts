@@ -1,7 +1,12 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { openGcpCloudSerialReader } from '../src/gcp-cloud-serial-reader';
 import { GoogleHttpRpcTraceParser } from '../src/gcp-http-rpc-trace';
 import { inspectOriginalGcpInsertBodies, joinOriginalGcpInsertSource } from '../src/gcp-insert-evidence';
+import { joinOriginalGcpVmEvidence } from '../src/gcp-vm-evidence';
 
 const binding = {
   terraformVersion: '1.17.1',
@@ -357,4 +362,127 @@ test('source correlation rejects malformed numeric and time evidence instead of 
     { ...input, window: { ...input.window, finishedMs: Number.NaN } },
   ])
     expect(() => joinOriginalGcpInsertSource(changed as never)).toThrow();
+});
+
+async function vmJoinFixture(change: Record<string, unknown> = {}) {
+  const source = joinOriginalGcpInsertSource(sourceJoinFixture());
+  if (source.targetId === null) throw new Error('Original numeric fixture target required');
+  const initial = requestFixture();
+  const created = new Date(Date.now() - 500).toISOString();
+  const vm = {
+    id: source.targetId,
+    name: node,
+    zone: operationFixture().zone,
+    creationTimestamp: created,
+    labels: initial.labels,
+    metadata: { ...initial.metadata, fingerprint: 'example-original-fingerprint' },
+    networkInterfaces: initial.networkInterfaces.map((nic, index) => ({
+      ...nic,
+      name: `nic${index}`,
+      networkIP: '10.1.0.2',
+    })),
+    ...change,
+  };
+  const op = { ...operationFixture(), insertTime: new Date(Date.now() - 1000).toISOString(), status: 'DONE' };
+  const replies: unknown[] = [{ error: { code: 404, errors: [{ reason: 'notFound' }] } }, op, vm, vm];
+  const root = await mkdtemp(join(tmpdir(), 'gcp-vm-join-'));
+  const fetcher = (async (url: string | URL | Request) => {
+    const path = new URL(String(url)).pathname;
+    if (path === '/token')
+      return Response.json({ access_token: 'example-access', token_type: 'Bearer', expires_in: 3599 });
+    if (path === '/oauth2/v2/tokeninfo')
+      return Response.json({
+        email: 'principal@example.com',
+        verified_email: true,
+        audience: 'example-client',
+        issued_to: 'example-client',
+        scope: 'https://www.googleapis.com/auth/cloud-platform',
+        expires_in: 3599,
+      });
+    if (path === '/v1/projects/example-project') return Response.json({ projectId: project, lifecycleState: 'ACTIVE' });
+    const value = replies.shift();
+    if (!value) throw new Error('Unexpected scoped fixture read');
+    if (value === op) {
+      op.insertTime = new Date(Date.now()).toISOString();
+      vm.creationTimestamp = op.insertTime;
+    }
+    return Response.json(value, { status: (value as { error?: { code: number } }).error?.code ?? 200 });
+  }) as typeof fetch;
+  const reader = await openGcpCloudSerialReader(
+    {
+      root,
+      region: 'us-central1',
+      authentication: {
+        credentialBytes: Buffer.from(
+          JSON.stringify({
+            type: 'authorized_user',
+            client_id: 'example-client',
+            client_secret: 'example-secret',
+            refresh_token: 'example-refresh',
+            quota_project_id: project,
+          }),
+        ),
+        project,
+        accountSha256: createHash('sha256').update('principal@example.com').digest('hex'),
+        audienceSha256: createHash('sha256').update('example-client').digest('hex'),
+        assertOriginal: async () => {},
+      },
+    },
+    undefined,
+    fetcher,
+  );
+  const absent = await reader.instance(zone, node);
+  const operation = await reader.insertOperation(zone, source.operationName, node);
+  const instance = await reader.instance(zone, node);
+  if (absent.present || !instance.present) throw new Error('Original fixture absence/instance required');
+  return { source, reader, absent, operation, instance };
+}
+
+test('independent operation and VM evidence bind one original numeric incarnation, metadata and interfaces', async () => {
+  const input = await vmJoinFixture();
+  const joined = await joinOriginalGcpVmEvidence(input);
+  expect(joined.instanceId).toBe(input.instance.value.id);
+  expect(joined.instanceId === input.source.targetId).toBe(true);
+  expect(joined.operationId).toBe(input.source.operationId);
+  expect(joined.bootstrapSha256).toBe(input.source.bootstrapSha256);
+  expect(joined.interfaces[0].name).toBe('nic0');
+  expect(joined.interfaces[0].address).toBe('10.1.0.2');
+  expect(joined.cloudEvidenceCorroborated).toBe(true);
+  expect(joined.originalInsertQualified).toBe(false);
+  expect(JSON.stringify(joined)).not.toContain('example-private-bootstrap');
+});
+
+test('numeric replacement, bootstrap mismatch, service accounts and foreign NICs refuse VM correlation', async () => {
+  for (const change of [
+    { id: '18446744073709551612' },
+    {
+      metadata: {
+        items: [
+          { key: 'VmDnsSetting', value: 'ZonePreferred' },
+          { key: 'user-data', value: 'foreign-bootstrap' },
+        ],
+      },
+    },
+    { serviceAccounts: [{ email: 'default' }] },
+    {
+      networkInterfaces: [
+        {
+          name: 'nic0',
+          networkIP: '10.1.0.2',
+          network: 'projects/example-project/global/networks/foreign-network',
+          subnetwork: requestFixture().networkInterfaces[0].subnetwork,
+        },
+      ],
+    },
+  ]) {
+    const input = await vmJoinFixture(change);
+    await expect(joinOriginalGcpVmEvidence(input)).rejects.toThrow();
+  }
+});
+
+test('copied or foreign reader evidence cannot substitute an original operation or VM', async () => {
+  const input = await vmJoinFixture();
+  await expect(joinOriginalGcpVmEvidence({ ...input, instance: { ...input.instance } })).rejects.toThrow();
+  const foreign = await vmJoinFixture();
+  await expect(joinOriginalGcpVmEvidence({ ...input, operation: foreign.operation })).rejects.toThrow();
 });

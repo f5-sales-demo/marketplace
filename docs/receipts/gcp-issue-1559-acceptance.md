@@ -1197,3 +1197,15 @@ stable empty state, two non-submitting resumes and 28 independent group absences
 pass without cloud mutations. Full managed insert/installed capture, observer
 mappings, credential expiry and every remaining live/runtime/delivery gate stay
 open. Source tests and authenticated read capture do not establish CE acceptance.
+
+Attempt 422 adds [reader-owned operation/VM evidence and cleanup recovery](gcp-operation-vm-evidence-20261110.md).
+Original file/scope/credential evidence, numeric incarnation, metadata/labels/NIC
+correlation and a final VM recheck have source-test coverage. Full insert flags
+remain false pending audit, Platform bootstrap ownership and original lifetime.
+The first read capture remains failed after a natural parent-exit race; typed
+cleanup, two read-only resumes and 23 independent group absences passed. The
+corroborated-exit fix passed a fresh read capture, copied-evidence refusal,
+no-change planning, teardown, empty state and 28 independent group absences.
+Shared1,103tests5,047assertions and 41Python provider regressions pass. No managed
+cloud resource changed. Every remaining full live/runtime/delivery gate stays
+open, with original failed flags/locks and immutable historical assets intact.
