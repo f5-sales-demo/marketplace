@@ -519,7 +519,7 @@ def test_coherent_window_prospective_gap_is_explicitly_incomplete(original):
     """A missing prospective sample remains failed, even if another PID runs."""
     monitor, command, _, _ = original
     inspect = monitor.inspect_prospective_stderr
-    events = []
+    events: list[dict[str, object]] = []
 
     def departed(candidate):
         command("replace")
