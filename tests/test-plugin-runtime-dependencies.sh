@@ -151,11 +151,37 @@ printf '{"version":"23.5.1"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/pack
 printf '{"version":"0.124.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
 printf '{"version":"1.4.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
 printf '{"version":"2.21.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
-printf '{"version":"1.4.2"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
+printf '{"version":"1.4.4"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
 if REPO_ROOT="$MISSING_TYPEBOX" bash "$CHECK" >/dev/null 2>&1; then
   fail "a physical installation missing TypeBox must fail"
 else
   pass "a physical installation missing TypeBox fails"
+fi
+
+# Resolve the provider used by the AI runtime, including isolated Bun graphs.
+NESTED_SDK="$WORK/nested-sdk"
+copy_runtime_state "$NESTED_SDK"
+NESTED_MODULES="$NESTED_SDK/plugins/aws/node_modules"
+cp -R "$AWS_NODE_MODULES" "$NESTED_MODULES"
+mkdir -p "$NESTED_MODULES/@sinclair/typebox" "$NESTED_MODULES/@f5-sales-demo/pi-ai/node_modules/@anthropic-ai/sdk"
+printf '{"version":"0.34.52"}\n' >"$NESTED_MODULES/@sinclair/typebox/package.json"
+nested_runtime=$(jq -er '.devDependencies["@f5-sales-demo/xcsh"]' "$NESTED_SDK/plugins/aws/package.json")
+printf '{"version":"%s"}\n' "$nested_runtime" >"$NESTED_MODULES/@f5-sales-demo/xcsh/package.json"
+printf '{"version":"%s"}\n' "$nested_runtime" >"$NESTED_MODULES/@f5-sales-demo/pi-utils/package.json"
+printf '{"version":"%s"}\n' "$nested_runtime" >"$NESTED_MODULES/@f5-sales-demo/pi-ai/package.json"
+printf '{"version":"0.124.0"}\n' >"$NESTED_MODULES/@f5-sales-demo/pi-ai/node_modules/@anthropic-ai/sdk/package.json"
+printf '{"version":"0.125.0"}\n' >"$NESTED_MODULES/@anthropic-ai/sdk/package.json"
+if REPO_ROOT="$NESTED_SDK" bash "$CHECK" >/dev/null 2>&1; then
+  pass "isolated AI provider dependency wins over an unrelated hoisted SDK"
+else
+  fail "isolated AI provider dependencies must resolve in their runtime context"
+fi
+printf '{"version":"0.124.0"}\n' >"$NESTED_MODULES/@anthropic-ai/sdk/package.json"
+printf '{"version":"0.125.0"}\n' >"$NESTED_MODULES/@f5-sales-demo/pi-ai/node_modules/@anthropic-ai/sdk/package.json"
+if REPO_ROOT="$NESTED_SDK" bash "$CHECK" >/dev/null 2>&1; then
+  fail "an obsolete isolated provider must fail even when a matching SDK is hoisted"
+else
+  pass "an obsolete isolated provider cannot hide behind a matching hoisted SDK"
 fi
 
 mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
@@ -212,7 +238,7 @@ printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk
 printf '{"version":"%s"}\n' "$acp_version" >node_modules/@agentclientprotocol/sdk/package.json
 printf '{"version":"%s"}\n' "$google_genai_version" >node_modules/@google/genai/package.json
 printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
-printf '{"version":"1.4.2"}\n' >node_modules/bun-types/package.json
+printf '{"version":"1.4.4"}\n' >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
 if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \

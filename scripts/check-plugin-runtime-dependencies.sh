@@ -18,9 +18,9 @@ EXPECTED_ANTHROPIC="0.124.0"
 EXPECTED_ACP="1.4.0"
 EXPECTED_GOOGLE_GENAI="2.21.0"
 EXPECTED_TYPEBOX_RANGE="^0.34.52"
-EXPECTED_BUN_TYPES_RANGE="^1.4.2"
+EXPECTED_BUN_TYPES_RANGE="^1.4.4"
 EXPECTED_TYPEBOX="0.34.52"
-EXPECTED_BUN_TYPES="1.4.2"
+EXPECTED_BUN_TYPES="1.4.4"
 RUNTIME_PLUGINS=(aws azure gcloud platform github gitlab salesforce)
 STATIC_FAILURES=0
 INSTALLED_FAILURES=0
@@ -65,6 +65,30 @@ require_installed_json_value() {
   if [ "$actual" != "$expected" ]; then
     fail_installed "$label is $actual, expected $expected"
   fi
+}
+
+# Follow the AI runtime dependency graph; Bun may retain provider SDKs in an
+# isolated package graph instead of placing them in the plugin's top-level graph.
+resolve_runtime_package_manifest() {
+  python3 - "$1" "$2" <<'PYRESOLVE'
+import pathlib, sys
+modules = pathlib.Path(sys.argv[1])
+package = sys.argv[2]
+def resolve_manifest(name, start):
+    start = start.resolve()
+    for directory in (start, *start.parents):
+        candidate = directory / "node_modules" / name / "package.json"
+        if candidate.is_file():
+            return candidate
+    return None
+host = modules / "@f5-sales-demo/xcsh"
+ai = resolve_manifest("@f5-sales-demo/pi-ai", host)
+context = ai.parent if ai else modules.parent
+manifest = resolve_manifest(package, context)
+if manifest is None:
+    raise SystemExit(1)
+print(manifest)
+PYRESOLVE
 }
 
 require_lock_version() {
@@ -167,8 +191,11 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
       "$expected_xcsh" "$plugin installed xcsh version"
     require_installed_json_value "$node_modules/@f5-sales-demo/pi-utils/package.json" '.version' \
       "$expected_pi_utils" "$plugin installed pi-utils version"
-    require_installed_json_value "$node_modules/@anthropic-ai/sdk/package.json" '.version' \
-      "$expected_anthropic" "$plugin installed Anthropic SDK version"
+    if installed_anthropic=$(resolve_runtime_package_manifest "$node_modules" "@anthropic-ai/sdk"); then
+      require_installed_json_value "$installed_anthropic" '.version' "$expected_anthropic" "$plugin installed Anthropic SDK version"
+    else
+      fail_installed "$plugin installed Anthropic SDK cannot be resolved from its runtime dependency graph"
+    fi
     require_installed_json_value "$node_modules/@agentclientprotocol/sdk/package.json" '.version' \
       "$expected_acp" "$plugin installed ACP SDK version"
     require_installed_json_value "$node_modules/@google/genai/package.json" '.version' \
