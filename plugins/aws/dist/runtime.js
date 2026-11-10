@@ -2269,6 +2269,9 @@ var init_discovery = __esm(() => {
 // plugins/platform/src/ce/deployment-store.ts
 var init_deployment_store = () => {};
 
+// plugins/platform/src/ce/registration-approval-retirement.ts
+var init_registration_approval_retirement = () => {};
+
 // plugins/platform/src/ce/bgp-evidence.ts
 var init_bgp_evidence = () => {};
 
@@ -3223,6 +3226,7 @@ function requestCePlatformService(bus, signal) {
 var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
 var init_service = __esm(() => {
   init_deployment_store();
+  init_registration_approval_retirement();
   init_runtime();
   init_verified_contract();
 });

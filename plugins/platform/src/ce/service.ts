@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from './deployment-store';
 import type { ExpectedCeInterface } from './interface-evidence';
+import { retireRegistrationApprovalReservations } from './registration-approval-retirement';
 import type { Smsv2KvmImageResolution } from './release-contract';
 import { type CeOwner, type CeResourceMutation, CeRuntime, type SiteBinding } from './runtime';
 import { type AzureRouteServerEbgpMultihopCapability, VerifiedCeContract } from './verified-contract';
@@ -214,6 +215,15 @@ export function createCePlatformService(
           };
           const key = createHash('sha256').update(String(identity.registration)).digest('hex');
           return store.reserve(`registration-approval-${key}.json`, reservation);
+        },
+        async (binding, verifyAbsent, signal) => {
+          await retireRegistrationApprovalReservations(
+            await storage(binding.owner),
+            binding,
+            { tenantOrigin: new URL(credentials.url).origin, contractFingerprint: artifact.fingerprint },
+            verifyAbsent,
+            signal,
+          );
         },
       );
     },

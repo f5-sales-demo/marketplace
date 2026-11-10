@@ -2806,3 +2806,55 @@ test('pinned deletion mapping is isolated from caller mutation and requires a re
   });
   expect(() => mapped.registrationDeletionRequest('__REGISTRATION_ID__')).toThrow();
 });
+
+for (const provider of ['aws', 'azure'] as const)
+  for (const engine of ['native', 'terraform'] as const)
+    test(`public service retires original approval after exact remote deletion (${provider}/${engine})`, async () => {
+      const root = await mkdtemp(join(tmpdir(), 'ce-approval-finalization-'));
+      const scope: SiteBinding = { ...binding, owner: { ...binding.owner, provider, engine } };
+      const instance = provider === 'aws' ? 'i-1234567890abcdef0' : 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+      const observed = initialPendingFixture();
+      const previous = globalThis.fetch;
+      let retiring = false;
+      globalThis.fetch = (async (url, init) => {
+        if (retiring) return new Response('{}', { status: 404 });
+        if (new URL(String(url)).pathname.includes('securemesh_site_v2s'))
+          return json({
+            metadata: {
+              name: scope.siteName,
+              namespace: 'system',
+              labels: { ...labels, 'xcsh-ce-provider': provider, 'xcsh-ce-engine': engine },
+            },
+          });
+        const response = await observed.fetcher(url, init);
+        const encoded = JSON.stringify(await response.json())
+          .replaceAll('i-fixture', instance)
+          .replaceAll('AWS', provider.toUpperCase());
+        return new Response(encoded, { status: response.status, headers: { 'content-type': 'application/json' } });
+      }) as typeof fetch;
+      try {
+        const service = createCePlatformService(
+          {
+            XCSH_API_URL: 'https://tenant.example.test',
+            XCSH_API_TOKEN: 'fixture-token',
+            XCSH_CE_DEPLOYMENTS_DIR: root,
+          },
+          async () => fixture(),
+        );
+        const runtime = await service.runtime(engine);
+        await runtime.approveRegistrations(scope, { 'node-one': instance }, async () => {});
+        const store = await service.storage(scope.owner);
+        const name = `registration-approval-${createHash('sha256').update(pendingRegistrationName).digest('hex')}.json`;
+        expect(await store.read(name)).toHaveProperty('schemaVersion', 1);
+        retiring = true;
+        expect(
+          (await runtime.observeSiteDeletion(scope, { siteUid: 'logical-uid', physicalSiteUid: 'physical-uid' }))
+            .status,
+        ).toBe('deleted');
+        await expect(store.read(name)).rejects.toThrow();
+        expect(observed.posts).toHaveLength(1);
+      } finally {
+        globalThis.fetch = previous;
+        await rm(root, { recursive: true, force: true });
+      }
+    });

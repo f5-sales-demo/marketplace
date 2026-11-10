@@ -115,8 +115,19 @@ class CeDeploymentStore {
       return true;
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      if ((await this.#read(name)).toString() !== bytes) throw new Error('CE request reservation identity differs');
-      return false;
+      const deadline = performance.now() + 1000;
+      const expected = Buffer.from(bytes);
+      for (;;) {
+        const current = await this.#read(name);
+        if (current.equals(expected)) return false;
+        if (
+          current.length > expected.length ||
+          !current.equals(expected.subarray(0, current.length)) ||
+          performance.now() >= deadline
+        )
+          throw new Error('CE request reservation identity differs');
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
     }
   }
   async write(name, value, signal) {
@@ -151,6 +162,103 @@ class CeDeploymentStore {
 }
 var init_deployment_store = () => {};
 
+// plugins/platform/src/ce/registration-approval-retirement.ts
+import { createHash as createHash2 } from 'node:crypto';
+import { lstat as lstat2, readdir, readFile as readFile2 } from 'node:fs/promises';
+import { join as join2 } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+
+async function retireRegistrationApprovalReservations(store, binding, context, verifyAbsent, signal) {
+  signal?.throwIfAborted();
+  await store.verify();
+  if (!isDeepStrictEqual(store.owner, binding.owner)) throw Error('Approval retirement owner differs');
+  const selected = [];
+  for (const name of (await readdir(store.directory)).sort()) {
+    if (!/^registration-approval-[a-f0-9]{64}\.json$/.test(name)) continue;
+    const path = join2(store.directory, name),
+      info = await lstat2(path);
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.nlink !== 1 ||
+      info.uid !== process.getuid?.() ||
+      info.mode & 63 ||
+      info.size > 65536
+    )
+      throw Error('Approval reservation custody differs');
+    const bytes = await readFile2(path),
+      value = object(JSON.parse(bytes.toString())),
+      identity = object(value.identity);
+    if (
+      !keys(value, ['schemaVersion', 'owner', 'tenantOrigin', 'contractFingerprint', 'identity']) ||
+      value.schemaVersion !== 1 ||
+      !isDeepStrictEqual(value.owner, binding.owner) ||
+      value.tenantOrigin !== context.tenantOrigin ||
+      value.contractFingerprint !== context.contractFingerprint
+    )
+      throw Error('Approval reservation owner or context differs');
+    if (identity.siteName !== binding.siteName) continue;
+    const expectedKeys = ['siteName', 'node', 'registration', 'instanceId', 'action', 'initialState', 'passportSha256'];
+    if (identity.initialState === 'PENDING') expectedKeys.push('registrationUid');
+    const instance = identity.instanceId;
+    if (
+      !keys(identity, expectedKeys) ||
+      typeof identity.node !== 'string' ||
+      !binding.nodes.includes(identity.node) ||
+      identity.action !== 'approve-registration' ||
+      typeof identity.initialState !== 'string' ||
+      !['NEW', 'PENDING'].includes(identity.initialState) ||
+      typeof identity.registration !== 'string' ||
+      !/^r-[a-z0-9-]+$/.test(identity.registration) ||
+      name !== `registration-approval-${sha(identity.registration)}.json` ||
+      typeof identity.passportSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(identity.passportSha256) ||
+      typeof instance !== 'string' ||
+      (binding.owner.provider === 'aws'
+        ? !/^i-(?:[a-f0-9]{8}|[a-f0-9]{17})$/.test(instance)
+        : !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(instance)) ||
+      (identity.initialState === 'PENDING' &&
+        (typeof identity.registrationUid !== 'string' ||
+          !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(identity.registrationUid) ||
+          identity.registration !== `r-${identity.registrationUid}`))
+    )
+      throw Error('Approval reservation identity differs');
+    selected.push({ name, registration: identity.registration, bytes, inode: info.ino, device: info.dev });
+  }
+  for (const row of selected) {
+    signal?.throwIfAborted();
+    await verifyAbsent(row.registration);
+  }
+  for (const row of selected) {
+    signal?.throwIfAborted();
+    const path = join2(store.directory, row.name),
+      info = await lstat2(path);
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.nlink !== 1 ||
+      info.uid !== process.getuid?.() ||
+      info.mode & 63 ||
+      info.ino !== row.inode ||
+      info.dev !== row.device ||
+      sha(await readFile2(path)) !== sha(row.bytes)
+    )
+      throw Error('Approval reservation changed before retirement');
+  }
+  for (const row of selected) {
+    signal?.throwIfAborted();
+    await store.remove(row.name);
+  }
+  return { retired: selected.map(({ name, bytes }) => ({ name, sha256: sha(bytes) })) };
+}
+var object = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed approval reservation');
+    return value;
+  },
+  keys = (value, expected) => isDeepStrictEqual(Object.keys(value).sort(), [...expected].sort()),
+  sha = (value) => createHash2('sha256').update(value).digest('hex');
+var init_registration_approval_retirement = () => {};
+
 // plugins/platform/src/ce/bgp-evidence.ts
 import { isIP } from 'node:net';
 
@@ -172,7 +280,7 @@ function parseBgpSessions(response, expected) {
     )
   )
     throw new Error('Invalid expected BGP session identity');
-  const value = object(response);
+  const value = object2(response);
   if (
     value.next_page_token ||
     value.next_token ||
@@ -182,7 +290,7 @@ function parseBgpSessions(response, expected) {
   )
     throw new Error('Partial BGP session evidence');
   const expectedNodes = [...new Set(expected.map((item) => item.node))];
-  const nodes = array(value.ver).map(object);
+  const nodes = array(value.ver).map(object2);
   if (
     nodes.length !== expectedNodes.length ||
     expectedNodes.some((node) => nodes.filter((candidate) => matchesNode(node, candidate.name)).length !== 1)
@@ -190,8 +298,8 @@ function parseBgpSessions(response, expected) {
     throw new Error('BGP session node identity differs');
   const actual = nodes.flatMap((node) =>
     array(node.peer).map((item) => {
-      const peer = object(item);
-      const address = object(object(peer.peer_address).ipv4).addr;
+      const peer = object2(item);
+      const address = object2(object2(peer.peer_address).ipv4).addr;
       if (
         typeof node.name !== 'string' ||
         typeof peer.interface_name !== 'string' ||
@@ -247,7 +355,7 @@ function parseBgpSessions(response, expected) {
     sessions,
   };
 }
-var object = (value) => {
+var object2 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed BGP session evidence');
     return value;
   },
@@ -269,7 +377,7 @@ function parseBgpRoutes(response, expectedNodes) {
     expectedNodes.some((node) => !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(node))
   )
     throw new Error('Invalid expected BGP route node identity');
-  const value = object2(response);
+  const value = object3(response);
   if (
     value.next_page_token ||
     value.next_token ||
@@ -278,7 +386,7 @@ function parseBgpRoutes(response, expectedNodes) {
     (value.errors !== undefined && array2(value.errors).length)
   )
     throw new Error('Partial BGP route evidence');
-  const rows = array2(value.ver).map(object2);
+  const rows = array2(value.ver).map(object3);
   if (
     rows.length !== expectedNodes.length ||
     expectedNodes.some((node) => rows.filter((candidate) => matchesNode2(node, candidate.name)).length !== 1)
@@ -288,16 +396,16 @@ function parseBgpRoutes(response, expectedNodes) {
     const row = rows.find((candidate) => matchesNode2(node, candidate.name));
     if (!row) throw new Error('BGP route node identity differs');
     const routingInstances = array2(row.ri_table).map((entry) => {
-      const instance = object2(entry);
+      const instance = object3(entry);
       if (typeof instance.routing_instance !== 'string' || !instance.routing_instance)
         throw new Error('Malformed BGP routing instance evidence');
       const tables = array2(instance.rt_table).map((entry) => {
-        const table = object2(entry);
+        const table = object3(entry);
         if (typeof table.name !== 'string' || !table.name) throw new Error('Malformed BGP route table evidence');
         const routes = (kind) => {
           const seen = new Set();
           return array2(table[kind]).map((entry) => {
-            const route = object2(entry);
+            const route = object3(entry);
             if (!cidr(route.subnet) || seen.has(route.subnet)) throw new Error('Malformed BGP route prefix evidence');
             seen.add(route.subnet);
             return route.subnet;
@@ -320,7 +428,7 @@ function parseBgpRoutes(response, expectedNodes) {
 function parseBgpRoutePaths(response, expectedNodes) {
   try {
     const inventory = parseBgpRoutes(response, expectedNodes);
-    const rows = array2(object2(response).ver).map(object2);
+    const rows = array2(object3(response).ver).map(object3);
     const text = (value, empty = false) => {
       if (
         typeof value !== 'string' ||
@@ -336,19 +444,19 @@ function parseBgpRoutePaths(response, expectedNodes) {
       const row = rows.find((candidate) => matchesNode2(node, candidate.name));
       if (!row) throw Error('BGP route path node identity differs');
       const routingInstances = array2(row.ri_table).map((value) => {
-        const instance = object2(value);
+        const instance = object3(value);
         return {
           name: instance.routing_instance,
           tables: array2(instance.rt_table).map((value) => {
-            const table = object2(value);
+            const table = object3(value);
             const routes = (kind) =>
               array2(table[kind]).map((value) => {
-                const route = object2(value);
+                const route = object3(value);
                 const rawPaths = array2(route.path);
                 if (!rawPaths.length) throw Error('Incomplete BGP route path evidence');
                 const seen = new Set();
                 const path = rawPaths.map((value) => {
-                  const raw = object2(value);
+                  const raw = object3(value);
                   if (Object.keys(raw).some((key) => !['peer', 'nh', 'as_path', 'local_pref', 'med'].includes(key)))
                     throw Error('Unqualified BGP route path fields');
                   const peer = text(raw.peer);
@@ -384,7 +492,7 @@ function parseBgpRoutePaths(response, expectedNodes) {
     };
   }
 }
-var object2 = (value) => {
+var object3 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed BGP route evidence');
     return value;
   },
@@ -502,12 +610,12 @@ var init_bgp_service_membership = __esm(() => {
 });
 
 // plugins/platform/src/ce/bootstrap.ts
-function object3(value) {
+function object4(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed bootstrap response');
   return value;
 }
 function bindAwsCloudInit(response, jwt) {
-  const material = object3(response).cloud_init_config;
+  const material = object4(response).cloud_init_config;
   if (typeof material !== 'string' || material.length > 1024 * 1024 || !material.startsWith('#cloud-config'))
     throw new Error('Unsupported cloud-init material');
   if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(jwt)) throw new Error('Malformed site-bound JWT');
@@ -515,12 +623,12 @@ function bindAwsCloudInit(response, jwt) {
   if (/\{\{|\}\}/.test(bound)) throw new Error('Unresolved cloud-init placeholder');
   let parsed;
   try {
-    parsed = object3(Bun.YAML.parse(bound));
+    parsed = object4(Bun.YAML.parse(bound));
   } catch {
     throw new Error('Malformed cloud-init material');
   }
   if (!Array.isArray(parsed.write_files)) throw new Error('Cloud-init has no issued user data');
-  const files = parsed.write_files.map(object3);
+  const files = parsed.write_files.map(object4);
   if (files.some((file) => file.path === '/etc/vpm/config.yaml'))
     throw new Error('Cloud-init overwrites certified image configuration');
   const userData = files.filter((file) => file.path === '/etc/vpm/user_data');
@@ -537,50 +645,50 @@ var init_bootstrap = () => {};
 function require2(value) {
   if (!value) throw Error('Component catalog schema or evidence is unqualified');
 }
-function object4(value) {
+function object5(value) {
   require2(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
 function componentCatalogRequest(api, site) {
   require2(/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(site));
-  const document = object4(api),
-    operation = object4(object4(object4(document.paths)[componentCatalogPath]).get);
+  const document = object5(api),
+    operation = object5(object5(object5(document.paths)[componentCatalogPath]).get);
   require2(operation.operationId === 'ves.io.schema.operate.debug.CustomPublicAPI.ListVolterraServices');
   require2(Array.isArray(operation.parameters) && operation.parameters.length === 2);
   for (const name of ['namespace', 'site']) {
-    const rows = operation.parameters.map(object4).filter((v) => v.name === name);
+    const rows = operation.parameters.map(object5).filter((v) => v.name === name);
     require2(
       rows.length === 1 &&
         rows[0].in === 'path' &&
         rows[0].required === true &&
-        object4(rows[0].schema).type === 'string',
+        object5(rows[0].schema).type === 'string',
     );
   }
-  const response = object4(
-    object4(object4(object4(object4(operation.responses)['200']).content)['application/json']).schema,
+  const response = object5(
+    object5(object5(object5(object5(operation.responses)['200']).content)['application/json']).schema,
   );
   require2(response.$ref === '#/components/schemas/debugListServicesResponse');
-  const schemas = object4(object4(document.components).schemas),
-    row = object4(schemas.debugService),
-    responseSchema = object4(schemas.debugListServicesResponse);
+  const schemas = object5(object5(document.components).schemas),
+    row = object5(schemas.debugService),
+    responseSchema = object5(schemas.debugListServicesResponse);
   require2(row.type === 'object' && responseSchema.type === 'object');
-  const properties = object4(row.properties);
+  const properties = object5(row.properties);
   require2(Object.keys(properties).length === 3);
-  for (const key of ['node', 'name', 'value']) require2(object4(properties[key]).type === 'string');
-  const rows = object4(object4(responseSchema.properties).service);
-  require2(rows.type === 'array' && object4(rows.items).$ref === '#/components/schemas/debugService');
+  for (const key of ['node', 'name', 'value']) require2(object5(properties[key]).type === 'string');
+  const rows = object5(object5(responseSchema.properties).service);
+  require2(rows.type === 'array' && object5(rows.items).$ref === '#/components/schemas/debugService');
   return { method: 'GET', path: `/api/operate/namespaces/system/sites/${site}/vpm/debug/global/list-service` };
 }
 function parseComponentCatalog(response, nodes) {
   require2(Array.isArray(nodes) && [1, 3].includes(nodes.length) && new Set(nodes).size === nodes.length);
-  const value = object4(response);
+  const value = object5(response);
   require2(
     Object.keys(value).length === 1 &&
       Array.isArray(value.service) &&
       value.service.length > 0 &&
       value.service.length <= 4096,
   );
-  const rows = value.service.map(object4),
+  const rows = value.service.map(object5),
     seen = new Set();
   for (const row of rows) {
     require2(Object.keys(row).length === 3 && typeof row.node === 'string' && nodes.includes(row.node));
@@ -604,21 +712,21 @@ var componentCatalogPath = '/api/operate/namespaces/{namespace}/sites/{site}/vpm
 function require3(value) {
   if (!value) throw Error('Component status schema or evidence is unqualified');
 }
-function object5(value) {
+function object6(value) {
   require3(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
 function componentStatusRequest(api, site, namespace) {
   require3(safeName.test(site) && safeName.test(namespace));
-  const document = object5(api),
-    operation = object5(object5(object5(document.paths)[componentStatusPath]).get);
+  const document = object6(api),
+    operation = object6(object6(object6(document.paths)[componentStatusPath]).get);
   require3(operation.operationId === 'ves.io.schema.operate.debug.CustomPublicAPI.Status');
-  const response = object5(
-    object5(object5(object5(object5(operation.responses)['200']).content)['application/json']).schema,
+  const response = object6(
+    object6(object6(object6(object6(operation.responses)['200']).content)['application/json']).schema,
   );
   require3(response.$ref === '#/components/schemas/debugStatusResponse');
   require3(Array.isArray(operation.parameters));
-  const parameters = operation.parameters.map(object5);
+  const parameters = operation.parameters.map(object6);
   for (const name of ['namespace', 'site', 'vesnamespace', 'cached']) {
     const matches = parameters.filter((v) => v.name === name);
     require3(matches.length === 1);
@@ -626,18 +734,18 @@ function componentStatusRequest(api, site, namespace) {
     require3(
       p.in === (name === 'cached' ? 'query' : 'path') &&
         p.required === (name !== 'cached') &&
-        object5(p.schema).type === (name === 'cached' ? 'boolean' : 'string'),
+        object6(p.schema).type === (name === 'cached' ? 'boolean' : 'string'),
     );
   }
-  const schemas = object5(object5(document.components).schemas),
-    row = object5(schemas.debugStatus),
-    responseSchema = object5(schemas.debugStatusResponse);
+  const schemas = object6(object6(document.components).schemas),
+    row = object6(schemas.debugStatus),
+    responseSchema = object6(schemas.debugStatusResponse);
   require3(row.type === 'object' && responseSchema.type === 'object');
-  const properties = object5(row.properties);
+  const properties = object6(row.properties);
   require3(Object.keys(properties).length === 4);
-  for (const key of ['node', 'name', 'status', 'message']) require3(object5(properties[key]).type === 'string');
-  const rows = object5(object5(responseSchema.properties).status);
-  require3(rows.type === 'array' && object5(rows.items).$ref === '#/components/schemas/debugStatus');
+  for (const key of ['node', 'name', 'status', 'message']) require3(object6(properties[key]).type === 'string');
+  const rows = object6(object6(responseSchema.properties).status);
+  require3(rows.type === 'array' && object6(rows.items).$ref === '#/components/schemas/debugStatus');
   return {
     method: 'GET',
     path: `/api/operate/namespaces/system/sites/${site}/vpm/debug/global/${namespace}/status?cached=false`,
@@ -656,7 +764,7 @@ function validateExpectedComponentStatus(expected, nodes) {
   );
   const identities = new Set();
   for (const service of expected.services) {
-    const v = object5(service);
+    const v = object6(service);
     require3(
       Object.keys(v).length === 2 &&
         typeof v.node === 'string' &&
@@ -673,11 +781,11 @@ function validateExpectedComponentStatus(expected, nodes) {
   require3(nodes.every((node) => expected.services.some((v) => v.node === node)));
 }
 function parseComponentStatus(response, expected) {
-  const value = object5(response);
+  const value = object6(response);
   require3(
     Object.keys(value).length === 1 && Array.isArray(value.status) && value.status.length === expected.services.length,
   );
-  const rows = value.status.map(object5),
+  const rows = value.status.map(object6),
     seen = new Set();
   for (const row of rows) {
     require3(
@@ -710,13 +818,13 @@ import { isIP as isIP4 } from 'node:net';
 function require4(value) {
   if (!value) throw Error('Forwarding route schema, identity or evidence is unqualified');
 }
-function object6(value) {
+function object7(value) {
   require4(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
 function ref(value) {
-  const v = object6(value);
-  return Array.isArray(v.allOf) && v.allOf.length === 1 ? object6(v.allOf[0]).$ref : v.$ref;
+  const v = object7(value);
+  return Array.isArray(v.allOf) && v.allOf.length === 1 ? object7(v.allOf[0]).$ref : v.$ref;
 }
 function prefix(value) {
   if (typeof value !== 'string') return false;
@@ -727,54 +835,54 @@ function prefix(value) {
 }
 function forwardingRouteRequest(document, site, node, role) {
   require4(name.test(site) && name.test(node) && ['slo', 'sli'].includes(role));
-  const api = object6(document),
-    operation = object6(object6(object6(api.paths)[forwardingRoutePath]).post);
+  const api = object7(document),
+    operation = object7(object7(object7(api.paths)[forwardingRoutePath]).post);
   require4(operation.operationId === 'ves.io.schema.operate.route.CustomPublicAPI.ShowSimplifiedRoutes');
   require4(Array.isArray(operation.parameters) && operation.parameters.length === 2);
   for (const name of ['namespace', 'site']) {
-    const matches = operation.parameters.map(object6).filter((p) => p.name === name);
+    const matches = operation.parameters.map(object7).filter((p) => p.name === name);
     require4(
       matches.length === 1 &&
         matches[0].in === 'path' &&
         matches[0].required === true &&
-        object6(matches[0].schema).type === 'string',
+        object7(matches[0].schema).type === 'string',
     );
   }
   require4(
-    ref(object6(object6(object6(operation.requestBody).content)['application/json']).schema) ===
+    ref(object7(object7(object7(operation.requestBody).content)['application/json']).schema) ===
       '#/components/schemas/routeSimplifiedRouteRequest',
   );
-  const result = object6(object6(object6(object6(operation.responses)['200']).content)['application/json']);
+  const result = object7(object7(object7(object7(operation.responses)['200']).content)['application/json']);
   require4(ref(result.schema) === '#/components/schemas/routeSimplifiedRouteResponse');
-  const schemas = object6(object6(api.components).schemas),
-    request = object6(schemas.routeSimplifiedRouteRequest),
-    properties = object6(request.properties);
+  const schemas = object7(object7(api.components).schemas),
+    request = object7(schemas.routeSimplifiedRouteRequest),
+    properties = object7(request.properties);
   require4(
     request.type === 'object' &&
-      object6(properties.node).type === 'string' &&
-      object6(properties.namespace).type === 'string' &&
-      object6(properties.site).type === 'string' &&
+      object7(properties.node).type === 'string' &&
+      object7(properties.namespace).type === 'string' &&
+      object7(properties.site).type === 'string' &&
       ref(properties[role]) === '#/components/schemas/schemaEmpty' &&
       ref(properties.family) === '#/components/schemas/routeRouteFamily',
   );
   require4(
-    Array.isArray(object6(schemas.routeRouteFamily).enum) && object6(schemas.routeRouteFamily).enum.includes('INET4'),
+    Array.isArray(object7(schemas.routeRouteFamily).enum) && object7(schemas.routeRouteFamily).enum.includes('INET4'),
   );
-  const rows = object6(object6(object6(schemas.routeSimplifiedRouteResponse).properties).ver_routes);
+  const rows = object7(object7(object7(schemas.routeSimplifiedRouteResponse).properties).ver_routes);
   require4(rows.type === 'array' && ref(rows.items) === '#/components/schemas/routeSimplifiedRoutes');
-  const nodeRows = object6(object6(schemas.routeSimplifiedRoutes).properties);
+  const nodeRows = object7(object7(schemas.routeSimplifiedRoutes).properties);
   require4(
-    object6(nodeRows.node).type === 'string' &&
-      object6(nodeRows.route).type === 'array' &&
-      ref(object6(nodeRows.route).items) === '#/components/schemas/routeSimplifiedRouteInfo',
+    object7(nodeRows.node).type === 'string' &&
+      object7(nodeRows.route).type === 'array' &&
+      ref(object7(nodeRows.route).items) === '#/components/schemas/routeSimplifiedRouteInfo',
   );
-  const route = object6(object6(schemas.routeSimplifiedRouteInfo).properties);
+  const route = object7(object7(schemas.routeSimplifiedRouteInfo).properties);
   require4(
-    object6(route.prefix).type === 'string' &&
+    object7(route.prefix).type === 'string' &&
       ref(route.nexthop) === '#/components/schemas/routeSimplifiedNexthopType' &&
       ref(route.ecmp) === '#/components/schemas/routeSimplifiedEcmpNH' &&
-      object6(object6(object6(schemas.routeLocalNH).properties).interface).type === 'string' &&
-      object6(object6(object6(schemas.routeSubnetNH).properties).intf_name).type === 'string',
+      object7(object7(object7(schemas.routeLocalNH).properties).interface).type === 'string' &&
+      object7(object7(object7(schemas.routeSubnetNH).properties).intf_name).type === 'string',
   );
   return {
     method: 'POST',
@@ -826,11 +934,11 @@ function validateExpectedForwardingRoutes(expected, nodes) {
   require4(expected.interfaces.every((v) => expected.routes.some((r) => r.node === v.node && r.role === v.role)));
 }
 function parseForwardingRoutes(response, expected, node, role) {
-  const value = object6(response);
+  const value = object7(response);
   require4(Object.keys(value).length === 1 && Array.isArray(value.ver_routes) && value.ver_routes.length === 1);
-  const entry = object6(value.ver_routes[0]);
+  const entry = object7(value.ver_routes[0]);
   require4(Object.keys(entry).length === 2 && entry.node === node && Array.isArray(entry.route));
-  const rows = entry.route.map(object6),
+  const rows = entry.route.map(object7),
     seen = new Set();
   for (const r of rows) {
     require4(
@@ -857,15 +965,15 @@ function parseForwardingRoutes(response, expected, node, role) {
       const matches = rows.filter((v) => v.prefix === wanted.prefix && v.route_type === wanted.routeType);
       require4(matches.length === 1);
       const r = matches[0],
-        raw = r.ecmp === undefined ? [r.nexthop] : object6(r.ecmp).members;
+        raw = r.ecmp === undefined ? [r.nexthop] : object7(r.ecmp).members;
       require4(Array.isArray(raw) && raw.length > 0 && raw.length <= expected.interfaces.length);
       const used = new Set();
       const interfaces = raw.map((value) => {
-        const hop = object6(value);
+        const hop = object7(value);
         require4(Object.keys(hop).length === 1);
         const kind = Object.keys(hop)[0];
         require4(kind === 'local' || kind === 'subnet');
-        const details = object6(hop[kind]),
+        const details = object7(hop[kind]),
           field = kind === 'local' ? 'interface' : 'intf_name';
         require4(Object.keys(details).length === 1 && label(details[field]));
         const reported = details[field];
@@ -910,20 +1018,20 @@ var init_forwarding_route = __esm(() => {
 import { execFile } from 'node:child_process';
 import { randomUUID as randomUUID2 } from 'node:crypto';
 import {
-  lstat as lstat2,
+  lstat as lstat3,
   mkdir as mkdir2,
-  readFile as readFile2,
+  readFile as readFile3,
   rename as rename2,
   rm as rm2,
   writeFile as writeFile2,
 } from 'node:fs/promises';
-import { basename, dirname, join as join2 } from 'node:path';
+import { basename, dirname, join as join3 } from 'node:path';
 import { promisify } from 'node:util';
 
 async function bootId() {
   const value =
     process.platform === 'linux'
-      ? (await readFile2('/proc/sys/kernel/random/boot_id', 'utf8')).trim()
+      ? (await readFile3('/proc/sys/kernel/random/boot_id', 'utf8')).trim()
       : process.platform === 'darwin'
         ? (await execute('/usr/sbin/sysctl', ['-n', 'kern.bootsessionuuid'])).stdout.trim().toLowerCase()
         : '';
@@ -967,7 +1075,7 @@ async function processStartTicks(pid) {
   }
   if (process.platform !== 'linux') throw new Error('Process identity platform is unsupported');
   try {
-    const value = await readFile2(`/proc/${pid}/stat`, 'utf8');
+    const value = await readFile3(`/proc/${pid}/stat`, 'utf8');
     const end = value.lastIndexOf(') ');
     const fields =
       end < 0
@@ -1008,12 +1116,12 @@ function claim(value) {
   return row;
 }
 async function readClaim(path) {
-  const stat = await lstat2(path);
+  const stat = await lstat3(path);
   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
     throw new Error('Operation lock evidence cannot be reconciled');
   try {
-    const claimPath = join2(path, 'claim.json');
-    const claimStat = await lstat2(claimPath);
+    const claimPath = join3(path, 'claim.json');
+    const claimStat = await lstat3(claimPath);
     if (
       !claimStat.isFile() ||
       claimStat.isSymbolicLink() ||
@@ -1022,7 +1130,7 @@ async function readClaim(path) {
       (claimStat.mode & 63) !== 0
     )
       throw new Error('Operation lock evidence cannot be reconciled');
-    return claim(JSON.parse(await readFile2(claimPath, 'utf8')));
+    return claim(JSON.parse(await readFile3(claimPath, 'utf8')));
   } catch (error) {
     if (error instanceof SyntaxError || error.code === 'ENOENT')
       throw new Error('Operation lock evidence cannot be reconciled');
@@ -1044,9 +1152,9 @@ async function acquireProcessLock(path) {
   };
   const parent = dirname(path);
   for (let attempt = 0; attempt < 4; attempt++) {
-    const candidate = join2(parent, `${basename(path)}.claim-${mine.token}`);
+    const candidate = join3(parent, `${basename(path)}.claim-${mine.token}`);
     await mkdir2(candidate, { mode: 448 });
-    await writeFile2(join2(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
+    await writeFile2(join3(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
     try {
       await rename2(candidate, path);
       return async () => {
@@ -1068,7 +1176,7 @@ async function acquireProcessLock(path) {
     const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
     if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
       throw new Error('Operation lock is held by a live process');
-    const stale = join2(parent, `${basename(path)}.stale-${randomUUID2()}`);
+    const stale = join3(parent, `${basename(path)}.stale-${randomUUID2()}`);
     try {
       await rename2(path, stale);
       await rm2(stale, { recursive: true });
@@ -1086,9 +1194,9 @@ var init_process_lock = __esm(() => {
 });
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
-import { createHash as createHash2 } from 'node:crypto';
+import { createHash as createHash3 } from 'node:crypto';
 import { isIP as isIP5 } from 'node:net';
-import { join as join3 } from 'node:path';
+import { join as join4 } from 'node:path';
 
 function validatePrimarySelections(intent, selections, provider) {
   if (intent.usePrimaryInterfaceAddress === undefined) return false;
@@ -1126,7 +1234,7 @@ function listenerPlacements(intent, placements) {
       }))
     : placements.map((row) => ({ name: row.siteName, insideAddress: row.insideAddress }));
 }
-function object7(value) {
+function object8(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress evidence');
   return value;
 }
@@ -1174,7 +1282,7 @@ function text(value) {
   return value;
 }
 function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint) {
-  const raw = object7(value);
+  const raw = object8(value);
   fields(raw, [
     'schemaVersion',
     'kind',
@@ -1200,7 +1308,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
   )
     throw new Error('Obsolete, forged or foreign ingress plan');
   if (raw.source !== undefined) {
-    const source = object7(raw.source);
+    const source = object8(raw.source);
     fields(source, ['schemaVersion', 'kind', 'sourcePlanSha256', 'sourceArtifactSha256']);
     if (
       owner.provider !== 'azure' ||
@@ -1213,7 +1321,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
     )
       throw new Error('Ingress source binding differs');
   }
-  const material = object7(plan.material);
+  const material = object8(plan.material);
   fields(material, [
     'owner',
     'contractFingerprint',
@@ -1246,15 +1354,15 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
   for (let i = 0; i < plan.material.selections.length; i++) {
     const selected = plan.material.selections[i],
       placement = plan.material.placements[i];
-    fields(object7(selected), [
+    fields(object8(selected), [
       'binding',
       'node',
       'mac',
       ...(selected.insideAddress !== undefined ? ['insideAddress'] : []),
     ]);
-    fields(object7(placement), ['siteName', 'siteUid', 'interface', 'insideAddress']);
+    fields(object8(placement), ['siteName', 'siteUid', 'interface', 'insideAddress']);
     const binding = selected.binding;
-    fields(object7(binding), ['owner', 'siteName', 'nodes']);
+    fields(object8(binding), ['owner', 'siteName', 'nodes']);
     if (
       !same(binding.owner, owner) ||
       !['aws', 'azure'].includes(owner.provider) ||
@@ -1277,7 +1385,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
     text(selected.node);
     text(placement.siteUid);
     const iface = placement.interface;
-    fields(object7(iface), ['node', 'role', 'mac', 'device', 'interfaceName', 'mtu', 'linkUp', 'ipv4']);
+    fields(object8(iface), ['node', 'role', 'mac', 'device', 'interfaceName', 'mtu', 'linkUp', 'ipv4']);
     if (
       iface.node !== selected.node ||
       iface.role !== 'sli' ||
@@ -1290,7 +1398,7 @@ function validateCeIngressHistoricalPlan(value, owner, contract, siteFingerprint
       throw new Error('Ingress historical SLI identity differs');
     text(iface.device);
     text(iface.interfaceName);
-    fields(object7(iface.ipv4), ['address', 'prefixLength']);
+    fields(object8(iface.ipv4), ['address', 'prefixLength']);
     if (
       isIP5(iface.ipv4.address) !== 4 ||
       !Number.isInteger(iface.ipv4.prefixLength) ||
@@ -1347,7 +1455,7 @@ class CeIngressLifecycle {
   async #locked(operation) {
     await this.storage.verify();
     if (this.port.engine !== this.storage.owner.engine) throw new Error('Only the owning engine may mutate ingress');
-    const path = join3(this.storage.directory, '.ingress-lock');
+    const path = join4(this.storage.directory, '.ingress-lock');
     const release = await acquireProcessLock(path);
     try {
       return await operation();
@@ -1520,7 +1628,7 @@ class CeIngressLifecycle {
   }
   async #checkpoint(id) {
     try {
-      return object7(await this.storage.read(`ingress-checkpoint-${id}.json`));
+      return object8(await this.storage.read(`ingress-checkpoint-${id}.json`));
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -1528,15 +1636,15 @@ class CeIngressLifecycle {
   }
   async #originCheckpoint(id) {
     try {
-      return object7(await this.storage.read(`ingress-origin-checkpoint-${id}.json`));
+      return object8(await this.storage.read(`ingress-origin-checkpoint-${id}.json`));
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
     }
   }
   #owned(actual, plan, expectedUid) {
-    const metadata = object7(actual.metadata);
-    const labels = object7(metadata.labels);
+    const metadata = object8(actual.metadata);
+    const labels = object8(metadata.labels);
     if (
       metadata.name !== plan.request.metadata.name ||
       metadata.namespace !== plan.request.metadata.namespace ||
@@ -1548,8 +1656,8 @@ class CeIngressLifecycle {
       throw new Error('Live listener ownership, UID or configuration differs from saved ingress plan');
   }
   #ownedOrigin(actual, plan, expectedUid) {
-    const metadata = object7(actual.metadata);
-    const labels = object7(metadata.labels);
+    const metadata = object8(actual.metadata);
+    const labels = object8(metadata.labels);
     const expected = plan.material.originRequest;
     if (
       metadata.name !== expected.metadata.name ||
@@ -1786,10 +1894,10 @@ class CeIngressLifecycle {
     });
   }
 }
-var hash = (value) => createHash2('sha256').update(canonical(value)).digest('hex'),
+var hash = (value) => createHash3('sha256').update(canonical(value)).digest('hex'),
   same = (a, b) => canonical(a) === canonical(b),
   uid = (value) => {
-    const result = object7(value.system_metadata).uid;
+    const result = object8(value.system_metadata).uid;
     if (typeof result !== 'string' || !result) throw new Error('Ingress resource UID is unavailable');
     return result;
   };
@@ -1799,8 +1907,8 @@ var init_ingress_lifecycle = __esm(() => {
 });
 
 // plugins/platform/src/ce/initial-registration-retirement.ts
-import { createHash as createHash3 } from 'node:crypto';
-import { isDeepStrictEqual } from 'node:util';
+import { createHash as createHash4 } from 'node:crypto';
+import { isDeepStrictEqual as isDeepStrictEqual2 } from 'node:util';
 
 function validateInitialRegistrationRetirement(binding, value) {
   if (
@@ -1817,7 +1925,7 @@ function validateInitialRegistrationRetirement(binding, value) {
     throw new Error('Initial registration retirement identity differs');
 }
 function initialRegistrationLocators(response, binding, instances) {
-  const collection = object8(response);
+  const collection = object9(response);
   if (
     !Array.isArray(collection.items) ||
     collection.items.length > 1 ||
@@ -1830,13 +1938,13 @@ function initialRegistrationLocators(response, binding, instances) {
   )
     throw new Error('Initial registration list or original cloud binding is incomplete');
   return collection.items.map((value) => {
-    const item = object8(value),
-      spec = object8(item.get_spec),
-      infra = object8(spec.infra);
-    const passport = object8(spec.passport),
-      registered = object8(item.object);
-    const system = object8(registered.system_metadata),
-      status = object8(registered.status);
+    const item = object9(value),
+      spec = object9(item.get_spec),
+      infra = object9(spec.infra);
+    const passport = object9(spec.passport),
+      registered = object9(item.object);
+    const system = object9(registered.system_metadata),
+      status = object9(registered.status);
     const uid = system.uid;
     if (
       typeof uid !== 'string' ||
@@ -1859,14 +1967,14 @@ function initialRegistrationLocators(response, binding, instances) {
   });
 }
 function parseInitialRegistrationRetirement(response, binding, locator) {
-  const envelope = object8(response),
-    registered = object8(envelope.object);
-  const metadata = object8(registered.metadata),
-    system = object8(registered.system_metadata);
-  const status = object8(registered.status),
-    specification = object8(object8(registered.spec).gc_spec);
-  const passport = object8(specification.passport),
-    infra = object8(specification.infra);
+  const envelope = object9(response),
+    registered = object9(envelope.object);
+  const metadata = object9(registered.metadata),
+    system = object9(registered.system_metadata);
+  const status = object9(registered.status),
+    specification = object9(object9(registered.spec).gc_spec);
+  const passport = object9(specification.passport),
+    infra = object9(specification.infra);
   if (
     metadata.name !== locator.name ||
     metadata.namespace !== 'system' ||
@@ -1887,25 +1995,25 @@ function parseInitialRegistrationRetirement(response, binding, locator) {
     ['system_metadata', { uid: locator.uid }],
   ]) {
     if (envelope[key] !== undefined && envelope[key] !== null) {
-      const alias = object8(envelope[key]);
+      const alias = object9(envelope[key]);
       for (const [field, value] of Object.entries(expected))
         if (alias[field] !== undefined && alias[field] !== '' && alias[field] !== value)
           throw new Error('Conflicting initial registration identity aliases');
     }
   }
   if (envelope.spec !== undefined && envelope.spec !== null) {
-    const alias = object8(envelope.spec);
+    const alias = object9(envelope.spec);
     if (
-      (alias.passport !== undefined && !isDeepStrictEqual(alias.passport, passport)) ||
-      (alias.infra !== undefined && !isDeepStrictEqual(alias.infra, infra))
+      (alias.passport !== undefined && !isDeepStrictEqual2(alias.passport, passport)) ||
+      (alias.infra !== undefined && !isDeepStrictEqual2(alias.infra, infra))
     )
       throw new Error('Conflicting initial registration passport or infra aliases');
   }
-  const result = { ...locator, passportSha256: createHash3('sha256').update(JSON.stringify(passport)).digest('hex') };
+  const result = { ...locator, passportSha256: createHash4('sha256').update(JSON.stringify(passport)).digest('hex') };
   validateInitialRegistrationRetirement(binding, result);
   return result;
 }
-var object8 = (value) => {
+var object9 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed initial registration retirement evidence');
     return value;
@@ -1937,7 +2045,7 @@ import { isIP as isIP6 } from 'node:net';
 function observedIpv4(link) {
   if (link.active_state !== 'STATE_ACTIVE') return null;
   try {
-    const ipv4 = object9(object9(link.ip).ipv4);
+    const ipv4 = object10(object10(link.ip).ipv4);
     if (
       typeof ipv4.prefix !== 'string' ||
       isIP6(ipv4.prefix) !== 4 ||
@@ -1952,9 +2060,9 @@ function observedIpv4(link) {
   }
 }
 function correlateCeInterfaces(configuration, objects, physical, expected, provider = 'aws') {
-  const metadata = object9(configuration.metadata);
-  const uid = identity(object9(configuration.system_metadata).uid);
-  const statusMetadata = object9(physical.metadata);
+  const metadata = object10(configuration.metadata);
+  const uid = identity(object10(configuration.system_metadata).uid);
+  const statusMetadata = object10(physical.metadata);
   if (statusMetadata.name !== metadata.name || metadata.namespace !== 'system' || statusMetadata.namespace !== 'system')
     throw new Error('Foreign physical site evidence');
   if (
@@ -1965,15 +2073,15 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
     (objects.errors !== undefined && array3(objects.errors).length)
   )
     throw new Error('Partial interface discovery');
-  const realized = array3(objects.items).map(object9);
-  const configured = array3(object9(object9(object9(configuration.spec)[provider]).not_managed).node_list).flatMap(
+  const realized = array3(objects.items).map(object10);
+  const configured = array3(object10(object10(object10(configuration.spec)[provider]).not_managed).node_list).flatMap(
     (item) => {
-      const node = object9(item);
+      const node = object10(item);
       const hostname = identity(node.hostname);
       return array3(node.interface_list).map((item) => {
-        const iface = object9(item);
-        const ethernet = object9(iface.ethernet_interface);
-        const network = object9(iface.network_option);
+        const iface = object10(item);
+        const ethernet = object10(iface.ethernet_interface);
+        const network = object10(iface.network_option);
         const slo = Object.hasOwn(network, 'site_local_network');
         const sli = Object.hasOwn(network, 'site_local_inside_network');
         if (
@@ -1992,7 +2100,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
       });
     },
   );
-  const statuses = array3(physical.status).map(object9);
+  const statuses = array3(physical.status).map(object10);
   const seen = new Set();
   if (!expected.length) throw new Error('Expected interface bindings required');
   return expected.map((binding) => {
@@ -2008,7 +2116,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
     const { outside: _outside, ...configuredInterface } = candidates[0];
     const iface = { ...configuredInterface, role: binding.role };
     const matches = realized.filter((item) => {
-      const owner = object9(item.owner_view ?? {});
+      const owner = object10(item.owner_view ?? {});
       if (
         owner.kind !== 'securemesh_site_v2' ||
         owner.name !== metadata.name ||
@@ -2016,7 +2124,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
         owner.uid !== uid
       )
         return false;
-      const ethernet = object9(object9(item.get_spec).ethernet_interface);
+      const ethernet = object10(object10(item.get_spec).ethernet_interface);
       if (ethernet.node !== iface.node || ethernet.device !== iface.device) return false;
       const slo = Object.hasOwn(ethernet, 'site_local_network');
       const sli = Object.hasOwn(ethernet, 'site_local_inside_network');
@@ -2027,25 +2135,25 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
     if (matches.length !== 1) throw new Error('Ambiguous realized interface identity');
     const publications = statuses.filter((item) => {
       if (item.ver_status === undefined || item.ver_status === null) return false;
-      const publisher = object9(item.metadata);
+      const publisher = object10(item.metadata);
       return (
         publisher.creator_class === 'ver' &&
         publisher.publish === 'STATUS_PUBLISH' &&
         publisher.vtrp_stale === false &&
         (matchesNode3(iface.node, publisher.creator_id) || publisher.creator_id === metadata.name) &&
         publisher.status_id === `${iface.node}_SiteStatusMgr` &&
-        object9(item.ver_status).ver_instance_name === `${iface.node}-${metadata.name}` &&
-        typeof object9(physical.system_metadata ?? {}).uid === 'string' &&
-        object9(physical.system_metadata).uid !== '' &&
+        object10(item.ver_status).ver_instance_name === `${iface.node}-${metadata.name}` &&
+        typeof object10(physical.system_metadata ?? {}).uid === 'string' &&
+        object10(physical.system_metadata).uid !== '' &&
         array3(item.object_refs).filter((ref) => {
-          const value = object9(ref);
-          return value.kind === 'ves.io.vega.cfg.site.Object' && value.uid === object9(physical.system_metadata).uid;
+          const value = object10(ref);
+          return value.kind === 'ves.io.vega.cfg.site.Object' && value.uid === object10(physical.system_metadata).uid;
         }).length === 1
       );
     });
     if (publications.length !== 1) throw new Error('Physical interface publication is missing, stale or duplicated');
-    const links = array3(object9(publications[0].ver_status).intf_status)
-      .map(object9)
+    const links = array3(object10(publications[0].ver_status).intf_status)
+      .map(object10)
       .filter((item) => item.name === iface.device);
     if (
       links.length !== 1 ||
@@ -2064,7 +2172,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
     };
   });
 }
-var object9 = (value) => {
+var object10 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed interface evidence');
     return value;
   },
@@ -2089,14 +2197,14 @@ var init_interface_evidence = () => {};
 // plugins/platform/src/ce/wire-schema.ts
 import { isIP as isIP7 } from 'node:net';
 
-function object10(value) {
+function object11(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SMSv2 schema is malformed');
   return value;
 }
 function vendorIntegerRanges(source) {
   const key = 'ves.io.schema.rules.uint32.ranges';
   const annotations = ['x-ves-validation-rules', 'x-validation-rules']
-    .map((name) => (source[name] === undefined ? undefined : object10(source[name])[key]))
+    .map((name) => (source[name] === undefined ? undefined : object11(source[name])[key]))
     .filter((value) => value !== undefined);
   if (!annotations.length) return;
   if (source.type !== 'integer' || annotations.some((value) => typeof value !== 'string'))
@@ -2128,14 +2236,14 @@ function requestSchema(schemas, root) {
   const referenced = new Set();
   function convert(value) {
     if (typeof value === 'boolean') return value;
-    const source = object10(value);
+    const source = object11(value);
     if (source.readOnly === true) return false;
     const result = {};
     for (const [key, item] of Object.entries(source)) {
       if (keywords.has(key)) result[key] = item;
       if (key === 'required' && Array.isArray(item))
         result.required = item.map((name) => {
-          const property = object10(source.properties ?? {})[String(name)];
+          const property = object11(source.properties ?? {})[String(name)];
           return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
         });
       if (key === '$ref') {
@@ -2148,8 +2256,8 @@ function requestSchema(schemas, root) {
       }
       if (key === 'properties') {
         result.properties = Object.fromEntries(
-          Object.entries(object10(item)).map(([name, schema]) => {
-            const wireName = object10(schema)['x-f5xc-wire-name'];
+          Object.entries(object11(item)).map(([name, schema]) => {
+            const wireName = object11(schema)['x-f5xc-wire-name'];
             return [typeof wireName === 'string' ? wireName : name, convert(schema)];
           }),
         );
@@ -2181,7 +2289,7 @@ function requestSchema(schemas, root) {
       if (!Array.isArray(names) || names.some((name) => typeof name !== 'string'))
         throw new Error('Malformed SMSv2 oneof group');
       const wireNames = names.map((name) => {
-        const property = object10(source.properties ?? {})[String(name)];
+        const property = object11(source.properties ?? {})[String(name)];
         return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
       });
       for (let i = 0; i < wireNames.length; i++)
@@ -2204,10 +2312,10 @@ function createWireValidator(
   const schema = requestSchema(schemas, root);
   if (observedInterfaceIdentityEcho) {
     if (root !== 'securemesh_site_v2ReplaceRequest') throw new Error('Identity echo requires a replacement snapshot');
-    const properties = object10(object10(schemas.securemesh_site_v2Interface).properties);
-    const projected = object10(object10(object10(schema.definitions).securemesh_site_v2Interface).properties);
+    const properties = object11(object11(schemas.securemesh_site_v2Interface).properties);
+    const projected = object11(object11(object11(schema.definitions).securemesh_site_v2Interface).properties);
     for (const field of ['is_primary', 'is_management']) {
-      const source = object10(properties[field]);
+      const source = object11(properties[field]);
       if (source.readOnly !== true || source.type !== 'boolean') throw new Error('Interface identity schema changed');
       projected[field] = { type: 'boolean' };
     }
@@ -2276,7 +2384,7 @@ function firstFailure(schemaValue, value, document) {
   if (typeof schemaValue.$ref === 'string') {
     const prefix = '#/definitions/';
     if (!schemaValue.$ref.startsWith(prefix)) return '$ref';
-    const definition = object10(document.definitions)[schemaValue.$ref.slice(prefix.length)];
+    const definition = object11(document.definitions)[schemaValue.$ref.slice(prefix.length)];
     if (definition === undefined) return '$ref';
     const failure = firstFailure(definition, value, document);
     if (failure) return failure;
@@ -2342,7 +2450,7 @@ function firstFailure(schemaValue, value, document) {
       return 'minProperties';
     if (typeof schemaValue.maxProperties === 'number' && entries.length > schemaValue.maxProperties)
       return 'maxProperties';
-    const properties = schemaValue.properties ? object10(schemaValue.properties) : undefined;
+    const properties = schemaValue.properties ? object11(schemaValue.properties) : undefined;
     for (const [key, item] of entries) {
       const propertySchema = properties?.[key];
       if (propertySchema !== undefined) {
@@ -2404,7 +2512,7 @@ function nodeHealthSchemaClosure(schemas) {
 function require5(value) {
   if (!value) throw Error('Node health schema, identity or evidence is unqualified');
 }
-function object11(value) {
+function object12(value) {
   require5(value && typeof value === 'object' && !Array.isArray(value));
   return value;
 }
@@ -2412,7 +2520,7 @@ function parseNodeHealthJson(raw) {
   require5(typeof raw === 'string' && raw.length > 0 && raw.length <= 131072);
   let parsed;
   try {
-    parsed = object11(JSON.parse(raw));
+    parsed = object12(JSON.parse(raw));
   } catch {
     throw Error('Node health JSON is malformed or ambiguous');
   }
@@ -2489,51 +2597,51 @@ function responseSchemas(value) {
 }
 function nodeHealthRequest(document, site, node) {
   require5(name2(site) && name2(node));
-  const api = object11(document),
-    operation = object11(object11(object11(api.paths)[nodeHealthPath]).post);
+  const api = object12(document),
+    operation = object12(object12(object12(api.paths)[nodeHealthPath]).post);
   require5(operation.operationId === 'ves.io.schema.operate.debug.CustomPublicAPI.ExecUser');
-  require5(object11(operation.requestBody).required === true);
+  require5(object12(operation.requestBody).required === true);
   require5(Array.isArray(operation.parameters) && operation.parameters.length === 3);
   for (const key of ['namespace', 'site', 'node']) {
-    const rows = operation.parameters.map(object11).filter((v) => v.name === key);
+    const rows = operation.parameters.map(object12).filter((v) => v.name === key);
     require5(
       rows.length === 1 &&
         rows[0].in === 'path' &&
         rows[0].required === true &&
-        object11(rows[0].schema).type === 'string',
+        object12(rows[0].schema).type === 'string',
     );
   }
   require5(
-    object11(object11(object11(object11(operation.requestBody).content)['application/json']).schema).$ref ===
+    object12(object12(object12(object12(operation.requestBody).content)['application/json']).schema).$ref ===
       '#/components/schemas/debugExecRequest',
   );
   require5(
-    object11(object11(object11(object11(object11(operation.responses)['200']).content)['application/json']).schema)
+    object12(object12(object12(object12(object12(operation.responses)['200']).content)['application/json']).schema)
       .$ref === '#/components/schemas/debugExecResponse',
   );
-  const schemas = object11(object11(api.components).schemas),
-    request = object11(schemas.debugExecRequest),
-    response = object11(schemas.debugExecResponse),
-    health = object11(schemas.debugHealthResponse);
+  const schemas = object12(object12(api.components).schemas),
+    request = object12(schemas.debugExecRequest),
+    response = object12(schemas.debugExecResponse),
+    health = object12(schemas.debugHealthResponse);
   require5(request.type === 'object' && response.type === 'object' && health.type === 'object');
-  const command = object11(object11(request.properties).command),
-    returned = object11(response.properties);
+  const command = object12(object12(request.properties).command),
+    returned = object12(response.properties);
   require5(
     command.type === 'array' &&
-      object11(command.items).type === 'string' &&
-      object11(returned.output).type === 'string' &&
-      object11(returned.return_code).type === 'integer',
+      object12(command.items).type === 'string' &&
+      object12(returned.output).type === 'string' &&
+      object12(returned.return_code).type === 'integer',
   );
-  const properties = object11(health.properties);
-  require5(object11(properties.hostname).type === 'string' && object11(properties.fqdn).type === 'string');
-  const state = object11(properties.state),
-    roles = object11(properties.roles),
-    stateSchema = object11(schemas.debugVpmState);
+  const properties = object12(health.properties);
+  require5(object12(properties.hostname).type === 'string' && object12(properties.fqdn).type === 'string');
+  const state = object12(properties.state),
+    roles = object12(properties.roles),
+    stateSchema = object12(schemas.debugVpmState);
   require5(
     !Object.hasOwn(state, 'type') &&
       Array.isArray(state.allOf) &&
       state.allOf.length === 1 &&
-      object11(state.allOf[0]).$ref === '#/components/schemas/debugVpmState' &&
+      object12(state.allOf[0]).$ref === '#/components/schemas/debugVpmState' &&
       stateSchema.type === 'string' &&
       Array.isArray(stateSchema.enum) &&
       JSON.stringify(stateSchema.enum) ===
@@ -2546,11 +2654,11 @@ function nodeHealthRequest(document, site, node) {
           'RESETTING',
         ]) &&
       roles.type === 'array' &&
-      object11(roles.items).type === 'string' &&
-      ['software_version', 'os_version', 'version'].every((key) => object11(properties[key]).type === 'string'),
+      object12(roles.items).type === 'string' &&
+      ['software_version', 'os_version', 'version'].every((key) => object12(properties[key]).type === 'string'),
   );
-  createWireValidator(object11(responseSchemas(schemas)), 'debugExecResponse');
-  createWireValidator(object11(responseSchemas(schemas)), 'debugHealthResponse');
+  createWireValidator(object12(responseSchemas(schemas)), 'debugExecResponse');
+  createWireValidator(object12(responseSchemas(schemas)), 'debugHealthResponse');
   const body = { command: ['health'] };
   createWireValidator(schemas, 'debugExecRequest')(body);
   return {
@@ -2568,7 +2676,7 @@ function validateExpectedNodeHealthIdentity(expected, nodes) {
       [1, 3].includes(nodes.length) &&
       new Set(nodes).size === nodes.length,
   );
-  const instances = object11(expected.instances);
+  const instances = object12(expected.instances);
   require5(
     Object.keys(instances).length === nodes.length &&
       nodes.every((node) => text2(instances[node])) &&
@@ -2586,8 +2694,8 @@ function validateExpectedNodeHealth(expected, nodes) {
 }
 function parseNodeHealthBindingResponse(document, value, expected, nodes) {
   validateExpectedNodeHealthIdentity(expected, nodes);
-  const schemas = object11(responseSchemas(object11(object11(object11(document).components).schemas))),
-    response = object11(value);
+  const schemas = object12(responseSchemas(object12(object12(object12(document).components).schemas))),
+    response = object12(value);
   createWireValidator(schemas, 'debugExecResponse')(response);
   require5(response.return_code === 0 && typeof response.output === 'string' && response.output.length <= 65536);
   const health = parseNodeHealthJson(response.output);
@@ -2599,8 +2707,8 @@ function parseNodeHealthBindingResponse(document, value, expected, nodes) {
   return binding;
 }
 function parseNodeHealthResponse(document, value, expected) {
-  const schemas = object11(responseSchemas(object11(object11(object11(document).components).schemas))),
-    response = object11(value);
+  const schemas = object12(responseSchemas(object12(object12(object12(document).components).schemas))),
+    response = object12(value);
   createWireValidator(schemas, 'debugExecResponse')(response);
   require5(response.return_code === 0 && typeof response.output === 'string' && response.output.length <= 65536);
   const health = parseNodeHealthJson(response.output);
@@ -2669,9 +2777,9 @@ async function readCeObservation(signal, read) {
 }
 
 // plugins/platform/src/ce/origin-teardown.ts
-import { createHash as createHash4 } from 'node:crypto';
+import { createHash as createHash5 } from 'node:crypto';
 
-function object12(value) {
+function object13(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed origin evidence');
   return value;
 }
@@ -2719,15 +2827,15 @@ class CeOriginTeardown {
   async #read(source, signal) {
     signal?.throwIfAborted();
     try {
-      return object12(await this.port.request(source, {}, signal));
+      return object13(await this.port.request(source, {}, signal));
     } catch (error) {
       if (error instanceof CeApiError && error.category === 'not-found') return;
       throw error;
     }
   }
   #identity(value, owner, origin) {
-    const metadata = object12(value.metadata),
-      labels = object12(metadata.labels);
+    const metadata = object13(value.metadata),
+      labels = object13(metadata.labels);
     const expected = {
       'xcsh-ce-deployment': owner.deploymentId,
       'xcsh-ce-engine': owner.engine,
@@ -2738,13 +2846,13 @@ class CeOriginTeardown {
     if (
       metadata.name !== origin.name ||
       metadata.namespace !== origin.namespace ||
-      object12(value.system_metadata).uid !== origin.uid ||
+      object13(value.system_metadata).uid !== origin.uid ||
       Object.entries(expected).some(([key, item]) => labels[key] !== item)
     )
       throw new Error('Live origin UID or ownership differs');
     if (typeof value.resource_version !== 'string' || !value.resource_version)
       throw new Error('Origin resource version is unavailable');
-    return { resourceVersion: value.resource_version, specSha256: digest(object12(value.spec)) };
+    return { resourceVersion: value.resource_version, specSha256: digest(object13(value.spec)) };
   }
   async observe(owner, origin, signal) {
     owner = structuredClone(owner);
@@ -2812,13 +2920,13 @@ class CeOriginTeardown {
     };
   }
 }
-var digest = (value) => createHash4('sha256').update(canonical2(value)).digest('hex');
+var digest = (value) => createHash5('sha256').update(canonical2(value)).digest('hex');
 var init_origin_teardown = __esm(() => {
   init_runtime();
 });
 
 // plugins/platform/src/ce/platform-drain.ts
-import { createHash as createHash5 } from 'node:crypto';
+import { createHash as createHash6 } from 'node:crypto';
 
 function canonical3(value) {
   if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
@@ -2980,7 +3088,7 @@ async function drainCePlatform(input, store, port, signal) {
   await store.write('platform-drain-receipt.json', receipt);
   return receipt;
 }
-var hash2 = (value) => createHash5('sha256').update(canonical3(value)).digest('hex'),
+var hash2 = (value) => createHash6('sha256').update(canonical3(value)).digest('hex'),
   name3 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value),
   text3 = (value) => typeof value === 'string' && !!value.trim(),
   list = (value, maximum) => Array.isArray(value) && value.length <= maximum;
@@ -3005,28 +3113,28 @@ function correlateRegistrationDevices(response, siteName, instances, expected, p
     nodes.some((node) => !expected.some((i) => i.node === node))
   )
     throw new Error('Incomplete expected node inventory');
-  const items = array4(response.items).map(object13);
+  const items = array4(response.items).map(object14);
   const inventory = new Map();
   for (const node of nodes) {
     const matches = items.filter((item) => {
-      const spec = object13(item.get_spec);
-      return object13(spec.passport).cluster_name === siteName && object13(spec.infra).hostname === node;
+      const spec = object14(item.get_spec);
+      return object14(spec.passport).cluster_name === siteName && object14(spec.infra).hostname === node;
     });
     if (matches.length !== 1) throw new Error('Ambiguous registration inventory');
     const registration = matches[0];
-    const spec = object13(registration.get_spec);
-    const infra = object13(spec.infra);
-    const state = object13(object13(registration.object).status).current_state;
+    const spec = object14(registration.get_spec);
+    const infra = object14(spec.infra);
+    const state = object14(object14(registration.object).status).current_state;
     if (
       !(provider === 'aws'
         ? /^i-[0-9a-f]{8,17}$/.test(instances[node])
         : /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(instances[node])) ||
       infra.instance_id !== instances[node] ||
-      object13(spec.passport).cluster_size !== nodes.length ||
+      object14(spec.passport).cluster_size !== nodes.length ||
       !['ADMITTED', 'ONLINE'].includes(String(state))
     )
       throw new Error('Registration instance binding is unavailable');
-    inventory.set(node, array4(object13(infra.hw_info).network).map(object13));
+    inventory.set(node, array4(object14(infra.hw_info).network).map(object14));
   }
   const seenMacs = new Set();
   const seenRoles = new Set();
@@ -3057,23 +3165,23 @@ function correlateRegistrationDevices(response, siteName, instances, expected, p
   });
 }
 function verifyRegisteredInterfaceConfiguration(spec, devices, provider = 'aws') {
-  const nodes = array4(object13(object13(spec[provider]).not_managed).node_list).map(object13);
+  const nodes = array4(object14(object14(spec[provider]).not_managed).node_list).map(object14);
   const expectedNodes = new Set(devices.map((item) => item.node));
   if (!devices.length || nodes.length !== expectedNodes.size) throw new Error('Configured node count differs');
   for (const nodeName of expectedNodes) {
     const matches = nodes.filter((node) => node.hostname === nodeName);
     if (matches.length !== 1) throw new Error('Configured node identity differs');
-    const interfaces = array4(matches[0].interface_list).map(object13);
+    const interfaces = array4(matches[0].interface_list).map(object14);
     const expected = devices.filter((item) => item.node === nodeName);
     if (interfaces.length !== expected.length) throw new Error('Configured interface count differs');
     for (const device of expected) {
-      const matches = interfaces.filter((item) => mac2(object13(item.ethernet_interface).mac) === device.mac);
+      const matches = interfaces.filter((item) => mac2(object14(item.ethernet_interface).mac) === device.mac);
       if (matches.length !== 1) throw new Error('Configured interface MAC differs');
       const item = matches[0];
-      const network = object13(item.network_option);
+      const network = object14(item.network_option);
       const choice = device.role === 'slo' ? 'site_local_network' : 'site_local_inside_network';
       if (
-        object13(item.ethernet_interface).device !== device.device ||
+        object14(item.ethernet_interface).device !== device.device ||
         Object.keys(network).length !== 1 ||
         !Object.hasOwn(network, choice) ||
         Object.hasOwn(item, 'dhcp_server') ||
@@ -3083,14 +3191,14 @@ function verifyRegisteredInterfaceConfiguration(spec, devices, provider = 'aws')
             !device.staticIp.ip_address ||
             Object.hasOwn(item, 'dhcp_client') ||
             !Object.hasOwn(item, 'static_ip') ||
-            Object.entries(device.staticIp).some(([key, value]) => object13(item.static_ip)[key] !== value)
+            Object.entries(device.staticIp).some(([key, value]) => object14(item.static_ip)[key] !== value)
           : !Object.hasOwn(item, 'dhcp_client') || Object.hasOwn(item, 'static_ip'))
       )
         throw new Error('Configured guest device, role or addressing differs');
     }
   }
 }
-var object13 = (value) => {
+var object14 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Malformed registration inventory');
     return value;
@@ -3110,10 +3218,10 @@ function registrationInstanceBindings(response, siteName, nodes, cloudIds) {
   if (!Array.isArray(response.items)) throw new Error('Missing registration observation');
   const result = {};
   for (const value of response.items) {
-    const spec = object14(object14(value).get_spec);
-    const infra = object14(spec.infra);
+    const spec = object15(object15(value).get_spec);
+    const infra = object15(spec.infra);
     if (
-      object14(spec.passport).cluster_name !== siteName ||
+      object15(spec.passport).cluster_name !== siteName ||
       !nodes.includes(String(infra.hostname)) ||
       !cloudIds.includes(String(infra.instance_id))
     )
@@ -3134,21 +3242,21 @@ function parseRegistrationObservation(response, siteName, nodes, clusterSize, ex
   )
     return { status: 'unknown', reason: 'registration-list-incomplete' };
   const observations = nodes.map((node) => {
-    const matches = response.items.map(object14).filter((item) => {
-      const spec = object14(item.get_spec);
-      const state = object14(object14(item.object).status).current_state;
+    const matches = response.items.map(object15).filter((item) => {
+      const spec = object15(item.get_spec);
+      const state = object15(object15(item.object).status).current_state;
       return (
-        object14(spec.passport).cluster_name === siteName &&
-        object14(spec.infra).hostname === node &&
+        object15(spec.passport).cluster_name === siteName &&
+        object15(spec.infra).hostname === node &&
         !['RETIRED', 'FAILED', 'DONE', 'FAILED_INACTIVE'].includes(String(state))
       );
     });
     if (matches.length !== 1)
       return { node, status: 'unknown', reason: matches.length ? 'ambiguous-registration' : 'registration-not-found' };
     const item = matches[0],
-      spec = object14(item.get_spec),
-      infra = object14(spec.infra);
-    const state = object14(object14(item.object).status).current_state;
+      spec = object15(item.get_spec),
+      infra = object15(spec.infra);
+    const state = object15(object15(item.object).status).current_state;
     if (
       !expectedInstances[node] ||
       infra.instance_id !== expectedInstances[node] ||
@@ -3156,13 +3264,13 @@ function parseRegistrationObservation(response, siteName, nodes, clusterSize, ex
       !/^r-[a-z0-9-]+$/.test(item.name) ||
       typeof state !== 'string' ||
       !['NOTSET', 'NEW', 'APPROVED', 'ADMITTED', 'PENDING', 'ONLINE', 'UPGRADING', 'MAINTENANCE'].includes(state) ||
-      (state !== 'NEW' && object14(spec.passport).cluster_size !== clusterSize)
+      (state !== 'NEW' && object15(spec.passport).cluster_size !== clusterSize)
     )
       return { node, status: 'unknown', reason: 'registration-resource-binding-incomplete' };
     return {
       node,
       registration: item.name,
-      registrationUid: object14(object14(item.object).system_metadata ?? {}).uid,
+      registrationUid: object15(object15(item.object).system_metadata ?? {}).uid,
       instanceId: infra.instance_id,
       state,
       status: state === 'ONLINE' ? 'healthy' : 'degraded',
@@ -3177,7 +3285,7 @@ function parseRegistrationObservation(response, siteName, nodes, clusterSize, ex
         : 'degraded',
   };
 }
-var object14 = (value) => {
+var object15 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed registration observation');
   return value;
@@ -3260,10 +3368,10 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
   const read = async (path) => {
     signal?.throwIfAborted();
     sources.push(path);
-    return object15(await port.request(path, {}, signal));
+    return object16(await port.request(path, {}, signal));
   };
   const owned = (actual) => {
-    const row = object15(actual);
+    const row = object16(actual);
     if (Object.entries(labels).some(([key, value]) => row[key] !== value))
       throw new Error('Inventory ownership differs');
     return row;
@@ -3272,18 +3380,18 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
     const value = await read(
       `/api/config/namespaces/system/${physical ? 'sites' : 'securemesh_site_v2s'}/${binding.siteName}`,
     );
-    const metadata = object15(value.metadata),
-      uid = object15(value.system_metadata).uid;
+    const metadata = object16(value.metadata),
+      uid = object16(value.system_metadata).uid;
     owned(metadata.labels);
     if (metadata.name !== binding.siteName || metadata.namespace !== 'system' || !text4(uid))
       throw new Error('Site inventory identity differs');
     if (physical) {
-      const observed = object15(value.spec).main_nodes;
+      const observed = object16(value.spec).main_nodes;
       if (
         !Array.isArray(observed) ||
         observed.length !== binding.nodes.length ||
-        new Set(observed.map((row) => object15(row).name)).size !== observed.length ||
-        observed.some((row) => !binding.nodes.includes(String(object15(row).name)))
+        new Set(observed.map((row) => object16(row).name)).size !== observed.length ||
+        observed.some((row) => !binding.nodes.includes(String(object16(row).name)))
       )
         throw new Error('Physical node inventory differs');
     }
@@ -3322,14 +3430,14 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
       )
         throw new Error('Incomplete teardown collection');
       for (const item of response.items) {
-        const row = object15(item),
+        const row = object16(item),
           rowLabels = owned(row.labels),
           key = `${namespace}/${kind}/${row.name}`;
         if (!name4(row.name) || row.namespace !== namespace || !text4(row.uid) || seen.has(key) || uids.has(row.uid))
           throw new Error('Invalid or duplicate teardown resource');
-        const metadata = row.metadata === undefined || row.metadata === null ? {} : object15(row.metadata),
+        const metadata = row.metadata === undefined || row.metadata === null ? {} : object16(row.metadata),
           system =
-            row.system_metadata === undefined || row.system_metadata === null ? {} : object15(row.system_metadata);
+            row.system_metadata === undefined || row.system_metadata === null ? {} : object16(row.system_metadata);
         if (
           ['name', 'namespace'].some(
             (key) => metadata[key] !== undefined && metadata[key] !== '' && metadata[key] !== row[key],
@@ -3337,7 +3445,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
           (system.uid !== undefined && system.uid !== '' && system.uid !== row.uid)
         )
           throw new Error('Conflicting flat and nested inventory identities');
-        if (metadata.labels !== undefined && Object.keys(object15(metadata.labels)).length) owned(metadata.labels);
+        if (metadata.labels !== undefined && Object.keys(object16(metadata.labels)).length) owned(metadata.labels);
         const selected = { kind, name: row.name, namespace, uid: row.uid };
         if (kind === 'tokens') {
           const node = rowLabels['xcsh-ce-node'];
@@ -3407,7 +3515,7 @@ async function collectCeUnregisteredAbsence(port, input, namespaces, contracts, 
   const read = async (path) => {
     signal?.throwIfAborted();
     sources.push(path);
-    return object15(await port.request(path, {}, signal));
+    return object16(await port.request(path, {}, signal));
   };
   const empty = (value) => {
     if (
@@ -3490,10 +3598,10 @@ async function collectPendingInventory(
   const read = async (path) => {
     signal?.throwIfAborted();
     sources.push(path);
-    return object15(await port.request(path, {}, signal));
+    return object16(await port.request(path, {}, signal));
   };
   const owned = (value) => {
-    const row = object15(value);
+    const row = object16(value);
     if (Object.entries(labels).some(([key, value]) => row[key] !== value))
       throw new Error('Pending admission ownership differs');
     return row;
@@ -3517,9 +3625,9 @@ async function collectPendingInventory(
       throw error;
     }
     if (!allowGeneratedPhysical) throw new Error('Physical site is present');
-    const metadata = object15(value.metadata),
-      system = object15(value.system_metadata),
-      spec = object15(value.spec);
+    const metadata = object16(value.metadata),
+      system = object16(value.system_metadata),
+      spec = object16(value.spec);
     owned(metadata.labels);
     if (
       metadata.namespace !== 'system' ||
@@ -3549,8 +3657,8 @@ async function collectPendingInventory(
         if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
       }
       if (value) {
-        const metadata = object15(value.metadata),
-          uid = object15(value.system_metadata).uid;
+        const metadata = object16(value.metadata),
+          uid = object16(value.system_metadata).uid;
         owned(metadata.labels);
         if (metadata.name !== binding.siteName || metadata.namespace !== 'system' || !text4(uid) || uids.has(uid))
           throw new Error('Pending logical site identity differs');
@@ -3575,12 +3683,12 @@ async function collectPendingInventory(
             listed.items.length === 1 &&
             binding.nodes.length === 1
           ) {
-            const candidate = object15(listed.items[0]),
-              spec = object15(candidate.get_spec),
-              infra = object15(spec.infra);
-            const state = object15(object15(candidate.object).status).current_state;
-            const passport = object15(spec.passport);
-            const system = object15(object15(candidate.object).system_metadata);
+            const candidate = object16(listed.items[0]),
+              spec = object16(candidate.get_spec),
+              infra = object16(spec.infra);
+            const state = object16(object16(candidate.object).status).current_state;
+            const passport = object16(spec.passport);
+            const system = object16(object16(candidate.object).system_metadata);
             initialCloudProofRequired =
               state === 'PENDING' &&
               passport.cluster_name === binding.siteName &&
@@ -3609,7 +3717,7 @@ async function collectPendingInventory(
     const query = new URLSearchParams({ label_filter: `xcsh-ce-deployment=${owner.deploymentId}` });
     const tokens = collection(await read(`/api/register/namespaces/system/tokens?${query}`));
     for (const item of tokens) {
-      const row = object15(item),
+      const row = object16(item),
         rowLabels = owned(row.labels),
         node = rowLabels['xcsh-ce-node'];
       if (
@@ -3622,8 +3730,8 @@ async function collectPendingInventory(
         !nodes.has(node)
       )
         throw new Error('Pending token identity differs');
-      const metadata = row.metadata == null ? {} : object15(row.metadata);
-      const system = row.system_metadata == null ? {} : object15(row.system_metadata);
+      const metadata = row.metadata == null ? {} : object16(row.metadata);
+      const system = row.system_metadata == null ? {} : object16(row.system_metadata);
       if (
         ['name', 'namespace'].some(
           (key) => metadata[key] !== undefined && metadata[key] !== '' && metadata[key] !== row[key],
@@ -3631,7 +3739,7 @@ async function collectPendingInventory(
         (system.uid !== undefined && system.uid !== '' && system.uid !== row.uid)
       )
         throw new Error('Conflicting pending token identities');
-      if (metadata.labels !== undefined && Object.keys(object15(metadata.labels)).length) {
+      if (metadata.labels !== undefined && Object.keys(object16(metadata.labels)).length) {
         const nested = owned(metadata.labels);
         if (nested['xcsh-ce-node'] !== node) throw new Error('Conflicting pending token node');
       }
@@ -3679,7 +3787,7 @@ async function collectPendingInventory(
     };
   }
 }
-var object15 = (value) => {
+var object16 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed teardown inventory');
     return value;
   },
@@ -3698,7 +3806,7 @@ var init_teardown_inventory = __esm(() => {
 });
 
 // plugins/platform/src/ce/upgrade-evidence.ts
-function object16(value) {
+function object17(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
 }
@@ -3710,7 +3818,7 @@ function version(rows, key, statusId, installed, completedDeploymentFallback = f
   const observations = [];
   const seen = new Set();
   for (const value of rows) {
-    const row = object16(value);
+    const row = object17(value);
     if (!row.metadata || typeof row.metadata !== 'object' || Array.isArray(row.metadata)) continue;
     const metadata = row.metadata;
     if (metadata.status_id !== statusId) continue;
@@ -3721,10 +3829,10 @@ function version(rows, key, statusId, installed, completedDeploymentFallback = f
     const uid = text5(metadata.uid);
     if (seen.has(uid)) throw new Error('Duplicate upgrade publisher');
     seen.add(uid);
-    const block = object16(row[key]);
-    const deployment = object16(block.deployment_state);
+    const block = object17(row[key]);
+    const deployment = object17(block.deployment_state);
     let current = block;
-    for (const part of installed) current = object16(current)[part];
+    for (const part of installed) current = object17(current)[part];
     const phase = text5(deployment.phase);
     const result = text5(deployment.result);
     if (
@@ -3746,17 +3854,17 @@ function version(rows, key, statusId, installed, completedDeploymentFallback = f
   return observations[0];
 }
 function parseSiteUpgradeState(raw, binding) {
-  const site = object16(raw);
-  const metadata = object16(site.metadata);
-  const spec = object16(site.spec);
+  const site = object17(raw);
+  const metadata = object17(site.metadata);
+  const spec = object17(site.spec);
   const nodes = spec.main_nodes;
   if (
     metadata.name !== binding.siteName ||
     metadata.namespace !== 'system' ||
     !Array.isArray(nodes) ||
     nodes.length !== binding.nodes.length ||
-    new Set(nodes.map((node) => object16(node).name)).size !== nodes.length ||
-    nodes.some((node) => typeof object16(node).name !== 'string' || !binding.nodes.includes(object16(node).name)) ||
+    new Set(nodes.map((node) => object17(node).name)).size !== nodes.length ||
+    nodes.some((node) => typeof object17(node).name !== 'string' || !binding.nodes.includes(object17(node).name)) ||
     !Array.isArray(site.status)
   )
     throw new Error('Upgrade physical site or node membership differs');
@@ -3774,7 +3882,7 @@ function parseSiteUpgradeState(raw, binding) {
   ]);
   initialSoftwareSettings({ software: software.installed, os: os.installed });
   return {
-    physicalSiteUid: text5(object16(site.system_metadata).uid),
+    physicalSiteUid: text5(object17(site.system_metadata).uid),
     siteState: state,
     online: state === 'ONLINE',
     software,
@@ -3782,11 +3890,11 @@ function parseSiteUpgradeState(raw, binding) {
   };
 }
 function parseUpgradePrechecks(raw) {
-  const list = object16(raw).checklist;
+  const list = object17(raw).checklist;
   if (!Array.isArray(list) || !list.length) throw new Error('Missing upgrade prechecks');
   const seen = new Set();
   const checks = list.map((value) => {
-    const row = object16(value),
+    const row = object17(value),
       name = text5(row.item),
       status = text5(row.status);
     if (
@@ -3800,7 +3908,7 @@ function parseUpgradePrechecks(raw) {
   return { checks, passing: checks.every((check) => ['CHECKLIST_PASSED', 'CHECKLIST_WARNING'].includes(check.status)) };
 }
 function parseSoftwareTargets(raw) {
-  const values = object16(raw).sw_versions;
+  const values = object17(raw).sw_versions;
   if (
     !Array.isArray(values) ||
     values.some((value) => typeof value !== 'string' || !/^crt-\d{8}-\d{4}$/.test(value)) ||
@@ -3810,7 +3918,7 @@ function parseSoftwareTargets(raw) {
   return values;
 }
 function parseUpgradeProgress(raw, siteName) {
-  const value = object16(object16(object16(raw).upgrade_status).sw_upgrade_progress);
+  const value = object17(object17(object17(raw).upgrade_status).sw_upgrade_progress);
   if (value.site !== siteName) throw new Error('Upgrade progress site differs');
   if (!['UNKNOWN', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'SKIPPED'].includes(text5(value.status)))
     throw new Error('Unknown upgrade progress status');
@@ -3819,9 +3927,9 @@ function parseUpgradeProgress(raw, siteName) {
 var init_upgrade_evidence = () => {};
 
 // plugins/platform/src/ce/runtime.ts
-import { createHash as createHash6 } from 'node:crypto';
+import { createHash as createHash7 } from 'node:crypto';
 
-function object17(value) {
+function object18(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new CeApiError('malformed');
   return value;
 }
@@ -3849,6 +3957,7 @@ class CeRuntime {
   resourceMutation;
   recordBinding;
   reserveRegistrationApproval;
+  retireRegistrationApprovals;
   #base;
   #credential;
   #mutationOwner;
@@ -3861,6 +3970,7 @@ class CeRuntime {
     resourceMutation,
     recordBinding,
     reserveRegistrationApproval,
+    retireRegistrationApprovals,
   ) {
     this.contract = contract;
     this.engine = engine;
@@ -3868,6 +3978,7 @@ class CeRuntime {
     this.resourceMutation = resourceMutation;
     this.recordBinding = recordBinding;
     this.reserveRegistrationApproval = reserveRegistrationApproval;
+    this.retireRegistrationApprovals = retireRegistrationApprovals;
     this.#base = new URL(apiUrl);
     if (
       this.#base.protocol !== 'https:' ||
@@ -3947,7 +4058,7 @@ class CeRuntime {
       const text = Buffer.concat(chunks).toString('utf8');
       if (!text) return {};
       try {
-        return parser ? parser(text) : object17(JSON.parse(text));
+        return parser ? parser(text) : object18(JSON.parse(text));
       } catch {
         throw new CeApiError('malformed');
       }
@@ -3986,7 +4097,7 @@ class CeRuntime {
     };
   }
   #owned(site, binding) {
-    const metadata = object17(site.metadata);
+    const metadata = object18(site.metadata);
     if (
       metadata.name !== binding.siteName ||
       metadata.namespace !== 'system' ||
@@ -4022,7 +4133,7 @@ class CeRuntime {
     };
     try {
       const logical = await this.observeOwnedSite(binding, signal),
-        siteUid = object17(logical.system_metadata).uid;
+        siteUid = object18(logical.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
       const read = async () => {
         const physical = await this.#request(source, {}, signal);
@@ -4033,7 +4144,7 @@ class CeRuntime {
         finalLogical = await this.observeOwnedSite(binding, signal),
         finalState = await read();
       if (
-        object17(finalLogical.system_metadata).uid !== siteUid ||
+        object18(finalLogical.system_metadata).uid !== siteUid ||
         JSON.stringify(state) !== JSON.stringify(finalState)
       )
         throw new CeApiError('conflict');
@@ -4079,7 +4190,7 @@ class CeRuntime {
     let failedStage = 'logical-site';
     try {
       const logical = await this.observeOwnedSite(binding, signal);
-      const siteUid = object17(logical.system_metadata).uid;
+      const siteUid = object18(logical.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
       failedStage = 'physical-site';
       const physical = await this.#request(source, {}, signal);
@@ -4106,7 +4217,7 @@ class CeRuntime {
       this.#owned(finalPhysical, binding);
       failedStage = 'stability-recheck';
       if (
-        object17(finalLogical.system_metadata).uid !== siteUid ||
+        object18(finalLogical.system_metadata).uid !== siteUid ||
         JSON.stringify(parseSiteUpgradeState(finalPhysical, binding)) !== JSON.stringify(state)
       )
         throw new CeApiError('conflict');
@@ -4144,7 +4255,7 @@ class CeRuntime {
       throw new Error('Exact logical site identity is required for upgrade');
     const request = contract.build({ siteName: binding.siteName, ...structuredClone(target) });
     const site = await this.observeOwnedSite(binding, signal);
-    if (object17(site.system_metadata).uid !== expectedSiteUid)
+    if (object18(site.system_metadata).uid !== expectedSiteUid)
       throw new Error('Upgrade site identity changed before mutation');
     await onMutationBoundary();
     await this.#request(request.path, { method: request.method, body: JSON.stringify(request.body) }, signal);
@@ -4252,17 +4363,17 @@ class CeRuntime {
     this.#owned(site, binding);
     const request = this.contract.siteCreateRequest(site);
     if (binding.owner.engine === 'terraform') {
-      const provider = object17(object17(request.spec)[binding.owner.provider]);
-      const nodes = object17(provider.not_managed).node_list;
+      const provider = object18(object18(request.spec)[binding.owner.provider]);
+      const nodes = object18(provider.not_managed).node_list;
       if (Array.isArray(nodes))
         for (const node of nodes) {
-          const interfaces = object17(node).interface_list;
+          const interfaces = object18(node).interface_list;
           if (Array.isArray(interfaces))
             for (const iface of interfaces)
-              for (const key of ['is_primary', 'is_management']) delete object17(iface)[key];
+              for (const key of ['is_primary', 'is_management']) delete object18(iface)[key];
         }
     }
-    return { ...request, metadata: writableSiteMetadata(object17(request.metadata)) };
+    return { ...request, metadata: writableSiteMetadata(object18(request.metadata)) };
   }
   async ensureSite(binding, intent, checkpoint, signal) {
     this.#binding(binding, true);
@@ -4294,20 +4405,20 @@ class CeRuntime {
     )
       throw new Error('Site intent and deployment binding disagree');
     const before = await this.observeOwnedSite(binding, signal);
-    if (object17(before.system_metadata).uid !== expected.uid || before.resource_version !== expected.resourceVersion)
+    if (object18(before.system_metadata).uid !== expected.uid || before.resource_version !== expected.resourceVersion)
       throw new Error('Site UID or resource version changed; replan required');
     const desired = this.contract.buildSite(intent);
-    const original = object17(object17(object17(before.spec)[binding.owner.provider]).not_managed).node_list;
-    const nodes = object17(object17(desired[binding.owner.provider]).not_managed).node_list;
+    const original = object18(object18(object18(before.spec)[binding.owner.provider]).not_managed).node_list;
+    const nodes = object18(object18(desired[binding.owner.provider]).not_managed).node_list;
     for (const node of nodes)
       for (const iface of node.interface_list) {
-        const ethernet = object17(iface.ethernet_interface);
+        const ethernet = object18(iface.ethernet_interface);
         const observed = original
           .find((item) => item.hostname === node.hostname)
           ?.interface_list?.find(
             (item) =>
-              object17(item.ethernet_interface).mac === ethernet.mac &&
-              object17(item.ethernet_interface).device === ethernet.device,
+              object18(item.ethernet_interface).mac === ethernet.mac &&
+              object18(item.ethernet_interface).device === ethernet.device,
           );
         if (!observed) throw new Error('Physical interface changes require the owning cloud replacement workflow');
         for (const field of ['is_primary', 'is_management'])
@@ -4318,7 +4429,7 @@ class CeRuntime {
     await checkpoint({ phase: 'replace-prepared', uid: expected.uid, resourceVersion: expected.resourceVersion });
     await this.#request(this.#sitePath(binding), { method: 'PUT', body: JSON.stringify(replacement) }, signal);
     const after = await this.observeOwnedSite(binding, signal);
-    if (object17(after.system_metadata).uid !== expected.uid || !subset(after.spec, replacement.spec))
+    if (object18(after.system_metadata).uid !== expected.uid || !subset(after.spec, replacement.spec))
       throw new Error('Replacement configuration has not converged');
     await this.recordBinding?.(binding, expected.uid);
     await checkpoint({ phase: 'replace-observed', uid: expected.uid, resourceVersion: after.resource_version });
@@ -4328,8 +4439,8 @@ class CeRuntime {
     const devices = await this.observeAwsGuestDevices(binding, instances, expected, signal);
     if (devices.status !== 'observed') throw new Error('Replacement guest interface inventory is unavailable');
     const before = await this.observeOwnedSite(binding, signal);
-    verifyRegisteredInterfaceConfiguration(object17(before.spec), devices.interfaces);
-    const uid = object17(before.system_metadata).uid;
+    verifyRegisteredInterfaceConfiguration(object18(before.spec), devices.interfaces);
+    const uid = object18(before.system_metadata).uid;
     if (typeof uid !== 'string' || !uid || typeof before.resource_version !== 'string' || !before.resource_version)
       throw new Error('Replacement site identity and resource version are required');
     const request = this.ownedSiteConfiguration(binding, before);
@@ -4339,11 +4450,11 @@ class CeRuntime {
         throw new Error('Replacement interface MTU is invalid');
       return { ...device, mtu: desired.mtu };
     });
-    const nodes = object17(object17(object17(request.spec).aws).not_managed).node_list;
+    const nodes = object18(object18(object18(request.spec).aws).not_managed).node_list;
     for (const node of nodes)
       for (const iface of node.interface_list) {
         const expected = interfaces.find(
-          (item) => item.node === node.hostname && item.mac === object17(iface.ethernet_interface).mac,
+          (item) => item.node === node.hostname && item.mac === object18(iface.ethernet_interface).mac,
         );
         if (!expected) throw new Error('Replacement interface identity differs');
         iface.mtu = expected.mtu;
@@ -4366,7 +4477,7 @@ class CeRuntime {
   }
   async ensureAwsPreparedSite(binding, preparation, checkpoint, signal) {
     this.#binding(binding, true);
-    const request = object17(preparation.request);
+    const request = object18(preparation.request);
     if (
       binding.owner.provider !== 'aws' ||
       !subset(preparation.owner, binding.owner) ||
@@ -4383,7 +4494,7 @@ class CeRuntime {
     this.contract.validateSiteCreate(request);
     if (
       binding.initialVersions &&
-      !subset(object17(request.spec).software_settings, initialSoftwareSettings(binding.initialVersions))
+      !subset(object18(request.spec).software_settings, initialSoftwareSettings(binding.initialVersions))
     )
       throw new Error('Prepared site initial versions differ from the owning binding');
     const interfaces = preparation.interfaces;
@@ -4393,12 +4504,12 @@ class CeRuntime {
       new Set(interfaces.map((item) => item.node)).size !== binding.nodes.length
     )
       throw new Error('Prepared site nodes differ from deployment');
-    verifyRegisteredInterfaceConfiguration(object17(request.spec), interfaces);
-    const nodes = object17(object17(object17(request.spec).aws).not_managed).node_list;
+    verifyRegisteredInterfaceConfiguration(object18(request.spec), interfaces);
+    const nodes = object18(object18(object18(request.spec).aws).not_managed).node_list;
     for (const node of nodes)
       for (const iface of node.interface_list) {
         const expected = interfaces.find(
-          (item) => item.node === node.hostname && item.mac === object17(iface.ethernet_interface).mac,
+          (item) => item.node === node.hostname && item.mac === object18(iface.ethernet_interface).mac,
         );
         if (
           !expected ||
@@ -4415,14 +4526,14 @@ class CeRuntime {
     } catch (error) {
       if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
     }
-    if (existing && object17(existing.system_metadata).uid === preparation.uid)
+    if (existing && object18(existing.system_metadata).uid === preparation.uid)
       throw new Error('Original site still exists; coupled replacement has not removed it');
     await this.#ensureSpec(
       binding,
-      object17(request.spec),
+      object18(request.spec),
       checkpoint,
       signal,
-      writableSiteMetadata(object17(request.metadata)),
+      writableSiteMetadata(object18(request.metadata)),
     );
   }
   async reserveSite(binding, checkpoint, signal, advertisedRoutes = []) {
@@ -4499,7 +4610,7 @@ class CeRuntime {
     if (metadata && !subset(existing.metadata, metadata))
       throw new Error('Existing site metadata differs; replan required');
     if (!subset(existing.spec, spec)) throw new Error('Existing site configuration differs; replan required');
-    const uid = object17(existing.system_metadata).uid;
+    const uid = object18(existing.system_metadata).uid;
     if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
     await this.recordBinding?.(binding, uid);
     await checkpoint({
@@ -4580,8 +4691,8 @@ class CeRuntime {
         signal,
       );
       this.#owned(configuration, binding);
-      verifyRegisteredInterfaceConfiguration(object17(configuration.spec), evidence.interfaces, binding.owner.provider);
-      const uid = object17(configuration.system_metadata).uid;
+      verifyRegisteredInterfaceConfiguration(object18(configuration.spec), evidence.interfaces, binding.owner.provider);
+      const uid = object18(configuration.system_metadata).uid;
       if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
       await this.recordBinding?.(binding, uid, evidence.interfaces);
       return {
@@ -4604,12 +4715,12 @@ class CeRuntime {
     if (devices.status !== 'observed') throw new Error('Guest interface inventory has not converged');
     const before = await this.observeSite(binding, signal);
     this.#owned(before, binding);
-    verifyRegisteredInterfaceConfiguration(object17(before.spec), devices.interfaces);
-    const uid = object17(before.system_metadata).uid;
+    verifyRegisteredInterfaceConfiguration(object18(before.spec), devices.interfaces);
+    const uid = object18(before.system_metadata).uid;
     if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
-    const nodes = object17(object17(object17(before.spec).aws).not_managed).node_list;
+    const nodes = object18(object18(object18(before.spec).aws).not_managed).node_list;
     const matches = (node, iface) => {
-      const ethernet = object17(iface.ethernet_interface);
+      const ethernet = object18(iface.ethernet_interface);
       return expected.find((item) => item.node === node.hostname && item.mac.toLowerCase() === ethernet.mac);
     };
     const changed = nodes.some((node) => node.interface_list.some((iface) => iface.mtu !== matches(node, iface)?.mtu));
@@ -4617,7 +4728,7 @@ class CeRuntime {
       if (typeof before.resource_version !== 'string' || !before.resource_version)
         throw new Error('Site resource version is required for an interface update');
       const request = this.ownedSiteConfiguration(binding, before);
-      const desiredNodes = object17(object17(object17(request.spec).aws).not_managed).node_list;
+      const desiredNodes = object18(object18(object18(request.spec).aws).not_managed).node_list;
       for (const node of desiredNodes)
         for (const iface of node.interface_list) {
           const desired = matches(node, iface);
@@ -4698,7 +4809,7 @@ class CeRuntime {
       throw Error('BGP service logical site UID or expected nodes differ');
     const checkSite = async () => {
       const site = await this.observeOwnedSite(binding, signal);
-      if (object17(site.system_metadata).uid !== siteUid) throw Error('BGP service site identity changed');
+      if (object18(site.system_metadata).uid !== siteUid) throw Error('BGP service site identity changed');
     };
     await checkSite();
     const sources = {
@@ -4788,12 +4899,12 @@ class CeRuntime {
       );
       this.#owned(finalConfiguration, binding);
       if (
-        object17(finalConfiguration.system_metadata).uid !== object17(configuration.system_metadata).uid ||
+        object18(finalConfiguration.system_metadata).uid !== object18(configuration.system_metadata).uid ||
         JSON.stringify(finalConfiguration.spec) !== JSON.stringify(configuration.spec)
       )
         throw new CeApiError('conflict');
       if (persistBinding)
-        await this.recordBinding?.(binding, String(object17(configuration.system_metadata).uid), expected);
+        await this.recordBinding?.(binding, String(object18(configuration.system_metadata).uid), expected);
       return {
         status: interfaces.every((row) => row.linkUp) ? 'observed' : 'down',
         interfaces,
@@ -4857,7 +4968,7 @@ class CeRuntime {
         if (!existing && rebind) throw new Error('Recorded replacement routing object is missing');
         if (!existing) {
           const site = await this.observeOwnedSite(binding, signal);
-          const siteUid = object17(site.system_metadata).uid;
+          const siteUid = object18(site.system_metadata).uid;
           if (typeof siteUid !== 'string' || !siteUid.trim())
             throw new Error('Routing creation requires a logical site UID');
           this.contract.validateRouting(kind, resource.spec);
@@ -4884,22 +4995,22 @@ class CeRuntime {
         }
         this.#owned(existing, { ...binding, siteName: resource.name });
         if (
-          object17(object17(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+          object18(object18(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
           !subset(existing.spec, resource.spec) ||
           (kind === 'bgp' &&
-            Array.isArray(object17(existing.spec).peers) &&
-            object17(existing.spec).peers.some((peer) => Object.hasOwn(object17(peer), 'routing_policies')))
+            Array.isArray(object18(existing.spec).peers) &&
+            object18(existing.spec).peers.some((peer) => Object.hasOwn(object18(peer), 'routing_policies')))
         )
           throw new Error('Existing routing object differs from site-bound intent; replan required');
-        const uid = object17(existing.system_metadata).uid;
+        const uid = object18(existing.system_metadata).uid;
         if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
         if (rebind) {
           const recorded = rebind.resources.find((r) => r.kind === kind && r.name === resource.name);
           if (uid !== recorded?.uid) throw new Error('Replacement routing object UID changed');
           const site = await this.observeSite(binding, signal);
           this.#owned(site, binding);
-          if (object17(site.system_metadata).uid !== rebind.siteUid) throw new Error('Replacement site UID changed');
-          if (object17(object17(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid) {
+          if (object18(site.system_metadata).uid !== rebind.siteUid) throw new Error('Replacement site UID changed');
+          if (object18(object18(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid) {
             const body = rebind.contract.build(kind, existing, resource.spec, rebind.siteUid);
             await checkpoint({
               kind,
@@ -4913,12 +5024,12 @@ class CeRuntime {
             });
             const freshSite = await this.observeSite(binding, signal);
             this.#owned(freshSite, binding);
-            if (object17(freshSite.system_metadata).uid !== rebind.siteUid)
+            if (object18(freshSite.system_metadata).uid !== rebind.siteUid)
               throw new Error('Replacement site UID changed');
             const fresh = await observe();
             this.#owned(fresh, { ...binding, siteName: resource.name });
             if (
-              object17(fresh.system_metadata).uid !== uid ||
+              object18(fresh.system_metadata).uid !== uid ||
               fresh.resource_version !== existing.resource_version ||
               !subset(fresh.metadata, existing.metadata) ||
               !subset(existing.metadata, fresh.metadata) ||
@@ -4934,8 +5045,8 @@ class CeRuntime {
             existing = await observe();
             this.#owned(existing, { ...binding, siteName: resource.name });
             if (
-              object17(existing.system_metadata).uid !== uid ||
-              object17(object17(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid ||
+              object18(existing.system_metadata).uid !== uid ||
+              object18(object18(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid ||
               !subset(existing.spec, resource.spec)
             )
               throw new Error('Routing replacement readback differs');
@@ -4966,12 +5077,12 @@ class CeRuntime {
     const routing = this.contract.buildAzureRelayRouting(binding.siteName, localAsn, interfaces, relays);
     if (this.engine === 'terraform') await this.reconcileTerraformResources(binding.owner, signal);
     const original = await this.observeOwnedSite(binding, signal);
-    const siteUid = object17(original.system_metadata).uid;
+    const siteUid = object18(original.system_metadata).uid;
     if (typeof siteUid !== 'string' || !siteUid.trim())
       throw new Error('Azure relay routing requires a logical site UID');
     const assertSite = async () => {
       const current = await this.observeOwnedSite(binding, signal);
-      if (object17(current.system_metadata).uid !== siteUid) throw new Error('Azure relay logical site UID changed');
+      if (object18(current.system_metadata).uid !== siteUid) throw new Error('Azure relay logical site UID changed');
     };
     const resource = routing.bgp;
     const path = `/api/config/namespaces/system/bgps/${resource.name}`;
@@ -5012,14 +5123,14 @@ class CeRuntime {
       existing = await observe();
     }
     this.#owned(existing, { ...binding, siteName: resource.name });
-    const labels = object17(object17(existing.metadata).labels);
+    const labels = object18(object18(existing.metadata).labels);
     if (
       labels['xcsh-ce-site'] !== binding.siteName ||
       labels['xcsh-ce-site-uid'] !== siteUid ||
       !subset(existing.spec, resource.spec)
     )
       throw new Error('Existing Azure relay routing object differs from site-bound intent');
-    const uid = object17(existing.system_metadata).uid;
+    const uid = object18(existing.system_metadata).uid;
     if (typeof uid !== 'string' || !uid.trim()) throw new CeApiError('malformed');
     await assertSite();
     await checkpoint({
@@ -5047,7 +5158,7 @@ class CeRuntime {
     )
       throw new Error('Azure routing interface and site ownership differ');
     let site = await this.observeOwnedSite(binding, signal);
-    let siteUid = object17(site.system_metadata).uid;
+    let siteUid = object18(site.system_metadata).uid;
     if (typeof siteUid !== 'string' || !siteUid.trim()) throw new Error('Azure routing requires a logical site UID');
     const routing = this.contract.buildAzureRouting(
       binding.siteName,
@@ -5067,7 +5178,7 @@ class CeRuntime {
     }
     if (!existing) {
       site = await this.observeOwnedSite(binding, signal);
-      siteUid = object17(site.system_metadata).uid;
+      siteUid = object18(site.system_metadata).uid;
       if (typeof siteUid !== 'string' || !siteUid.trim()) throw new Error('Azure routing requires a logical site UID');
       this.contract.validateRouting('bgp', resource.spec);
       try {
@@ -5093,12 +5204,12 @@ class CeRuntime {
     }
     this.#owned(existing, { ...binding, siteName: resource.name });
     if (
-      object17(object17(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
-      object17(object17(existing.metadata).labels)['xcsh-ce-site-uid'] !== siteUid ||
+      object18(object18(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+      object18(object18(existing.metadata).labels)['xcsh-ce-site-uid'] !== siteUid ||
       !subset(existing.spec, resource.spec)
     )
       throw new Error('Existing Azure routing object differs from site-bound intent; replan required');
-    const uid = object17(existing.system_metadata).uid;
+    const uid = object18(existing.system_metadata).uid;
     if (typeof uid !== 'string' || !uid.trim()) throw new CeApiError('malformed');
     await checkpoint({
       kind: 'bgp',
@@ -5153,7 +5264,7 @@ class CeRuntime {
     );
     const checkSite = async () => {
       const site = await this.observeOwnedSite(binding, signal);
-      if (object17(site.system_metadata).uid !== siteUid) throw Error('Power policy site identity changed');
+      if (object18(site.system_metadata).uid !== siteUid) throw Error('Power policy site identity changed');
     };
     await checkSite();
     const path = `/api/config/namespaces/system/bgp_routing_policys/${name}`;
@@ -5166,8 +5277,8 @@ class CeRuntime {
         throw error;
       }
       this.#owned(child, { ...binding, siteName: name });
-      const labels = object17(object17(child.metadata).labels),
-        uid = object17(child.system_metadata).uid;
+      const labels = object18(object18(child.metadata).labels),
+        uid = object18(child.system_metadata).uid;
       if (
         labels['xcsh-ce-site'] !== binding.siteName ||
         labels['xcsh-ce-site-uid'] !== siteUid ||
@@ -5178,7 +5289,7 @@ class CeRuntime {
         throw Error('Power policy child identity or original attempt differs');
       if (typeof child.resource_version !== 'string' || !child.resource_version.trim())
         throw Error('Power policy revision missing');
-      const projected = this.contract.routingReplaceRequest('bgp_routing_policy', child, object17(child.spec), siteUid);
+      const projected = this.contract.routingReplaceRequest('bgp_routing_policy', child, object18(child.spec), siteUid);
       if (!subset(projected.spec, spec) || !subset(spec, projected.spec))
         throw Error('Power policy actual spec differs');
       return {
@@ -5186,7 +5297,7 @@ class CeRuntime {
         kind: 'bgp_routing_policy',
         uid,
         resourceVersion: child.resource_version,
-        spec: object17(projected.spec),
+        spec: object18(projected.spec),
         collectedAt: new Date().toISOString(),
       };
     };
@@ -5244,7 +5355,7 @@ class CeRuntime {
     this.contract.validateRouting('bgp_routing_policy', spec);
     const checkSite = async () => {
       const site = await this.observeOwnedSite(binding, signal);
-      if (object17(site.system_metadata).uid !== siteUid) throw Error('Power policy retirement site identity changed');
+      if (object18(site.system_metadata).uid !== siteUid) throw Error('Power policy retirement site identity changed');
     };
     const path = `/api/config/namespaces/system/bgp_routing_policys/${name}`;
     const read = async () => {
@@ -5256,16 +5367,16 @@ class CeRuntime {
         throw error;
       }
       this.#owned(child, { ...binding, siteName: name });
-      const labels = object17(object17(child.metadata).labels);
+      const labels = object18(object18(child.metadata).labels);
       if (
-        object17(child.system_metadata).uid !== uid ||
+        object18(child.system_metadata).uid !== uid ||
         labels['xcsh-ce-site'] !== binding.siteName ||
         labels['xcsh-ce-site-uid'] !== siteUid ||
         labels['xcsh-ce-power-attempt'] !== attemptId ||
         child.resource_version !== resourceVersion
       )
         throw Error('Power policy retirement child identity, attempt or revision differs');
-      this.contract.validateRouting('bgp_routing_policy', object17(child.spec));
+      this.contract.validateRouting('bgp_routing_policy', object18(child.spec));
       if (!subset(child.spec, spec) || !subset(spec, child.spec))
         throw Error('Power policy retirement actual spec differs');
       return child;
@@ -5307,23 +5418,23 @@ class CeRuntime {
     )
       throw Error('Power routing observation scope differs');
     const site = await this.observeOwnedSite(binding, signal);
-    const siteUid = object17(site.system_metadata).uid;
+    const siteUid = object18(site.system_metadata).uid;
     if (typeof siteUid !== 'string' || !siteUid.trim()) throw Error('Power routing site identity missing');
     const child = await this.#request(`/api/config/namespaces/system/${kind}s/${name}`, {}, signal);
     this.#owned(child, { ...binding, siteName: name });
-    const uid = object17(child.system_metadata).uid;
+    const uid = object18(child.system_metadata).uid;
     if (
       typeof uid !== 'string' ||
       !uid.trim() ||
-      object17(object17(child.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
-      object17(object17(child.metadata).labels)['xcsh-ce-site-uid'] !== siteUid
+      object18(object18(child.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+      object18(object18(child.metadata).labels)['xcsh-ce-site-uid'] !== siteUid
     )
       throw Error('Power routing child identity differs');
     if (typeof child.resource_version !== 'string' || !child.resource_version.trim())
       throw Error('Power routing revision missing');
-    const request = this.contract.routingReplaceRequest(kind, child, object17(child.spec), siteUid);
+    const request = this.contract.routingReplaceRequest(kind, child, object18(child.spec), siteUid);
     const finalSite = await this.observeOwnedSite(binding, signal);
-    if (object17(finalSite.system_metadata).uid !== siteUid)
+    if (object18(finalSite.system_metadata).uid !== siteUid)
       throw Error('Power routing site identity changed during observation');
     return {
       binding: structuredClone(binding),
@@ -5332,7 +5443,7 @@ class CeRuntime {
       uid,
       siteUid,
       resourceVersion: child.resource_version,
-      spec: object17(request.spec),
+      spec: object18(request.spec),
       contractFingerprint: this.contract.fingerprint,
       collectedAt: new Date().toISOString(),
     };
@@ -5351,14 +5462,14 @@ class CeRuntime {
     )
       throw Error('Power routing identity or contract differs');
     const site = await this.observeOwnedSite(binding, signal);
-    if (object17(site.system_metadata).uid !== snapshot.siteUid) throw Error('Power routing site identity differs');
+    if (object18(site.system_metadata).uid !== snapshot.siteUid) throw Error('Power routing site identity differs');
     const path = `/api/config/namespaces/system/${snapshot.kind}s/${snapshot.name}`;
     const check = (value) => {
       this.#owned(value, { ...binding, siteName: snapshot.name });
       if (
-        object17(value.system_metadata).uid !== snapshot.uid ||
-        object17(object17(value.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
-        object17(object17(value.metadata).labels)['xcsh-ce-site-uid'] !== snapshot.siteUid
+        object18(value.system_metadata).uid !== snapshot.uid ||
+        object18(object18(value.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+        object18(object18(value.metadata).labels)['xcsh-ce-site-uid'] !== snapshot.siteUid
       )
         throw Error('Power routing object identity differs');
     };
@@ -5368,7 +5479,7 @@ class CeRuntime {
     const projection = this.contract.routingReplaceRequest(
       snapshot.kind,
       existing,
-      object17(existing.spec),
+      object18(existing.spec),
       snapshot.siteUid,
     );
     if (subset(projection.spec, request.spec) && subset(request.spec, projection.spec)) return;
@@ -5388,14 +5499,14 @@ class CeRuntime {
       phase: 'power-routing-dispatch',
     });
     const freshSite = await this.observeOwnedSite(binding, signal);
-    if (object17(freshSite.system_metadata).uid !== snapshot.siteUid)
+    if (object18(freshSite.system_metadata).uid !== snapshot.siteUid)
       throw Error('Power routing site identity changed');
     const fresh = await this.#request(path, {}, signal);
     check(fresh);
     const freshProjection = this.contract.routingReplaceRequest(
       snapshot.kind,
       fresh,
-      object17(fresh.spec),
+      object18(fresh.spec),
       snapshot.siteUid,
     );
     if (
@@ -5414,7 +5525,7 @@ class CeRuntime {
     const observed = this.contract.routingReplaceRequest(
       snapshot.kind,
       existing,
-      object17(existing.spec),
+      object18(existing.spec),
       snapshot.siteUid,
     );
     if (!subset(observed.spec, request.spec) || !subset(request.spec, observed.spec))
@@ -5439,8 +5550,8 @@ class CeRuntime {
     }
     this.#owned(existing, { ...binding, siteName: resource.name });
     if (
-      object17(existing.system_metadata).uid !== resource.uid ||
-      object17(object17(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName
+      object18(existing.system_metadata).uid !== resource.uid ||
+      object18(object18(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName
     )
       throw new Error('Routing checkpoint UID or site ownership differs');
     await this.observeOwnedSite(binding, signal);
@@ -5478,9 +5589,20 @@ class CeRuntime {
         throw error;
       }
     };
+    const absentRead = async (path) => {
+      try {
+        return await this.#request(path, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return;
+        throw error;
+      }
+    };
+    const readPhysical = () => absentRead(`/api/config/namespaces/system/sites/${binding.siteName}`);
+    const readRegistrations = () =>
+      absentRead(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`);
     const check = (site) => {
       this.#owned(site, binding);
-      if (object17(site.system_metadata).uid !== expectedUid)
+      if (object18(site.system_metadata).uid !== expectedUid)
         throw new Error('Site UID changed before or during deletion');
     };
     let current = await read();
@@ -5495,6 +5617,24 @@ class CeRuntime {
       current = await read();
       if (current) check(current);
     }
+    if (!current && this.retireRegistrationApprovals) {
+      const physical = await readPhysical();
+      const registrations = await readRegistrations();
+      if (
+        !physical &&
+        (!registrations ||
+          (Array.isArray(registrations.items) &&
+            registrations.items.length === 0 &&
+            !registrations.next_page_token &&
+            !registrations.next_token &&
+            !registrations.continuation_token &&
+            !registrations.continue &&
+            !registrations.nextLink &&
+            (registrations.errors === undefined ||
+              (Array.isArray(registrations.errors) && registrations.errors.length === 0))))
+      )
+        await this.#finalizeApprovalRetirement(binding, signal);
+    }
     return {
       status: current ? 'pending' : 'deleted',
       owner: binding.owner,
@@ -5504,6 +5644,22 @@ class CeRuntime {
       contractFingerprint: this.contract.fingerprint,
       observedAt: new Date().toISOString(),
     };
+  }
+  async #finalizeApprovalRetirement(binding, signal) {
+    if (!this.retireRegistrationApprovals) return;
+    await this.retireRegistrationApprovals(
+      binding,
+      async (registration) => {
+        try {
+          await this.#request(`/api/register/namespaces/system/registrations/${registration}`, {}, signal);
+        } catch (error) {
+          if (error instanceof CeApiError && error.category === 'not-found') return;
+          throw error;
+        }
+        throw Error('Exact registration absence is required before approval retirement');
+      },
+      signal,
+    );
   }
   async observeSiteDeletion(binding, expected, signal) {
     this.#binding(binding);
@@ -5534,15 +5690,15 @@ class CeRuntime {
       const logical = await read(sources.logical);
       if (logical) {
         this.#owned(logical, binding);
-        if (object17(logical.system_metadata).uid !== expected.siteUid)
+        if (object18(logical.system_metadata).uid !== expected.siteUid)
           throw new Error('Logical site identity changed');
       }
       const physical = await read(sources.physical);
       if (
         physical &&
-        (object17(physical.metadata).name !== binding.siteName ||
-          object17(physical.metadata).namespace !== 'system' ||
-          object17(physical.system_metadata).uid !== expected.physicalSiteUid)
+        (object18(physical.metadata).name !== binding.siteName ||
+          object18(physical.metadata).namespace !== 'system' ||
+          object18(physical.system_metadata).uid !== expected.physicalSiteUid)
       )
         throw new Error('Physical site identity changed');
       const registrations = await read(sources.registrations);
@@ -5562,15 +5718,15 @@ class CeRuntime {
         const inactive = ['RETIRED', 'FAILED', 'DONE', 'FAILED_INACTIVE'];
         const active = ['NOTSET', 'NEW', 'APPROVED', 'ADMITTED', 'PENDING', 'ONLINE', 'UPGRADING', 'MAINTENANCE'];
         for (const raw of registrations.items) {
-          const item = object17(raw),
-            spec = object17(item.get_spec),
-            state = object17(object17(item.object).status).current_state;
+          const item = object18(raw),
+            spec = object18(item.get_spec),
+            state = object18(object18(item.object).status).current_state;
           if (
             typeof item.name !== 'string' ||
             !/^r-[a-z0-9-]+$/.test(item.name) ||
             seen.has(item.name) ||
-            object17(spec.passport).cluster_name !== binding.siteName ||
-            !binding.nodes.includes(String(object17(spec.infra).hostname)) ||
+            object18(spec.passport).cluster_name !== binding.siteName ||
+            !binding.nodes.includes(String(object18(spec.infra).hostname)) ||
             typeof state !== 'string' ||
             ![...inactive, ...active].includes(state)
           )
@@ -5579,6 +5735,7 @@ class CeRuntime {
           if (active.includes(state)) activeRegistrations++;
         }
       }
+      if (!logical && !physical && activeRegistrations === 0) await this.#finalizeApprovalRetirement(binding, signal);
       return {
         ...base,
         status: !logical && !physical && activeRegistrations === 0 ? 'deleted' : 'pending',
@@ -5598,21 +5755,21 @@ class CeRuntime {
     }
   }
   #validateIssuedBootstrapToken(binding, node, tokenName, token) {
-    const metadata = object17(token.metadata);
+    const metadata = object18(token.metadata);
     if (
       metadata.name !== tokenName ||
       metadata.namespace !== 'system' ||
       !subset(metadata.labels, { ...this.#labels(binding), 'xcsh-ce-node': node })
     )
       throw new Error('Registration token ownership does not match node');
-    const spec = object17(token.spec);
+    const spec = object18(token.spec);
     if (spec.site_name !== binding.siteName || ![1, 'JWT'].includes(spec.type) || typeof spec.content !== 'string')
       throw new Error('Registration JWT is not bound to the site');
     if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(spec.content))
       throw Error('Malformed site-bound registration JWT');
     let expiresAt;
     try {
-      const claims = object17(JSON.parse(Buffer.from(spec.content.split('.')[1], 'base64url').toString('utf8')));
+      const claims = object18(JSON.parse(Buffer.from(spec.content.split('.')[1], 'base64url').toString('utf8')));
       expiresAt = typeof claims.exp === 'number' ? claims.exp * 1000 : NaN;
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + 60000) throw new Error();
     } catch {
@@ -5629,7 +5786,7 @@ class CeRuntime {
     this.#owned(await this.observeSite(fixed, signal), fixed);
     const token = await this.#request(`/api/register/namespaces/system/tokens/${tokenName}`, {}, signal);
     const { jwt, expiresAt } = this.#validateIssuedBootstrapToken(fixed, node, tokenName, token);
-    const tokenSha256 = createHash6('sha256').update(jwt).digest('hex');
+    const tokenSha256 = createHash7('sha256').update(jwt).digest('hex');
     if (tokenSha256 !== expectedJwtSha256) throw Error('Current registration token differs from compiled bootstrap');
     this.#binding(binding, true);
     if (JSON.stringify(binding) !== JSON.stringify(fixed)) throw Error('Bootstrap witness owning request changed');
@@ -5710,12 +5867,12 @@ class CeRuntime {
       if (error instanceof CeApiError && error.category === 'not-found') return;
       throw error;
     }
-    const metadata = object17(token.metadata);
+    const metadata = object18(token.metadata);
     if (
-      (expectedUid !== undefined && object17(token.system_metadata).uid !== expectedUid) ||
+      (expectedUid !== undefined && object18(token.system_metadata).uid !== expectedUid) ||
       metadata.name !== tokenName ||
       metadata.namespace !== 'system' ||
-      object17(token.spec).site_name !== binding.siteName ||
+      object18(token.spec).site_name !== binding.siteName ||
       !subset(metadata.labels, { ...this.#labels(binding), 'xcsh-ce-node': node })
     )
       throw new Error('Registration token ownership mismatch');
@@ -5759,7 +5916,7 @@ class CeRuntime {
       }));
       const site = async () => {
         const value = await readCeObservation(deadline, () => this.observeOwnedSite(binding, deadline));
-        if (object17(value.system_metadata).uid !== expected.siteUid) throw Error('Forwarding owned site UID differs');
+        if (object18(value.system_metadata).uid !== expected.siteUid) throw Error('Forwarding owned site UID differs');
       };
       await site();
       const routes = [];
@@ -5877,7 +6034,7 @@ class CeRuntime {
       const request = this.contract.componentCatalogRequest(binding.siteName);
       const owned = async () => {
         const site = await readCeObservation(deadline, () => this.observeOwnedSite(binding, deadline));
-        if (object17(site.system_metadata).uid !== expected.siteUid) throw Error('Owned site UID differs');
+        if (object18(site.system_metadata).uid !== expected.siteUid) throw Error('Owned site UID differs');
       };
       const catalog = async () =>
         parseComponentCatalog(
@@ -5924,7 +6081,7 @@ class CeRuntime {
       const request = this.contract.componentStatusRequest(binding.siteName, expected.vesNamespace);
       const owned = async () => {
         const site = await readCeObservation(deadline, () => this.observeOwnedSite(binding, deadline));
-        if (object17(site.system_metadata).uid !== expected.siteUid) throw Error('Owned site UID differs');
+        if (object18(site.system_metadata).uid !== expected.siteUid) throw Error('Owned site UID differs');
       };
       await owned();
       const response = await readCeObservation(deadline, () =>
@@ -5957,26 +6114,26 @@ class CeRuntime {
       observedAt: new Date().toISOString(),
     };
     const profile = this.contract.provider(binding.owner.provider);
-    const healthContract = profile.runtime && object17(profile.runtime).health;
+    const healthContract = profile.runtime && object18(profile.runtime).health;
     if (
       !healthContract ||
       typeof healthContract !== 'object' ||
       Array.isArray(healthContract) ||
-      object17(healthContract).path !== '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' ||
-      object17(healthContract).method !== 'GET' ||
-      object17(healthContract).operation_id !== 'ves.io.schema.operate.debug.CustomPublicAPI.HealthPublic' ||
-      object17(healthContract).response_schema !== 'debugHealthResponse' ||
-      object17(healthContract).authority !== 'f5xc' ||
-      object17(healthContract).semantics !== 'observational_read_only'
+      object18(healthContract).path !== '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' ||
+      object18(healthContract).method !== 'GET' ||
+      object18(healthContract).operation_id !== 'ves.io.schema.operate.debug.CustomPublicAPI.HealthPublic' ||
+      object18(healthContract).response_schema !== 'debugHealthResponse' ||
+      object18(healthContract).authority !== 'f5xc' ||
+      object18(healthContract).semantics !== 'observational_read_only'
     )
       return { ...base, status: 'unknown', reason: 'provider-health-contract-unavailable' };
     try {
       const site = await this.observeSite(binding, signal);
       if (!readOnly) this.#owned(site, binding);
       else if (
-        object17(site.metadata).name !== binding.siteName ||
-        object17(site.metadata).namespace !== 'system' ||
-        typeof object17(site.system_metadata).uid !== 'string'
+        object18(site.metadata).name !== binding.siteName ||
+        object18(site.metadata).namespace !== 'system' ||
+        typeof object18(site.system_metadata).uid !== 'string'
       )
         throw new Error('Read-only site identity differs');
       const health = await this.#request(source, {}, signal);
@@ -5999,7 +6156,7 @@ class CeRuntime {
         state: health.state,
         scope: 'site-global-only',
         nodeHealth: 'unknown',
-        siteUid: object17(site.system_metadata).uid,
+        siteUid: object18(site.system_metadata).uid,
       };
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -6021,7 +6178,7 @@ class CeRuntime {
       if (this.observeOwnedSite !== observeSite || this.observeRegistrations !== observeRegistrations)
         throw Error('Node health observer changed');
       const site = await readCeObservation(deadline, () => observeSite.call(this, binding, deadline));
-      if (object17(site.system_metadata).uid !== expected.siteUid) throw Error('Node health site UID differs');
+      if (object18(site.system_metadata).uid !== expected.siteUid) throw Error('Node health site UID differs');
       const registration = await readCeObservation(deadline, () =>
         observeRegistrations.call(this, binding, expected.instances, deadline),
       );
@@ -6086,9 +6243,9 @@ class CeRuntime {
         ...reading,
         instanceId: before.selected.instanceId,
         registration: before.selected.registration,
-        registrationIdentitySha256: createHash6('sha256').update(JSON.stringify(before.nodes)).digest('hex'),
+        registrationIdentitySha256: createHash7('sha256').update(JSON.stringify(before.nodes)).digest('hex'),
         source: request.path,
-        outputSha256: createHash6('sha256').update(String(response.output)).digest('hex'),
+        outputSha256: createHash7('sha256').update(String(response.output)).digest('hex'),
         completedAt: new Date().toISOString(),
       };
     } catch (error) {
@@ -6140,7 +6297,7 @@ class CeRuntime {
         value.status !== 'observed' ||
         value.fqdn !== resolved.expectedFqdn ||
         value.registrationIdentitySha256 !==
-          createHash6('sha256').update(JSON.stringify(first.before.nodes)).digest('hex')
+          createHash7('sha256').update(JSON.stringify(first.before.nodes)).digest('hex')
       )
         throw Error('Node readiness acquisition or verification identity changed');
       deadline.throwIfAborted();
@@ -6148,7 +6305,7 @@ class CeRuntime {
         ...value,
         startedAt: base.startedAt,
         bindingObservedAt,
-        bindingOutputSha256: createHash6('sha256').update(String(first.response.output)).digest('hex'),
+        bindingOutputSha256: createHash7('sha256').update(String(first.response.output)).digest('hex'),
       };
     } catch (error) {
       signal?.throwIfAborted();
@@ -6212,15 +6369,15 @@ class CeRuntime {
     const observedAt = new Date().toISOString();
     const configuration = await this.#request(source, {}, signal);
     if (
-      object17(configuration.metadata).name !== siteName ||
-      object17(configuration.metadata).namespace !== 'system' ||
-      typeof object17(configuration.system_metadata).uid !== 'string'
+      object18(configuration.metadata).name !== siteName ||
+      object18(configuration.metadata).namespace !== 'system' ||
+      typeof object18(configuration.system_metadata).uid !== 'string'
     )
       throw new Error('Read-only site identity is unverified');
-    const rawNodes = object17(object17(object17(configuration.spec).aws).not_managed).node_list;
+    const rawNodes = object18(object18(object18(configuration.spec).aws).not_managed).node_list;
     if (!Array.isArray(rawNodes) || !rawNodes.length)
       return { status: 'unknown', siteName, source, observedAt, reason: 'configured-node-identities-unavailable' };
-    const nodes = rawNodes.map((node) => String(object17(node).hostname));
+    const nodes = rawNodes.map((node) => String(object18(node).hostname));
     if (nodes.some((node) => !safeName2.test(node)) || new Set(nodes).size !== nodes.length)
       throw new Error('Ambiguous configured node identity');
     const binding = {
@@ -6239,7 +6396,7 @@ class CeRuntime {
       try {
         return {
           siteName,
-          siteUid: object17(configuration.system_metadata).uid,
+          siteUid: object18(configuration.system_metadata).uid,
           source: path,
           observedAt: new Date().toISOString(),
           observation: parse(await this.#request(path, {}, signal)),
@@ -6271,7 +6428,7 @@ class CeRuntime {
     return {
       status: 'observed',
       siteName,
-      siteUid: object17(configuration.system_metadata).uid,
+      siteUid: object18(configuration.system_metadata).uid,
       source,
       observedAt,
       ownership: 'read-only',
@@ -6300,7 +6457,7 @@ class CeRuntime {
       return { status: initialRegistrationLocators(await listed(), binding, instances).length ? 'pending' : 'absent' };
     }
     const ownedSite = await this.observeOwnedSite(binding, signal);
-    if (!expectedSiteUid || object17(ownedSite.system_metadata).uid !== expectedSiteUid)
+    if (!expectedSiteUid || object18(ownedSite.system_metadata).uid !== expectedSiteUid)
       throw new Error('Initial registration logical site UID changed before deletion');
     const locators = initialRegistrationLocators(await listed(), binding, instances);
     if (locators.length !== 1 || locators[0].uid !== identity.uid)
@@ -6333,7 +6490,7 @@ class CeRuntime {
     const observation = await this.observeRegistrations(binding, expectedInstances, signal, admittedNodes);
     if (!Array.isArray(observation.nodes)) return observation;
     for (const value of observation.nodes) {
-      const node = object17(value);
+      const node = object18(value);
       if (
         !['NEW', 'PENDING'].includes(String(node.state)) ||
         typeof node.registration !== 'string' ||
@@ -6352,7 +6509,7 @@ class CeRuntime {
         }
         return;
       };
-      const passport = object17(nested('object.spec.gc_spec.passport', 'spec.gc_spec.passport', 'spec.passport'));
+      const passport = object18(nested('object.spec.gc_spec.passport', 'spec.gc_spec.passport', 'spec.passport'));
       const state = nested(
         'object.status.current_state',
         'object.status.state',
@@ -6364,9 +6521,9 @@ class CeRuntime {
       if (state !== node.state) continue;
       let registrationUid;
       if (state === 'PENDING') {
-        const metadata = object17(nested('object.metadata', 'metadata'));
-        const system = object17(nested('object.system_metadata', 'system_metadata'));
-        const infra = object17(nested('object.spec.gc_spec.infra', 'spec.gc_spec.infra', 'spec.infra'));
+        const metadata = object18(nested('object.metadata', 'metadata'));
+        const system = object18(nested('object.system_metadata', 'system_metadata'));
+        const infra = object18(nested('object.spec.gc_spec.infra', 'spec.gc_spec.infra', 'spec.infra'));
         const parent = nested('object.status.parent_current_state', 'status.parent_current_state');
         registrationUid = String(system.uid ?? '');
         if (
@@ -6399,7 +6556,7 @@ class CeRuntime {
           ...record,
           ...(registrationUid ? { registrationUid } : {}),
           initialState: state,
-          passportSha256: createHash6('sha256').update(JSON.stringify(passport)).digest('hex'),
+          passportSha256: createHash7('sha256').update(JSON.stringify(passport)).digest('hex'),
         });
         if (!reserved) continue;
       }
@@ -6513,15 +6670,15 @@ function authenticatedContractHeaders(url) {
 var init_contract_auth = () => {};
 
 // plugins/platform/src/ce/verified-api-release.ts
-import { createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash8 } from 'node:crypto';
 
-function object18(value) {
+function object19(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed CE API contract');
   return value;
 }
 function parse(bytes) {
   try {
-    return object18(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    return object19(JSON.parse(Buffer.from(bytes).toString('utf8')));
   } catch {
     throw new Error('Malformed CE API contract JSON');
   }
@@ -6581,17 +6738,17 @@ async function verifyPublishedCeApi(fetcher, signal) {
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '12.3.0' || object18(receipt.assets)['openapi.json'] !== digest2)
+  if (receipt.commit !== commit || receipt.version !== '12.3.0' || object19(receipt.assets)['openapi.json'] !== digest2)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
-    ? release.assets.map(object18).filter((asset) => asset.name === 'openapi.json')
+    ? release.assets.map(object19).filter((asset) => asset.name === 'openapi.json')
     : [];
   if (assets.length !== 1 || assets[0].digest !== digest2 || assets[0].browser_download_url !== assetUrl)
     throw new Error('CE API schema asset binding differs from the pinned contract');
   const resolved = parse(await read(`https://api.github.com/repos/${repository}/commits/${tag}`));
   if (resolved.sha !== commit) throw new Error('CE API release tag moved');
   const bytes = await read(assetUrl, 64 * 1024 * 1024);
-  if (`sha256:${createHash7('sha256').update(bytes).digest('hex')}` !== digest2)
+  if (`sha256:${createHash8('sha256').update(bytes).digest('hex')}` !== digest2)
     throw new Error('CE API schema checksum mismatch');
   const api = parse(bytes);
   combined.throwIfAborted();
@@ -6623,67 +6780,67 @@ var init_verified_api_release = __esm(() => {
 function fail(message) {
   throw new ReleaseContractFailure(message);
 }
-function object19(value, label) {
+function object20(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} is malformed`);
   return value;
 }
 function parseKvmImageResolution(openapi) {
-  const api = object19(openapi, 'KVM image resolution OpenAPI');
-  const paths = object19(api.paths, 'KVM image resolution paths');
+  const api = object20(openapi, 'KVM image resolution OpenAPI');
+  const paths = object20(api.paths, 'KVM image resolution paths');
   const endpoint = '/api/maurice/software_os_version';
-  const operation = object19(
-    object19(paths[endpoint], 'KVM image resolution path').post,
+  const operation = object20(
+    object20(paths[endpoint], 'KVM image resolution path').post,
     'KVM image resolution operation',
   );
   const operationId = 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage';
-  const requestRef = object19(
-    object19(
-      object19(operation.requestBody, 'KVM image resolution request').content,
+  const requestRef = object20(
+    object20(
+      object20(operation.requestBody, 'KVM image resolution request').content,
       'KVM image resolution request content',
     )['application/json'],
     'KVM image resolution request JSON',
   ).schema;
-  const responseRef = object19(
-    object19(
-      object19(object19(operation.responses, 'KVM image resolution responses')['200'], 'KVM image resolution response')
+  const responseRef = object20(
+    object20(
+      object20(object20(operation.responses, 'KVM image resolution responses')['200'], 'KVM image resolution response')
         .content,
       'KVM image resolution response content',
     )['application/json'],
     'KVM image resolution response JSON',
   ).schema;
-  const schemas = object19(
-    object19(api.components, 'KVM image resolution components').schemas,
+  const schemas = object20(
+    object20(api.components, 'KVM image resolution components').schemas,
     'KVM image resolution schemas',
   );
-  const request = object19(
-    object19(schemas.virtual_applianceGetImageRequest, 'KVM image resolution request schema').properties,
+  const request = object20(
+    object20(schemas.virtual_applianceGetImageRequest, 'KVM image resolution request schema').properties,
     'KVM image resolution request properties',
   );
-  const uids = object19(request.uids, 'KVM image resolution UIDs');
-  const images = object19(
-    object19(
-      object19(schemas.virtual_applianceGetImageResponse, 'KVM image resolution response schema').properties,
+  const uids = object20(request.uids, 'KVM image resolution UIDs');
+  const images = object20(
+    object20(
+      object20(schemas.virtual_applianceGetImageResponse, 'KVM image resolution response schema').properties,
       'KVM image resolution response properties',
     ).images,
     'KVM image resolution images',
   );
-  const image = object19(
-    object19(images.additionalProperties, 'KVM image resolution image').properties,
+  const image = object20(
+    object20(images.additionalProperties, 'KVM image resolution image').properties,
     'KVM image resolution image fields',
   );
-  const link = object19(image.download_image_link, 'KVM image resolution link');
-  const checksum = object19(image.image_md5_sum, 'KVM image resolution checksum');
-  const error = object19(image.error_description, 'KVM image resolution error');
+  const link = object20(image.download_image_link, 'KVM image resolution link');
+  const checksum = object20(image.image_md5_sum, 'KVM image resolution checksum');
+  const error = object20(image.error_description, 'KVM image resolution error');
   if (
     operation.operationId !== operationId ||
-    object19(requestRef, 'KVM image resolution request reference').$ref !==
+    object20(requestRef, 'KVM image resolution request reference').$ref !==
       '#/components/schemas/virtual_applianceGetImageRequest' ||
-    object19(responseRef, 'KVM image resolution response reference').$ref !==
+    object20(responseRef, 'KVM image resolution response reference').$ref !==
       '#/components/schemas/virtual_applianceGetImageResponse' ||
     uids.type !== 'array' ||
     uids.uniqueItems !== true ||
     uids.minItems !== 1 ||
-    object19(uids.items, 'KVM image resolution UID item').type !== 'string' ||
+    object20(uids.items, 'KVM image resolution UID item').type !== 'string' ||
     typeof uids.description !== 'string' ||
     !uids.description.includes('owner_view.kind equal to securemesh_site_v2') ||
     !uids.description.includes('owner_view.uid to the exact Secure Mesh Site v2 configuration UID') ||
@@ -6759,7 +6916,7 @@ var init_release_contract = __esm(() => {
 function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   function shape(value, depth = 0) {
     if (depth > 50) throw new Error('Replacement schema nesting exceeds limit');
-    const schema = object20(value);
+    const schema = object21(value);
     let resolved = {};
     if (schema.$ref) {
       if (typeof schema.$ref !== 'string' || !schema.$ref.startsWith('#/components/schemas/'))
@@ -6780,7 +6937,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     return {
       ...resolved,
       ...schema,
-      ...(schema.properties ? { properties: { ...resolved.properties, ...object20(schema.properties) } } : {}),
+      ...(schema.properties ? { properties: { ...resolved.properties, ...object21(schema.properties) } } : {}),
     };
   }
   function project(value, schemaValue, top = false) {
@@ -6796,12 +6953,12 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     if (value && typeof value === 'object') {
       if (schema.properties === undefined && schema.additionalProperties === undefined) return structuredClone(value);
-      const properties = object20(schema.properties ?? {});
+      const properties = object21(schema.properties ?? {});
       const result = {};
       for (const [key, item] of Object.entries(value)) {
         const canonicalKey = Object.hasOwn(properties, key)
           ? key
-          : Object.keys(properties).find((name) => object20(properties[name])['x-f5xc-wire-name'] === key);
+          : Object.keys(properties).find((name) => object21(properties[name])['x-f5xc-wire-name'] === key);
         if (canonicalKey === undefined) {
           if (top && ignoredRootFields.includes(key)) continue;
           if (schema.additionalProperties === true) {
@@ -6815,7 +6972,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
           }
           throw new Error('GET snapshot contains an unsupported replacement field');
         }
-        const wireName = object20(properties[canonicalKey])['x-f5xc-wire-name'];
+        const wireName = object21(properties[canonicalKey])['x-f5xc-wire-name'];
         const outputKey = typeof wireName === 'string' ? wireName : canonicalKey;
         if (Object.hasOwn(result, outputKey)) throw new Error('Duplicate canonical and wire field aliases');
         const projected = project(item, properties[canonicalKey]);
@@ -6825,15 +6982,15 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     return structuredClone(value);
   }
-  return object20(project(value, schemas[root], true));
+  return object21(project(value, schemas[root], true));
 }
-var object20 = (value) => {
+var object21 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed replacement schema');
   return value;
 };
 
 // plugins/platform/src/ce/wire-routing.ts
-import { createHash as createHash8 } from 'node:crypto';
+import { createHash as createHash9 } from 'node:crypto';
 import { isIP as isIP8 } from 'node:net';
 
 function buildAzureRelayRouting(siteName, localAsn, bindings, relays, validate) {
@@ -6931,7 +7088,7 @@ function buildAzureRelayRouting(siteName, localAsn, bindings, relays, validate) 
   const resourceName =
     siteName.length + suffix.length <= 63
       ? siteName + suffix
-      : `${siteName.slice(0, 44)}-${createHash8('sha256').update(siteName).digest('hex').slice(0, 8)}${suffix}`;
+      : `${siteName.slice(0, 44)}-${createHash9('sha256').update(siteName).digest('hex').slice(0, 8)}${suffix}`;
   return {
     bgp: { name: resourceName, spec },
     expectedPeers,
@@ -7143,7 +7300,7 @@ var init_wire_routing = __esm(() => {
 });
 
 // plugins/platform/src/ce/wire-site.ts
-function object21(value) {
+function object22(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid SMSv2 site identity');
   return value;
 }
@@ -7179,7 +7336,7 @@ function buildWireSite(intent, schemas) {
       throw new Error('Unsupported SMSv2 interface count');
     const interfaceNames = new Set();
     const roles = node.interfaces.map((item) => {
-      const ethernet = object21(item.ethernet_interface);
+      const ethernet = object22(item.ethernet_interface);
       if (typeof ethernet.mac !== 'string' || !macs.test(ethernet.mac) || identities.has(ethernet.mac))
         throw new Error('SMSv2 MAC identity is missing, malformed or duplicated');
       identities.add(ethernet.mac);
@@ -7191,7 +7348,7 @@ function buildWireSite(intent, schemas) {
       if (typeof item.name !== 'string' || !names.test(item.name) || interfaceNames.has(item.name))
         throw new Error('SMSv2 interface names must be unique');
       interfaceNames.add(item.name);
-      const network = object21(item.network_option);
+      const network = object22(item.network_option);
       const addressing = ['dhcp_client', 'static_ip', 'no_ipv4_address'].filter((key) => Object.hasOwn(item, key));
       if (addressing.length !== 1) throw new Error('SMSv2 interface addressing must be explicit');
       return { name: item.name, network, addressing: addressing[0], mtu: item.mtu ?? null };
@@ -7206,7 +7363,7 @@ function buildWireSite(intent, schemas) {
       throw new Error('HA interfaces must have homogeneous order, roles and addressing');
     layout = current;
   }
-  const settings = object21(intent.settings);
+  const settings = object22(intent.settings);
   const protectedFields = [
     'aws',
     'azure',
@@ -7227,7 +7384,7 @@ function buildWireSite(intent, schemas) {
   if (protectedFields.some((field) => Object.hasOwn(settings, field)))
     throw new Error('Site settings cannot replace provider, HA or management identity');
   const spec = { ...structuredClone(defaults), ...structuredClone(settings) };
-  const root = object21(schemas.viewssecuremesh_site_v2CreateSpecType);
+  const root = object22(schemas.viewssecuremesh_site_v2CreateSpecType);
   for (const [key, value] of Object.entries(root)) {
     if (!key.startsWith('x-ves-oneof-field-')) continue;
     const group = typeof value === 'string' ? JSON.parse(value) : value;
@@ -7269,15 +7426,15 @@ var init_wire_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/verified-contract.ts
-import { createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash10 } from 'node:crypto';
 
-function object22(value) {
+function object23(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid verified CE contract');
   return value;
 }
 function parse2(bytes) {
   try {
-    return object22(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    return object23(JSON.parse(Buffer.from(bytes).toString('utf8')));
   } catch {
     throw new Error('Malformed CE contract artifact');
   }
@@ -7322,20 +7479,20 @@ class VerifiedCeContract {
   }
   registrationDeletionRequest(name) {
     const path = '/api/register/namespaces/{namespace}/registrations/{name}';
-    const operation = object22(object22(object22(this.#registrationDeletionApi).paths)[path]).delete;
-    const definition = object22(operation);
+    const operation = object23(object23(object23(this.#registrationDeletionApi).paths)[path]).delete;
+    const definition = object23(operation);
     const parameters = definition.parameters;
     if (
       !/^r-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(name) ||
       definition.operationId !== 'ves.io.schema.registration.CustomAPI.Delete' ||
       !Array.isArray(parameters) ||
-      !Object.hasOwn(object22(definition.responses), '200')
+      !Object.hasOwn(object23(definition.responses), '200')
     )
       throw new Error('Pinned registration deletion operation is unavailable or differs');
     if (
-      (definition.requestBody && object22(definition.requestBody).required === true) ||
+      (definition.requestBody && object23(definition.requestBody).required === true) ||
       parameters
-        .map(object22)
+        .map(object23)
         .some(
           (parameter) =>
             parameter.required === true &&
@@ -7349,11 +7506,11 @@ class VerifiedCeContract {
       ['fail_if_referred', 'query', 'boolean'],
     ]) {
       const matches = parameters
-        .map(object22)
+        .map(object23)
         .filter((parameter) => parameter.name === key && parameter.in === location);
       if (
         matches.length !== 1 ||
-        object22(matches[0].schema).type !== type ||
+        object23(matches[0].schema).type !== type ||
         (location === 'path' && matches[0].required !== true)
       )
         throw new Error('Pinned registration deletion parameters differ');
@@ -7374,8 +7531,8 @@ class VerifiedCeContract {
       read('smsv2-contract-manifest.json'),
       read('smsv2-evidence-receipt.json'),
     ]);
-    const release = object22(manifest.release);
-    const bindings = object22(manifest.assets);
+    const release = object23(manifest.release);
+    const bindings = object23(manifest.assets);
     if (
       manifest.schema_version !== 1 ||
       release.commit !== CE_API_RELEASE.commit ||
@@ -7386,7 +7543,7 @@ class VerifiedCeContract {
       bindings['smsv2-evidence-receipt.json'] !== publishedAssets['smsv2-evidence-receipt.json']
     )
       throw new Error('Published SMSv2 contract binding is invalid');
-    const schemas = object22(object22(api.components).schemas);
+    const schemas = object23(object23(api.components).schemas);
     return new VerifiedCeContract(
       CE_API_RELEASE.commit,
       publishedAssets['smsv2-contract-manifest.json'],
@@ -7406,10 +7563,10 @@ class VerifiedCeContract {
       },
       {
         paths: {
-          [componentStatusPath]: object22(api.paths)[componentStatusPath],
-          [componentCatalogPath]: object22(api.paths)[componentCatalogPath],
-          [forwardingRoutePath]: object22(api.paths)[forwardingRoutePath],
-          [nodeHealthPath]: object22(api.paths)[nodeHealthPath],
+          [componentStatusPath]: object23(api.paths)[componentStatusPath],
+          [componentCatalogPath]: object23(api.paths)[componentCatalogPath],
+          [forwardingRoutePath]: object23(api.paths)[forwardingRoutePath],
+          [nodeHealthPath]: object23(api.paths)[nodeHealthPath],
         },
         components: {
           schemas: {
@@ -7424,7 +7581,7 @@ class VerifiedCeContract {
       },
       {
         paths: {
-          '/api/register/namespaces/{namespace}/registrations/{name}': object22(api.paths)[
+          '/api/register/namespaces/{namespace}/registrations/{name}': object23(api.paths)[
             '/api/register/namespaces/{namespace}/registrations/{name}'
           ],
         },
@@ -7481,7 +7638,7 @@ class VerifiedCeContract {
       throw new Error('Pinned routing replacement contract and exact identity are required');
     const schemas = kind === 'external_connector' ? this.#routingSchemas.marketplace : this.#routingSchemas.network;
     const metadata = projectReplaceSnapshot(snapshot.metadata, schemas, 'schemaObjectReplaceMetaType');
-    metadata.labels = { ...object22(metadata.labels), 'xcsh-ce-site-uid': siteUid };
+    metadata.labels = { ...object23(metadata.labels), 'xcsh-ce-site-uid': siteUid };
     const request = { metadata, spec: structuredClone(desiredSpec), resource_version: snapshot.resource_version };
     createWireValidator(schemas, `${kind}ReplaceRequest`)(request);
     return request;
@@ -7505,9 +7662,9 @@ class VerifiedCeContract {
     this.bgpRoutesPath(providerName, 'contract-check');
   }
   azureRouteServerEbgpMultihop() {
-    const azure = object22(object22(this.#contract.providers).azure);
-    const capability = object22(azure.route_server_ebgp_multihop);
-    const source = object22(capability.source);
+    const azure = object23(object23(this.#contract.providers).azure);
+    const capability = object23(azure.route_server_ebgp_multihop);
+    const source = object23(capability.source);
     const schemaPaths = source.schema_paths;
     if (
       capability.availability !== 'unavailable' ||
@@ -7541,11 +7698,11 @@ class VerifiedCeContract {
     throw new Error(`Azure Route Server eBGP multihop is ${capability.availability}: ${capability.reason}`);
   }
   configurationPath(providerName, siteName) {
-    const provider = object22(object22(this.#contract.providers)[providerName]);
-    const observation = object22(object22(provider.runtime).configuration);
-    const mappings = object22(observation.response_mappings);
-    const normalization = object22(observation.normalization);
-    const nullability = object22(observation.nullability);
+    const provider = object23(object23(this.#contract.providers)[providerName]);
+    const observation = object23(object23(provider.runtime).configuration);
+    const mappings = object23(observation.response_mappings);
+    const normalization = object23(observation.normalization);
+    const nullability = object23(observation.nullability);
     const expectedMappings = {
       interfaces: 'interface_list[]',
       mac: 'ethernet_interface.mac',
@@ -7576,11 +7733,11 @@ class VerifiedCeContract {
     return `/api/config/namespaces/system/securemesh_site_v2s/${siteName}`;
   }
   bgpPeersPath(providerName, siteName) {
-    const provider = object22(object22(this.#contract.providers)[providerName]);
-    const runtime = object22(provider.runtime);
-    const observation = object22(runtime.bgp_peers);
-    const mappings = object22(observation.response_mappings);
-    const peerAddress = object22(mappings.peer_address);
+    const provider = object23(object23(this.#contract.providers)[providerName]);
+    const runtime = object23(provider.runtime);
+    const observation = object23(runtime.bgp_peers);
+    const mappings = object23(observation.response_mappings);
+    const peerAddress = object23(mappings.peer_address);
     if (
       observation.method !== 'GET' ||
       observation.path !== '/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_peers' ||
@@ -7598,16 +7755,16 @@ class VerifiedCeContract {
       mappings.received_prefix_count !== 'ver[].peer[].received_prefix_count' ||
       mappings.advertised_prefix_count !== 'ver[].peer[].advertised_prefix_count' ||
       mappings.state_changed_at !== 'ver[].peer[].up_down_timestamp' ||
-      object22(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
+      object23(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
       JSON.stringify(observation.correlation) !== JSON.stringify(['canonical_node', 'peer_address'])
     )
       throw new Error(`Verified ${providerName} BGP observation mapping is unavailable`);
     return `/api/operate/namespaces/system/sites/${siteName}/ver/bgp_peers`;
   }
   bgpRoutesPath(providerName, siteName) {
-    const provider = object22(object22(this.#contract.providers)[providerName]);
-    const observation = object22(object22(provider.runtime).bgp_routes);
-    const mappings = object22(observation.response_mappings);
+    const provider = object23(object23(this.#contract.providers)[providerName]);
+    const observation = object23(object23(provider.runtime).bgp_routes);
+    const mappings = object23(observation.response_mappings);
     if (
       observation.method !== 'GET' ||
       observation.path !== '/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_routes' ||
@@ -7626,7 +7783,7 @@ class VerifiedCeContract {
           'ver[].ri_table[].rt_table[].imported[].subnet',
           'ver[].ri_table[].rt_table[].exported[].subnet',
         ]) ||
-      object22(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
+      object23(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
       JSON.stringify(observation.correlation) !== JSON.stringify(['canonical_node'])
     )
       throw new Error(`Verified ${providerName} BGP route observation mapping is unavailable`);
@@ -7637,8 +7794,8 @@ class VerifiedCeContract {
     return buildWireSite(intent, this.#schemas);
   }
   requireAwsHaNodeConfiguration() {
-    const configuration = object22(this.provider('aws').node_configuration);
-    const invariants = object22(configuration.invariants);
+    const configuration = object23(this.provider('aws').node_configuration);
+    const invariants = object23(configuration.invariants);
     if (configuration.availability !== 'evidence_backed' || invariants.ha !== 'enabled' || invariants.node_count !== 3)
       throw new Error(
         'Published AWS node configuration requires one non-HA node; qualify and publish three-node support before HA mutation',
@@ -7677,20 +7834,20 @@ class VerifiedCeContract {
       resource_version: snapshot.resource_version,
     };
     for (const provider of ['aws', 'azure']) {
-      const original = object22(snapshot.spec)[provider];
-      const projected = object22(request.spec)[provider];
+      const original = object23(snapshot.spec)[provider];
+      const projected = object23(request.spec)[provider];
       if (!original || !projected) continue;
-      const originalNodes = object22(original.not_managed ?? {}).node_list;
-      const projectedNodes = object22(projected.not_managed ?? {}).node_list;
+      const originalNodes = object23(original.not_managed ?? {}).node_list;
+      const projectedNodes = object23(projected.not_managed ?? {}).node_list;
       for (const node of projectedNodes ?? [])
         for (const iface of node.interface_list) {
-          const ethernet = object22(iface.ethernet_interface);
+          const ethernet = object23(iface.ethernet_interface);
           const observed = originalNodes
             ?.find((item) => item.hostname === node.hostname)
             ?.interface_list?.find(
               (item) =>
-                object22(item.ethernet_interface).mac === ethernet.mac &&
-                object22(item.ethernet_interface).device === ethernet.device,
+                object23(item.ethernet_interface).mac === ethernet.mac &&
+                object23(item.ethernet_interface).device === ethernet.device,
             );
           for (const field of ['is_primary', 'is_management'])
             if (typeof observed?.[field] === 'boolean') iface[field] = observed[field];
@@ -7701,28 +7858,28 @@ class VerifiedCeContract {
   }
   validateObservedSiteReplace(snapshot, request) {
     if (
-      object22(snapshot.metadata).name !== object22(request.metadata).name ||
-      object22(snapshot.metadata).namespace !== object22(request.metadata).namespace ||
+      object23(snapshot.metadata).name !== object23(request.metadata).name ||
+      object23(snapshot.metadata).namespace !== object23(request.metadata).namespace ||
       !snapshot.resource_version ||
       request.resource_version !== snapshot.resource_version
     )
       throw new Error('Replacement snapshot identity or resource version differs');
     for (const provider of ['aws', 'azure']) {
-      const before = object22(snapshot.spec)[provider];
-      const after = object22(request.spec)[provider];
+      const before = object23(snapshot.spec)[provider];
+      const after = object23(request.spec)[provider];
       if (!before && !after) continue;
       if (!before || !after) throw new Error('Replacement provider identity differs');
-      const original = object22(before.not_managed ?? {}).node_list;
-      const nodes = object22(after.not_managed ?? {}).node_list;
+      const original = object23(before.not_managed ?? {}).node_list;
+      const nodes = object23(after.not_managed ?? {}).node_list;
       for (const node of nodes ?? [])
         for (const iface of node.interface_list) {
-          const ethernet = object22(iface.ethernet_interface);
+          const ethernet = object23(iface.ethernet_interface);
           const observed = original
             ?.find((item) => item.hostname === node.hostname)
             ?.interface_list?.find(
               (item) =>
-                object22(item.ethernet_interface).mac === ethernet.mac &&
-                object22(item.ethernet_interface).device === ethernet.device,
+                object23(item.ethernet_interface).mac === ethernet.mac &&
+                object23(item.ethernet_interface).device === ethernet.device,
             );
           if (!observed) throw new Error('Replacement physical interface identity differs');
           for (const field of ['is_primary', 'is_management'])
@@ -7732,18 +7889,18 @@ class VerifiedCeContract {
     createWireValidator(
       this.#schemas,
       'securemesh_site_v2ReplaceRequest',
-      object22(snapshot.spec).aws !== undefined || object22(snapshot.spec).azure !== undefined,
+      object23(snapshot.spec).aws !== undefined || object23(snapshot.spec).azure !== undefined,
     )(request);
   }
   validateSiteReplace(request) {
     createWireValidator(this.#schemas, 'securemesh_site_v2ReplaceRequest')(request);
   }
   provider(name) {
-    return structuredClone(object22(object22(this.#contract.providers)[name]));
+    return structuredClone(object23(object23(this.#contract.providers)[name]));
   }
   bootstrapQuery(name) {
-    const provider = object22(object22(this.#contract.providers)[name]);
-    const bootstrap = object22(provider.bootstrap);
+    const provider = object23(object23(this.#contract.providers)[name]);
+    const bootstrap = object23(provider.bootstrap);
     if (
       bootstrap.mode !== 'site_bound_jwt_cloud_init' ||
       bootstrap.headless_checkout !== 'available' ||
@@ -7753,8 +7910,8 @@ class VerifiedCeContract {
       Array.isArray(bootstrap.cloud_init)
     )
       throw new Error(`Verified ${name} headless bootstrap capability is unavailable`);
-    const cloudInit = object22(bootstrap.cloud_init);
-    const query = object22(cloudInit.query_fields);
+    const cloudInit = object23(bootstrap.cloud_init);
+    const query = object23(cloudInit.query_fields);
     if (
       cloudInit.method !== 'GET' ||
       cloudInit.path !== '/api/register/namespaces/system/get-cloud-init-config' ||
@@ -7768,10 +7925,10 @@ class VerifiedCeContract {
     return { provider: name, enableManagementNetwork: false };
   }
   get api() {
-    return structuredClone(object22(this.#contract.api));
+    return structuredClone(object23(this.#contract.api));
   }
 }
-var hash3 = (bytes) => `sha256:${createHash9('sha256').update(bytes).digest('hex')}`,
+var hash3 = (bytes) => `sha256:${createHash10('sha256').update(bytes).digest('hex')}`,
   commitPattern,
   digestPattern,
   publishedAssets,
@@ -7795,10 +7952,10 @@ var init_verified_contract = __esm(() => {
 });
 
 // plugins/platform/src/ce/service.ts
-import { createHash as createHash10 } from 'node:crypto';
-import { readdir, readFile as readFile3 } from 'node:fs/promises';
+import { createHash as createHash11 } from 'node:crypto';
+import { readdir as readdir2, readFile as readFile4 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join as join4 } from 'node:path';
+import { join as join5 } from 'node:path';
 
 function credentials(url, credential) {
   let parsed;
@@ -7814,10 +7971,10 @@ function credentials(url, credential) {
 async function context(env, contextName) {
   if (contextName) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(contextName)) throw new CeContextFailure('Invalid F5 context name');
-    const directory = join4(env.XDG_CONFIG_HOME ?? join4(homedir(), '.config'), 'xcsh', 'contexts');
+    const directory = join5(env.XDG_CONFIG_HOME ?? join5(homedir(), '.config'), 'xcsh', 'contexts');
     let parsed;
     try {
-      parsed = JSON.parse(await readFile3(join4(directory, `${contextName}.json`), 'utf8'));
+      parsed = JSON.parse(await readFile4(join5(directory, `${contextName}.json`), 'utf8'));
     } catch {
       throw new CeContextFailure('F5 context is unavailable');
     }
@@ -7847,7 +8004,7 @@ function createCePlatformService(
   };
   const root = () =>
     environment().XCSH_CE_DEPLOYMENTS_DIR ??
-    join4(environment().XDG_STATE_HOME ?? join4(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments');
+    join5(environment().XDG_STATE_HOME ?? join5(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments');
   const storage = (owner) => CeDeploymentStore.open(root(), owner);
   return {
     async providerEnvironment(contextName) {
@@ -7859,11 +8016,11 @@ function createCePlatformService(
       if (!/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(siteName)) throw new Error('Invalid site identity');
       const origin = new URL((await context(environment(), contextName)).url).origin;
       const records = [];
-      for (const item of await readdir(root(), { withFileTypes: true })) {
+      for (const item of await readdir2(root(), { withFileTypes: true })) {
         if (!item.isDirectory() || !/^[a-f0-9]{64}$/.test(item.name)) continue;
-        const manifest = JSON.parse(await readFile3(join4(root(), item.name, 'owner.json'), 'utf8'));
+        const manifest = JSON.parse(await readFile4(join5(root(), item.name, 'owner.json'), 'utf8'));
         const store = await storage(manifest.owner);
-        if (store.directory !== join4(root(), item.name)) throw new Error('Stored owner directory differs');
+        if (store.directory !== join5(root(), item.name)) throw new Error('Stored owner directory differs');
         let record;
         try {
           record = await store.read(`site-binding-${siteName}.json`);
@@ -7959,8 +8116,17 @@ function createCePlatformService(
             contractFingerprint: artifact.fingerprint,
             identity: structuredClone(identity),
           };
-          const key = createHash10('sha256').update(String(identity.registration)).digest('hex');
+          const key = createHash11('sha256').update(String(identity.registration)).digest('hex');
           return store.reserve(`registration-approval-${key}.json`, reservation);
+        },
+        async (binding, verifyAbsent, signal) => {
+          await retireRegistrationApprovalReservations(
+            await storage(binding.owner),
+            binding,
+            { tenantOrigin: new URL(credentials.url).origin, contractFingerprint: artifact.fingerprint },
+            verifyAbsent,
+            signal,
+          );
         },
       );
     },
@@ -8014,6 +8180,7 @@ var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service',
   CeContextFailure;
 var init_service = __esm(() => {
   init_deployment_store();
+  init_registration_approval_retirement();
   init_runtime();
   init_verified_contract();
   CeContextFailure = class CeContextFailure extends Error {
@@ -8062,7 +8229,7 @@ var init_security = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash11, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash12, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -8087,7 +8254,7 @@ function createSitePlan(request, tenantOrigin) {
     throw new PublicCeError('The exact existing resource version is required');
   const { planSha256: _hash, ...params } = request;
   const draft = { schemaVersion: 3, ...params, tenantOrigin };
-  const planSha256 = createHash11('sha256').update(canonical5(draft)).digest('hex');
+  const planSha256 = createHash12('sha256').update(canonical5(draft)).digest('hex');
   return { ...draft, planId: `f5xc-ce-v2-${planSha256.slice(0, 24)}`, planSha256 };
 }
 function ceBindingSchema(pi) {
@@ -8260,23 +8427,23 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash12, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash13, randomUUID as randomUUID3 } from 'node:crypto';
 import {
   chmod as chmod2,
-  lstat as lstat3,
+  lstat as lstat4,
   mkdir as mkdir3,
-  readdir as readdir2,
-  readFile as readFile4,
+  readdir as readdir3,
+  readFile as readFile5,
   realpath as realpath2,
   rename as rename3,
   unlink,
   writeFile as writeFile3,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute as isAbsolute2, join as join5, resolve, sep } from 'node:path';
+import { isAbsolute as isAbsolute2, join as join6, resolve, sep } from 'node:path';
 
 function defaultBootstrapRoot() {
-  return join5(tmpdir(), 'xcsh-f5xc-ce');
+  return join6(tmpdir(), 'xcsh-f5xc-ce');
 }
 function assertWithin(root, target) {
   const base = resolve(root);
@@ -8293,8 +8460,8 @@ async function storeBootstrapToken(input) {
   if (!Number.isInteger(input.expiresInSeconds) || input.expiresInSeconds < 1 || input.expiresInSeconds > 900)
     throw new Error('Bootstrap expiry must be between 1 and 900 seconds');
   const id = randomUUID3();
-  const sessionDir = join5(root, input.sessionId);
-  const itemDir = join5(sessionDir, id);
+  const sessionDir = join6(root, input.sessionId);
+  const itemDir = join6(sessionDir, id);
   for (const target of [sessionDir, itemDir]) assertWithin(root, target);
   await mkdir3(root, { recursive: true, mode: 448 });
   await chmod2(root, 448);
@@ -8302,7 +8469,7 @@ async function storeBootstrapToken(input) {
   await chmod2(sessionDir, 448);
   await mkdir3(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash12('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash13('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,
@@ -8313,7 +8480,7 @@ async function storeBootstrapToken(input) {
     consumed: false,
     checkoutReady: false,
   };
-  await writeFile3(join5(itemDir, 'metadata.json'), JSON.stringify(metadata), { mode: 384, flag: 'wx' });
+  await writeFile3(join6(itemDir, 'metadata.json'), JSON.stringify(metadata), { mode: 384, flag: 'wx' });
   await input.onPrepared?.({
     schemaVersion: 1,
     reference: `f5xc-ce://${input.sessionId}/${id}`,
@@ -8322,8 +8489,8 @@ async function storeBootstrapToken(input) {
     expiresAt,
     uid: metadata.uid,
   });
-  await writeFile3(join5(itemDir, 'token'), input.token, { mode: 384, flag: 'wx' });
-  await writeFile3(join5(itemDir, 'metadata.json'), JSON.stringify({ ...metadata, checkoutReady: true }), {
+  await writeFile3(join6(itemDir, 'token'), input.token, { mode: 384, flag: 'wx' });
+  await writeFile3(join6(itemDir, 'metadata.json'), JSON.stringify({ ...metadata, checkoutReady: true }), {
     mode: 384,
   });
   return { reference: `f5xc-ce://${input.sessionId}/${id}`, expiresAt };
@@ -8335,7 +8502,7 @@ var init_token_store = __esm(() => {
 
 // plugins/platform/src/tools/f5xc-ce-v2-bootstrap.ts
 import { randomUUID as randomUUID4 } from 'node:crypto';
-import { join as join6 } from 'node:path';
+import { join as join7 } from 'node:path';
 
 function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformService(), root = defaultBootstrapRoot()) {
   const { Type } = pi.typebox;
@@ -8380,7 +8547,7 @@ function createF5xcCeV2BootstrapTool(pi, makeService = () => createCePlatformSer
         const store = await service.storage(known.binding.owner);
         if (known.binding.owner.engine === 'terraform')
           release = await acquireProcessLock(
-            join6(store.directory, `.${known.binding.owner.provider}-terraform-lifecycle-lock`),
+            join7(store.directory, `.${known.binding.owner.provider}-terraform-lifecycle-lock`),
           );
         for (const marker of ['azure-terraform-lifecycle-retirement.json', 'aws-terraform-lifecycle-retirement.json']) {
           try {

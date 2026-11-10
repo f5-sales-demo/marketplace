@@ -102,8 +102,22 @@ export class CeDeploymentStore {
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      if ((await this.#read(name)).toString() !== bytes) throw new Error('CE request reservation identity differs');
-      return false;
+      // O_EXCL reserves the name before the winning writer finishes publishing.
+      // A losing caller never writes or submits; wait only for the exact prefix
+      // already reserved by that writer, and fail closed if publication stalls.
+      const deadline = performance.now() + 1000;
+      const expected = Buffer.from(bytes);
+      for (;;) {
+        const current = await this.#read(name);
+        if (current.equals(expected)) return false;
+        if (
+          current.length > expected.length ||
+          !current.equals(expected.subarray(0, current.length)) ||
+          performance.now() >= deadline
+        )
+          throw new Error('CE request reservation identity differs');
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
     }
   }
   async write(name: string, value: unknown, signal?: AbortSignal): Promise<void> {

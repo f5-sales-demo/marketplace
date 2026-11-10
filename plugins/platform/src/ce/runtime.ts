@@ -156,6 +156,11 @@ export class CeRuntime {
     readonly resourceMutation?: CeResourceMutation,
     readonly recordBinding?: (binding: SiteBinding, siteUid: string, expected?: ExpectedCeInterface[]) => Promise<void>,
     readonly reserveRegistrationApproval?: (binding: SiteBinding, identity: Json) => Promise<boolean>,
+    readonly retireRegistrationApprovals?: (
+      binding: SiteBinding,
+      verifyAbsent: (registration: string) => Promise<void>,
+      signal?: AbortSignal,
+    ) => Promise<void>,
   ) {
     this.#base = new URL(apiUrl);
     if (
@@ -2057,6 +2062,17 @@ export class CeRuntime {
         throw error;
       }
     };
+    const absentRead = async (path: string) => {
+      try {
+        return await this.#request(path, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return undefined;
+        throw error;
+      }
+    };
+    const readPhysical = () => absentRead(`/api/config/namespaces/system/sites/${binding.siteName}`);
+    const readRegistrations = () =>
+      absentRead(`/api/register/namespaces/system/registrations_by_site/${binding.siteName}`);
     const check = (site: Json) => {
       this.#owned(site, binding);
       if (object(site.system_metadata).uid !== expectedUid)
@@ -2074,6 +2090,24 @@ export class CeRuntime {
       current = await read();
       if (current) check(current);
     }
+    if (!current && this.retireRegistrationApprovals) {
+      const physical = await readPhysical();
+      const registrations = await readRegistrations();
+      if (
+        !physical &&
+        (!registrations ||
+          (Array.isArray(registrations.items) &&
+            registrations.items.length === 0 &&
+            !registrations.next_page_token &&
+            !registrations.next_token &&
+            !registrations.continuation_token &&
+            !registrations.continue &&
+            !registrations.nextLink &&
+            (registrations.errors === undefined ||
+              (Array.isArray(registrations.errors) && registrations.errors.length === 0))))
+      )
+        await this.#finalizeApprovalRetirement(binding, signal);
+    }
     return {
       status: current ? ('pending' as const) : ('deleted' as const),
       owner: binding.owner,
@@ -2083,6 +2117,22 @@ export class CeRuntime {
       contractFingerprint: this.contract.fingerprint,
       observedAt: new Date().toISOString(),
     };
+  }
+  async #finalizeApprovalRetirement(binding: SiteBinding, signal?: AbortSignal) {
+    if (!this.retireRegistrationApprovals) return;
+    await this.retireRegistrationApprovals(
+      binding,
+      async (registration) => {
+        try {
+          await this.#request(`/api/register/namespaces/system/registrations/${registration}`, {}, signal);
+        } catch (error) {
+          if (error instanceof CeApiError && error.category === 'not-found') return;
+          throw error;
+        }
+        throw Error('Exact registration absence is required before approval retirement');
+      },
+      signal,
+    );
   }
   /** Logical deletion alone does not prove physical-site and registration retirement. */
   async observeSiteDeletion(
@@ -2162,6 +2212,9 @@ export class CeRuntime {
           if (active.includes(state)) activeRegistrations++;
         }
       }
+      // The lifecycle observer finalizes local producer journals only after full
+      // remote deletion. Exact GET absence still applies to each reserved registration.
+      if (!logical && !physical && activeRegistrations === 0) await this.#finalizeApprovalRetirement(binding, signal);
       return {
         ...base,
         status: !logical && !physical && activeRegistrations === 0 ? ('deleted' as const) : ('pending' as const),
