@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdir, mkdtemp, open, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -34,6 +34,21 @@ test.skipIf(process.platform !== 'linux')(
         JSON.stringify({ code, pid: child.pid, signalsSent: false }),
         { mode: 0o400, flag: 'wx' },
       );
+      if (code !== 0) {
+        const raw = await readFile(join(root, 'stdout.private.log'), 'utf8');
+        const cases = [
+          ...new Set(
+            [
+              ...raw.matchAll(
+                /^(?:FAILED|ERROR) [^\r\n]*\b(test_[a-z0-9_]+\.py)::(?:[A-Za-z_][A-Za-z0-9_]*::)*(test_[a-z0-9_]+)/gm,
+              ),
+            ].map((match) => `${match[1]}::${match[2]}`),
+          ),
+        ];
+        console.error(
+          `Provider Python regressions failed (exit ${code}); cases: ${cases.join(', ') || 'unavailable'}; private diagnostics: ${root}`,
+        );
+      }
       expect(code).toBe(0);
     } finally {
       await stdout.close();

@@ -10,7 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.65
+- **`terraform` 2.4.66** fixes Python 3.12 reader fixture module registration
+  and reports safe failing test names while keeping raw diagnostics private.
 
 - **`gcloud` 1.7.38 / `platform` 6.3.16 / `terraform` 2.4.57** reconcile
   Bun 1.4.4 and type dependencies with current main while retaining exact
