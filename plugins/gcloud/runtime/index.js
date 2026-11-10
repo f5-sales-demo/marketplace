@@ -2882,6 +2882,46 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
 }
 
+// plugins/gcloud/src/ce/request-reason.ts
+import { randomUUID as randomUUID2 } from 'node:crypto';
+
+function createGcpTerraformRequestReason(intent) {
+  validateIntent(intent);
+  if (intent.engine !== 'terraform' || intent.operation !== 'deploy')
+    throw new Error('Original Terraform deployment intent required for request reason');
+  return Object.freeze({
+    schemaVersion: 1,
+    scope: 'gcp-terraform-deployment',
+    intentFingerprint: fingerprint(intent),
+    reason: `xcsh-gcp-${randomUUID2()}`,
+  });
+}
+function assertGcpTerraformRequestReason(value, intent, googleVersion) {
+  validateIntent(intent);
+  const reason = value;
+  if (
+    !reason ||
+    typeof reason !== 'object' ||
+    Array.isArray(reason) ||
+    Object.keys(reason).sort().join(',') !== 'intentFingerprint,reason,schemaVersion,scope' ||
+    reason.schemaVersion !== 1 ||
+    reason.scope !== 'gcp-terraform-deployment' ||
+    intent.engine !== 'terraform' ||
+    intent.operation !== 'deploy' ||
+    googleVersion !== '8.7.0' ||
+    reason.intentFingerprint !== fingerprint(intent) ||
+    typeof reason.reason !== 'string' ||
+    !reasonPattern.test(reason.reason)
+  )
+    throw new Error('Reviewed original GCP Terraform request reason and provider mapping required');
+}
+var reasonPattern;
+var init_request_reason = __esm(() => {
+  init_discovery();
+  init_validation();
+  reasonPattern = /^xcsh-gcp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+});
+
 // plugins/gcloud/src/ce/compute-plan.ts
 function assertComputeOnly(intent) {
   if (
@@ -2980,10 +3020,11 @@ function translateGcpNativeCompute(intent) {
   if (new Set(actions.map((a) => a.id)).size !== actions.length) throw new Error('GCP action identities collide');
   return { schemaVersion: 1, engine: 'native', executable: false, actions, sha256: fingerprint({ intent, actions }) };
 }
-function translateGcpTerraformCompute(intent, googleProviderVersion) {
+function translateGcpTerraformCompute(intent, googleProviderVersion, requestReason) {
   validateIntent(intent);
   if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
   if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
+  if (requestReason !== undefined) assertGcpTerraformRequestReason(requestReason, intent, googleProviderVersion);
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
   assertComputeOnly(intent);
@@ -3052,7 +3093,15 @@ function translateGcpTerraformCompute(intent, googleProviderVersion) {
       terraform: {
         required_providers: { google: { source: 'hashicorp/google', version: `= ${googleProviderVersion}` } },
       },
-      provider: { google: [{ project: intent.project, region: intent.region }] },
+      provider: {
+        google: [
+          {
+            project: intent.project,
+            region: intent.region,
+            ...(requestReason !== undefined ? { request_reason: requestReason.reason } : {}),
+          },
+        ],
+      },
       variable,
       resource: {
         google_compute_network: networks,
@@ -3062,10 +3111,10 @@ function translateGcpTerraformCompute(intent, googleProviderVersion) {
     },
   };
 }
-function translateGcpTerraformSiteCompute(intent, versions) {
+function translateGcpTerraformSiteCompute(intent, versions, requestReason) {
   for (const version of Object.values(versions))
     if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
-  const cloud = translateGcpTerraformCompute(intent, versions.google);
+  const cloud = translateGcpTerraformCompute(intent, versions.google, requestReason);
   const access = gcpSiteAccessSpec(intent, versions.xcsh);
   const sites = {};
   const tokens = {};
@@ -3139,8 +3188,8 @@ write_files:
     },
   };
 }
-function translateGcpPublicTerraformSiteCompute(intent, versions) {
-  const translated = translateGcpTerraformSiteCompute(intent, versions);
+function translateGcpPublicTerraformSiteCompute(intent, versions, requestReason) {
+  const translated = translateGcpTerraformSiteCompute(intent, versions, requestReason);
   const disks = {};
   for (const site of intent.sites)
     for (const node of site.nodes) {
@@ -3197,6 +3246,7 @@ function translateGcpPublicTerraformSiteCompute(intent, versions) {
 }
 var init_compute_plan = __esm(() => {
   init_discovery();
+  init_request_reason();
   init_site_access();
   init_validation();
 });
@@ -7569,7 +7619,7 @@ var init_original_input_monitor = __esm(() => {
 });
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash9, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash9, randomUUID as randomUUID3 } from 'node:crypto';
 import {
   chmod,
   lstat as lstat7,
@@ -7779,7 +7829,7 @@ function terraformExecutor(
         stderr: 'pipe',
       },
     );
-    const invocationId = randomUUID2();
+    const invocationId = randomUUID3();
     const transition = async (phase) => {
       if (!retainFailure) return;
       const directory = join8(cwd, 'executor-diagnostics');
@@ -7870,7 +7920,7 @@ function terraformExecutor(
         await privateDirectory(cwd);
         const directory = join8(cwd, 'failure-diagnostics');
         await privateDirectory(directory);
-        await persist(join8(directory, `${randomUUID2()}.json`), {
+        await persist(join8(directory, `${randomUUID3()}.json`), {
           schemaVersion: 1,
           observedAt: new Date().toISOString(),
           operation: args[0],
@@ -8084,7 +8134,7 @@ class TerraformRunner {
         previous: manifest,
         next: { ...manifest, configurationSha256: nextSha256 },
         configuration,
-        archiveId: randomUUID2(),
+        archiveId: randomUUID3(),
       };
       await this.#replacePrivate(join8(directory, 'configuration-transition.json'), JSON.stringify(transition));
       await this.#recoverRevision();
@@ -8103,7 +8153,7 @@ class TerraformRunner {
     }
   }
   async #replacePrivate(path, content) {
-    const temporary = `${path}.${randomUUID2()}.new`;
+    const temporary = `${path}.${randomUUID3()}.new`;
     await writeFile3(temporary, content, { mode: 384, flag: 'wx' });
     await rename2(temporary, path);
   }
@@ -10371,6 +10421,7 @@ var init_funding_session = __esm(() => {
 
 // plugins/gcloud/src/ce/terraform-session.ts
 async function openGcpTerraformSession(platform, inputs, resume = false, installedService) {
+  inputs = structuredClone(inputs);
   if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
   if (!resume) await installedService?.assertNewRuntime?.('gcp');
   if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
@@ -10393,8 +10444,8 @@ async function openGcpTerraformSession(platform, inputs, resume = false, install
   }
   const translated =
     inputs.configurationVersion === 2
-      ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions)
-      : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions);
+      ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason)
+      : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason);
   const owner = {
     deploymentId: inputs.intent.deploymentName,
     engine: 'terraform',
@@ -10421,6 +10472,7 @@ async function openGcpTerraformSession(platform, inputs, resume = false, install
     intent: structuredClone(inputs.intent),
     configurationFingerprint: fingerprint(translated.configuration),
     providerLockSha256: digest,
+    ...(inputs.requestReason !== undefined ? { requestReasonFingerprint: fingerprint(inputs.requestReason) } : {}),
   };
   if (resume) {
     const saved = await store.read('gcp-terraform-input-identity.json');
@@ -10474,6 +10526,7 @@ var init_terraform_session = __esm(() => {
 
 // plugins/gcloud/src/ce/terraform-public-runtime.ts
 async function openPublicTerraformRuntime(platform, api, intent, signal, installedService) {
+  intent = structuredClone(intent);
   assertGcpSiteAccessProfile(intent);
   if (
     intent.engine !== 'terraform' ||
@@ -10495,7 +10548,11 @@ async function openPublicTerraformRuntime(platform, api, intent, signal, install
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  const expected = { schemaVersion: 1, inputs: { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent } };
+  const requestReason = inputs ? inputs.inputs?.requestReason : createGcpTerraformRequestReason(intent);
+  const expected = {
+    schemaVersion: 1,
+    inputs: { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent, ...(requestReason !== undefined ? { requestReason } : {}) },
+  };
   if (inputs && fingerprint(inputs) !== fingerprint(expected))
     throw new Error('Public Terraform original packaged inputs differ');
   const session = inputs
@@ -10546,6 +10603,7 @@ async function openPublicTerraformRuntime(platform, api, intent, signal, install
 }
 var init_terraform_public_runtime = __esm(() => {
   init_discovery();
+  init_request_reason();
   init_site_access();
   init_terraform_context();
   init_terraform_google_environment();

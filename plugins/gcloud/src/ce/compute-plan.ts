@@ -1,4 +1,5 @@
 import { fingerprint } from './discovery';
+import { assertGcpTerraformRequestReason, type GcpTerraformRequestReason } from './request-reason';
 import { assertGcpSiteAccessProfile, gcpSiteAccessSpec } from './site-access';
 import type { GcpCeIntent } from './types';
 import { validateIntent } from './validation';
@@ -112,10 +113,15 @@ export function translateGcpNativeCompute(intent: GcpCeIntent) {
 }
 
 /** Candidate Terraform configuration. Shared runner must own isolated state and exact saved plans. */
-export function translateGcpTerraformCompute(intent: GcpCeIntent, googleProviderVersion: string) {
+export function translateGcpTerraformCompute(
+  intent: GcpCeIntent,
+  googleProviderVersion: string,
+  requestReason?: GcpTerraformRequestReason,
+) {
   validateIntent(intent);
   if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
   if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
+  if (requestReason !== undefined) assertGcpTerraformRequestReason(requestReason, intent, googleProviderVersion);
   if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
     throw new Error('Compute candidate supports external-IP deployment only');
   assertComputeOnly(intent);
@@ -184,7 +190,15 @@ export function translateGcpTerraformCompute(intent: GcpCeIntent, googleProvider
       terraform: {
         required_providers: { google: { source: 'hashicorp/google', version: `= ${googleProviderVersion}` } },
       },
-      provider: { google: [{ project: intent.project, region: intent.region }] },
+      provider: {
+        google: [
+          {
+            project: intent.project,
+            region: intent.region,
+            ...(requestReason !== undefined ? { request_reason: requestReason.reason } : {}),
+          },
+        ],
+      },
       variable,
       resource: {
         google_compute_network: networks,
@@ -199,10 +213,11 @@ export function translateGcpTerraformCompute(intent: GcpCeIntent, googleProvider
 export function translateGcpTerraformSiteCompute(
   intent: GcpCeIntent,
   versions: { google: string; xcsh: string; terraform: string },
+  requestReason?: GcpTerraformRequestReason,
 ) {
   for (const version of Object.values(versions))
     if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
-  const cloud = translateGcpTerraformCompute(intent, versions.google);
+  const cloud = translateGcpTerraformCompute(intent, versions.google, requestReason);
   const access = gcpSiteAccessSpec(intent, versions.xcsh);
   const sites: Record<string, unknown> = {};
   const tokens: Record<string, unknown> = {};
@@ -276,8 +291,9 @@ export function translateGcpTerraformSiteCompute(
 export function translateGcpPublicTerraformSiteCompute(
   intent: GcpCeIntent,
   versions: { google: string; xcsh: string; terraform: string },
+  requestReason?: GcpTerraformRequestReason,
 ) {
-  const translated = translateGcpTerraformSiteCompute(intent, versions);
+  const translated = translateGcpTerraformSiteCompute(intent, versions, requestReason);
   const disks: Record<
     string,
     { name: string; project: string; zone: string; image: string; size: number; type: string }

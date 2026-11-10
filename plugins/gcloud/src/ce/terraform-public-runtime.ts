@@ -3,11 +3,12 @@ import type { CeTerraformService } from '../../../terraform/src/service';
 import { withTerraformSession } from '../../../terraform/src/session-lifetime';
 import type { GcloudExecApi } from '../gcloud/exec';
 import { fingerprint } from './discovery';
+import { createGcpTerraformRequestReason } from './request-reason';
 import { assertGcpSiteAccessProfile } from './site-access';
 import { publicTerraformContextHash } from './terraform-context';
 import { googleTerraformEnvironment } from './terraform-google-environment';
 import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from './terraform-public-artifacts';
-import { openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
+import { type GcpTerraformInputs, openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
 import type { GcpCeIntent } from './types';
 
 /** Credentials, configuration and locks are server-owned implementation details. */
@@ -18,6 +19,7 @@ export async function openPublicTerraformRuntime(
   signal?: AbortSignal,
   installedService?: CeTerraformService,
 ) {
+  intent = structuredClone(intent);
   assertGcpSiteAccessProfile(intent);
   if (
     intent.engine !== 'terraform' ||
@@ -39,7 +41,13 @@ export async function openPublicTerraformRuntime(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  const expected = { schemaVersion: 1, inputs: { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent } };
+  const requestReason = inputs
+    ? (inputs as { inputs?: GcpTerraformInputs }).inputs?.requestReason
+    : createGcpTerraformRequestReason(intent);
+  const expected = {
+    schemaVersion: 1,
+    inputs: { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent, ...(requestReason !== undefined ? { requestReason } : {}) },
+  };
   if (inputs && fingerprint(inputs) !== fingerprint(expected))
     throw new Error('Public Terraform original packaged inputs differ');
   const session = inputs

@@ -1108,3 +1108,16 @@ Synthetic unused Platform fields do not establish Platform or installed-tool
 acceptance. Explicit reviewed template request reasons and original
 provider/RPC/resource/create/audit/incarnation joins, full capture and every
 subsequent acceptance gate remain open.
+
+Attempt 411 qualifies [reviewed Terraform request reasons](gcp-reviewed-request-reasons-20261109.md).
+New public sessions store an opaque versioned reason bound to their original
+intent and reviewed provider configuration. Resumes retain the stored reason or
+legacy absence without migration. A failing-first caller-mutation regression
+fixes the original public-runtime context boundary. The final shared run passes
+1,029 tests and all three native typechecks. A fresh authenticated source fixture
+verifies the generated reason in its actual Google header, no-change planning,
+typed teardown, empty destroy, stable empty state, two non-submitting resumes
+and 26 independent group absences without cloud mutations. Source-only synthetic
+scope fields do not establish installed or CE acceptance. Original
+provider/RPC/resource/create/audit/incarnation joins, full capture and every
+subsequent acceptance gate remain open.

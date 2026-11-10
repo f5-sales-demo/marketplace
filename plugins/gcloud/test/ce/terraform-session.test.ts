@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CePlatformService } from '../../../platform/src/ce/service';
+import { createGcpTerraformRequestReason } from '../../src/ce/request-reason';
 import { openGcpTerraformSession, resumeGcpTerraformSession } from '../../src/ce/terraform-session';
 import { intent } from './fixtures';
 
@@ -95,4 +96,27 @@ it('resume rejects F5 context changes even when generated Terraform configuratio
   await expect(openGcpTerraformSession(platform, changed, true)).rejects.toThrow('resume input identity');
   const resumed = await openGcpTerraformSession(platform, first, true);
   expect(await resumed.readConfigurationSha256?.()).toBe(digest);
+});
+
+it('persists original request reason and refuses its replacement or omission on resume', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'gcp-session-reason-')));
+  roots.push(root);
+  const platform = { storage: (owner) => CeDeploymentStore.open(root, owner) } as CePlatformService;
+  const original = inputs();
+  const requestReason = createGcpTerraformRequestReason(original.intent);
+  const attributed = { ...original, requestReason };
+  const opened = await openGcpTerraformSession(platform, attributed);
+  const digest = await opened.readConfigurationSha256?.();
+  const resumed = await resumeGcpTerraformSession(platform, original.intent);
+  expect(await resumed.readConfigurationSha256?.()).toBe(digest);
+  await expect(openGcpTerraformSession(platform, original, true)).rejects.toThrow('resume input identity');
+  await expect(
+    openGcpTerraformSession(
+      platform,
+      { ...attributed, requestReason: createGcpTerraformRequestReason(original.intent) },
+      true,
+    ),
+  ).rejects.toThrow('resume input identity');
+  const again = await openGcpTerraformSession(platform, attributed, true);
+  expect(await again.readConfigurationSha256?.()).toBe(digest);
 });

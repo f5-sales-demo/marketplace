@@ -9,11 +9,13 @@ import { makeExecApi } from '../tools/shared';
 import { translateGcpPublicTerraformSiteCompute, translateGcpTerraformSiteCompute } from './compute-plan';
 import { fingerprint } from './discovery';
 import { withGcpCorporateFunding } from './funding-session';
+import type { GcpTerraformRequestReason } from './request-reason';
 import type { GcpCeIntent } from './types';
 
 export interface GcpTerraformInputs {
   intent: GcpCeIntent;
   configurationVersion?: 2;
+  requestReason?: GcpTerraformRequestReason;
   versions: { terraform: string; google: string; xcsh: string };
   providerLock: string;
   expectedLockSha256: string;
@@ -25,6 +27,7 @@ export async function openGcpTerraformSession(
   resume: boolean | 'current' = false,
   installedService?: CeTerraformService,
 ): Promise<TerraformSession> {
+  inputs = structuredClone(inputs);
   if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
   if (!resume) await installedService?.assertNewRuntime?.('gcp');
   if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
@@ -48,8 +51,8 @@ export async function openGcpTerraformSession(
   }
   const translated =
     inputs.configurationVersion === 2
-      ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions)
-      : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions);
+      ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason)
+      : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason);
   const owner = {
     deploymentId: inputs.intent.deploymentName,
     engine: 'terraform' as const,
@@ -77,6 +80,7 @@ export async function openGcpTerraformSession(
     intent: structuredClone(inputs.intent),
     configurationFingerprint: fingerprint(translated.configuration),
     providerLockSha256: digest,
+    ...(inputs.requestReason !== undefined ? { requestReasonFingerprint: fingerprint(inputs.requestReason) } : {}),
   };
   if (resume) {
     const saved = await store.read('gcp-terraform-input-identity.json');
