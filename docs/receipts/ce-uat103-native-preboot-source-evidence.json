@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 103,
+  "implementationIssue": "https://github.com/f5-sales-demo/marketplace/issues/1835",
+  "change": "AWS native DHCP sites with complete distinct explicit guest devices use preboot configuration with captured distinct ENI MACs and MTU; unresolved DHCP retains reservation",
+  "focusedTests": {
+    "passed": 27,
+    "assertions": 66
+  },
+  "pluginTests": {
+    "passed": 2159,
+    "assertions": 12912
+  },
+  "typescript": "four-pass",
+  "runtimeBuilds": "four-pass",
+  "currentInstalledAcceptance": false,
+  "currentLiveAcceptance": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false,
+  "previousDelivery": {
+    "commit": "b01a75eef0858bf3e1d78818a025bc4917b487dd",
+    "exactCiChecks": 22,
+    "allApplicableGreen": true,
+    "draft": true,
+    "autoMerge": false
+  },
+  "retainedFailures": [
+    "UAT102 native installation timeout at 19/21; complete cleanup retained",
+    "AWS Terraform recovery 212977 ms exceeds unchanged 45000 ms requirement"
+  ],
+  "openDependencies": [
+    "Supported SLI-only control and sample freshness",
+    "Six-interface transition",
+    "Complete native/Terraform AWS/Azure matrix",
+    "Producer immutable publication and live installed consumption",
+    "Human UAT acceptance"
+  ],
+  "exactSourceCi": {
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "allApplicableGreen": true,
+    "checks": 22,
+    "observedAt": "2026-10-22T10:38:26.831977+00:00",
+    "isDraft": true,
+    "autoMerge": false
+  },
+  "retainedCiFailure": {
+    "sourceCommit": "2e6468221346a7b667a38cef6b3f678ac44e3b7f",
+    "run": "https://github.com/f5-sales-demo/marketplace/actions/runs/39763190177",
+    "reason": "generated catalog formatting",
+    "repair": "catalog formatting only; all four plugin trees identical"
+  }
+}
