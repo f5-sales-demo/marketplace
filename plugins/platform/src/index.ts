@@ -1,3 +1,7 @@
+export { inspectOriginalGcpBootstrap, readOriginalGcpBootstrapJwt } from './ce/gcp-bootstrap-evidence';
+export { createGcpLifecycleHttpPort } from './ce/gcp-http';
+export { assertOriginalGcpPlatformHttpBody, openGcpLifecycleHttpCapture } from './ce/gcp-http-capture';
+
 import { HttpCeV2Driver } from './ce/driver';
 import { type CeEventBus, createCePlatformService, registerCePlatformService } from './ce/service';
 import { presentTool as enrichTool } from './presentation';

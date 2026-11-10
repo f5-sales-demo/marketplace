@@ -1309,3 +1309,14 @@ Current source CI passed 28 checks with four skips. Earlier failures and locks
 remain preserved. Full provider/insert flags remain false; managed insertion,
 bootstrap ownership, actual expiry, full default capture, all native/Terraform
 live behavior, installed runtime and delivery remain open.
+
+Attempt 433 adds [Platform bootstrap source evidence](gcp-platform-bootstrap-source-20261110.md).
+Original private HTTP body capture uses shared Platform storage, durable partial
+prefixes, immutable file and owner provenance, explicit site/token scopes and
+recorder-issued references. Metadata joins reject wrong engines, foreign nodes,
+replaced UIDs, invalid JWTs and copied sources. Fresh bootstrap admission remains
+strict; retained expired tokens support private diagnosis. All 19 focused tests
+and three native typechecks/builds pass. Compiled native HTTP source reads retain
+two scoped responses with zero mutations. Full bootstrap qualification remains
+false until positive live mapping and original VM joins pass. Full capture,
+expiry, native/Terraform lifecycle, installed runtime and delivery remain open.

@@ -309,7 +309,7 @@ var gcp_capture_source_pins_default = {
 // plugins/terraform/src/google-adc-authentication.ts
 import { createHash as createHash2 } from 'node:crypto';
 
-// plugins/terraform/src/evidence-json.ts
+// plugins/platform/src/ce/evidence-json.ts
 var object = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
   return value;
@@ -342,7 +342,6 @@ function decodeEvidenceObject(raw) {
   }
   return value;
 }
-
 // plugins/terraform/src/google-adc-authentication.ts
 var tokenEndpoint = 'https://oauth2.googleapis.com/token';
 var inspectionEndpoint = 'https://www.googleapis.com/oauth2/v2/tokeninfo';
