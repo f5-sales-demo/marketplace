@@ -155,7 +155,11 @@ export interface CeTerraformService {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<ArtifactRetirementReceipt>;
-  open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;
+  open(
+    owner: CeOwner,
+    deployment: Deployment,
+    resume: boolean | 'current' | 'recover-initialization',
+  ): Promise<TerraformSession>;
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
@@ -183,7 +187,15 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
       const runner = new TerraformRunner(
         deployment.stage ? join(store.directory, 'terraform-stages', deployment.stage) : store.directory,
       );
-      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
+      if (resume === 'recover-initialization') {
+        try {
+          await runner.resume(deployment.deploymentId, deployment, 'current');
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          await runner.recoverPreparation(deployment);
+        }
+      } else if (resume)
+        await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);

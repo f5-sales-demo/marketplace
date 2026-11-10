@@ -23938,7 +23938,7 @@ ${teardown.retirement.length} site(s)`,
                       ? await loadAwsTerraformBrownfieldBinding(plan, storage, makeApi(ctx.cwd), signal)
                       : undefined,
                   ),
-                  'current',
+                  'recover-initialization',
                 ),
                 storage,
                 makeApi(ctx.cwd),

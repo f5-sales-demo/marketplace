@@ -1383,7 +1383,7 @@ async function executeF5TerraformResource(
 import {
   createHash as createHash5,
   createHash as createHash6,
-  createHash as createHash7,
+  createHash as createHash8,
   randomUUID as randomUUID2,
   randomUUID as randomUUID3,
 } from 'node:crypto';
@@ -1391,34 +1391,34 @@ import {
   chmod,
   lstat as lstat2,
   lstat as lstat3,
-  lstat as lstat4,
-  mkdir as mkdir2,
+  lstat as lstat5,
+  mkdir as mkdir3,
   readdir,
-  readdir as readdir2,
+  readdir as readdir3,
   readFile as readFile3,
   readFile as readFile4,
   readFile as readFile5,
   readlink,
   realpath,
-  realpath as realpath2,
+  realpath as realpath3,
   rename as rename2,
   rename as rename3,
   rm as rm2,
   rmdir,
   unlink,
   writeFile as writeFile3,
-  writeFile as writeFile4,
+  writeFile as writeFile5,
 } from 'node:fs/promises';
 // plugins/terraform/src/service.ts
 import {
   isAbsolute,
-  isAbsolute as isAbsolute2,
+  isAbsolute as isAbsolute3,
   join as join5,
   join as join7,
-  join as join8,
   join as join9,
+  join as join10,
   resolve,
-  resolve as resolve2,
+  resolve as resolve3,
 } from 'node:path';
 
 var hash4 = (value) => createHash5('sha256').update(value).digest('hex');
@@ -2057,6 +2057,192 @@ function projectTerraformFieldPath(values, sensitive, unknown, path) {
   return selected;
 }
 
+// plugins/terraform/src/initialization.ts
+import { createHash as createHash7 } from 'node:crypto';
+import { constants } from 'node:fs';
+import {
+  lstat as lstat4,
+  mkdir as mkdir2,
+  open,
+  readdir as readdir2,
+  realpath as realpath2,
+  unlink as unlink2,
+  writeFile as writeFile4,
+} from 'node:fs/promises';
+import { isAbsolute as isAbsolute2, join as join8, resolve as resolve2 } from 'node:path';
+
+var hash6 = (bytes) => createHash7('sha256').update(bytes).digest('hex');
+async function directory(path) {
+  const stat = await lstat4(path);
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== process.getuid?.() ||
+    stat.mode & 63 ||
+    (await realpath2(path)) !== path
+  )
+    throw Error('Initialization directory custody differs');
+  return { dev: stat.dev, ino: stat.ino, uid: stat.uid };
+}
+async function exists(path) {
+  try {
+    await lstat4(path);
+    return true;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return false;
+  }
+}
+async function bytes(path) {
+  const before = await lstat4(path);
+  if (
+    !before.isFile() ||
+    before.isSymbolicLink() ||
+    before.nlink !== 1 ||
+    before.uid !== process.getuid?.() ||
+    before.mode & 63
+  )
+    throw Error('Initialization input custody differs');
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const opened = await handle.stat();
+    if (
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino ||
+      opened.size !== before.size ||
+      opened.uid !== before.uid ||
+      opened.mode !== before.mode ||
+      opened.nlink !== 1
+    )
+      throw Error('Initialization input changed before observation');
+    const value = await handle.readFile();
+    const after = await handle.stat();
+    const pathAfter = await lstat4(path);
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeMs !== after.mtimeMs ||
+      before.ctimeMs !== after.ctimeMs ||
+      after.nlink !== 1 ||
+      after.mode !== before.mode ||
+      after.uid !== before.uid ||
+      pathAfter.dev !== after.dev ||
+      pathAfter.ino !== after.ino ||
+      pathAfter.isSymbolicLink()
+    )
+      throw Error('Initialization input changed during observation');
+    return { value, stat: after };
+  } finally {
+    await handle.close();
+  }
+}
+async function initializeWorkspace(input, options = {}) {
+  if (
+    !isAbsolute2(input.root) ||
+    resolve2(input.root) !== input.root ||
+    !/^[a-z][a-z0-9-]{0,62}$/.test(input.deploymentId) ||
+    input.manifest.schemaVersion !== 1 ||
+    input.manifest.engine !== 'terraform' ||
+    input.manifest.deploymentId !== input.deploymentId ||
+    typeof input.configuration !== 'string' ||
+    typeof input.providerLock !== 'string' ||
+    !input.providerLock.trim() ||
+    typeof input.cliConfig !== 'string'
+  )
+    throw Error('Initialization ownership or inputs differ');
+  const scope = input.manifest.scope;
+  if (
+    !scope ||
+    !['aws', 'azure'].includes(String(scope.cloud)) ||
+    typeof scope.account !== 'string' ||
+    !scope.account ||
+    typeof scope.region !== 'string' ||
+    !scope.region
+  )
+    throw Error('Initialization cloud scope differs');
+  const custody = await directory(input.root);
+  const target = join8(input.root, input.deploymentId);
+  const intent = join8(input.root, `.initialization-${input.deploymentId}.json`);
+  const inputs = new Map([
+    ['main.tf.json', Buffer.from(input.configuration)],
+    ['.terraform.lock.hcl', Buffer.from(input.providerLock)],
+    ['deployment.tfrc', Buffer.from(input.cliConfig)],
+    ['deployment.json', Buffer.from(JSON.stringify(input.manifest))],
+  ]);
+  const record = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 1,
+      root: input.root,
+      custody,
+      deploymentId: input.deploymentId,
+      manifest: input.manifest,
+      inputs: Object.fromEntries([...inputs].map(([name, data]) => [name, hash6(data)])),
+    }),
+  );
+  const write = options.write ?? ((path, data) => writeFile4(path, data, { mode: 384, flag: 'wx' }));
+  const release = await acquireProcessLock(join8(input.root, `.initialization-${input.deploymentId}-lock`));
+  try {
+    if (await exists(intent)) {
+      const original = await bytes(intent);
+      if (!original.value.equals(record)) throw Error('Original initialization intent differs');
+    } else {
+      if (options.recoverOnly) throw Error('Original initialization intent is unavailable');
+      if (await exists(target))
+        throw Object.assign(Error('Existing workspace requires qualified resume'), { code: 'EEXIST' });
+      await write(intent, record);
+    }
+    if (JSON.stringify(await directory(input.root)) !== JSON.stringify(custody))
+      throw Error('Initialization parent changed');
+    if (!(await exists(target))) await mkdir2(target, { mode: 448 });
+    const targetCustody = await directory(target);
+    const names = await readdir2(target);
+    if (names.some((name) => !inputs.has(name))) throw Error('Unqualified initialization artifact blocks recovery');
+    for (const [name, data] of inputs) {
+      const path = join8(target, name);
+      if (await exists(path)) {
+        const observed = await bytes(path);
+        if (observed.value.length > data.length || !data.subarray(0, observed.value.length).equals(observed.value))
+          throw Error('Original initialization bytes conflict');
+      }
+    }
+    for (const [name, data] of inputs) {
+      const path = join8(target, name);
+      if (!(await exists(path))) await write(path, data);
+      else {
+        const observed = await bytes(path);
+        if (observed.value.length > data.length || !data.subarray(0, observed.value.length).equals(observed.value))
+          throw Error('Original initialization bytes conflict');
+        if (observed.value.length !== data.length) {
+          const handle = await open(path, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW);
+          try {
+            const stat = await handle.stat();
+            if (
+              stat.dev !== observed.stat.dev ||
+              stat.ino !== observed.stat.ino ||
+              stat.uid !== process.getuid?.() ||
+              stat.nlink !== 1 ||
+              stat.size !== observed.value.length ||
+              stat.mode & 63
+            )
+              throw Error('Original initialization append custody differs');
+            await handle.writeFile(data.subarray(observed.value.length));
+          } finally {
+            await handle.close();
+          }
+        }
+      }
+      if (!(await bytes(path)).value.equals(data)) throw Error('Original initialization input is incomplete');
+      if (JSON.stringify(await directory(target)) !== JSON.stringify(targetCustody))
+        throw Error('Initialization workspace changed');
+    }
+    if (!(await bytes(intent)).value.equals(record)) throw Error('Initialization intent changed before completion');
+    await unlink2(intent);
+  } finally {
+    await release();
+  }
+}
+
 // plugins/terraform/src/runner.ts
 var planApplicationFlag = ['apply', 'able'].join('');
 var cliConfig = `provider_installation {
@@ -2064,7 +2250,7 @@ var cliConfig = `provider_installation {
 }
 disable_checkpoint = true
 `;
-var digest2 = (value) => createHash7('sha256').update(value).digest('hex');
+var digest2 = (value) => createHash8('sha256').update(value).digest('hex');
 function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Terraform JSON object is malformed');
@@ -2192,7 +2378,7 @@ function decodeSavedPlanJournal(journalBytes) {
       canonical3(Object.keys(execution).sort()) !== canonical3(['planArgs', 'terraform']) ||
       canonical3(Object.keys(executable).sort()) !== canonical3(['path', 'sha256']) ||
       typeof executable.path !== 'string' ||
-      !isAbsolute2(executable.path) ||
+      !isAbsolute3(executable.path) ||
       /[\r\n\0]/.test(executable.path) ||
       typeof executable.sha256 !== 'string' ||
       !/^[a-f0-9]{64}$/.test(executable.sha256) ||
@@ -2400,20 +2586,20 @@ function inspectActionInvocations(plan, expected) {
   return [{ ...expected }];
 }
 async function privateDirectory(path, create = true) {
-  if (create) await mkdir2(path, { recursive: true, mode: 448 });
-  const stat = await lstat4(path);
+  if (create) await mkdir3(path, { recursive: true, mode: 448 });
+  const stat = await lstat5(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
-    (await realpath2(path)) !== path ||
+    (await realpath3(path)) !== path ||
     (!create && (stat.mode & 63) !== 0)
   )
     throw new Error('Terraform storage ownership is invalid');
   if (create) await chmod(path, 448);
 }
 async function privateRead(path) {
-  const stat = await lstat4(path);
+  const stat = await lstat5(path);
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
@@ -2426,7 +2612,7 @@ async function privateRead(path) {
 }
 async function persist(path, value) {
   const temporary = `${path}.new`;
-  await writeFile4(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
+  await writeFile5(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
   await rename3(temporary, path);
 }
 function terraformExecutor(
@@ -2509,9 +2695,9 @@ function terraformExecutor(
       const failureCategory = categories.size === 1 ? [...categories][0] : 'unknown';
       if (code !== 0 && retainFailure) {
         await privateDirectory(cwd);
-        const directory = join8(cwd, 'failure-diagnostics');
+        const directory = join9(cwd, 'failure-diagnostics');
         await privateDirectory(directory);
-        await persist(join8(directory, `${randomUUID3()}.json`), {
+        await persist(join9(directory, `${randomUUID3()}.json`), {
           schemaVersion: 1,
           observedAt: new Date().toISOString(),
           operation: args[0],
@@ -2549,9 +2735,15 @@ class TerraformRunner {
     this.root = root;
     this.execute = execute;
     this.independentVerifier = independentVerifier;
-    if (!isAbsolute2(root) || resolve2(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (!isAbsolute3(root) || resolve3(root) !== root) throw new Error('Terraform storage must be an absolute path');
   }
   async prepare(deployment) {
+    return this.#prepare(deployment, false);
+  }
+  async recoverPreparation(deployment) {
+    return this.#prepare(deployment, true);
+  }
+  async #prepare(deployment, recoverOnly) {
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
       throw new Error('Terraform deployment identity or owning engine is unsupported');
     if (deployment.stage !== undefined && !safeId.test(deployment.stage))
@@ -2568,15 +2760,21 @@ class TerraformRunner {
       throw new Error('This runner currently admits isolated local backends only');
     if (!deployment.scope.account || !deployment.scope.region || !['aws', 'azure'].includes(deployment.scope.cloud))
       throw new Error('Explicit deployment scope is required');
-    await privateDirectory(this.root);
-    const directory = join8(this.root, deployment.deploymentId);
-    await mkdir2(directory, { mode: 448 });
+    await privateDirectory(this.root, !recoverOnly);
+    const directory = join9(this.root, deployment.deploymentId);
     const { configuration: source, providerLock, ...identity } = deployment;
     const manifest = { ...identity, configurationSha256: digest2(source), providerLockSha256: digest2(providerLock) };
-    await writeFile4(join8(directory, 'main.tf.json'), source, { mode: 384, flag: 'wx' });
-    await writeFile4(join8(directory, '.terraform.lock.hcl'), providerLock, { mode: 384, flag: 'wx' });
-    await writeFile4(join8(directory, 'deployment.tfrc'), cliConfig, { mode: 384, flag: 'wx' });
-    await persist(join8(directory, 'deployment.json'), manifest);
+    await initializeWorkspace(
+      {
+        root: this.root,
+        deploymentId: deployment.deploymentId,
+        manifest,
+        configuration: source,
+        providerLock,
+        cliConfig,
+      },
+      { recoverOnly },
+    );
     this.#directory = directory;
     this.#manifest = manifest;
   }
@@ -2591,7 +2789,7 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration snapshot is stale');
-      const configuration = await privateRead(join8(directory, 'main.tf.json'));
+      const configuration = await privateRead(join9(directory, 'main.tf.json'));
       if (digest2(configuration) !== expectedSha256) throw new Error('Terraform configuration snapshot changed');
       return configuration.toString();
     });
@@ -2600,7 +2798,7 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString());
       if (
         !['applying', 'applied'].includes(String(journal.state)) ||
         canonical3(receipt) !== canonical3(journal.receipt) ||
@@ -2609,7 +2807,7 @@ class TerraformRunner {
         receipt.backendIdentity !== manifest.backendIdentity ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))) ||
+        receipt.planSha256 !== digest2(await privateRead(join9(directory, 'saved.tfplan'))) ||
         !/^[a-f0-9]{64}$/.test(evidenceSha256)
       )
         throw new Error('Terraform interrupted apply evidence differs from the exact saved plan');
@@ -2618,7 +2816,7 @@ class TerraformRunner {
   }
   async #transitionSavedPlanJournal(journal, state, receipt, evidenceSha256) {
     const next = transitionSavedPlanJournal(journal, state, receipt, evidenceSha256);
-    const path = join8(this.#state().directory, 'plan-receipt.json');
+    const path = join9(this.#state().directory, 'plan-receipt.json');
     const current = decode((await privateRead(path)).toString());
     if (canonical3(current) !== canonical3(journal))
       throw Error('Saved-plan journal changed before lifecycle publication');
@@ -2632,12 +2830,12 @@ class TerraformRunner {
     await this.#verifyInputs();
     const { directory, manifest } = this.#state();
     if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
-    this.#validateRevision(configuration, (await privateRead(join8(directory, 'main.tf.json'))).toString());
+    this.#validateRevision(configuration, (await privateRead(join9(directory, 'main.tf.json'))).toString());
     const nextSha256 = digest2(configuration);
     if (nextSha256 === expectedSha256) return nextSha256;
     let receipt;
     try {
-      receipt = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+      receipt = decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString());
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
@@ -2649,7 +2847,7 @@ class TerraformRunner {
       configuration,
       archiveId: randomUUID3(),
     };
-    await this.#replacePrivate(join8(directory, 'configuration-transition.json'), JSON.stringify(transition));
+    await this.#replacePrivate(join9(directory, 'configuration-transition.json'), JSON.stringify(transition));
     await this.#recoverRevision();
     return nextSha256;
   }
@@ -2730,7 +2928,7 @@ class TerraformRunner {
         receipt: receipt ?? null,
         evidenceSha256,
       };
-      const path = join8(
+      const path = join9(
         directory,
         `configuration-cancellation-${digest2(canonical3({ receipt: receipt ?? null, expectedSha256, nextSha256 }))}.json`,
       );
@@ -2759,8 +2957,8 @@ class TerraformRunner {
           throw Error('Cancellation provenance source evidence differs');
         if (![expectedSha256, nextSha256].includes(manifest.configurationSha256))
           throw Error('Cancellation provenance current configuration differs');
-        const journalBytes = await read(join8(directory, 'plan-receipt.json')),
-          savedBytes = await read(join8(directory, 'saved.tfplan'));
+        const journalBytes = await read(join9(directory, 'plan-receipt.json')),
+          savedBytes = await read(join9(directory, 'saved.tfplan'));
         const journal = journalBytes ? decodeSavedPlanJournal(journalBytes) : undefined;
         const originalJournal = journal && receipt && canonical3(journal.receipt) === canonical3(receipt);
         if (originalJournal && journal.state !== 'planned')
@@ -2869,7 +3067,7 @@ class TerraformRunner {
         receipt: receipt ?? null,
         evidenceSha256,
       };
-      const recordPath = join8(
+      const recordPath = join9(
         directory,
         `configuration-cancellation-${digest2(canonical3({ receipt: receipt ?? null, expectedSha256, nextSha256 }))}.json`,
       );
@@ -2884,16 +3082,16 @@ class TerraformRunner {
       if (recorded && canonical3(decode(recorded.toString())) !== canonical3(cancellation))
         throw new Error('Unsubmitted cancellation source evidence changed');
       const retireOriginalPlan = async () => {
-        const currentJournal = await readOptional(join8(directory, 'plan-receipt.json'));
-        const savedPlan = await readOptional(join8(directory, 'saved.tfplan'));
+        const currentJournal = await readOptional(join9(directory, 'plan-receipt.json'));
+        const savedPlan = await readOptional(join9(directory, 'saved.tfplan'));
         if (currentJournal) {
           const journal = decodeSavedPlanJournal(currentJournal);
           const currentReceipt = journal.receipt;
           if (receipt && journal.state === 'planned' && canonical3(currentReceipt) === canonical3(receipt)) {
             if (savedPlan && digest2(savedPlan) !== receipt.planSha256)
               throw new Error('Cancelled saved plan bytes changed');
-            await rm2(join8(directory, 'saved.tfplan'), { force: true });
-            await rm2(join8(directory, 'plan-receipt.json'));
+            await rm2(join9(directory, 'saved.tfplan'), { force: true });
+            await rm2(join9(directory, 'plan-receipt.json'));
           } else if (
             journal.state !== 'planned' ||
             currentReceipt.noChanges !== true ||
@@ -2903,13 +3101,13 @@ class TerraformRunner {
         } else if (savedPlan) {
           if (!receipt || digest2(savedPlan) !== receipt.planSha256)
             throw new Error('Unsubmitted cancellation recovery has an unbound saved plan');
-          await rm2(join8(directory, 'saved.tfplan'));
+          await rm2(join9(directory, 'saved.tfplan'));
         }
       };
       if (recorded && manifest.configurationSha256 === nextSha256) {
         if (receipt) {
-          const activeJournal = await readOptional(join8(directory, 'plan-receipt.json'));
-          const activePlan = await readOptional(join8(directory, 'saved.tfplan'));
+          const activeJournal = await readOptional(join9(directory, 'plan-receipt.json'));
+          const activePlan = await readOptional(join9(directory, 'saved.tfplan'));
           if (expectedSha256 === nextSha256 && activeJournal && activePlan) {
             const active = decodeSavedPlanJournal(activeJournal);
             if (canonical3(active.receipt) === canonical3(receipt)) {
@@ -2935,11 +3133,11 @@ class TerraformRunner {
         if ((await this.#applicationState(receipt)) !== 'planned')
           throw new Error('Unsubmitted cancellation cannot revise an applying or applied plan');
       } else if (
-        (await readOptional(join8(directory, 'plan-receipt.json'))) ||
-        (await readOptional(join8(directory, 'saved.tfplan')))
+        (await readOptional(join9(directory, 'plan-receipt.json'))) ||
+        (await readOptional(join9(directory, 'saved.tfplan')))
       )
         throw new Error('Unsubmitted cancellation requires the original saved-plan receipt');
-      this.#validateRevision(configuration, (await privateRead(join8(directory, 'main.tf.json'))).toString());
+      this.#validateRevision(configuration, (await privateRead(join9(directory, 'main.tf.json'))).toString());
       if (!recorded) await this.#replacePrivate(recordPath, JSON.stringify(cancellation));
       await this.#archivePlanAttempt();
       const result = await this.#reviseConfiguration(expectedSha256, configuration);
@@ -2960,14 +3158,14 @@ class TerraformRunner {
   }
   async #replacePrivate(path, content) {
     const temporary = `${path}.${randomUUID3()}.new`;
-    await writeFile4(temporary, content, { mode: 384, flag: 'wx' });
+    await writeFile5(temporary, content, { mode: 384, flag: 'wx' });
     await rename3(temporary, path);
   }
   async #recoverRevision() {
     const { directory } = this.#state();
     let transition;
     try {
-      transition = decode((await privateRead(join8(directory, 'configuration-transition.json'))).toString());
+      transition = decode((await privateRead(join9(directory, 'configuration-transition.json'))).toString());
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -2984,60 +3182,60 @@ class TerraformRunner {
     )
       throw new Error('Terraform configuration transition is malformed');
     this.#validateRevision(transition.configuration);
-    const owner = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
-    const current = await privateRead(join8(directory, 'main.tf.json'));
+    const owner = decode((await privateRead(join9(directory, 'deployment.json'))).toString());
+    const current = await privateRead(join9(directory, 'main.tf.json'));
     if (
       ![canonical3(previous), canonical3(next)].includes(canonical3(owner)) ||
       ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
-      digest2(await privateRead(join8(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
-      digest2(await privateRead(join8(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
+      digest2(await privateRead(join9(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
+      digest2(await privateRead(join9(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
     )
       throw new Error('Terraform configuration transition ownership or inputs changed');
-    const archive = join8(directory, 'revisions', transition.archiveId);
+    const archive = join9(directory, 'revisions', transition.archiveId);
     await privateDirectory(archive);
     const archiveFile = async (name, content) => {
       try {
-        await writeFile4(join8(archive, name), content, { mode: 384, flag: 'wx' });
+        await writeFile5(join9(archive, name), content, { mode: 384, flag: 'wx' });
       } catch (error) {
-        if (error.code !== 'EEXIST' || digest2(await privateRead(join8(archive, name))) !== digest2(content))
+        if (error.code !== 'EEXIST' || digest2(await privateRead(join9(archive, name))) !== digest2(content))
           throw error;
       }
     };
     if (digest2(current) === previous.configurationSha256) await archiveFile('main.tf.json', current);
-    if (digest2(await privateRead(join8(archive, 'main.tf.json'))) !== previous.configurationSha256)
+    if (digest2(await privateRead(join9(archive, 'main.tf.json'))) !== previous.configurationSha256)
       throw new Error('Previous Terraform configuration archive is missing');
-    this.#validateRevision(transition.configuration, (await privateRead(join8(archive, 'main.tf.json'))).toString());
+    this.#validateRevision(transition.configuration, (await privateRead(join9(archive, 'main.tf.json'))).toString());
     await archiveFile('deployment.json', Buffer.from(JSON.stringify(previous)));
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       try {
-        await archiveFile(name, await privateRead(join8(directory, name)));
+        await archiveFile(name, await privateRead(join9(directory, name)));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
     }
-    await this.#replacePrivate(join8(directory, 'main.tf.json'), transition.configuration);
-    await this.#replacePrivate(join8(directory, 'deployment.json'), JSON.stringify(next));
+    await this.#replacePrivate(join9(directory, 'main.tf.json'), transition.configuration);
+    await this.#replacePrivate(join9(directory, 'deployment.json'), JSON.stringify(next));
     this.#manifest = next;
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       let bytes;
       try {
-        bytes = await privateRead(join8(directory, name));
+        bytes = await privateRead(join9(directory, name));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
         continue;
       }
-      if (digest2(bytes) !== digest2(await privateRead(join8(archive, name))))
+      if (digest2(bytes) !== digest2(await privateRead(join9(archive, name))))
         throw Error('Previous Terraform saved journal changed before archival handoff');
-      await rm2(join8(directory, name));
+      await rm2(join9(directory, name));
     }
-    await rm2(join8(directory, 'configuration-transition.json'));
+    await rm2(join9(directory, 'configuration-transition.json'));
   }
   async resume(deploymentId, expected, configurationMode = 'exact') {
     if (configurationMode === 'current' && !expected) throw new Error('Current configuration resume requires identity');
     if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
-    const directory = join8(this.root, deploymentId);
+    const directory = join9(this.root, deploymentId);
     await privateDirectory(directory, false);
-    const manifest = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
+    const manifest = decode((await privateRead(join9(directory, 'deployment.json'))).toString());
     if (manifest.schemaVersion !== 1 || manifest.engine !== 'terraform' || manifest.deploymentId !== deploymentId)
       throw new Error('Terraform deployment ownership is invalid');
     this.#directory = directory;
@@ -3069,18 +3267,18 @@ class TerraformRunner {
       if (canonical3(recoveredManifest) !== canonical3(expectedManifest))
         throw new Error('Terraform deployment differs from the requested identity or configuration');
       if (configurationMode === 'current')
-        this.#validateRevision((await privateRead(join8(directory, 'main.tf.json'))).toString(), configuration);
+        this.#validateRevision((await privateRead(join9(directory, 'main.tf.json'))).toString(), configuration);
     }
     this.#directory = directory;
     this.#manifest = recoveredManifest;
     await this.#verifyInputs();
     try {
-      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString());
       if (journal.execution !== undefined) {
         const executable = object6(object6(journal.execution).terraform);
         if (
           typeof executable.path !== 'string' ||
-          !isAbsolute2(executable.path) ||
+          !isAbsolute3(executable.path) ||
           typeof executable.sha256 !== 'string' ||
           !/^[a-f0-9]{64}$/.test(executable.sha256)
         )
@@ -3098,12 +3296,12 @@ class TerraformRunner {
   async #verifyInputs() {
     if (!this.#manifest || !this.#directory) throw new Error('Prepare or resume the deployment first');
     try {
-      await lstat4(join8(this.#directory, 'configuration-transition.json'));
+      await lstat5(join9(this.#directory, 'configuration-transition.json'));
       throw new Error('Resume the interrupted Terraform configuration transition before execution');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    const owner = decode((await privateRead(join8(this.#directory, 'deployment.json'))).toString());
+    const owner = decode((await privateRead(join9(this.#directory, 'deployment.json'))).toString());
     if (canonical3(owner) !== canonical3(this.#manifest) || owner.engine !== 'terraform')
       throw new Error('Terraform deployment ownership changed');
     for (const [file, expected] of [
@@ -3111,7 +3309,7 @@ class TerraformRunner {
       ['.terraform.lock.hcl', this.#manifest.providerLockSha256],
       ['deployment.tfrc', digest2(cliConfig)],
     ]) {
-      if (digest2(await privateRead(join8(this.#directory, file))) !== expected)
+      if (digest2(await privateRead(join9(this.#directory, file))) !== expected)
         throw new Error('Terraform configuration or provider lock changed');
     }
   }
@@ -3119,8 +3317,8 @@ class TerraformRunner {
     const env = Object.fromEntries(Object.entries(ambient).filter(([key]) => !key.startsWith('TF_')));
     return {
       ...env,
-      TF_CLI_CONFIG_FILE: join8(this.#state().directory, 'deployment.tfrc'),
-      TF_DATA_DIR: join8(this.#state().directory, '.terraform'),
+      TF_CLI_CONFIG_FILE: join9(this.#state().directory, 'deployment.tfrc'),
+      TF_DATA_DIR: join9(this.#state().directory, '.terraform'),
       TF_IN_AUTOMATION: '1',
       TF_INPUT: '0',
       TF_WORKSPACE: 'default',
@@ -3147,7 +3345,7 @@ class TerraformRunner {
     if (this.#busy) throw new Error('Terraform deployment operation is already running');
     if (!this.#directory) throw new Error('Prepare or resume the deployment first');
     this.#busy = true;
-    const lock = join8(this.#directory, '.runner-lock');
+    const lock = join9(this.#directory, '.runner-lock');
     let release;
     try {
       release = await acquireProcessLock(lock);
@@ -3166,7 +3364,7 @@ class TerraformRunner {
       signal?.throwIfAborted();
       const { directory, manifest } = this.#state();
       await privateDirectory(directory);
-      const persisted = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
+      const persisted = decode((await privateRead(join9(directory, 'deployment.json'))).toString());
       if (canonical3(persisted) !== canonical3(manifest) || !/^[a-f0-9]{64}$/.test(evidenceSha256))
         throw Error('Terraform artifact retirement owner or external evidence differs');
       const observed = await readPrivateArtifactRetirement(
@@ -3178,7 +3376,7 @@ class TerraformRunner {
         signal,
       );
       if (
-        canonical3(decode((await privateRead(join8(directory, 'deployment.json'))).toString())) !==
+        canonical3(decode((await privateRead(join9(directory, 'deployment.json'))).toString())) !==
         canonical3(persisted)
       )
         throw Error('Terraform artifact retirement owner changed during observation');
@@ -3195,13 +3393,13 @@ class TerraformRunner {
       signal?.throwIfAborted();
       const { directory, manifest } = this.#state();
       await privateDirectory(directory);
-      const persisted = decode((await privateRead(join8(directory, 'deployment.json'))).toString());
+      const persisted = decode((await privateRead(join9(directory, 'deployment.json'))).toString());
       if (canonical3(persisted) !== canonical3(manifest) || !/^[a-f0-9]{64}$/.test(evidenceSha256))
         throw Error('Terraform artifact retirement owner or external evidence differs');
       let independentCleanup;
       if (!(await hasArtifactRetirement(directory))) {
         await this.#verifyInputs();
-        const journalBytes = await privateRead(join8(directory, 'plan-receipt.json')),
+        const journalBytes = await privateRead(join9(directory, 'plan-receipt.json')),
           verifiedJournal = decodeSavedPlanJournal(journalBytes),
           journal = decode(journalBytes.toString());
         if (verifiedJournal.ordinaryRefreshEnabled !== true)
@@ -3221,7 +3419,7 @@ class TerraformRunner {
           receipt.actionInvocations ||
           receipt.imports ||
           receipt.relinquishments ||
-          receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
+          receipt.planSha256 !== digest2(await privateRead(join9(directory, 'saved.tfplan')))
         )
           throw Error('Terraform artifact retirement requires the exact final empty no-change plan');
         const emptyValues = (values) => {
@@ -3266,9 +3464,9 @@ class TerraformRunner {
         emptyValues(object6(state.values ?? {}));
         await this.#verifyInputs();
         if (
-          receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))) ||
+          receipt.planSha256 !== digest2(await privateRead(join9(directory, 'saved.tfplan'))) ||
           canonical3(journal) !==
-            canonical3(decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString()))
+            canonical3(decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString()))
         )
           throw Error('Terraform retirement saved evidence changed');
         const execution = object6(journal.execution);
@@ -3312,24 +3510,24 @@ class TerraformRunner {
     const files = new Map();
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       try {
-        files.set(name, await privateRead(join8(directory, name)));
+        files.set(name, await privateRead(join9(directory, name)));
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
     }
     if (!files.size) return;
     for (const name of ['main.tf.json', 'deployment.json', '.terraform.lock.hcl', 'deployment.tfrc'])
-      files.set(name, await privateRead(join8(directory, name)));
+      files.set(name, await privateRead(join9(directory, name)));
     const inventory = JSON.stringify(Object.fromEntries([...files].map(([name, bytes]) => [name, digest2(bytes)])));
-    const archive = join8(directory, 'plan-history', digest2(inventory));
+    const archive = join9(directory, 'plan-history', digest2(inventory));
     await privateDirectory(archive);
     files.set('inventory.json', Buffer.from(inventory));
     for (const [name, bytes] of files) {
       try {
-        await writeFile4(join8(archive, name), bytes, { mode: 384, flag: 'wx' });
+        await writeFile5(join9(archive, name), bytes, { mode: 384, flag: 'wx' });
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
-        if (digest2(await privateRead(join8(archive, name))) !== digest2(bytes))
+        if (digest2(await privateRead(join9(archive, name))) !== digest2(bytes))
           throw new Error('Terraform plan history differs');
       }
     }
@@ -3482,7 +3680,7 @@ class TerraformRunner {
         backendIdentity: manifest.backendIdentity,
         configurationSha256: manifest.configurationSha256,
         providerLockSha256: manifest.providerLockSha256,
-        planSha256: digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan'))),
+        planSha256: digest2(await privateRead(join9(this.#state().directory, 'saved.tfplan'))),
         changes,
         noChanges,
         ...(actionInvocations.length ? { actionInvocations } : {}),
@@ -3491,7 +3689,7 @@ class TerraformRunner {
         ...(destroy ? { operation: 'destroy' } : {}),
         ...(refreshOriginSha256 === undefined ? {} : { refreshOriginSha256 }),
       };
-      await persist(join8(this.#state().directory, 'plan-receipt.json'), {
+      await persist(join9(this.#state().directory, 'plan-receipt.json'), {
         state: 'planned',
         receipt,
         ...(this.#executorIdentity
@@ -3517,7 +3715,7 @@ class TerraformRunner {
   }
   async #assertActionUnsubmitted() {
     try {
-      await privateRead(join8(this.#state().directory, 'action-attempt.json'));
+      await privateRead(join9(this.#state().directory, 'action-attempt.json'));
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -3528,7 +3726,7 @@ class TerraformRunner {
     const directory = this.#state().directory;
     let journal;
     try {
-      journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+      journal = decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString());
     } catch (error) {
       if (error.code === 'ENOENT') return;
       throw error;
@@ -3537,10 +3735,10 @@ class TerraformRunner {
     const actions = object6(journal.receipt).actionInvocations;
     if (!Array.isArray(actions) || actions.length === 0) return;
     try {
-      await privateRead(join8(directory, 'action-attempt.json'));
+      await privateRead(join9(directory, 'action-attempt.json'));
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
-      await persist(join8(directory, 'action-attempt.json'), {
+      await persist(join9(directory, 'action-attempt.json'), {
         schemaVersion: 1,
         legacyJournalState: journal.state,
         receipt: journal.receipt,
@@ -3560,7 +3758,7 @@ class TerraformRunner {
       const { directory, manifest } = this.#state();
       let journal;
       try {
-        journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+        journal = decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString());
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
         throw Error('Terraform outputs require an applied or converged current configuration');
@@ -3659,12 +3857,12 @@ class TerraformRunner {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
-      const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+      const journal = decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'planned' ||
         canonical3(journal.receipt) !== canonical3(receipt) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join9(directory, 'saved.tfplan')))
       )
         throw new Error('Terraform identity inspection saved plan differs');
       const version = decode(await this.#run(['version', '-json'], env, signal));
@@ -3719,7 +3917,7 @@ class TerraformRunner {
         }
         result[address] = selected;
       }
-      if (receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan'))))
+      if (receipt.planSha256 !== digest2(await privateRead(join9(directory, 'saved.tfplan'))))
         throw new Error('Terraform identity inspection saved plan changed');
       return result;
     });
@@ -3727,7 +3925,7 @@ class TerraformRunner {
   async #applicationState(receipt) {
     await this.#verifyInputs();
     const { directory, manifest } = this.#state();
-    const journal = decode((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
+    const journal = decode((await privateRead(join9(directory, 'plan-receipt.json'))).toString());
     if (
       !['planned', 'applying', 'applied'].includes(String(journal.state)) ||
       canonical3(journal.receipt) !== canonical3(receipt) ||
@@ -3736,7 +3934,7 @@ class TerraformRunner {
       receipt.backendIdentity !== manifest.backendIdentity ||
       receipt.configurationSha256 !== manifest.configurationSha256 ||
       receipt.providerLockSha256 !== manifest.providerLockSha256 ||
-      receipt.planSha256 !== digest2(await privateRead(join8(directory, 'saved.tfplan')))
+      receipt.planSha256 !== digest2(await privateRead(join9(directory, 'saved.tfplan')))
     )
       throw Error('Terraform application journal differs from exact saved plan');
     return journal.state;
@@ -3758,7 +3956,7 @@ class TerraformRunner {
       const readOptional = async (name) => {
         signal?.throwIfAborted();
         try {
-          return await privateRead(join8(directory, name));
+          return await privateRead(join9(directory, name));
         } catch (error) {
           if (error.code !== 'ENOENT') throw error;
         }
@@ -3895,16 +4093,16 @@ class TerraformRunner {
       check();
       let names = null;
       try {
-        const stat = await lstat4(path);
+        const stat = await lstat5(path);
         if (
           !stat.isDirectory() ||
           stat.isSymbolicLink() ||
           stat.uid !== process.getuid?.() ||
           (stat.mode & 63) !== 0 ||
-          (await realpath2(path)) !== path
+          (await realpath3(path)) !== path
         )
           throw Error('Historical journal directory ownership differs');
-        names = (await readdir2(path)).sort();
+        names = (await readdir3(path)).sort();
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
@@ -3928,7 +4126,7 @@ class TerraformRunner {
       if (names?.some((name) => !allowed.includes(name))) throw Error('Historical journal archive has unknown files');
       const files = new Map();
       for (const name of allowed) {
-        const bytes = await read(join8(path, name));
+        const bytes = await read(join9(path, name));
         if (bytes) files.set(name, bytes);
       }
       const source = files.get('main.tf.json'),
@@ -4018,12 +4216,12 @@ class TerraformRunner {
       .map((name) => digest2(name));
     if (includeCurrent) await inspect(directory, 'current');
     for (const root of ['revisions', 'plan-history']) {
-      const path = join8(directory, root),
+      const path = join9(directory, root),
         names = await list(path);
       for (const name of names ?? []) {
         if (!(root === 'revisions' ? /^[a-f0-9-]{36}$/ : /^[a-f0-9]{64}$/).test(name))
           throw Error('Historical journal archive reference is malformed');
-        await inspect(join8(path, name), root === 'revisions' ? 'revision' : 'plan-history', name);
+        await inspect(join9(path, name), root === 'revisions' ? 'revision' : 'plan-history', name);
       }
     }
     await this.#verifyInputs();
@@ -4140,7 +4338,7 @@ class TerraformRunner {
       await this.#verifyInputs();
       let journal;
       try {
-        journal = decode((await privateRead(join8(this.#state().directory, 'plan-receipt.json'))).toString());
+        journal = decode((await privateRead(join9(this.#state().directory, 'plan-receipt.json'))).toString());
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
         throw Error('Terraform saved-plan receipt does not match current configuration');
@@ -4153,7 +4351,7 @@ class TerraformRunner {
         receipt.deploymentId !== this.#state().manifest.deploymentId ||
         receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
         receipt.providerLockSha256 !== this.#state().manifest.providerLockSha256 ||
-        receipt.planSha256 !== digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan')))
+        receipt.planSha256 !== digest2(await privateRead(join9(this.#state().directory, 'saved.tfplan')))
       )
         throw new Error('Terraform saved-plan receipt does not match');
       const version = decode(await this.#run(['version', '-json'], env, signal));
@@ -4175,11 +4373,11 @@ class TerraformRunner {
         canonical3(inspectRelinquishments(plan, receipt.relinquishments)) !== canonical3(receipt.relinquishments ?? [])
       )
         throw Error('Saved relinquishment receipt differs from exact plan');
-      if (receipt.planSha256 !== digest2(await privateRead(join8(this.#state().directory, 'saved.tfplan'))))
+      if (receipt.planSha256 !== digest2(await privateRead(join9(this.#state().directory, 'saved.tfplan'))))
         throw new Error('Terraform saved plan changed during action inspection');
       if (expectedActions.length) {
         await this.#assertActionUnsubmitted();
-        await persist(join8(this.#state().directory, 'action-attempt.json'), {
+        await persist(join9(this.#state().directory, 'action-attempt.json'), {
           schemaVersion: 1,
           submittedAt: new Date().toISOString(),
           receipt,
@@ -4216,9 +4414,17 @@ function createCeTerraformService(platform) {
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const runner = new TerraformRunner(
-        deployment.stage ? join9(store.directory, 'terraform-stages', deployment.stage) : store.directory,
+        deployment.stage ? join10(store.directory, 'terraform-stages', deployment.stage) : store.directory,
       );
-      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
+      if (resume === 'recover-initialization') {
+        try {
+          await runner.resume(deployment.deploymentId, deployment, 'current');
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+          await runner.recoverPreparation(deployment);
+        }
+      } else if (resume)
+        await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);

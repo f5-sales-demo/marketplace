@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as typebox from '@sinclair/typebox';
@@ -9,6 +9,7 @@ import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-c
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
+import { initializeWorkspace } from '../../../terraform/src/initialization';
 import { type PlanReceipt, TerraformRunner } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../../src/az/exec';
@@ -444,7 +445,7 @@ test('public teardown prepares and applies frozen 1.16.1 foundation while preser
     open: async (_owner, value, resume) => {
       opens++;
       expect(value.terraformVersion).toBe('1.16.1');
-      expect(resume).toBe('current');
+      expect(resume).toBe('recover-initialization');
       expect(JSON.parse(value.configuration).terraform.required_version).toBe('= 1.16.1');
       return f.session;
     },
@@ -655,4 +656,52 @@ test('reserved-site deletion precedes cloud retirement and supports interruption
       {},
     ),
   ).rejects.toThrow('test interruption');
+});
+
+async function interruptedFoundation(f: Awaited<ReturnType<typeof fixture>>) {
+  const directory = join(f.store.directory, f.plan.deploymentName);
+  const manifest = JSON.parse(await readFile(join(directory, 'deployment.json'), 'utf8'));
+  const cliConfig = await readFile(join(directory, 'deployment.tfrc'), 'utf8');
+  await rm(directory, { recursive: true });
+  const original = {
+    root: f.store.directory,
+    deploymentId: f.plan.deploymentName,
+    manifest,
+    configuration: f.deployment.configuration,
+    providerLock: f.deployment.providerLock,
+    cliConfig,
+  };
+  await expect(
+    initializeWorkspace(original, {
+      write: async (path, data) => {
+        await writeFile(path, path.endsWith('/main.tf.json') ? data.subarray(0, 5) : data, { mode: 0o600, flag: 'wx' });
+        if (path.endsWith('/main.tf.json')) throw Error('original initialization interrupted');
+      },
+    }),
+  ).rejects.toThrow('interrupted');
+  return {
+    directory,
+    original,
+    intentPath: join(f.store.directory, '.initialization-' + f.plan.deploymentName + '.json'),
+  };
+}
+test('public Azure teardown preparation reads original interrupted initialization without repairing it', async () => {
+  const f = await fixture();
+  const partial = await interruptedFoundation(f);
+  const before = await readFile(partial.intentPath, 'utf8');
+  const plan = await prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store);
+  expect(plan.kind).toBe('azure-ce-terraform-foundation-teardown');
+  expect(await readdir(partial.directory)).toEqual(['main.tf.json']);
+  expect(await readFile(partial.directory + '/main.tf.json', 'utf8')).toHaveLength(5);
+  expect(await readFile(partial.intentPath, 'utf8')).toBe(before);
+});
+test('public Azure preparation rejects a foreign initialization intent before platform observations', async () => {
+  const f = await fixture();
+  const partial = await interruptedFoundation(f);
+  const record = JSON.parse(await readFile(partial.intentPath, 'utf8'));
+  record.manifest.scope.account = 'foreign-example-account';
+  await writeFile(partial.intentPath, JSON.stringify(record), { mode: 0o600 });
+  await expect(prepareAzureTerraformTeardown(f.plan, f.runtime, contract, f.store)).rejects.toThrow();
+  expect(f.observations()).toBe(0);
+  expect(await readdir(partial.directory)).toEqual(['main.tf.json']);
 });

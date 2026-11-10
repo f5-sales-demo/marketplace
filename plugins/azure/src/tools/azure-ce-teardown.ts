@@ -214,7 +214,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
                   teardown.kind === 'azure-ce-terraform-foundation-teardown'
                     ? await azureFoundationTeardownDeployment(plan, teardown)
                     : await azureTerraformCurrentDeployment(plan),
-                  'current',
+                  'recover-initialization',
                 ),
                 storage,
                 dependencies.makeApi(ctx.cwd),

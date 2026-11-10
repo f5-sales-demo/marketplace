@@ -18,6 +18,7 @@ import {
   executeIndependentCleanup,
   validateIndependentCleanup,
 } from './independent-cleanup';
+import { initializeWorkspace } from './initialization';
 
 export interface Invocation {
   cwd: string;
@@ -591,6 +592,13 @@ export class TerraformRunner {
     if (!isAbsolute(root) || resolve(root) !== root) throw new Error('Terraform storage must be an absolute path');
   }
   async prepare(deployment: Deployment): Promise<void> {
+    return this.#prepare(deployment, false);
+  }
+  /** Complete only a creator-owned initialization interrupted before its manifest was published. */
+  async recoverPreparation(deployment: Deployment): Promise<void> {
+    return this.#prepare(deployment, true);
+  }
+  async #prepare(deployment: Deployment, recoverOnly: boolean): Promise<void> {
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
       throw new Error('Terraform deployment identity or owning engine is unsupported');
     if (deployment.stage !== undefined && !safeId.test(deployment.stage))
@@ -608,15 +616,21 @@ export class TerraformRunner {
       throw new Error('This runner currently admits isolated local backends only');
     if (!deployment.scope.account || !deployment.scope.region || !['aws', 'azure'].includes(deployment.scope.cloud))
       throw new Error('Explicit deployment scope is required');
-    await privateDirectory(this.root);
+    await privateDirectory(this.root, !recoverOnly);
     const directory = join(this.root, deployment.deploymentId);
-    await mkdir(directory, { mode: 0o700 }); // An existing deployment must be resumed, never overwritten.
     const { configuration: source, providerLock, ...identity } = deployment;
     const manifest = { ...identity, configurationSha256: digest(source), providerLockSha256: digest(providerLock) };
-    await writeFile(join(directory, 'main.tf.json'), source, { mode: 0o600, flag: 'wx' });
-    await writeFile(join(directory, '.terraform.lock.hcl'), providerLock, { mode: 0o600, flag: 'wx' });
-    await writeFile(join(directory, 'deployment.tfrc'), cliConfig, { mode: 0o600, flag: 'wx' });
-    await persist(join(directory, 'deployment.json'), manifest);
+    await initializeWorkspace(
+      {
+        root: this.root,
+        deploymentId: deployment.deploymentId,
+        manifest,
+        configuration: source,
+        providerLock,
+        cliConfig,
+      },
+      { recoverOnly },
+    );
     this.#directory = directory;
     this.#manifest = manifest;
   }
