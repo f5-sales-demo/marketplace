@@ -8,7 +8,7 @@ import { readOwnedInstalledInput } from './installed-runtime';
 import pins from './installed-runtime-pins.json';
 import { resolveInstalledGcpExecutableProfile } from './installed-version-profile';
 import { linuxMonotonicMs } from './linux-clock';
-import { monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import { assertFinalReaderReserve, type FinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
 import type { Executor } from './runner';
 import { withFinalCheck } from './session-lifetime';
@@ -20,6 +20,12 @@ import {
   signalFreeTerraformExecutor,
 } from './signal-free-executor';
 
+const windowOrigins = new WeakMap<InstalledProviderWindow, () => Promise<Buffer>>();
+export async function readOriginalInstalledProviderWindow(window: InstalledProviderWindow): Promise<Buffer> {
+  const read = windowOrigins.get(window);
+  if (!read) throw new Error('An original reader-issued provider window is required');
+  return read();
+}
 type Identity = ExecutionCaptureAdmission['identity'];
 type Json = Record<string, unknown>;
 const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
@@ -532,7 +538,7 @@ export async function openInstalledProviderReader(
             });
             await guard();
             parentClosed = value.executorGroupClosed;
-            return Object.freeze({
+            const window = Object.freeze({
               ...value,
               executor: admission.identity,
               reader: originalReader,
@@ -540,6 +546,20 @@ export async function openInstalledProviderReader(
               evidencePath: path,
               evidenceSha256: hash(raw),
             }) as unknown as InstalledProviderWindow;
+            windowOrigins.set(window, async () => {
+              if (retired) throw new Error('Original provider window source retired');
+              await assertOriginal();
+              await assertProviderSnapshot();
+              const current = await readOwnedInstalledInput(path, 65536);
+              assertSameOriginalInput(resultInput.binding, current.binding);
+              if (hash(current.bytes) !== window.evidenceSha256)
+                throw new Error('Original provider window bytes changed');
+              await assertOriginal();
+              const final = await readOwnedInstalledInput(path, 65536);
+              assertSameOriginalInput(resultInput.binding, final.binding);
+              return Buffer.from(current.bytes);
+            });
+            return window;
           }
           const candidates = (value.candidates as unknown[]).map(candidateFrom);
           await guard();

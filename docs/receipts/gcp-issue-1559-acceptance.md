@@ -1247,3 +1247,14 @@ two non-submitting resumes. No managed cloud resource changed. Prior failed flag
 and locks remain preserved. Initial schema-provider lifetime qualification, actual
 expiry, bootstrap ownership, full capture and every remaining live/delivery gate
 remain open; a passing short read does not close those requirements.
+
+Attempt 426 adds [original descriptor/RPC source and window provenance](gcp-original-descriptor-rpc-20261110.md).
+Original output capabilities, contiguous parser input/completion and reader-issued
+window file identities have failing-first coverage. Correspondence remains
+unqualified for full lifetime/insert. Shared1,119tests5,119assertions/root164tests
+5,471assertions and all three native types/builds/dependencies pass. A fresh capture
+failed at the strict sampling deadline before correspondence was reached. No retry
+or deadline weakening. Typed local cleanup, empty stable state, two non-submitting
+resumes and 22 independent group absences pass, with failed locks preserved and
+zero managed cloud mutations. Sampling policy, full lifetime/bootstrap/capture and
+all remaining live/runtime/delivery gates stay open.

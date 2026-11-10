@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInstalledCaptureContext } from '../src/installed-capture-context';
-import { openInstalledProviderReader } from '../src/installed-provider-reader';
+import { openInstalledProviderReader, readOriginalInstalledProviderWindow } from '../src/installed-provider-reader';
 import { inspectInstalledCaptureScripts } from '../src/installed-runtime';
 import pins from '../src/installed-runtime-pins.json';
 import { linuxMonotonicMs } from '../src/linux-clock';
@@ -459,4 +459,23 @@ test('subsequent windows keep the original operation budget after its initial st
   expect(result.windowDeadlineMs).toBe(run.admission.originalStartMs + 90000);
   expect(reader.captures()).toHaveLength(2);
   expect(reader.captures().every((value) => value.originalDeadlineMs === run.admission.originalDeadlineMs)).toBe(true);
+});
+
+test('issued provider window retains its exact result file and rejects copied or replaced evidence', async () => {
+  const run = await fixture();
+  const reader = await openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+  });
+  const pending = reader.startStderrWindow();
+  await pending.ready;
+  run.releaseWindow();
+  const window = await pending.complete;
+  const evidence = await readOriginalInstalledProviderWindow(window);
+  expect(hash(evidence)).toBe(window.evidenceSha256);
+  await expect(readOriginalInstalledProviderWindow({ ...window })).rejects.toThrow('original');
+  const replacement = `${window.evidencePath}.replacement`;
+  await writeFile(replacement, evidence, { flag: 'wx', mode: 0o600 });
+  await rename(replacement, window.evidencePath);
+  await expect(readOriginalInstalledProviderWindow(window)).rejects.toThrow('changed');
 });

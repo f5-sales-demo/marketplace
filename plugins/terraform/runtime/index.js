@@ -1636,7 +1636,8 @@ var parentKeys3 = ['dev', 'ino', 'uid', 'mode'];
 var maximumChunk = 65536;
 var maximumRetention = 64 * 1024 * 1024;
 var digest2 = (value) => createHash6('sha256').update(value).digest('hex');
-
+var chunkOrigins = new WeakMap();
+var completionOrigins = new WeakMap();
 class OutputNotReady extends Error {}
 
 class OutputRefusal extends Error {}
@@ -1882,7 +1883,17 @@ async function bindOriginalExecutionOutput(input) {
           const offset = stream.offset;
           stream.offset += length;
           stream.hash.update(bytes);
-          return Object.freeze({ offset, endOffset: stream.offset, bytes, sha256: digest2(bytes) });
+          const chunk = Object.freeze({ offset, endOffset: stream.offset, bytes, sha256: digest2(bytes) });
+          chunkOrigins.set(chunk, {
+            output,
+            identity,
+            channel,
+            bytes: Buffer.from(bytes),
+            assertValid: () => {
+              if (refused) throw new Error('Original output record source is refused');
+            },
+          });
+          return chunk;
         }),
       finish: async () => {
         assertOpen();
@@ -1899,12 +1910,20 @@ async function bindOriginalExecutionOutput(input) {
               throw new OutputRefusal('Original output changed after producer closure');
             result[channel] = Object.freeze({ bytes: stream.offset, sha256: stream.hash.copy().digest('hex') });
           }
-          return Object.freeze({
+          const completion = Object.freeze({
             ...result,
             originalGroupClosed: true,
             applyRpcQualified: false,
             originalInsertQualified: false,
           });
+          completionOrigins.set(completion, {
+            output,
+            identity,
+            assertValid: () => {
+              if (refused) throw new Error('Original completion source is refused');
+            },
+          });
+          return completion;
         });
       },
     });

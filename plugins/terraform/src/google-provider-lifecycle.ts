@@ -1,7 +1,15 @@
 import { createHash } from 'node:crypto';
 import { basename, isAbsolute, resolve } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
+import { isEvidenceRfc3339 } from './evidence-rfc3339';
 import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import {
+  type OriginalExecutionOutput,
+  type OriginalOutputChunk,
+  type OriginalOutputCompletion,
+  readOriginalExecutionChunk,
+  readOriginalExecutionCompletion,
+} from './original-output-stream';
 
 type Json = Record<string, unknown>;
 export interface GoogleProviderLifecycleScope {
@@ -22,6 +30,21 @@ export interface GoogleProviderRpcCandidate {
   readonly providerProcessQualified: false;
   readonly applyRpcQualified: false;
   readonly originalInsertQualified: false;
+}
+export interface OriginalGoogleProviderRpcSource {
+  readonly schemaVersion: 1;
+  readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
+  readonly stderrBytes: number;
+  readonly stderrSha256: string;
+  readonly planSha256: string;
+}
+const rpcOrigins = new WeakMap<GoogleProviderRpcCandidate, () => OriginalGoogleProviderRpcSource>();
+export function readOriginalGoogleProviderRpcSource(
+  candidate: GoogleProviderRpcCandidate,
+): OriginalGoogleProviderRpcSource {
+  const read = rpcOrigins.get(candidate);
+  if (!read) throw new Error('An original descriptor-sourced Google RPC candidate is required');
+  return read();
 }
 interface Provider {
   pid: number;
@@ -65,6 +88,10 @@ export class GoogleProviderLifecycleParser {
   #pending: string | undefined;
   #provider: Provider | undefined;
   #rpc: Rpc | undefined;
+  #originOutput: OriginalExecutionOutput | undefined;
+  #originCompletion: ReturnType<typeof readOriginalExecutionCompletion> | undefined;
+  #sourceEnd = 0;
+  readonly #sourceHash = createHash('sha256');
   #providers = 0;
   #rpcs = 0;
   constructor(input: GoogleProviderLifecycleScope, binding?: InstalledGcpVersionBinding) {
@@ -84,6 +111,48 @@ export class GoogleProviderLifecycleParser {
     if (this.#closed) throw new Error('Original provider lifecycle closed');
   }
   push(chunk: Uint8Array): readonly GoogleProviderRpcCandidate[] {
+    this.#open();
+    if (this.#originOutput) {
+      this.#failed = true;
+      throw new Error('Original descriptor source cannot accept unowned bytes');
+    }
+    return this.#consume(chunk);
+  }
+  pushOriginal(output: OriginalExecutionOutput, chunk: OriginalOutputChunk): readonly GoogleProviderRpcCandidate[] {
+    this.#open();
+    try {
+      const source = readOriginalExecutionChunk(output, chunk, 'stderr');
+      if (
+        (this.#originOutput && this.#originOutput !== output) ||
+        (!this.#originOutput && this.#bytes !== 0) ||
+        source.offset !== this.#sourceEnd
+      )
+        throw new Error('Original descriptor stream changed or has a gap');
+      this.#originOutput = output;
+      this.#sourceEnd = source.endOffset;
+      this.#sourceHash.update(source.bytes);
+      const candidates = this.#consume(source.bytes);
+      for (const candidate of candidates)
+        rpcOrigins.set(candidate, () => {
+          if (this.#failed) throw new Error('Original RPC source was refused');
+          const origin = this.#originCompletion;
+          if (!origin) throw new Error('Original descriptor completion is required');
+          readOriginalExecutionCompletion(output, origin.completion);
+          return Object.freeze({
+            schemaVersion: 1 as const,
+            executor: origin.identity,
+            stderrBytes: origin.completion.stderr.bytes,
+            stderrSha256: origin.completion.stderr.sha256,
+            planSha256: this.#scope.planSha256,
+          });
+        });
+      return candidates;
+    } catch (error) {
+      this.#failed = true;
+      throw error;
+    }
+  }
+  #consume(chunk: Uint8Array): readonly GoogleProviderRpcCandidate[] {
     this.#open();
     try {
       this.#bytes += chunk.byteLength;
@@ -222,12 +291,39 @@ export class GoogleProviderLifecycleParser {
       !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})$/.test(
         stamp,
       ) ||
-      !Number.isFinite(Date.parse(stamp)) ||
+      !isEvidenceRfc3339(stamp) ||
       !['trace', 'debug', 'info', 'warn', 'error'].includes(text(value['@level']))
     )
       throw new Error('Original provider lifecycle envelope required');
   }
   finish() {
+    this.#open();
+    if (this.#originOutput) {
+      this.#failed = true;
+      throw new Error('Original descriptor completion is required');
+    }
+    return this.#finish();
+  }
+  finishOriginal(output: OriginalExecutionOutput, completion: OriginalOutputCompletion) {
+    this.#open();
+    try {
+      const origin = readOriginalExecutionCompletion(output, completion);
+      if (
+        output !== this.#originOutput ||
+        this.#sourceEnd !== completion.stderr.bytes ||
+        this.#bytes !== completion.stderr.bytes ||
+        this.#sourceHash.copy().digest('hex') !== completion.stderr.sha256
+      )
+        throw new Error('Original descriptor source completion differs');
+      const result = this.#finish();
+      this.#originCompletion = origin;
+      return result;
+    } catch (error) {
+      this.#failed = true;
+      throw error;
+    }
+  }
+  #finish() {
     this.#open();
     if (this.#length || this.#pending || this.#provider || this.#rpc || !this.#providers || !this.#rpcs) {
       this.#failed = true;

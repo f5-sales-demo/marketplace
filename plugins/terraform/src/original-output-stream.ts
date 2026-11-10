@@ -30,6 +30,37 @@ export interface OriginalExecutionOutput {
   read(channel: Channel): Promise<OriginalOutputChunk | null>;
   finish(): Promise<OriginalOutputCompletion>;
 }
+interface OriginalRecordOrigin {
+  output: OriginalExecutionOutput;
+  identity: Identity;
+  assertValid(): void;
+}
+const chunkOrigins = new WeakMap<OriginalOutputChunk, OriginalRecordOrigin & { channel: Channel; bytes: Buffer }>();
+const completionOrigins = new WeakMap<OriginalOutputCompletion, OriginalRecordOrigin>();
+/** Private source bytes, not a receipt deserializer or path-only assertion. */
+export function readOriginalExecutionChunk(
+  output: OriginalExecutionOutput,
+  chunk: OriginalOutputChunk,
+  channel: Channel,
+) {
+  const origin = chunkOrigins.get(chunk);
+  if (!origin || origin.output !== output || origin.channel !== channel)
+    throw new Error('An original executor-issued channel record is required');
+  origin.assertValid();
+  return Object.freeze({
+    identity: origin.identity,
+    offset: chunk.offset,
+    endOffset: chunk.endOffset,
+    sha256: chunk.sha256,
+    bytes: Buffer.from(origin.bytes),
+  });
+}
+export function readOriginalExecutionCompletion(output: OriginalExecutionOutput, completion: OriginalOutputCompletion) {
+  const origin = completionOrigins.get(completion);
+  if (!origin || origin.output !== output) throw new Error('An original executor-issued completion is required');
+  origin.assertValid();
+  return Object.freeze({ identity: origin.identity, completion });
+}
 class OutputNotReady extends Error {}
 class OutputRefusal extends Error {}
 interface Stream {
@@ -309,7 +340,17 @@ export async function bindOriginalExecutionOutput(input: {
           const offset = stream.offset;
           stream.offset += length;
           stream.hash.update(bytes);
-          return Object.freeze({ offset, endOffset: stream.offset, bytes, sha256: digest(bytes) });
+          const chunk = Object.freeze({ offset, endOffset: stream.offset, bytes, sha256: digest(bytes) });
+          chunkOrigins.set(chunk, {
+            output,
+            identity,
+            channel,
+            bytes: Buffer.from(bytes),
+            assertValid: () => {
+              if (refused) throw new Error('Original output record source is refused');
+            },
+          });
+          return chunk;
         }),
       finish: async () => {
         assertOpen();
@@ -327,12 +368,20 @@ export async function bindOriginalExecutionOutput(input: {
               throw new OutputRefusal('Original output changed after producer closure');
             result[channel] = Object.freeze({ bytes: stream.offset, sha256: stream.hash.copy().digest('hex') });
           }
-          return Object.freeze({
+          const completion = Object.freeze({
             ...result,
             originalGroupClosed: true as const,
             applyRpcQualified: false as const,
             originalInsertQualified: false as const,
           });
+          completionOrigins.set(completion, {
+            output,
+            identity,
+            assertValid: () => {
+              if (refused) throw new Error('Original completion source is refused');
+            },
+          });
+          return completion;
         });
       },
     });

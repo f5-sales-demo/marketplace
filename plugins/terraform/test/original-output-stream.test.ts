@@ -4,8 +4,15 @@ import { chmod, link, mkdtemp, open, readFile, rename, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { acquireProcessLock, assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
+import { GoogleProviderLifecycleParser, readOriginalGoogleProviderRpcSource } from '../src/google-provider-lifecycle';
 import { linuxMonotonicMs } from '../src/linux-clock';
-import { bindOriginalExecutionOutput, type OriginalExecutionOutput } from '../src/original-output-stream';
+import { corroborateOriginalGoogleRpcProvider } from '../src/original-google-provider-source';
+import {
+  bindOriginalExecutionOutput,
+  type OriginalExecutionOutput,
+  readOriginalExecutionChunk,
+  readOriginalExecutionCompletion,
+} from '../src/original-output-stream';
 import {
   type ExecutionCaptureAdmission,
   signalFreeBootstrapSource,
@@ -428,4 +435,92 @@ test('live descriptor loss remains refused even when the original actor later ex
     },
   );
   await expect(run.execute()).rejects.toThrow('Original live descriptor loss retained');
+});
+
+test('issued output records bind exact source identity and channel without adopting copies', async () => {
+  const run = await fixture(
+    'import sys\nprint("original",file=sys.stderr)\n',
+    async () => {},
+    async (output) => {
+      const chunk = await output.read('stderr');
+      if (!chunk) throw new Error('Original source fixture record required');
+      const source = readOriginalExecutionChunk(output, chunk, 'stderr');
+      expect(source.bytes.toString()).toBe('original\n');
+      expect(source.identity.group).toBe(source.identity.pid);
+      expect(source.sha256).toBe(hash('original\n'));
+      await expect(
+        Promise.resolve().then(() => readOriginalExecutionChunk(output, { ...chunk }, 'stderr')),
+      ).rejects.toThrow('original');
+      expect(() => readOriginalExecutionChunk(output, chunk, 'stdout')).toThrow('original');
+      chunk.bytes.fill(0);
+      source.bytes.fill(0);
+      expect(readOriginalExecutionChunk(output, chunk, 'stderr').bytes.toString()).toBe('original\n');
+      const completion = await output.finish();
+      expect(readOriginalExecutionCompletion(output, completion).identity).toEqual(source.identity);
+      expect(() => readOriginalExecutionCompletion(output, { ...completion })).toThrow('original');
+    },
+  );
+  expect((await run.execute()).code).toBe(0);
+});
+
+test('original lifecycle RPC source requires issued stderr chunks and its matching executor completion', async () => {
+  const path = '/example/terraform-provider-google_v8.10.0_x5';
+  const binding = {
+    terraformVersion: '1.17.1',
+    providerLockSha256: 'fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
+  };
+  const scope = { providerPath: path, planSha256: 'a'.repeat(64) };
+  const row = (message: string, fields = {}) =>
+    `${JSON.stringify({ '@level': 'debug', '@module': 'provider', '@timestamp': '2026-11-10T00:00:00Z', '@message': message, ...fields })}\n`;
+  const rpc = (message: string) =>
+    row(message, {
+      '@module': 'sdk.proto',
+      '@level': 'trace',
+      tf_provider_addr: 'registry.terraform.io/hashicorp/google',
+      tf_proto_version: '5.11',
+      tf_rpc: 'ReadDataSource',
+      tf_data_source_type: 'google_compute_zones',
+      tf_req_id: '11111111-2222-3333-4444-555555555555',
+    });
+  const raw =
+    row('starting plugin', { path, args: [path] }) +
+    row('plugin started', { path, pid: 1234 }) +
+    rpc('Received request') +
+    rpc('Served request') +
+    row('plugin process exited', { plugin: path, id: '1234' });
+  const parser = new GoogleProviderLifecycleParser(scope, binding);
+  const run = await fixture(
+    `import sys\nsys.stderr.write(${JSON.stringify(raw)})\n`,
+    async () => {},
+    async (output) => {
+      const chunk = await output.read('stderr');
+      if (!chunk) throw new Error('Original lifecycle fixture required');
+      const [candidate] = parser.pushOriginal(output, chunk);
+      expect(() => readOriginalGoogleProviderRpcSource(candidate)).toThrow('completion');
+      const completion = await output.finish();
+      expect(parser.finishOriginal(output, completion).complete).toBe(true);
+      const source = readOriginalGoogleProviderRpcSource(candidate);
+      await expect(corroborateOriginalGoogleRpcProvider({ rpc: candidate, windows: [], binding })).rejects.toThrow(
+        'Original distinct',
+      );
+      await expect(
+        corroborateOriginalGoogleRpcProvider({
+          rpc: candidate,
+          windows: [{ schemaVersion: 3, evidencePath: '/example/forged', evidenceSha256: 'a'.repeat(64) } as never],
+          binding,
+        }),
+      ).rejects.toThrow('original');
+
+      expect(source.executor.group).toBe(source.executor.pid);
+      expect(source.stderrSha256).toBe(completion.stderr.sha256);
+      expect(source.stderrBytes).toBe(Buffer.byteLength(raw));
+      expect(() => readOriginalGoogleProviderRpcSource({ ...candidate })).toThrow('original');
+      const copied = new GoogleProviderLifecycleParser(scope, binding);
+      expect(() => copied.pushOriginal(output, { ...chunk })).toThrow('original');
+      const unowned = new GoogleProviderLifecycleParser(scope, binding);
+      unowned.push(Buffer.from(raw));
+      expect(() => unowned.finishOriginal(output, completion)).toThrow('Original descriptor');
+    },
+  );
+  expect((await run.execute()).code).toBe(0);
 });

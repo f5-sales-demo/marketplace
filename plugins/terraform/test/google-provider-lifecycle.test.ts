@@ -161,3 +161,8 @@ test('latest lifecycle profile requires the authenticated coupled lock and exact
     () => new GoogleProviderLifecycleParser(latestScope, { ...binding, providerLockSha256: 'a'.repeat(64) }),
   ).toThrow();
 });
+
+test('invalid calendar dates cannot become original lifecycle timestamp evidence', () => {
+  const malformed = complete.replaceAll('2026-11-10T', '2026-11-31T');
+  expect(() => new GoogleProviderLifecycleParser(scope).push(Buffer.from(malformed))).toThrow('envelope');
+});
