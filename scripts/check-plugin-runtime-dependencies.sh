@@ -67,7 +67,6 @@ require_installed_json_value() {
   fi
 }
 
-
 # Follow the AI runtime dependency graph; Bun may retain provider SDKs in an
 # isolated package graph instead of placing them in the plugin's top-level graph.
 resolve_runtime_package_manifest() {
