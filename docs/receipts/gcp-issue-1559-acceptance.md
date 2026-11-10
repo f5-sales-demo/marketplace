@@ -1298,3 +1298,14 @@ failing-first tests, all 27 executor regressions and all 1,328 shared/canonical
 tests pass, along with three native typechecks and runtime builds. Immediate, late and persistence failures preserve
 the original refusal and reserve. Full capture, lifetime, expiry, live/runtime
 acceptance and delivery remain open.
+
+Attempt 432 passes [prepared-context original provider read qualification](gcp-prepared-context-provider-read-20261110.md).
+Initial absence/audit preflight runs before command release using the same
+admitted context. Fresh source evidence joins the RPC to original executor,
+provider and FIFO across two windows, retaining 9,711 records. No-change planning,
+typed teardown, empty destroy, two non-submitting resumes and 28 independent
+group absences passed, with empty stable state and zero managed cloud mutations.
+Current source CI passed 28 checks with four skips. Earlier failures and locks
+remain preserved. Full provider/insert flags remain false; managed insertion,
+bootstrap ownership, actual expiry, full default capture, all native/Terraform
+live behavior, installed runtime and delivery remain open.
