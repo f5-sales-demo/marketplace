@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud` 1.7.35** defaults new deployments to authenticated Terraform 1.17.1,
+  Google 8.10.0 and XCsh 15.15.6 while preserving exact legacy session artifacts (#1559).
+
+- **`terraform` 2.4.54** retains bounded original-provider observation windows,
+  compiles admitted Python source bytes and binds provisioner hooks to reviewed
+  configuration and authenticated version profiles without granting cloud authority (#1559).
+
 - **`terraform` 2.4.53** corroborates original Google provider stderr FIFO ownership
   through kernel and SDK witnesses while retaining managed-action and installed capture holds (#1559).
 

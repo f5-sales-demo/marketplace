@@ -7,7 +7,7 @@ import { createGcpTerraformRequestReason } from './request-reason';
 import { assertGcpSiteAccessProfile } from './site-access';
 import { publicTerraformContextHash } from './terraform-context';
 import { googleTerraformEnvironment } from './terraform-google-environment';
-import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from './terraform-public-artifacts';
+import { GCP_PUBLIC_TERRAFORM_ARTIFACTS, resolveGcpTerraformArtifacts } from './terraform-public-artifacts';
 import { type GcpTerraformInputs, openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
 import type { GcpCeIntent } from './types';
 
@@ -41,12 +41,15 @@ export async function openPublicTerraformRuntime(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
+  const artifacts = inputs
+    ? resolveGcpTerraformArtifacts((inputs as { inputs?: unknown }).inputs)
+    : GCP_PUBLIC_TERRAFORM_ARTIFACTS;
   const requestReason = inputs
     ? (inputs as { inputs?: GcpTerraformInputs }).inputs?.requestReason
     : createGcpTerraformRequestReason(intent);
   const expected = {
     schemaVersion: 1,
-    inputs: { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent, ...(requestReason !== undefined ? { requestReason } : {}) },
+    inputs: { ...artifacts, intent, ...(requestReason !== undefined ? { requestReason } : {}) },
   };
   if (inputs && fingerprint(inputs) !== fingerprint(expected))
     throw new Error('Public Terraform original packaged inputs differ');

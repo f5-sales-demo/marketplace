@@ -34,6 +34,21 @@ def fixture(extra=None):
 
 
 class UserInstallTests(unittest.TestCase):
+    def test_normal_setup_selects_authenticated_latest_terraform(self):
+        assert installer.VERSION == "1.17.1"
+        assert (
+            installer.ARCHIVE_SHA256
+            == "4638628058e71a55212b1c563712eac03b902128f40740f3dc8174df12135061"
+        )
+        assert (
+            installer.BINARY_SHA256
+            == "1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc"
+        )
+        assert (
+            installer.URL
+            == "https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_linux_amd64.zip"
+        )
+
     def test_wrong_archive_refuses_before_creating_target(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "bin"

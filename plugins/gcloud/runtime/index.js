@@ -2908,7 +2908,7 @@ function assertGcpTerraformRequestReason(value, intent, googleVersion) {
     reason.scope !== 'gcp-terraform-deployment' ||
     intent.engine !== 'terraform' ||
     intent.operation !== 'deploy' ||
-    googleVersion !== '8.7.0' ||
+    !['8.7.0', '8.10.0'].includes(googleVersion) ||
     reason.intentFingerprint !== fingerprint(intent) ||
     typeof reason.reason !== 'string' ||
     !reasonPattern.test(reason.reason)
@@ -10311,9 +10311,26 @@ var init_terraform_public = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/terraform-public-artifacts.ts
-var GCP_PUBLIC_TERRAFORM_ARTIFACTS;
+function resolveGcpTerraformArtifacts(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new Error('Original packaged GCP artifacts required');
+  const value = input;
+  for (const profile of packagedProfiles) {
+    if (
+      value.configurationVersion === profile.configurationVersion &&
+      value.versions?.terraform === profile.versions.terraform &&
+      value.versions.google === profile.versions.google &&
+      value.versions.xcsh === profile.versions.xcsh &&
+      value.providerLock === profile.providerLock &&
+      value.expectedLockSha256 === profile.expectedLockSha256
+    )
+      return profile;
+  }
+  throw new Error('Original packaged GCP artifact version or lock differs');
+}
+var GCP_LEGACY_TERRAFORM_ARTIFACTS, GCP_PUBLIC_TERRAFORM_ARTIFACTS, packagedProfiles;
 var init_terraform_public_artifacts = __esm(() => {
-  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+  GCP_LEGACY_TERRAFORM_ARTIFACTS = {
     configurationVersion: 2,
     versions: {
       terraform: '1.16.6',
@@ -10366,6 +10383,67 @@ provider "registry.terraform.io/hashicorp/google" {
 `,
     expectedLockSha256: 'sha256:6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
   };
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: {
+      terraform: '1.17.1',
+      google: '8.10.0',
+      xcsh: '15.15.6',
+    },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.15.6"
+  constraints = "15.15.6"
+  hashes = [
+    "h1:CPKzMmsKIFJo0WlCPSK0Fs9zWX2Flzxy13nXP47RS90=",
+    "h1:IxWHLGlJLqsSVH3KzpVZZPjYPO5r3sserw9KF6E2ep0=",
+    "zh:0dc77e240b08b5035d2f3367182a8c3c9df8c5ac6120f790df947ff22772afcf",
+    "zh:1457c6fd18390af39bca641484708f34f10eed8bfe5e6432b0d430faf3d97f19",
+    "zh:261a74243fafb9cf540c4d90e4b67f4a8c824ccc833b0debfdd631ff8f53350d",
+    "zh:6e1a68c483696d233692983bd5a24d12419923deb76c1f66e5fe8dd2f04344f4",
+    "zh:826048a87330885105b3bf6a96f240e1b46a2f725b1802d0ad11f0ce36a52b25",
+    "zh:8c8ed7352568f853a9db71157363080dfa951c432dc59a4011c7599bc92894b9",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:a068f359b095fc5daef787a8bda25cffb31406d0de4ae7b02441b78777c80b12",
+    "zh:a46205d26f225341679d1adff61eabbce24825e520da288ea54f687852cb6220",
+    "zh:c3bdabf172003c874b894fbcdc615c8b5502b0ed16407c5b95bfce9f5d3a1ca5",
+    "zh:e7814c97afa4fce5a795ac69ee286aa367b494e9afd3cf587203a1ea7aa12750",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.10.0"
+  constraints = "8.10.0"
+  hashes = [
+    "h1:KK+bSy5WlYDU1ikIxpXhdSw1E/tv1DHKWc5PwOe1RrQ=",
+    "h1:y/h4PR7S15y5Nv55/6tfQ40YuHr6T+U8h/dbxiMMllc=",
+    "zh:0dbda00be503fb47cebbb67011fa6c49bb00a3bbc3491ec0e9d4e14b1ce1b0dc",
+    "zh:22e291cb672fd02af19a9269de4c30abd51448fd1373554844921b5bad32f94a",
+    "zh:46e589f030ff42d55dc6fc865de5df2b9d1ce54ea244df5ce927034cc5ff897f",
+    "zh:4c54ccd68260d01338a86a618ec33e97e83df6b1c5bd94e528c7a779e8fcabdf",
+    "zh:715a5f898ff0557966d7ceac23da2bf7d521d37b989ce6788de8666c8125f8c4",
+    "zh:7201f7c897afc32f85f61b0f2f02dd9cc58ad0d939b30382b49bad0e752c442d",
+    "zh:7656d49394d9a2e8ec7a1cc7bd732bff110e63e0667598533c4645ec90862440",
+    "zh:8b3166f24ffd12225fffd71102ea7690b6a4d703d67bfc9a425c3c08c41f48f0",
+    "zh:a9a1730a087ded8366adc73cc87ed88160c6d700b8836cecdd5c1c181adf396f",
+    "zh:d7dca048608213e6a8510051720bccc9d2e235fb87f3d67d4f7d8afbcdfc4bd6",
+    "zh:db82d70bcf064b848fb78009ec9bd616cba3d50abe100014e0ade885e5ed8c15",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  };
+  packagedProfiles = [GCP_LEGACY_TERRAFORM_ARTIFACTS, GCP_PUBLIC_TERRAFORM_ARTIFACTS].filter(
+    (profile) => profile !== undefined,
+  );
+  Object.freeze(packagedProfiles);
+  for (const profile of packagedProfiles) {
+    Object.freeze(profile.versions);
+    Object.freeze(profile);
+  }
 });
 
 // plugins/gcloud/src/ce/funding-session.ts
@@ -10548,10 +10626,11 @@ async function openPublicTerraformRuntime(platform, api, intent, signal, install
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  const artifacts = inputs ? resolveGcpTerraformArtifacts(inputs.inputs) : GCP_PUBLIC_TERRAFORM_ARTIFACTS;
   const requestReason = inputs ? inputs.inputs?.requestReason : createGcpTerraformRequestReason(intent);
   const expected = {
     schemaVersion: 1,
-    inputs: { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent, ...(requestReason !== undefined ? { requestReason } : {}) },
+    inputs: { ...artifacts, intent, ...(requestReason !== undefined ? { requestReason } : {}) },
   };
   if (inputs && fingerprint(inputs) !== fingerprint(expected))
     throw new Error('Public Terraform original packaged inputs differ');

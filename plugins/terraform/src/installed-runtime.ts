@@ -20,6 +20,7 @@ import {
 } from './installed-final-capture';
 import { createInstalledGcpInvocationCompiler, selectInstalledGcpEnvironment } from './installed-gcp-invocation';
 import pins from './installed-runtime-pins.json';
+import { resolveInstalledGcpVersionProfile } from './installed-version-profile';
 import { linuxMonotonicMs } from './linux-clock';
 import {
   assertSameOriginalInput,
@@ -304,12 +305,15 @@ export function createInstalledRuntimeResolver(
     if (!resume && existingDeployment) throw new Error('Existing deployment must resume its original runtime');
     if (resume && !mode && existingDeployment) return {};
     const runtime = await assertInstalledRuntime(env);
-    if (deployment.terraformVersion !== '1.16.6') throw new Error('Qualified installed Terraform version required');
+    const versionProfile = resolveInstalledGcpVersionProfile({
+      terraformVersion: deployment.terraformVersion,
+      providerLockSha256: hash(deployment.providerLock),
+    });
     const terraform = Bun.which('terraform', { PATH: env.PATH ?? process.env.PATH });
     if (!terraform) throw new InstalledTerraformSetupRequired();
     const terraformPath = await realpath(terraform),
       terraformFile = await owned(terraformPath);
-    if (terraformFile.binding.sha256 !== pins.terraformSha256)
+    if (terraformFile.binding.sha256 !== versionProfile.terraformSha256)
       throw new Error('Qualified installed Terraform executable required');
     const accountSha256 = selectedGoogleAccountSha256(env);
     const sourcePath =
@@ -511,15 +515,15 @@ export function createInstalledRuntimeResolver(
             for (const [sourceName, version, executableName, expectedSha] of [
               [
                 'registry.terraform.io/hashicorp/google',
-                '8.7.0',
-                'terraform-provider-google_v8.7.0_x5',
-                pins.googleProviderSha256,
+                versionProfile.googleVersion,
+                `terraform-provider-google_v${versionProfile.googleVersion}_x5`,
+                versionProfile.googleProviderSha256,
               ],
               [
                 'registry.terraform.io/f5-sales-demo/xcsh',
-                '15.13.0',
-                'terraform-provider-xcsh_v15.13.0',
-                pins.xcProviderSha256,
+                versionProfile.xcshVersion,
+                `terraform-provider-xcsh_v${versionProfile.xcshVersion}`,
+                versionProfile.xcProviderSha256,
               ],
             ]) {
               const path = join(executionDirectory, '.terraform/providers', sourceName, version, 'linux_amd64');
@@ -545,7 +549,7 @@ export function createInstalledRuntimeResolver(
           };
           executor = signalFreeTerraformExecutor({
             python: { path: runtime.python, sha256: pins.pythonSha256 },
-            executable: { path: terraformPath, sha256: pins.terraformSha256 },
+            executable: { path: terraformPath, sha256: versionProfile.terraformSha256 },
             originalStartMs: start,
             originalDeadlineMs: deadline,
             assertOriginal,

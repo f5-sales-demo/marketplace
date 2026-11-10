@@ -145,3 +145,19 @@ test('conflicting lifecycle identity fields cannot substitute the reviewed provi
   ])
     expect(() => new GoogleProviderLifecycleParser(scope).push(Buffer.from(invalid))).toThrow();
 });
+
+test('latest lifecycle profile requires the authenticated coupled lock and exact provider basename', () => {
+  const binding = {
+    terraformVersion: '1.17.1',
+    providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  };
+  const latestScope = { ...scope, providerPath: scope.providerPath.replace('8.7.0', '8.10.0') };
+  const parser = new GoogleProviderLifecycleParser(latestScope, binding);
+  expect(parser.push(Buffer.from(complete.replaceAll('8.7.0', '8.10.0')))).toHaveLength(1);
+  expect(parser.finish().complete).toBe(true);
+  expect(() => new GoogleProviderLifecycleParser(latestScope)).toThrow();
+  expect(() => new GoogleProviderLifecycleParser(scope, binding)).toThrow();
+  expect(
+    () => new GoogleProviderLifecycleParser(latestScope, { ...binding, providerLockSha256: 'a'.repeat(64) }),
+  ).toThrow();
+});

@@ -8,7 +8,7 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { Deployment } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import { assertGcpTerraformRequestReason } from '../../src/ce/request-reason';
-import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from '../../src/ce/terraform-public-artifacts';
+import { GCP_LEGACY_TERRAFORM_ARTIFACTS } from '../../src/ce/terraform-public-artifacts';
 import { openPublicTerraformRuntime } from '../../src/ce/terraform-public-runtime';
 import { type GcpTerraformInputs, openGcpTerraformSession } from '../../src/ce/terraform-session';
 import type { GcloudExecApi } from '../../src/gcloud/exec';
@@ -73,7 +73,7 @@ test('new public sessions persist one reviewed provider reason and resume it wit
   const f = await fixture();
   const first = await openPublicTerraformRuntime(f.platform, f.api, f.i, undefined, f.service);
   const saved = (await first.store.read('gcp-terraform-session-inputs.json')) as { inputs: GcpTerraformInputs };
-  assertGcpTerraformRequestReason(saved.inputs.requestReason, f.i, '8.7.0');
+  assertGcpTerraformRequestReason(saved.inputs.requestReason, f.i, '8.10.0');
   const config = JSON.parse(f.opened[0].deployment.configuration);
   expect(config.provider.google[0].request_reason).toBe(saved.inputs.requestReason?.reason);
   const second = await openPublicTerraformRuntime(f.platform, f.api, f.i, undefined, f.service);
@@ -84,12 +84,14 @@ test('new public sessions persist one reviewed provider reason and resume it wit
 
 test('legacy public sessions retain absent attribution and exact original provider bytes', async () => {
   const f = await fixture();
-  if (!GCP_PUBLIC_TERRAFORM_ARTIFACTS) throw new Error('Pinned public source artifacts required');
-  await openGcpTerraformSession(f.platform, { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, intent: f.i }, false, f.service);
+  if (!GCP_LEGACY_TERRAFORM_ARTIFACTS) throw new Error('Pinned public source artifacts required');
+  await openGcpTerraformSession(f.platform, { ...GCP_LEGACY_TERRAFORM_ARTIFACTS, intent: f.i }, false, f.service);
   const old = f.opened[0].deployment.configuration;
+  expect(f.opened[0].deployment.terraformVersion).toBe('1.16.6');
   expect(old).not.toContain('request_reason');
   const resumed = await openPublicTerraformRuntime(f.platform, f.api, f.i, undefined, f.service);
   expect(f.opened[1].deployment.configuration).toBe(old);
+  expect(f.opened[1].deployment.terraformVersion).toBe('1.16.6');
   const saved = (await resumed.store.read('gcp-terraform-session-inputs.json')) as { inputs: GcpTerraformInputs };
   expect(saved.inputs.requestReason).toBeUndefined();
 });
@@ -100,7 +102,7 @@ test('stored reason replacement cannot open another runtime or change the origin
   const identity = await first.store.read('gcp-terraform-input-identity.json');
   const saved = (await first.store.read('gcp-terraform-session-inputs.json')) as { inputs: GcpTerraformInputs };
   const originalReason = saved.inputs.requestReason;
-  assertGcpTerraformRequestReason(originalReason, f.i, '8.7.0');
+  assertGcpTerraformRequestReason(originalReason, f.i, '8.10.0');
   await first.store.write('gcp-terraform-session-inputs.json', {
     ...saved,
     inputs: {
@@ -131,5 +133,5 @@ test('caller intent mutation during storage acquisition cannot redirect the orig
   expect(saved.intent).toEqual(original);
   expect(saved.platformContext).toBe(original.platformContext);
   const inputs = (await runtime.store.read('gcp-terraform-session-inputs.json')) as { inputs: GcpTerraformInputs };
-  assertGcpTerraformRequestReason(inputs.inputs.requestReason, original, '8.7.0');
+  assertGcpTerraformRequestReason(inputs.inputs.requestReason, original, '8.10.0');
 });

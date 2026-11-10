@@ -10,13 +10,19 @@ import stat
 import sys
 import time
 from dataclasses import asdict
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, TypeGuard, cast
+from typing import TYPE_CHECKING, NoReturn, TypedDict, TypeGuard, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from types import CodeType, ModuleType
 
-    from .gcp_provider_process import OriginalProviderCandidates, ProviderCandidate
+    from .gcp_provider_process import (
+        OriginalProviderCandidates,
+        ProviderCandidate,
+        ProviderStderrPipe,
+    )
 
 FILE_FIELDS = ("dev", "ino", "uid", "nlink", "mode", "size", "mtimeNs", "ctimeNs")
 PARENT_FIELDS = ("dev", "ino", "uid", "mode")
@@ -31,6 +37,24 @@ PINS = {
     "terraform": "00a240950f88f51a03ad90975f1647737e40ddcd5df30a703fd840aa07dccced",
     "provider": "1c620693bca3fe61c3b8ce8d313f3c6dc35648f2246784e5d92fe3d22e0dfd9f",
 }
+
+
+LATEST_PINS = {
+    "bootstrap": "aac3ade3f7d90fbf63e3ea0c46120a0cfbd159e1e503dde04721979507a1548b",
+    "terraform": "1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc",
+    "provider": "f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9",
+}
+
+
+def select_provider_pins(executables: dict[str, dict[str, str]]) -> dict[str, str]:
+    """Select the exact admitted pair; never migrate an original reader request."""
+    for profile in (PINS, LATEST_PINS):
+        if all(
+            executables.get(role, {}).get("sha256") == digest
+            for role, digest in profile.items()
+        ):
+            return profile
+    return reject("Original qualified provider executable profile required")
 
 
 def reject(message: str) -> NoReturn:
@@ -175,6 +199,146 @@ def collect_cohort(
     return available, closed, candidates
 
 
+class ProviderWindowPipe(TypedDict):
+    """Exact kernel FIFO fields for one original provider."""
+
+    providerFd: int
+    parentFd: int
+    device: str
+    inode: str
+    providerFlags: int
+    parentFlags: int
+
+
+class ProviderWindowObservation(TypedDict):
+    """One source-issued original candidate and its sampling history."""
+
+    candidate: dict[str, int | str]
+    stderr: ProviderWindowPipe
+    firstObservedMs: int
+    lastObservedMs: int
+    presentAtLastSample: bool
+
+
+class ProviderWindowResult(TypedDict):
+    """Completed bounded sampling evidence without apply authority."""
+
+    windowStartedMs: int
+    windowDeadlineMs: int
+    finishedMs: int
+    samplingWindowComplete: bool
+    observations: list[ProviderWindowObservation]
+    executorAvailable: bool
+    executorGroupClosed: bool
+
+
+WINDOW_SCHEMA_VERSION = 2
+WINDOW_MS = 45000
+WINDOW_PROVIDER_LIMIT = 64
+
+
+def provider_request_profile(request: dict[str, object]) -> str:
+    """Admit the legacy snapshot or one fixed bounded original FIFO window."""
+    version = request.get("schemaVersion")
+    if not exact_integer(version):
+        reject("Original provider request version required")
+    if version == 1 and "kind" not in request and "windowMs" not in request:
+        return "cohort"
+    if (
+        version == WINDOW_SCHEMA_VERSION
+        and request.get("kind") == "original-provider-stderr-window"
+        and exact_integer(request.get("windowMs"))
+        and request["windowMs"] == WINDOW_MS
+    ):
+        return "stderr-window"
+    reject("Original provider observation profile required")
+
+
+def capture_stderr_window(
+    monitor: OriginalProviderCandidates,
+    *,
+    deadline: int,
+    verify: Callable[[], None],
+    emit: Callable[[dict[str, object]], None],
+    clock: Callable[[], int] = lambda: time.monotonic_ns() // 1000000,
+    pause: Callable[[], None] = lambda: time.sleep(0.25),
+) -> ProviderWindowResult:
+    """Retain every original FIFO candidate in one bounded sampling window."""
+    started = clock()
+    ended = min(deadline, started + WINDOW_MS)
+    if started >= ended:
+        reject("Original provider window budget exhausted")
+    witnesses: dict[int, ProviderStderrPipe] = {}
+    observations: dict[int, ProviderWindowObservation] = {}
+    available, closed = False, False
+    try:
+        verify()
+        emit({"kind": "ready", "windowStartedMs": started, "windowDeadlineMs": ended})
+        while clock() < ended:
+            available, closed, candidates = collect_cohort(
+                dict(monitor.parent), monitor.discover, assert_inputs=verify
+            )
+            captured = clock()
+            if captured >= ended:
+                break
+            for value in observations.values():
+                value["presentAtLastSample"] = False
+            for candidate in candidates:
+                if candidate.pid not in witnesses:
+                    if len(witnesses) >= WINDOW_PROVIDER_LIMIT:
+                        reject("Original provider window candidate limit exceeded")
+                    witness = monitor.capture_stderr(candidate)
+                    witnesses[candidate.pid] = witness
+                    observations[candidate.pid] = {
+                        "candidate": asdict(candidate),
+                        "stderr": {
+                            "providerFd": 2,
+                            "parentFd": witness.parent_fd,
+                            "device": str(witness.device),
+                            "inode": str(witness.inode),
+                            "providerFlags": witness.provider_flags,
+                            "parentFlags": witness.parent_flags,
+                        },
+                        "firstObservedMs": captured,
+                        "lastObservedMs": captured,
+                        "presentAtLastSample": True,
+                    }
+                monitor.require_stderr(witnesses[candidate.pid])
+                observations[candidate.pid]["lastObservedMs"] = captured
+                observations[candidate.pid]["presentAtLastSample"] = True
+            verify()
+            if clock() >= ended:
+                reject("Original provider window capture exceeded its budget")
+            emit({"kind": "sample", "capturedMonotonicMs": captured})
+            if closed:
+                break
+            pause()
+        verify()
+        available, closed = inspect_executor(dict(monitor.parent))
+        if closed:
+            for value in observations.values():
+                value["presentAtLastSample"] = False
+        result: ProviderWindowResult = {
+            "windowStartedMs": started,
+            "windowDeadlineMs": ended,
+            "finishedMs": clock(),
+            "samplingWindowComplete": True,
+            "observations": list(observations.values()),
+            "executorAvailable": available,
+            "executorGroupClosed": closed,
+        }
+    except Exception:
+        emit(
+            {
+                "kind": "failed",
+                "observations": list(observations.values()),
+                "samplingWindowComplete": False,
+            }
+        )
+        raise
+    return result
+
+
 def require_private_root(root: Path) -> None:
     """Keep the original request's owned private evidence directory."""
     parent = root.lstat()
@@ -184,6 +348,129 @@ def require_private_root(root: Path) -> None:
         or parent.st_mode & 0o077
     ):
         reject("Original private provider reader directory required")
+
+
+class AdmittedReaderSourceLoader(SourceFileLoader):
+    """Load only captured source bytes through Python's standard source loader."""
+
+    def __init__(self, name: str, path: str, source: bytes) -> None:
+        """Bind one module name, canonical source path and admitted byte buffer."""
+        super().__init__(name, path)
+        self._admitted_source = source
+
+    def get_code(self, fullname: str) -> CodeType:
+        """Compile the admitted source without consulting a bytecode cache."""
+        if fullname != self.name:
+            reject("Original provider source module name changed")
+        return self.source_to_code(self._admitted_source, self.path)
+
+
+def load_reader_modules(scripts: Path) -> tuple[ModuleType, ModuleType]:
+    """Compile the admitted sources directly; never execute cached bytecode."""
+    for name, filename in [
+        ("xcsh_provider_capture", "__init__.py"),
+        ("xcsh_provider_capture.guest_pty", "guest_pty.py"),
+        ("xcsh_provider_capture.gcp_provider_process", "gcp_provider_process.py"),
+    ]:
+        path = canonical(str(scripts / filename))
+        raw = read_owned(path, LIMIT)
+        loader = AdmittedReaderSourceLoader(name, str(path), raw)
+        spec = importlib.util.spec_from_file_location(
+            name,
+            path,
+            loader=loader,
+            submodule_search_locations=[str(scripts)]
+            if filename == "__init__.py"
+            else None,
+        )
+        if spec is None:
+            reject("Original provider source module unavailable")
+        loaded = importlib.util.module_from_spec(spec)
+        sys.modules[name] = loaded
+        loader.exec_module(loaded)
+    return (
+        sys.modules["xcsh_provider_capture.gcp_provider_process"],
+        sys.modules["xcsh_provider_capture.guest_pty"],
+    )
+
+
+def record_stderr_window(
+    monitor_module: ModuleType,
+    transport: ModuleType,
+    request: dict[str, object],
+    root: Path,
+    reader: dict[str, object],
+    deadline: int,
+    verify: Callable[[], None],
+) -> None:
+    """Dispatch the fixed window through the original verified modules."""
+    executables = cast("dict[str,dict[str,str]]", request["executables"])
+    selected_pins = select_provider_pins(executables)
+    monitor = monitor_module.OriginalProviderCandidates(
+        root / "provider-window-captures",
+        request["executor"],
+        executables=monitor_module.ProviderExecutables(
+            terraform=monitor_module.PinnedExecutable(
+                canonical(executables["terraform"]["path"]), selected_pins["terraform"]
+            ),
+            provider=monitor_module.PinnedExecutable(
+                canonical(executables["provider"]["path"]), selected_pins["provider"]
+            ),
+            bootstrap=monitor_module.PinnedExecutable(
+                canonical(executables["bootstrap"]["path"]), selected_pins["bootstrap"]
+            ),
+        ),
+        assert_inputs=verify,
+    )
+
+    def emit(value: dict[str, object]) -> None:
+        """Persist readiness and incomplete observations in the original root."""
+        if value["kind"] == "ready":
+            transport.record(
+                root / "provider-ready.private.json",
+                {
+                    **value,
+                    "schemaVersion": 2,
+                    "kind": "original-provider-stderr-ready",
+                    "requestSha256": sys.argv[4],
+                    "executor": request["executor"],
+                    "reader": reader,
+                    "applyPhaseQualified": False,
+                    "signalsSent": False,
+                    "cloudSubmissions": 0,
+                },
+            )
+        elif value["kind"] == "failed":
+            transport.record(
+                root / "provider-window-failed.private.json",
+                {
+                    **value,
+                    "schemaVersion": 2,
+                    "requestSha256": sys.argv[4],
+                    "executor": request["executor"],
+                    "reader": reader,
+                    "applyPhaseQualified": False,
+                    "signalsSent": False,
+                    "cloudSubmissions": 0,
+                },
+            )
+
+    result = capture_stderr_window(monitor, deadline=deadline, verify=verify, emit=emit)
+    verify()
+    transport.record(
+        root / "provider-result.private.json",
+        {
+            **result,
+            "schemaVersion": 2,
+            "kind": "original-provider-stderr-window",
+            "requestSha256": sys.argv[4],
+            "executor": request["executor"],
+            "reader": reader,
+            "applyPhaseQualified": False,
+            "signalsSent": False,
+            "cloudSubmissions": 0,
+        },
+    )
 
 
 def main() -> None:
@@ -203,9 +490,12 @@ def main() -> None:
     request = json.loads(raw)
     root = request_path.parent
     require_private_root(root)
-    if request.get("schemaVersion") != 1 or not isinstance(request.get("inputs"), dict):
+    provider_request_profile(request)
+    if not isinstance(request.get("inputs"), dict):
         reject("Original provider reader admission required")
     deadline = require_capture_budget(request, time.monotonic_ns() // 1000000)
+
+    verified_bytes: set[str] = set()
 
     def verify() -> None:
         """Recheck admitted file and parent identities around every witness."""
@@ -233,10 +523,17 @@ def main() -> None:
             ):
                 reject("Original admitted provider input parent changed")
             if (
-                hashlib.sha256(read_owned(path, 256 * 1024 * 1024)).hexdigest()
-                != binding["sha256"]
+                provider_request_profile(request) == "cohort"
+                or str(path) not in verified_bytes
             ):
-                reject("Original admitted provider input bytes changed")
+                if (
+                    hashlib.sha256(read_owned(path, 256 * 1024 * 1024)).hexdigest()
+                    != binding["sha256"]
+                ):
+                    reject("Original admitted provider input bytes changed")
+                verified_bytes.add(str(path))
+            if identity(path.lstat()) != current:
+                reject("Original admitted provider input changed during verification")
 
     verify()
     scripts = Path(__file__).resolve().parent
@@ -249,7 +546,8 @@ def main() -> None:
         binding = request["inputs"].get("script:" + name)
         if binding is None or canonical(binding["path"]) != scripts / name:
             reject("All original provider reader sources required")
-    for role, expected in PINS.items():
+    selected_pins = select_provider_pins(request["executables"])
+    for role, expected in selected_pins.items():
         binding = request["executables"][role]
         if binding["sha256"] != expected or not any(
             binding == value for value in request["inputs"].values()
@@ -259,20 +557,7 @@ def main() -> None:
         request["executables"]["bootstrap"]["path"]
     ):
         reject("Original provider reader interpreter changed")
-    spec = importlib.util.spec_from_file_location(
-        "xcsh_provider_capture",
-        scripts / "__init__.py",
-        submodule_search_locations=[str(scripts)],
-    )
-    if spec is None or spec.loader is None:
-        reject("Original provider reader package loader unavailable")
-    package = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = package
-    spec.loader.exec_module(package)
-    monitor_module = importlib.import_module(
-        "xcsh_provider_capture.gcp_provider_process"
-    )
-    transport = importlib.import_module("xcsh_provider_capture.guest_pty")
+    monitor_module, transport = load_reader_modules(scripts)
     reader = transport.process_identity(os.getpid())
 
     def discover() -> tuple[ProviderCandidate, ...]:
@@ -285,15 +570,15 @@ def main() -> None:
                 executables=monitor_module.ProviderExecutables(
                     terraform=monitor_module.PinnedExecutable(
                         canonical(request["executables"]["terraform"]["path"]),
-                        PINS["terraform"],
+                        selected_pins["terraform"],
                     ),
                     provider=monitor_module.PinnedExecutable(
                         canonical(request["executables"]["provider"]["path"]),
-                        PINS["provider"],
+                        selected_pins["provider"],
                     ),
                     bootstrap=monitor_module.PinnedExecutable(
                         canonical(request["executables"]["bootstrap"]["path"]),
-                        PINS["bootstrap"],
+                        selected_pins["bootstrap"],
                     ),
                 ),
                 assert_inputs=verify,
@@ -301,6 +586,11 @@ def main() -> None:
         )
         return monitor.discover()
 
+    if provider_request_profile(request) == "stderr-window":
+        record_stderr_window(
+            monitor_module, transport, request, root, reader, deadline, verify
+        )
+        return
     available, closed, candidates = collect_cohort(
         request["executor"], discover, assert_inputs=verify
     )

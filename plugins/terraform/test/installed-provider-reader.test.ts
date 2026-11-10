@@ -87,6 +87,11 @@ async function fixture() {
     startupDeadlineMs: now + 15_000,
   };
   let executions = 0;
+  let windowClock = now;
+  let finishWindow: () => void = () => {};
+  let mutateReady: (value: Record<string, unknown>) => void = () => {};
+  let prematureWindow = false;
+
   let substituteRequest = false;
   let aliasResult = false;
   let mutate: (result: Record<string, unknown>) => void = () => {};
@@ -94,6 +99,12 @@ async function fixture() {
     (policy: SignalFreeExecutionPolicy): Executor =>
     async (invocation) => {
       executions++;
+      const readerActor = {
+        ...sdk,
+        pid: sdk.pid + (executions - 1) * 100,
+        group: sdk.group + (executions - 1) * 100,
+        start: String(Number(sdk.start) + executions - 1),
+      };
       const originalRequest = invocation.args[invocation.args.indexOf('--request') + 1];
       if (substituteRequest) {
         const bytes = await readFile(originalRequest);
@@ -101,7 +112,13 @@ async function fixture() {
         await writeFile(originalRequest, bytes, { flag: 'wx', mode: 0o400 });
       }
       await policy.assertOriginal();
-      await policy.beforeRelease?.({ ...admission, directory: invocation.cwd, args: invocation.args, identity: sdk });
+      await policy.beforeRelease?.({
+        ...admission,
+        directory: invocation.cwd,
+        args: invocation.args,
+        identity: readerActor,
+        startupDeadlineMs: windowClock + 15000,
+      });
       await policy.assertOriginal();
       const path = invocation.args[invocation.args.indexOf('--request') + 1];
       const bytes = await readFile(path);
@@ -111,7 +128,7 @@ async function fixture() {
         kind: 'original-provider-cohort',
         requestSha256: hash(bytes),
         executor: request.executor,
-        reader: sdk,
+        reader: readerActor,
         candidates: [3456, 4567].map((pid) => ({
           pid,
           group: parent.group,
@@ -126,6 +143,57 @@ async function fixture() {
         signalsSent: false,
         cloudSubmissions: 0,
       };
+      if (request.schemaVersion === 2) {
+        const windowStartedMs = windowClock;
+        const windowDeadlineMs = Math.min(windowStartedMs + 45000, request.deadlineMs);
+        const ready: Record<string, unknown> = {
+          schemaVersion: 2,
+          kind: 'original-provider-stderr-ready',
+          requestSha256: hash(bytes),
+          executor: request.executor,
+          reader: readerActor,
+          windowStartedMs,
+          windowDeadlineMs,
+          applyPhaseQualified: false,
+          signalsSent: false,
+          cloudSubmissions: 0,
+        };
+        mutateReady(ready);
+        const barrier = new Promise<void>((resolve) => {
+          finishWindow = () => {
+            windowClock = windowDeadlineMs;
+            resolve();
+          };
+        });
+        await writeFile(join(invocation.cwd, 'provider-ready.private.json'), JSON.stringify(ready), {
+          flag: 'wx',
+          mode: 0o400,
+        });
+        await barrier;
+        Object.assign(result, {
+          schemaVersion: 2,
+          kind: 'original-provider-stderr-window',
+          windowStartedMs,
+          windowDeadlineMs,
+          finishedMs: prematureWindow ? now : windowDeadlineMs,
+          samplingWindowComplete: true,
+          observations: (result.candidates as Array<Record<string, unknown>>).map((candidate) => ({
+            candidate,
+            stderr: {
+              providerFd: 2,
+              parentFd: 10,
+              device: '14',
+              inode: String(candidate.pid),
+              providerFlags: 1,
+              parentFlags: 526336,
+            },
+            firstObservedMs: windowStartedMs,
+            lastObservedMs: windowStartedMs,
+            presentAtLastSample: true,
+          })),
+        });
+        delete result.candidates;
+      }
       mutate(result);
       await writeFile(join(invocation.cwd, 'provider-result.private.json'), JSON.stringify(result), {
         flag: 'wx',
@@ -145,8 +213,8 @@ async function fixture() {
         finishedMs: now,
         stdoutPath: join(invocation.cwd, 'stdout'),
         stderrPath: join(invocation.cwd, 'stderr'),
-        identity: sdk,
-        pid: sdk.pid,
+        identity: readerActor,
+        pid: readerActor.pid,
         submitted: true,
         actualExitCode: 0,
         originalGroupClosed: true,
@@ -156,6 +224,14 @@ async function fixture() {
     };
   return {
     root,
+    clock: () => windowClock,
+    releaseWindow: () => finishWindow(),
+    mutateReady: (fn: typeof mutateReady) => {
+      mutateReady = fn;
+    },
+    prematureWindow: () => {
+      prematureWindow = true;
+    },
     context,
     admission,
     factory,
@@ -259,4 +335,126 @@ test('provider getter replacement during capture is refused by the final origina
   const reader = await openInstalledProviderReader(context, run.admission, { executorFactory: run.factory });
   await expect(reader.read()).rejects.toThrow('admission changed');
   await expect(reader.read()).rejects.toThrow('retired');
+});
+
+test('installed FIFO window becomes ready before the original sampling command completes', async () => {
+  const run = await fixture();
+  const reader = await openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+  });
+  const running = reader.startStderrWindow();
+  let completed = false;
+  running.complete.then(() => {
+    completed = true;
+  });
+  const ready = await running.ready;
+  expect(ready.kind).toBe('original-provider-stderr-ready');
+  expect(ready.executor).toEqual(parent);
+  expect(ready.reader).toEqual(sdk);
+  expect(ready.windowDeadlineMs - ready.windowStartedMs).toBe(45000);
+  expect(completed).toBe(false);
+  run.releaseWindow();
+  const result = await running.complete;
+  expect(result.kind).toBe('original-provider-stderr-window');
+  expect(result.observations.map((value) => value.candidate.pid)).toEqual([3456, 4567]);
+  expect(result.samplingWindowComplete).toBe(true);
+  expect(result.applyPhaseQualified).toBe(false);
+  expect(Object.isFrozen(result.observations[0].stderr)).toBe(true);
+  expect(reader.captures()).toHaveLength(1);
+});
+
+test('wrong original ready identity refuses while retaining the same child completion', async () => {
+  for (const change of [
+    (r: Record<string, unknown>) => {
+      r.reader = { ...sdk, pid: 9999 };
+    },
+    (r: Record<string, unknown>) => {
+      r.requestSha256 = 'f'.repeat(64);
+    },
+    (r: Record<string, unknown>) => {
+      r.windowDeadlineMs = Number(r.windowDeadlineMs) + 1;
+    },
+  ]) {
+    const run = await fixture();
+    run.mutateReady(change);
+    const reader = await openInstalledProviderReader(run.context, run.admission, {
+      executorFactory: run.factory,
+      clock: run.clock,
+    });
+    const running = reader.startStderrWindow();
+    await expect(running.ready).rejects.toThrow();
+    run.releaseWindow();
+    await expect(running.complete).rejects.toThrow();
+    expect(reader.captures()).toHaveLength(1);
+    expect(run.executions()).toBe(1);
+  }
+});
+
+test('partial, premature, foreign and malformed FIFO windows cannot be accepted', async () => {
+  for (const change of [
+    (r: Record<string, unknown>) => {
+      r.samplingWindowComplete = false;
+    },
+    (r: Record<string, unknown>) => {
+      (r.observations as Array<{ stderr: Record<string, unknown> }>)[0].stderr.providerFlags = 0;
+    },
+    (r: Record<string, unknown>) => {
+      (r.observations as Array<{ candidate: Record<string, unknown> }>)[0].candidate.boot = 'foreign';
+    },
+    (r: Record<string, unknown>) => {
+      r.unknown = true;
+    },
+  ]) {
+    const run = await fixture();
+    run.mutate(change);
+    const reader = await openInstalledProviderReader(run.context, run.admission, {
+      executorFactory: run.factory,
+      clock: run.clock,
+    });
+    const running = reader.startStderrWindow();
+    await running.ready;
+    run.releaseWindow();
+    await expect(running.complete).rejects.toThrow();
+  }
+  const run = await fixture();
+  run.prematureWindow();
+  const reader = await openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+  });
+  const running = reader.startStderrWindow();
+  await running.ready;
+  run.releaseWindow();
+  await expect(running.complete).rejects.toThrow();
+});
+
+test('a production reader cannot take an offline clock without its explicit fixture executor', async () => {
+  const run = await fixture();
+  await expect(openInstalledProviderReader(run.context, run.admission, { clock: run.clock })).rejects.toThrow(
+    'Offline',
+  );
+  expect(run.executions()).toBe(0);
+});
+
+test('subsequent windows keep the original operation budget after its initial startup deadline', async () => {
+  const run = await fixture();
+  const reader = await openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+  });
+  const first = reader.startStderrWindow();
+  await first.ready;
+  run.releaseWindow();
+  await first.complete;
+  const second = reader.startStderrWindow();
+  const ready = await second.ready;
+  expect(ready.executor).toEqual(parent);
+  expect(ready.reader.pid).not.toBe(sdk.pid);
+  expect(ready.windowStartedMs).toBe(run.admission.originalStartMs + 45000);
+  run.releaseWindow();
+  const result = await second.complete;
+  expect(result.windowDeadlineMs).toBe(run.admission.originalStartMs + 90000);
+  expect(reader.captures()).toHaveLength(2);
+  expect(reader.captures().every((value) => value.originalDeadlineMs === run.admission.originalDeadlineMs)).toBe(true);
 });

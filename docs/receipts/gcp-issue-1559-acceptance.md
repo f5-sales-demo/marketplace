@@ -1146,3 +1146,15 @@ closure; the replacement selects the task temporary directory before admission.
 Root disk pressure remains an operational repair requirement. Installed reader
 and full controller integration, managed action/request/audit/incarnation joins
 and every subsequent acceptance gate remain open. Authorization flags stay false.
+
+Attempt 417 qualifies [latest provider observation windows and provisioner hooks](gcp-latest-provider-windows-20261110.md).
+New defaults use authenticated Terraform 1.17.1, Google 8.10.0 and XCsh 15.15.6;
+legacy sessions preserve their exact original artifacts. Forty-five focused cases
+pass after failing-first version and provisioner regressions. The actual latest
+standard runner retains the same original provider and FIFO across two compiled
+windows, with 9,711 records, no-change planning, typed teardown, stable empty
+state, two non-submitting resumes and 28 independently absent process groups.
+Zero managed cloud resources or mutations occurred. The old failed long-window
+capture and its independently cleaned retained locks remain unchanged. Full
+installed capture, managed action/request/audit/incarnation joins, credential
+expiry and all subsequent live, installed runtime and delivery gates stay open.

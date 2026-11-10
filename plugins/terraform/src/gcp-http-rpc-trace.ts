@@ -1,5 +1,6 @@
 import { createHash, type Hash } from 'node:crypto';
 import { decodeEvidenceObject } from './evidence-json';
+import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
 
 type Json = Record<string, unknown>;
 type Rpc = 'ReadDataSource' | 'ReadResource' | 'ApplyResourceChange';
@@ -56,7 +57,6 @@ interface Transaction {
   recordsHash: string;
 }
 const providerAddress = 'registry.terraform.io/hashicorp/google';
-const providerModule = 'provider.terraform-provider-google_v8.7.0_x5';
 const maximumLine = 1024 * 1024,
   maximumStream = 64 * 1024 * 1024,
   maximumDump = 4 * 1024 * 1024;
@@ -104,7 +104,7 @@ function jsonBody(body: string, contentType: string | undefined, required: boole
   return hash(body);
 }
 
-/** Pinned Google 8.7 / protocol 5.11 split-record inspection.
+/** Authenticated Google version / protocol 5.11 split-record inspection.
  * Original bytes must be retained and their producers admitted separately.
  * Serialized RPC and HTTP pairs remain candidates; this parser never authorizes
  * an apply, a resource incarnation, token reuse or an installed controller.
@@ -112,6 +112,7 @@ function jsonBody(body: string, contentType: string | undefined, required: boole
 export class GoogleHttpRpcTraceParser {
   readonly #scope: Readonly<GoogleHttpRpcTraceScope>;
   readonly #base: string;
+  readonly #providerModule: string;
   readonly #buffer = Buffer.allocUnsafe(maximumLine);
   readonly #seen = new Set<string>();
   #lineBytes = 0;
@@ -124,7 +125,9 @@ export class GoogleHttpRpcTraceParser {
   #matched: Transaction | undefined;
   #matches = 0;
 
-  constructor(scope: GoogleHttpRpcTraceScope) {
+  constructor(scope: GoogleHttpRpcTraceScope, binding?: InstalledGcpVersionBinding) {
+    const googleVersion = binding ? resolveInstalledGcpVersionProfile(binding).googleVersion : '8.7.0';
+    this.#providerModule = `provider.terraform-provider-google_v${googleVersion}_x5`;
     const url = new URL(scope.url);
     const project = /^\/compute\/v1\/projects\/([a-z][a-z0-9-]{4,62})(?:\/|$)/.exec(url.pathname);
     if (
@@ -181,7 +184,14 @@ export class GoogleHttpRpcTraceParser {
     if (typeof record['@message'] !== 'string') throw new Error('Malformed original trace message');
     const message = record['@message'];
     const rpcRecord = record['@module'] === 'sdk.proto' && record.tf_provider_addr === providerAddress;
-    const httpRecord = record['@module'] === providerModule;
+    const httpRecord = record['@module'] === this.#providerModule;
+    if (
+      this.#active &&
+      !httpRecord &&
+      typeof record['@module'] === 'string' &&
+      record['@module'].startsWith('provider.terraform-provider-google_')
+    )
+      throw new Error('Original forwarding module differs from authenticated profile');
     if (!rpcRecord && !httpRecord) {
       if (this.#dump && heading.test(message)) throw new Error('Original forwarding module changed');
       if (this.#dump?.marker && message === markers[this.#dump.kind])

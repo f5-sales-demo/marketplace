@@ -264,3 +264,17 @@ test('reviewed deferred data-source hooks preserve data mode and cannot imperson
   const managed = new TerraformApplyHookParser(plan);
   expect(() => managed.push(bytes(version + event('apply_start', { resource: dataResource })))).toThrow();
 });
+
+test('latest Terraform UI profile binds the reviewed lock and rejects legacy or mixed version headers', () => {
+  const binding = {
+    terraformVersion: '1.17.1',
+    providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  };
+  const latestPlan = { ...plan, providerLockSha256: binding.providerLockSha256 };
+  const parser = new TerraformApplyHookParser(latestPlan, binding);
+  expect(parser.push(bytes(version.replace('1.16.6', '1.17.1') + start + complete))).toHaveLength(2);
+  expect(parser.finish().applySuccessful).toBe(true);
+  expect(() => new TerraformApplyHookParser(latestPlan, binding).push(bytes(version))).toThrow();
+  expect(() => new TerraformApplyHookParser(plan, binding)).toThrow();
+  expect(() => new TerraformApplyHookParser(latestPlan, { ...binding, terraformVersion: '1.18.0' })).toThrow();
+});

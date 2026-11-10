@@ -302,7 +302,7 @@ var gcp_capture_source_pins_default = {
     'guest_pty.py': '781d4d2e183acd29b50cb42e6c9ad81347bf6751cbb408d30c62a4600375304b',
     'gcp_guest_session.py': 'babe7881afd16133cad8ce25c2872c6067fe154ba7c03f72c47de58e20f6e786',
     'gcp_provider_process.py': '0d36dd1ff892c007541e1fe5ca1890302a4cbcc395c4e62087751ef6f8d37709',
-    'gcp_provider_reader.py': '69d327d4a5d9d6126c5b0294aeca0fb7e29fed86d2a969d1fe733d3b84f26a64',
+    'gcp_provider_reader.py': 'e04ddb6f9d976d9f3b762537318f5dcadd8a0a7a4e3a37ec7c87ae7e36b20e3a',
   },
 };
 
@@ -1160,6 +1160,38 @@ var installed_runtime_pins_default = {
   xcProviderSha256: 'c25cc2562047d72ef3b10d2cd8319f13f8c5b6785aa62cc9006b6370ae68fd67',
   refreshQualificationSha256: '613a5979c06e99b57a9ae34855f8d0f4724ebe641e22d7b6ed973cca378fbc0c',
 };
+
+// plugins/terraform/src/installed-version-profile.ts
+var profiles = [
+  {
+    terraformVersion: '1.17.1',
+    googleVersion: '8.10.0',
+    xcshVersion: '15.15.6',
+    providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+    terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',
+    googleProviderSha256: 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
+    xcProviderSha256: '99173b9eb36d1deeeb3297374f5b86f4a37631b9ba88a9e9da82ced549ad35b3',
+  },
+  {
+    terraformVersion: '1.16.6',
+    googleVersion: '8.7.0',
+    xcshVersion: '15.13.0',
+    providerLockSha256: '6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
+    terraformSha256: '00a240950f88f51a03ad90975f1647737e40ddcd5df30a703fd840aa07dccced',
+    googleProviderSha256: '1c620693bca3fe61c3b8ce8d313f3c6dc35648f2246784e5d92fe3d22e0dfd9f',
+    xcProviderSha256: 'c25cc2562047d72ef3b10d2cd8319f13f8c5b6785aa62cc9006b6370ae68fd67',
+  },
+];
+for (const profile of profiles) Object.freeze(profile);
+Object.freeze(profiles);
+function resolveInstalledGcpVersionProfile(input) {
+  const profile = profiles.find(
+    (value) =>
+      value.terraformVersion === input.terraformVersion && value.providerLockSha256 === input.providerLockSha256,
+  );
+  if (!profile) throw new Error('Original installed GCP runtime version and provider lock profile required');
+  return profile;
+}
 
 // plugins/terraform/src/original-input-monitor.ts
 import { createHash as createHash4 } from 'node:crypto';
@@ -2591,12 +2623,15 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     if (!resume && existingDeployment) throw new Error('Existing deployment must resume its original runtime');
     if (resume && !mode && existingDeployment) return {};
     const runtime = await assertInstalledRuntime(env);
-    if (deployment.terraformVersion !== '1.16.6') throw new Error('Qualified installed Terraform version required');
+    const versionProfile = resolveInstalledGcpVersionProfile({
+      terraformVersion: deployment.terraformVersion,
+      providerLockSha256: hash5(deployment.providerLock),
+    });
     const terraform = Bun.which('terraform', { PATH: env.PATH ?? process.env.PATH });
     if (!terraform) throw new InstalledTerraformSetupRequired();
     const terraformPath = await realpath6(terraform),
       terraformFile = await owned(terraformPath);
-    if (terraformFile.binding.sha256 !== installed_runtime_pins_default.terraformSha256)
+    if (terraformFile.binding.sha256 !== versionProfile.terraformSha256)
       throw new Error('Qualified installed Terraform executable required');
     const accountSha256 = selectedGoogleAccountSha256(env);
     const sourcePath =
@@ -2794,15 +2829,15 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             for (const [sourceName, version, executableName, expectedSha] of [
               [
                 'registry.terraform.io/hashicorp/google',
-                '8.7.0',
-                'terraform-provider-google_v8.7.0_x5',
-                installed_runtime_pins_default.googleProviderSha256,
+                versionProfile.googleVersion,
+                `terraform-provider-google_v${versionProfile.googleVersion}_x5`,
+                versionProfile.googleProviderSha256,
               ],
               [
                 'registry.terraform.io/f5-sales-demo/xcsh',
-                '15.13.0',
-                'terraform-provider-xcsh_v15.13.0',
-                installed_runtime_pins_default.xcProviderSha256,
+                versionProfile.xcshVersion,
+                `terraform-provider-xcsh_v${versionProfile.xcshVersion}`,
+                versionProfile.xcProviderSha256,
               ],
             ]) {
               const path = join7(executionDirectory, '.terraform/providers', sourceName, version, 'linux_amd64');
@@ -2828,7 +2863,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
           };
           executor = signalFreeTerraformExecutor({
             python: { path: runtime.python, sha256: installed_runtime_pins_default.pythonSha256 },
-            executable: { path: terraformPath, sha256: installed_runtime_pins_default.terraformSha256 },
+            executable: { path: terraformPath, sha256: versionProfile.terraformSha256 },
             originalStartMs: start,
             originalDeadlineMs: deadline,
             assertOriginal,

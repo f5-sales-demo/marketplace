@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { basename, isAbsolute, resolve } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
+import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
 
 type Json = Record<string, unknown>;
 export interface GoogleProviderLifecycleScope {
@@ -48,7 +49,7 @@ const text = (value: unknown) => {
 };
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
-/** Terraform1.16.6 / go-plugin1.7 start/exit and Google5.11 RPC contract.
+/** Authenticated Terraform / go-plugin start/exit and Google5.11 RPC profiles.
  * Original process/pipe admission must corroborate these serialized candidates.
  * No log record or PID alone grants process, RPC or cloud insert authority.
  */
@@ -66,11 +67,12 @@ export class GoogleProviderLifecycleParser {
   #rpc: Rpc | undefined;
   #providers = 0;
   #rpcs = 0;
-  constructor(input: GoogleProviderLifecycleScope) {
+  constructor(input: GoogleProviderLifecycleScope, binding?: InstalledGcpVersionBinding) {
+    const googleVersion = binding ? resolveInstalledGcpVersionProfile(binding).googleVersion : '8.7.0';
     if (
       !isAbsolute(input.providerPath) ||
       resolve(input.providerPath) !== input.providerPath ||
-      basename(input.providerPath) !== 'terraform-provider-google_v8.7.0_x5' ||
+      basename(input.providerPath) !== `terraform-provider-google_v${googleVersion}_x5` ||
       hasControls(input.providerPath) ||
       !/^[a-f0-9]{64}$/.test(input.planSha256)
     )

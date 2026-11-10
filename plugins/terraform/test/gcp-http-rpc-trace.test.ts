@@ -263,3 +263,18 @@ test('unpaired dump markers are incomplete framing, not ignorable provider diagn
     ).toThrow();
   }
 });
+
+test('latest forwarded HTTP module is selected by authenticated runtime profile and refuses mixed streams', () => {
+  const binding = {
+    terraformVersion: '1.17.1',
+    providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  };
+  const latest = complete.replaceAll('8.7.0', '8.10.0');
+  const parser = new GoogleHttpRpcTraceParser(scope, binding);
+  expect(parser.push(Buffer.from(latest))).toHaveLength(1);
+  expect(parser.finish().complete).toBe(true);
+  expect(() => new GoogleHttpRpcTraceParser(scope, binding).push(Buffer.from(complete))).toThrow();
+  const legacy = new GoogleHttpRpcTraceParser(scope);
+  expect(() => legacy.push(Buffer.from(latest))).toThrow();
+  expect(() => new GoogleHttpRpcTraceParser(scope, { ...binding, terraformVersion: '1.18.0' })).toThrow();
+});
