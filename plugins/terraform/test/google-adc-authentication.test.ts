@@ -164,3 +164,23 @@ test('original input failure stops subsequent requests and retains sanitized HTT
   expect(error.message).toBe('Google ADC authentication transport failed');
   expect(error.message).not.toContain('synthetic-access');
 });
+
+test('duplicate credential identities refuse before authentication requests', async () => {
+  const n = network();
+  const raw = JSON.stringify(credential).replace('"client_id":', '"client_id":"synthetic-client","client_id":');
+  await expect(
+    authenticateGoogleAdc({ ...request(), credentialBytes: Buffer.from(raw) }, undefined, n.fetcher),
+  ).rejects.toThrow();
+  expect(n.calls).toHaveLength(0);
+});
+
+test('duplicate authenticated principal fields cannot reach project inspection', async () => {
+  const n = network();
+  const fetcher = (async (url: string | URL | Request, options?: RequestInit) => {
+    const response = await n.fetcher(url, options);
+    if (n.calls.length !== 2) return response;
+    return new Response(JSON.stringify(info).replace('"email":', '"email":"principal@example.com","email":'));
+  }) as typeof fetch;
+  await expect(authenticateGoogleAdc(request(), undefined, fetcher)).rejects.toThrow();
+  expect(n.calls).toHaveLength(2);
+});

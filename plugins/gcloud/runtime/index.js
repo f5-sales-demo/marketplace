@@ -8007,6 +8007,7 @@ class TerraformRunner {
   #cleanup;
   #cleanupEmpty = false;
   #cleanupMonitor;
+  #verificationMonitor;
   constructor(root, execute = executeTerraform, cleanup) {
     this.root = root;
     this.execute = execute;
@@ -8029,12 +8030,35 @@ class TerraformRunner {
         )
       )
         throw new Error('Reviewed capture-independent cleanup scope and executor required');
+      const verification = cleanup.verification;
+      if (
+        verification &&
+        (verification.schemaVersion !== 1 ||
+          verification.kind !== 'applied-destroy-state-verification' ||
+          !/^[a-f0-9]{64}$/.test(verification.state?.sha256 ?? '') ||
+          verification.state.lineage !== cleanup.state.lineage ||
+          !Number.isSafeInteger(verification.state.serial) ||
+          verification.state.serial <= cleanup.state.serial)
+      )
+        throw new Error('Original applied cleanup verification scope required');
+      const verificationInput = verification
+        ? freezeAdmittedCaptureInputs({ checkpoint: verification.checkpoint }).checkpoint
+        : undefined;
       this.#cleanup = Object.freeze({
         ...cleanup,
         state: Object.freeze({ ...cleanup.state }),
         resources: Object.freeze(cleanup.resources.map((r) => Object.freeze({ ...r }))),
         retainedLockInputs: freezeAdmittedCaptureInputs(cleanup.retainedLockInputs),
         retainedLockSha256: Object.freeze({ ...cleanup.retainedLockSha256 }),
+        ...(verification && verificationInput
+          ? {
+              verification: Object.freeze({
+                ...verification,
+                checkpoint: verificationInput,
+                state: Object.freeze({ ...verification.state }),
+              }),
+            }
+          : {}),
         assertIndependentClosure: cleanup.assertIndependentClosure,
       });
     }
@@ -8333,6 +8357,44 @@ class TerraformRunner {
     )
       throw new Error('Original reviewed cleanup state identity changed');
     if (!Array.isArray(state.resources)) throw new Error('Original cleanup state resources are malformed');
+    const verification = scope.verification;
+    if (verification) {
+      if (
+        !verification.checkpoint.path.startsWith(`${join8(directory, 'capture-cleanup-verification')}/`) ||
+        digest2(raw) !== verification.state.sha256 ||
+        state.lineage !== verification.state.lineage ||
+        state.serial !== verification.state.serial
+      )
+        throw new Error('Original empty cleanup verification state differs');
+      this.#verificationMonitor ??= await monitorOriginalInputs({ checkpoint: verification.checkpoint });
+      await this.#verificationMonitor.assertOriginal();
+      const checkpoint = decode((await privateRead(verification.checkpoint.path)).toString());
+      const receipt = object5(checkpoint.receipt);
+      const changes = receipt.changes;
+      if (
+        checkpoint.state !== 'applied' ||
+        receipt.schemaVersion !== 1 ||
+        receipt.engine !== 'terraform' ||
+        receipt.operation !== 'destroy' ||
+        receipt.noChanges !== false ||
+        !/^[a-f0-9]{64}$/.test(String(receipt.planSha256)) ||
+        receipt.deploymentId !== scope.deploymentId ||
+        receipt.backendIdentity !== this.#manifest.backendIdentity ||
+        receipt.configurationSha256 !== this.#manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== this.#manifest.providerLockSha256 ||
+        !Array.isArray(changes) ||
+        !changes.length ||
+        changes.some(
+          (change) =>
+            object5(change).actions === undefined || canonical2(object5(change).actions) !== canonical2(['delete']),
+        ) ||
+        canonical2(changes.map((change) => object5(change).address).sort()) !==
+          canonical2(scope.resources.map((resource) => resource.address).sort())
+      )
+        throw new Error('Original applied destroy checkpoint required for cleanup verification');
+      await this.#verificationMonitor.assertOriginal();
+      this.#cleanupEmpty = true;
+    }
     const resources = state.resources.map(object5);
     const actual = resources
       .filter((r) => r.mode === 'managed')
@@ -8844,6 +8906,7 @@ class TerraformRunner {
     });
   }
   async apply(receipt, env, signal) {
+    if (this.#cleanup?.verification) throw new Error('Capture cleanup verification cannot submit an apply');
     if (
       this.#cleanup &&
       (receipt.operation !== 'destroy' ||

@@ -98,7 +98,7 @@ async function fixture() {
     calls.push(request.args);
     return { code: 0, stdout: JSON.stringify({ terraform_version: '1.16.6' }) };
   };
-  return { root, dir, lock, recovery, execute, calls, checks: () => checks };
+  return { root, dir, lock, recovery, execute, calls, binding, checks: () => checks };
 }
 
 test('default resume retains the failed capture lock while reviewed cleanup has a separate closure gate', async () => {
@@ -142,5 +142,81 @@ test('cleanup mode cannot change configuration or reconcile a creation receipt',
   const runner = new TerraformRunner(f.root, f.execute, f.recovery);
   await runner.resume('cleanup-fixture');
   await expect(runner.reviseConfiguration(hash('{}'), '{}')).rejects.toThrow('cleanup');
+  expect(f.calls).toHaveLength(0);
+});
+
+async function completedCleanupFixture() {
+  const f = await fixture();
+  const empty = { version: 4, lineage: f.recovery.state.lineage, serial: f.recovery.state.serial + 1, resources: [] };
+  await writeFile(join(f.dir, 'terraform.tfstate'), JSON.stringify(empty), { mode: 0o600 });
+  const manifest = JSON.parse(await readFile(join(f.dir, 'deployment.json'), 'utf8'));
+  const receipt = {
+    schemaVersion: 1,
+    deploymentId: manifest.deploymentId,
+    engine: 'terraform',
+    backendIdentity: manifest.backendIdentity,
+    configurationSha256: manifest.configurationSha256,
+    providerLockSha256: manifest.providerLockSha256,
+    planSha256: 'a'.repeat(64),
+    operation: 'destroy',
+    changes: [{ address: 'terraform_data.one', type: 'terraform_data', actions: ['delete'] }],
+    noChanges: false,
+  };
+  const directory = join(f.dir, 'capture-cleanup-verification');
+  await mkdir(directory, { mode: 0o700 });
+  const checkpointPath = join(directory, 'applied-destroy.private.json');
+  await writeFile(checkpointPath, JSON.stringify({ state: 'applied', receipt }), { mode: 0o400 });
+  const recovery = {
+    ...f.recovery,
+    verification: {
+      schemaVersion: 1 as const,
+      kind: 'applied-destroy-state-verification' as const,
+      checkpoint: await f.binding(checkpointPath),
+      state: { sha256: hash(JSON.stringify(empty)), lineage: empty.lineage, serial: empty.serial },
+    },
+  };
+  return { ...f, recovery, checkpointPath, receipt };
+}
+
+test('completed cleanup verification resumes twice without submission and preserves the original failed lock', async () => {
+  const f = await completedCleanupFixture();
+  const before = await readFile(join(f.lock, 'capture-unresolved.json'));
+  for (let i = 0; i < 2; i++) await new TerraformRunner(f.root, f.execute, f.recovery).resume('cleanup-fixture');
+  expect(f.calls).toHaveLength(0);
+  expect(await readFile(join(f.lock, 'capture-unresolved.json'))).toEqual(before);
+});
+
+test('verification after completed cleanup refuses every apply including the original destroy receipt', async () => {
+  const f = await completedCleanupFixture();
+  const runner = new TerraformRunner(f.root, f.execute, f.recovery);
+  await runner.resume('cleanup-fixture');
+  await expect(runner.apply(f.receipt as never, {})).rejects.toThrow('verification');
+  await expect(runner.plan({})).rejects.toThrow('cleanup');
+  expect(f.calls).toHaveLength(0);
+});
+
+test('cleanup verification requires the applied original destroy checkpoint and exact empty state', async () => {
+  for (const change of [
+    { state: 'applying' },
+    { receipt: { operation: 'create' } },
+    { receipt: { deploymentId: 'foreign' } },
+  ]) {
+    const f = await completedCleanupFixture();
+    const source = JSON.parse(await readFile(f.checkpointPath, 'utf8'));
+    const altered = { ...source, ...change, receipt: { ...source.receipt, ...(change.receipt ?? {}) } };
+    const path = join(f.dir, 'capture-cleanup-verification', 'wrong.private.json');
+    await writeFile(path, JSON.stringify(altered), { mode: 0o400 });
+    const scope = { ...f.recovery, verification: { ...f.recovery.verification, checkpoint: await f.binding(path) } };
+    await expect(new TerraformRunner(f.root, f.execute, scope).resume('cleanup-fixture')).rejects.toThrow();
+    expect(f.calls).toHaveLength(0);
+  }
+});
+
+test('same-byte applied-checkpoint replacement refuses verification before any command', async () => {
+  const f = await completedCleanupFixture();
+  const raw = await readFile(f.checkpointPath);
+  await rename(f.checkpointPath, `${f.checkpointPath}.original`);
+  await writeFile(f.checkpointPath, raw, { mode: 0o400 });
+  await expect(new TerraformRunner(f.root, f.execute, f.recovery).resume('cleanup-fixture')).rejects.toThrow();
   expect(f.calls).toHaveLength(0);
 });

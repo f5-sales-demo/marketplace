@@ -1,4 +1,10 @@
 import { createHash } from 'node:crypto';
+import { decodeEvidenceObject } from './evidence-json';
+import {
+  compileGcpInsertAuditQuery,
+  type GcpInsertAuditWindow,
+  hasAuditControlCharacters,
+} from './gcp-insert-audit-query';
 
 export interface GoogleAdcAuthenticationRequest {
   readonly credentialBytes: Uint8Array;
@@ -20,10 +26,7 @@ export class GoogleAdcAuthenticationHttpError extends Error {
   }
 }
 function decode(raw: Uint8Array): Json {
-  const value: unknown = JSON.parse(new TextDecoder('utf8', { fatal: true }).decode(raw));
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('Google ADC authentication response is malformed');
-  return value as Json;
+  return decodeEvidenceObject(raw);
 }
 
 /** Authenticate an original authorized-user snapshot. This produces evidence, never an execution grant. */
@@ -251,17 +254,19 @@ export async function openGoogleAdcComputeReader(
       throw new Error('Original Google Compute reader inputs changed');
     }
   };
-  const read = async (zone: string, name: string, start?: string, operation = false): Promise<GoogleComputeRead> => {
-    if (
-      !resourceName.test(zone) ||
-      !(operation ? operationName : resourceName).test(name) ||
-      (operation && /^[0-9]+$/.test(name) && BigInt(name) > 18446744073709551615n) ||
-      (start !== undefined && (!serialOffset(start) || operation))
-    )
-      throw new Error('Fixed named Google Compute read required');
+  const readRaw = async (
+    url: string,
+    body?: string,
+    requestSignal?: AbortSignal,
+    maximumBytes = computeMaximum,
+  ): Promise<GoogleComputeRead> => {
+    if (!Number.isSafeInteger(maximumBytes) || maximumBytes <= 0 || maximumBytes > computeMaximum)
+      throw new Error('Original Google response byte bound required');
+    const combined = requestSignal ? (signal ? AbortSignal.any([signal, requestSignal]) : requestSignal) : signal;
+    combined?.throwIfAborted();
     await guard();
     if (Date.now() >= session.receipt.expiresNoEarlierThan - 60_000) {
-      refreshing ??= authenticateGoogleAdcSession(original, signal, fetcher);
+      refreshing ??= authenticateGoogleAdcSession(original, combined, fetcher);
       try {
         session = await refreshing;
       } finally {
@@ -269,8 +274,7 @@ export async function openGoogleAdcComputeReader(
       }
     }
     await guard();
-    const base = `https://compute.googleapis.com/compute/v1/projects/${original.project}/zones/${zone}/${operation ? 'operations' : 'instances'}/${name}`;
-    const url = start === undefined ? base : `${base}/serialPort?port=1&start=${start}`;
+    combined?.throwIfAborted();
     const began = Date.now();
     const chunks: Uint8Array[] = [];
     const failures: unknown[] = [];
@@ -279,12 +283,17 @@ export async function openGoogleAdcComputeReader(
     let complete = false;
     let truncated = false;
     try {
-      const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
+      const bounded = combined ? AbortSignal.any([combined, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
       const response = await fetcher(url, {
-        method: 'GET',
+        method: body === undefined ? 'GET' : 'POST',
         redirect: 'error',
         signal: bounded,
-        headers: { Accept: 'application/json', Authorization: `Bearer ${session.accessToken}` },
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${session.accessToken}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body }),
       });
       status = response.status;
       if (!response.body) throw new Error('Missing cloud body');
@@ -294,10 +303,10 @@ export async function openGoogleAdcComputeReader(
           bounded.throwIfAborted();
           const { value, done } = await stream.read();
           if (done) break;
-          const available = Math.max(0, computeMaximum - size);
+          const available = Math.max(0, maximumBytes - size);
           chunks.push(value.subarray(0, available));
           size += value.length;
-          if (size > computeMaximum) {
+          if (size > maximumBytes) {
             truncated = true;
             throw new Error('Cloud read exceeds bound');
           }
@@ -332,10 +341,43 @@ export async function openGoogleAdcComputeReader(
     if (failures.length) throw new GoogleComputeReadError(result, failures);
     return result;
   };
+  const read = async (zone: string, name: string, start?: string, operation = false): Promise<GoogleComputeRead> => {
+    if (
+      !resourceName.test(zone) ||
+      !(operation ? operationName : resourceName).test(name) ||
+      (operation && /^[0-9]+$/.test(name) && BigInt(name) > 18446744073709551615n) ||
+      (start !== undefined && (!serialOffset(start) || operation))
+    )
+      throw new Error('Fixed named Google Compute read required');
+    const base = `https://compute.googleapis.com/compute/v1/projects/${original.project}/zones/${zone}/${operation ? 'operations' : 'instances'}/${name}`;
+    const url = start === undefined ? base : `${base}/serialPort?port=1&start=${start}`;
+    return readRaw(url);
+  };
   return Object.freeze({
     authentication: session.receipt,
     instance: (zone: string, name: string) => read(zone, name),
     serial: (zone: string, name: string, start: string) => read(zone, name, start),
     operation: (zone: string, name: string) => read(zone, name, undefined, true),
+    auditInstanceInsert: (
+      zone: string,
+      node: string,
+      window: GcpInsertAuditWindow,
+      pageToken?: string,
+      requestSignal?: AbortSignal,
+      maximumBytes = computeMaximum,
+    ) => {
+      const query = compileGcpInsertAuditQuery(original.project, zone, node, window);
+      if (
+        pageToken !== undefined &&
+        (typeof pageToken !== 'string' || !pageToken || pageToken.length > 8192 || hasAuditControlCharacters(pageToken))
+      )
+        throw new Error('Original audit continuation required');
+      return readRaw(
+        'https://logging.googleapis.com/v2/entries:list',
+        JSON.stringify({ ...query, ...(pageToken === undefined ? {} : { pageToken }) }),
+        requestSignal,
+        maximumBytes,
+      );
+    },
   });
 }

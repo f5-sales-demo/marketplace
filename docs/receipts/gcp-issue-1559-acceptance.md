@@ -1158,3 +1158,13 @@ Zero managed cloud resources or mutations occurred. The old failed long-window
 capture and its independently cleaned retained locks remain unchanged. Full
 installed capture, managed action/request/audit/incarnation joins, credential
 expiry and all subsequent live, installed runtime and delivery gates stay open.
+
+Attempt 418 adds [scoped insert audit reads and completed cleanup verification](gcp-insert-audit-and-cleanup-verification-20261110.md).
+The default authenticated reader completed a fresh scoped audit query and two
+independent probe absences. The combined source fixture remains failed after
+a schema provider exited during process/FIFO capture; its failure and locks
+are preserved. Typed local teardown and read-only verification leave stable
+empty state, empty destroy, two non-submitting resumes and 24 independently
+absent process groups. Failing-first audit, identity and recovery cases pass.
+Coherent provider sampling, managed original-insert joins, full capture and all
+subsequent live, runtime and delivery gates remain required.

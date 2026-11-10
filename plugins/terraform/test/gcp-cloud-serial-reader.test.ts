@@ -36,7 +36,7 @@ const retained: string[] = [];
 afterEach(() => {
   retained.splice(0);
 });
-async function fixture(values: Array<Response | Record<string, unknown>> = [], onCompute?: () => void) {
+async function fixture(values: Array<Response | Record<string, unknown>> = [], onCompute?: () => void | Promise<void>) {
   const root = await mkdtemp(join(tmpdir(), 'ce-cloud-serial-'));
   retained.push(root); // Diagnostics are deliberately preserved.
   const calls: Array<{ url: string; options?: RequestInit }> = [];
@@ -52,7 +52,7 @@ async function fixture(values: Array<Response | Record<string, unknown>> = [], o
       return Response.json({ projectId: 'example-project', lifecycleState: 'ACTIVE' });
     const value = values.shift();
     if (!value) throw new Error('unexpected request');
-    onCompute?.();
+    await onCompute?.();
     return value instanceof Response ? value : Response.json(value);
   }) as typeof fetch;
   const reader = await openGcpCloudSerialReader(
@@ -328,4 +328,189 @@ test('serial offsets outside the documented signed int64 range refuse before clo
   if (!original.present) throw new Error('Original VM required');
   await expect(f.reader.serial(original, '9223372036854775808')).rejects.toThrow();
   expect(f.calls).toHaveLength(4);
+});
+
+const auditWindow = { after: '2026-11-10T00:00:00.000Z', before: '2026-11-10T01:00:00.000Z' };
+const auditEntry = (id = 'original-entry') => ({
+  logName: 'projects/example-project/logs/cloudaudit.googleapis.com%2Factivity',
+  insertId: id,
+  timestamp: '2026-11-10T00:01:00Z',
+  resource: {
+    type: 'gce_instance',
+    labels: { project_id: 'example-project', zone: 'us-central1-a', instance_id: vm.id },
+  },
+  protoPayload: {
+    '@type': 'type.googleapis.com/google.cloud.audit.AuditLog',
+    serviceName: 'compute.googleapis.com',
+    methodName: 'v1.compute.instances.insert',
+    resourceName: 'projects/example-project/zones/us-central1-a/instances/example-node',
+  },
+  operation: { id: 'original-operation', producer: 'compute.googleapis.com', first: true },
+});
+
+test('insert audit pagination retains each private page and fixes the same project/resource/window without authority', async () => {
+  const first = { entries: [auditEntry()], nextPageToken: 'original-next-page' };
+  const second = { entries: [auditEntry('final-entry')] };
+  const f = await fixture([first, second]);
+  const batch = await f.reader.insertAudit('us-central1-a', 'example-node', auditWindow);
+  expect(batch.complete).toBe(true);
+  expect(batch.entries).toHaveLength(2);
+  expect(batch.pages).toHaveLength(2);
+  expect(batch.originalInsertQualified).toBe(false);
+  expect(await readFile(batch.pages[0].path, 'utf8')).toBe(JSON.stringify(first));
+  expect(Object.isFrozen(batch.entries[0].protoPayload)).toBe(true);
+  for (const call of f.calls.slice(3)) {
+    expect(call.url).toBe('https://logging.googleapis.com/v2/entries:list');
+    expect(call.options?.method).toBe('POST');
+    expect(call.options?.redirect).toBe('error');
+    expect(new Headers(call.options?.headers).get('content-type')).toBe('application/json');
+  }
+  const payloads = f.calls.slice(3).map((c) => JSON.parse(String(c.options?.body)));
+  expect(payloads[0].resourceNames).toEqual(['projects/example-project']);
+  expect(payloads[0].filter).toContain('protoPayload.methodName="v1.compute.instances.insert"');
+  expect(payloads[0].filter).toContain(
+    'protoPayload.resourceName="projects/example-project/zones/us-central1-a/instances/example-node"',
+  );
+  expect(payloads[1]).toEqual({ ...payloads[0], pageToken: 'original-next-page' });
+  expect(batch.schemaVersion).toBe(1);
+  expect(batch.kind).toBe('compute-instance-insert-audit-batch');
+  expect(await readFile(batch.queryPath, 'utf8')).toBe(JSON.stringify(payloads[0]));
+  expect(batch.window).toEqual(auditWindow);
+  expect(JSON.stringify(batch)).not.toContain('synthetic-access');
+});
+
+test('empty pages with fresh continuation are searched but a replayed continuation cannot complete', async () => {
+  const f = await fixture([{ nextPageToken: 'first' }, { entries: [], nextPageToken: 'second' }, {}]);
+  expect((await f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).entries).toHaveLength(0);
+  const repeated = await fixture([{ nextPageToken: 'same' }, { nextPageToken: 'same' }]);
+  await expect(repeated.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow(
+    'continuation',
+  );
+  expect(repeated.calls).toHaveLength(5);
+  expect((await readdir(repeated.root)).filter((n) => n.endsWith('.body.private.bin'))).toHaveLength(2);
+});
+
+test('foreign, replayed, malformed or incomplete audit results retain raw bytes and retire the reader', async () => {
+  for (const value of [
+    {
+      entries: [
+        {
+          ...auditEntry(),
+          protoPayload: {
+            ...auditEntry().protoPayload,
+            resourceName: 'projects/example-project/zones/us-central1-a/instances/foreign',
+          },
+        },
+      ],
+    },
+    {
+      entries: [
+        {
+          ...auditEntry(),
+          resource: { ...auditEntry().resource, labels: { project_id: 'foreign-project', zone: 'us-central1-a' } },
+        },
+      ],
+    },
+    { entries: [auditEntry(), auditEntry()] },
+    { entries: [{ ...auditEntry(), timestamp: '2026-11-09T00:01:00Z' }] },
+    { entries: 'malformed' },
+    { nextPageToken: 1 },
+    { entries: [], error: { code: 503 } },
+    { entries: [{ ...auditEntry(), split: { uid: 'original-split', index: 0, totalSplits: 2 } }] },
+    new Response('not-json'),
+    Response.json({ error: { code: 403 } }, { status: 403 }),
+  ]) {
+    const f = await fixture([value]);
+    await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow();
+    expect((await readdir(f.root)).filter((n) => n.endsWith('.body.private.bin'))).toHaveLength(1);
+    await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow('retired');
+  }
+});
+
+test('fixed audit query cannot widen resource, time or method through input fields or injection', async () => {
+  const f = await fixture();
+  for (const window of [
+    { ...auditWindow, after: '2026-11-10T02:00:00.000Z' },
+    { ...auditWindow, before: '2026-11-11T00:00:00.000Z' },
+    { ...auditWindow, filter: 'all logs' },
+    { ...auditWindow, after: '2026-11-10T00:00:00.000Z" OR true' },
+  ])
+    await expect(f.reader.insertAudit('us-central1-a', 'example-node', window)).rejects.toThrow();
+  await expect(f.reader.insertAudit('us-central1-a', '../foreign', auditWindow)).rejects.toThrow();
+  expect(f.calls).toHaveLength(3);
+});
+
+test('audit interruption retains partial bytes and final credential changes prevent completion', async () => {
+  let count = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (++count === 1) controller.enqueue(Buffer.from('partial-audit'));
+      else controller.error(new Error('private interruption'));
+    },
+  });
+  const f = await fixture([new Response(stream)]);
+  await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow();
+  const names = await readdir(f.root),
+    body = names.find((n) => n.endsWith('.body.private.bin'));
+  if (!body) throw new Error('Original partial audit body required');
+  expect(await readFile(join(f.root, body), 'utf8')).toBe('partial-audit');
+  let change = () => {};
+  const rotated = await fixture([{ entries: [auditEntry()] }], () => change());
+  change = rotated.change;
+  await expect(rotated.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow();
+});
+
+test('numeric VM identities outside uint64 and duplicate identity fields never admit an original', async () => {
+  const outOfRange = await fixture([{ ...vm, id: '99999999999999999999' }]);
+  await expect(outOfRange.reader.instance('us-central1-a', 'example-node')).rejects.toThrow();
+});
+
+test('duplicate original identity fields refuse before admission', async () => {
+  const duplicate = await fixture([new Response(JSON.stringify(vm).replace('"id":', '"id":"foreign","id":'))]);
+  await expect(duplicate.reader.instance('us-central1-a', 'example-node')).rejects.toThrow();
+});
+
+test('audit batch aggregate bytes retain only the original bounded prefix', async () => {
+  const entry = (id: string) => ({
+    ...auditEntry(id),
+    protoPayload: { ...auditEntry(id).protoPayload, response: { message: 'x'.repeat(2500000) } },
+  });
+  const f = await fixture([{ entries: [entry('first')], nextPageToken: 'next' }, { entries: [entry('second')] }]);
+  await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow();
+  const bodies = (await readdir(f.root)).filter((name) => name.endsWith('.body.private.bin'));
+  let bytes = 0;
+  for (const body of bodies) bytes += (await readFile(join(f.root, body))).byteLength;
+  expect(bytes).toBe(4 * 1024 * 1024);
+  const receipts = (await readdir(f.root)).filter((name) => name.endsWith('.receipt.private.json'));
+  const values = await Promise.all(receipts.map((name) => readFile(join(f.root, name), 'utf8').then(JSON.parse)));
+  expect(values.some((value) => value.truncated && !value.complete)).toBe(true);
+});
+
+test('audit page bound cannot renew the same command budget or submit another search', async () => {
+  const f = await fixture(Array.from({ length: 33 }, (_, index) => ({ nextPageToken: `page-${index}` })));
+  await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow('page bound');
+  expect(f.calls).toHaveLength(35);
+  expect((await readdir(f.root)).filter((name) => name.endsWith('.body.private.bin'))).toHaveLength(32);
+});
+
+test('audit transport and persistence failures both survive a changed evidence directory', async () => {
+  let alter = async () => {};
+  let count = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (++count === 1) controller.enqueue(Buffer.from('partial-audit'));
+      else controller.error(new Error('private transport failure'));
+    },
+  });
+  const f = await fixture([new Response(stream)], () => alter());
+  alter = () => chmod(f.root, 0o755);
+  let failure: unknown;
+  try {
+    await f.reader.insertAudit('us-central1-a', 'example-node', auditWindow);
+  } catch (error) {
+    failure = error;
+  }
+  expect(failure).toBeInstanceOf(AggregateError);
+  expect((failure as AggregateError).errors).toHaveLength(2);
+  await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow('retired');
 });

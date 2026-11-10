@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.55** adds bounded scoped insert audit reads and rejects
+  duplicate authentication and VM identity fields; cleanup verification resumes
+  from an applied destroy checkpoint without permitting another apply (#1559).
+
+- **`gcloud` 1.7.37** includes the shared read-only completed cleanup verification
+  path while preserving failed capture locks and deployment ownership (#1559).
+
 - **`gcloud` 1.7.36** formats the latest artifact regression and reconciles source
   acceptance fingerprints without changing runtime behavior (#1559).
 

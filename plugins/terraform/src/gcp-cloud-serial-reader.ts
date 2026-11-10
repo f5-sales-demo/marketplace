@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import { decodeEvidenceObject } from './evidence-json';
+import {
+  compileGcpInsertAuditQuery,
+  type GcpInsertAuditWindow,
+  hasAuditControlCharacters,
+} from './gcp-insert-audit-query';
 import {
   type GoogleAdcAuthenticationRequest,
   type GoogleComputeRead,
@@ -29,7 +35,7 @@ const object = (v: unknown): Json => {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('Malformed original cloud response');
   return v as Json;
 };
-const decode = (raw: Uint8Array) => object(JSON.parse(new TextDecoder('utf8', { fatal: true }).decode(raw)));
+const decode = (raw: Uint8Array) => decodeEvidenceObject(raw);
 export interface GcpCloudReadEvidence {
   readonly path: string;
   readonly sha256: string;
@@ -118,6 +124,7 @@ export async function openGcpCloudSerialReader(
     kind: string,
     zone: string,
     node: string,
+    querySha256?: string,
   ): Promise<GcpCloudReadEvidence> => {
     await requireRoot();
     const stem = join(root, `${kind}-${randomUUID()}`);
@@ -152,6 +159,7 @@ export async function openGcpCloudSerialReader(
           adcSha256: hash(authentication.credentialBytes),
           accountSha256: authentication.accountSha256,
           audienceSha256: authentication.audienceSha256,
+          ...(querySha256 ? { querySha256 } : {}),
           cloudExecutionAuthorized: false,
         }),
       );
@@ -202,8 +210,7 @@ export async function openGcpCloudSerialReader(
       if (response.status !== 200) throw new Error('Original cloud read HTTP failure');
       const zoneUrl = `https://www.googleapis.com/compute/v1/projects/${authentication.project}/zones/${zone}`;
       if (
-        typeof value.id !== 'string' ||
-        !numericId.test(value.id) ||
+        !uint64(value.id) ||
         value.name !== node ||
         value.zone !== zoneUrl ||
         typeof value.creationTimestamp !== 'string' ||
@@ -341,7 +348,135 @@ export async function openGcpCloudSerialReader(
       return candidate;
     });
   };
-  return Object.freeze({ instance, serial, insertOperation });
+  const insertAudit = async (zone: string, node: string, input: GcpInsertAuditWindow) => {
+    validate(zone, node);
+    const window = Object.freeze({ ...input });
+    const query = compileGcpInsertAuditQuery(authentication.project, zone, node, window);
+    const queryBytes = Buffer.from(JSON.stringify(query));
+    const querySha256 = hash(queryBytes);
+    return run(async () => {
+      const began = linuxMonotonicMs(),
+        signalForCommand = AbortSignal.timeout(60_000);
+      await requireRoot();
+      const queryPath = join(root, `insert-audit-${randomUUID()}.query.private.json`);
+      const queryHandle = await open(queryPath, 'wx', 0o400);
+      try {
+        await queryHandle.writeFile(queryBytes);
+        await queryHandle.sync();
+      } finally {
+        await queryHandle.close();
+      }
+      const queryDirectory = await open(root, 'r');
+      try {
+        await queryDirectory.sync();
+      } finally {
+        await queryDirectory.close();
+      }
+      await requireRoot();
+      const pages: GcpCloudReadEvidence[] = [],
+        entries: Readonly<Json>[] = [];
+      const tokens = new Set<string>(),
+        ids = new Set<string>();
+      let pageToken: string | undefined,
+        bytes = 0;
+      while (true) {
+        signalForCommand.throwIfAborted();
+        if (linuxMonotonicMs() - began >= 60_000 || pages.length >= 32)
+          throw new Error('Original audit command deadline or page bound exhausted');
+        let response: GoogleComputeRead;
+        try {
+          response = await client.auditInstanceInsert(
+            zone,
+            node,
+            window,
+            pageToken,
+            signalForCommand,
+            4 * 1024 * 1024 - bytes,
+          );
+        } catch (error) {
+          if (error instanceof GoogleComputeReadError) {
+            try {
+              await retain(error.capture, 'insert-audit', zone, node, querySha256);
+            } catch (persistenceFailure) {
+              throw new AggregateError([error, persistenceFailure], 'Original audit capture and persistence failed');
+            }
+          }
+          throw error;
+        }
+        // Raw data is durable before any decode or scope/continuation decision.
+        pages.push(await retain(response, 'insert-audit', zone, node, querySha256));
+        bytes += response.raw.byteLength;
+        if (!response.complete || response.truncated || response.status !== 200 || bytes > 4 * 1024 * 1024)
+          throw new Error('Complete bounded original audit response required');
+        const value = decode(response.raw);
+        if (Object.keys(value).some((key) => !['entries', 'nextPageToken'].includes(key)))
+          throw new Error('Original audit envelope contains unsupported fields');
+        if (value.entries !== undefined && !Array.isArray(value.entries))
+          throw new Error('Original audit entries malformed');
+        for (const raw of (value.entries ?? []) as unknown[]) {
+          const entry = object(raw),
+            payload = object(entry.protoPayload),
+            resource = object(entry.resource),
+            labels = object(resource.labels);
+          if (
+            entry.split !== undefined ||
+            typeof entry.insertId !== 'string' ||
+            !entry.insertId ||
+            entry.insertId.length > 256 ||
+            hasAuditControlCharacters(entry.insertId) ||
+            ids.has(entry.insertId) ||
+            typeof entry.timestamp !== 'string' ||
+            !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,9})?Z$/.test(entry.timestamp) ||
+            !Number.isFinite(Date.parse(entry.timestamp)) ||
+            Date.parse(entry.timestamp) < Date.parse(window.after) ||
+            Date.parse(entry.timestamp) > Date.parse(window.before) ||
+            entry.logName !== `projects/${authentication.project}/logs/cloudaudit.googleapis.com%2Factivity` ||
+            payload['@type'] !== 'type.googleapis.com/google.cloud.audit.AuditLog' ||
+            payload.serviceName !== 'compute.googleapis.com' ||
+            payload.methodName !== 'v1.compute.instances.insert' ||
+            payload.resourceName !== `projects/${authentication.project}/zones/${zone}/instances/${node}` ||
+            resource.type !== 'gce_instance' ||
+            labels.project_id !== authentication.project ||
+            labels.zone !== zone
+          )
+            throw new Error('Foreign, replayed or stale original insert audit entry');
+          ids.add(entry.insertId);
+          const freeze = (v: unknown): unknown => {
+            if (v && typeof v === 'object') {
+              for (const child of Object.values(v)) freeze(child);
+              Object.freeze(v);
+            }
+            return v;
+          };
+          freeze(entry);
+          entries.push(entry);
+        }
+        const next = value.nextPageToken;
+        if (next === undefined || next === '') break;
+        if (typeof next !== 'string' || next.length > 8192 || hasAuditControlCharacters(next) || tokens.has(next))
+          throw new Error('Original audit continuation malformed or replayed');
+        tokens.add(next);
+        pageToken = next;
+      }
+      signalForCommand.throwIfAborted();
+      if (linuxMonotonicMs() - began >= 60_000) throw new Error('Original audit command deadline exhausted');
+      return Object.freeze({
+        schemaVersion: 1 as const,
+        kind: 'compute-instance-insert-audit-batch' as const,
+        complete: true as const,
+        queryPath,
+        window,
+        project: authentication.project,
+        zone,
+        node,
+        querySha256,
+        pages: Object.freeze(pages),
+        entries: Object.freeze(entries),
+        originalInsertQualified: false as const,
+      });
+    });
+  };
+  return Object.freeze({ instance, serial, insertOperation, insertAudit });
 }
 
 export interface InstalledCloudFinalCapture {

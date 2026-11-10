@@ -309,6 +309,41 @@ var gcp_capture_source_pins_default = {
 // plugins/terraform/src/google-adc-authentication.ts
 import { createHash as createHash2 } from 'node:crypto';
 
+// plugins/terraform/src/evidence-json.ts
+var object = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
+  return value;
+};
+function decodeEvidenceObject(raw) {
+  const source = new TextDecoder('utf8', { fatal: true }).decode(raw);
+  const value = object(JSON.parse(source));
+  const scopes = [];
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    if (char === '{' || char === '[') {
+      if (scopes.length >= 64) throw new Error('Original JSON nesting exceeded');
+      scopes.push(char === '{' ? new Set() : null);
+    } else if (char === '}' || char === ']') scopes.pop();
+    else if (char === '"') {
+      const start = i++;
+      while (i < source.length && source[i] !== '"') {
+        if (source[i] === '\\') i++;
+        i++;
+      }
+      let next = i + 1;
+      while (/\s/.test(source[next] ?? '') && next < source.length) next++;
+      if (source[next] === ':') {
+        const key = JSON.parse(source.slice(start, i + 1));
+        const keys = scopes.at(-1);
+        if (!keys || keys.has(key)) throw new Error('Duplicate original JSON identity');
+        keys.add(key);
+      }
+    }
+  }
+  return value;
+}
+
+// plugins/terraform/src/google-adc-authentication.ts
 var tokenEndpoint = 'https://oauth2.googleapis.com/token';
 var inspectionEndpoint = 'https://www.googleapis.com/oauth2/v2/tokeninfo';
 var hash = (value) => createHash2('sha256').update(value).digest('hex');
@@ -323,10 +358,7 @@ class GoogleAdcAuthenticationHttpError extends Error {
   }
 }
 function decode(raw) {
-  const value = JSON.parse(new TextDecoder('utf8', { fatal: true }).decode(raw));
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('Google ADC authentication response is malformed');
-  return value;
+  return decodeEvidenceObject(raw);
 }
 async function authenticateGoogleAdcSession(input, signal, fetcher = fetch) {
   const credentialBytes = Buffer.from(input.credentialBytes);
@@ -2975,14 +3007,14 @@ var cliConfig = `provider_installation {
 disable_checkpoint = true
 `;
 var digest3 = (value) => createHash9('sha256').update(value).digest('hex');
-function object(value) {
+function object2(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Terraform JSON object is malformed');
   return value;
 }
 function decode2(value) {
   try {
-    return object(
+    return object2(
       JSON.parse(value, (_key, parsed, context) => {
         if (typeof parsed === 'number' && Number.isInteger(parsed) && !Number.isSafeInteger(parsed)) {
           if (!context?.source || !/^-?\d+$/.test(context.source))
@@ -3044,16 +3076,16 @@ function inspectActionInvocations(plan, expected) {
   )
     throw new Error('Terraform actions are unrequested, missing, duplicated or deferred');
   if (!expected) return [];
-  const action = object(invocations[0]);
+  const action = object2(invocations[0]);
   if (
     action.address !== expected.address ||
     action.type !== expected.type ||
     action.provider_name !== expected.providerName ||
     action.lifecycle_action_trigger !== undefined ||
-    Object.keys(object(action.invoke_action_trigger)).length ||
+    Object.keys(object2(action.invoke_action_trigger)).length ||
     !allFalse(action.config_unknown) ||
     !allFalse(action.config_sensitive) ||
-    digest3(canonical2(object(action.config_values))) !== expected.configValuesSha256
+    digest3(canonical2(object2(action.config_values))) !== expected.configValuesSha256
   )
     throw new Error('Terraform action identity, trigger or configuration differs');
   return [{ ...expected }];
@@ -3352,6 +3384,7 @@ class TerraformRunner {
   #cleanup;
   #cleanupEmpty = false;
   #cleanupMonitor;
+  #verificationMonitor;
   constructor(root, execute = executeTerraform, cleanup) {
     this.root = root;
     this.execute = execute;
@@ -3374,12 +3407,35 @@ class TerraformRunner {
         )
       )
         throw new Error('Reviewed capture-independent cleanup scope and executor required');
+      const verification = cleanup.verification;
+      if (
+        verification &&
+        (verification.schemaVersion !== 1 ||
+          verification.kind !== 'applied-destroy-state-verification' ||
+          !/^[a-f0-9]{64}$/.test(verification.state?.sha256 ?? '') ||
+          verification.state.lineage !== cleanup.state.lineage ||
+          !Number.isSafeInteger(verification.state.serial) ||
+          verification.state.serial <= cleanup.state.serial)
+      )
+        throw new Error('Original applied cleanup verification scope required');
+      const verificationInput = verification
+        ? freezeAdmittedCaptureInputs({ checkpoint: verification.checkpoint }).checkpoint
+        : undefined;
       this.#cleanup = Object.freeze({
         ...cleanup,
         state: Object.freeze({ ...cleanup.state }),
         resources: Object.freeze(cleanup.resources.map((r) => Object.freeze({ ...r }))),
         retainedLockInputs: freezeAdmittedCaptureInputs(cleanup.retainedLockInputs),
         retainedLockSha256: Object.freeze({ ...cleanup.retainedLockSha256 }),
+        ...(verification && verificationInput
+          ? {
+              verification: Object.freeze({
+                ...verification,
+                checkpoint: verificationInput,
+                state: Object.freeze({ ...verification.state }),
+              }),
+            }
+          : {}),
         assertIndependentClosure: cleanup.assertIndependentClosure,
       });
     }
@@ -3394,8 +3450,8 @@ class TerraformRunner {
       throw new Error('Exact Terraform version and provider lock are required');
     const configuration = decode2(deployment.configuration);
     if (
-      object(configuration.terraform ?? {}).backend ||
-      object(configuration.terraform ?? {}).cloud ||
+      object2(configuration.terraform ?? {}).backend ||
+      object2(configuration.terraform ?? {}).cloud ||
       deployment.backendIdentity !==
         `local:${deployment.deploymentId}${deployment.stage ? `:stage:${deployment.stage}` : ''}`
     )
@@ -3488,7 +3544,7 @@ class TerraformRunner {
   }
   #validateRevision(configuration, previousConfiguration) {
     const next = decode2(configuration);
-    const terraform = object(next.terraform ?? {});
+    const terraform = object2(next.terraform ?? {});
     if (terraform.backend || terraform.cloud) throw new Error('Terraform configuration revision cannot change backend');
     if (previousConfiguration !== undefined) {
       const previous = decode2(previousConfiguration);
@@ -3511,8 +3567,8 @@ class TerraformRunner {
       if (error.code === 'ENOENT') return;
       throw error;
     }
-    const previous = object(transition.previous);
-    const next = object(transition.next);
+    const previous = object2(transition.previous);
+    const next = object2(transition.next);
     if (
       typeof transition.configuration !== 'string' ||
       typeof transition.archiveId !== 'string' ||
@@ -3678,15 +3734,53 @@ class TerraformRunner {
     )
       throw new Error('Original reviewed cleanup state identity changed');
     if (!Array.isArray(state.resources)) throw new Error('Original cleanup state resources are malformed');
-    const resources = state.resources.map(object);
+    const verification = scope.verification;
+    if (verification) {
+      if (
+        !verification.checkpoint.path.startsWith(`${join8(directory, 'capture-cleanup-verification')}/`) ||
+        digest3(raw) !== verification.state.sha256 ||
+        state.lineage !== verification.state.lineage ||
+        state.serial !== verification.state.serial
+      )
+        throw new Error('Original empty cleanup verification state differs');
+      this.#verificationMonitor ??= await monitorOriginalInputs({ checkpoint: verification.checkpoint });
+      await this.#verificationMonitor.assertOriginal();
+      const checkpoint = decode2((await privateRead(verification.checkpoint.path)).toString());
+      const receipt = object2(checkpoint.receipt);
+      const changes = receipt.changes;
+      if (
+        checkpoint.state !== 'applied' ||
+        receipt.schemaVersion !== 1 ||
+        receipt.engine !== 'terraform' ||
+        receipt.operation !== 'destroy' ||
+        receipt.noChanges !== false ||
+        !/^[a-f0-9]{64}$/.test(String(receipt.planSha256)) ||
+        receipt.deploymentId !== scope.deploymentId ||
+        receipt.backendIdentity !== this.#manifest.backendIdentity ||
+        receipt.configurationSha256 !== this.#manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== this.#manifest.providerLockSha256 ||
+        !Array.isArray(changes) ||
+        !changes.length ||
+        changes.some(
+          (change) =>
+            object2(change).actions === undefined || canonical2(object2(change).actions) !== canonical2(['delete']),
+        ) ||
+        canonical2(changes.map((change) => object2(change).address).sort()) !==
+          canonical2(scope.resources.map((resource) => resource.address).sort())
+      )
+        throw new Error('Original applied destroy checkpoint required for cleanup verification');
+      await this.#verificationMonitor.assertOriginal();
+      this.#cleanupEmpty = true;
+    }
+    const resources = state.resources.map(object2);
     const actual = resources
       .filter((r) => r.mode === 'managed')
       .flatMap((r) => {
         if (typeof r.type !== 'string' || typeof r.name !== 'string' || !Array.isArray(r.instances))
           throw new Error('Original cleanup state resource malformed');
         return r.instances.map((instance) => {
-          const row = object(instance),
-            attributes = object(row.attributes);
+          const row = object2(instance),
+            attributes = object2(row.attributes);
           const prefix = typeof r.module === 'string' ? `${r.module}.` : '';
           const suffix = row.index_key === undefined ? '' : `[${JSON.stringify(row.index_key)}]`;
           return { address: `${prefix}${r.type}.${r.name}${suffix}`, id: attributes.id };
@@ -3771,8 +3865,8 @@ class TerraformRunner {
     const actionInvocations = inspectActionInvocations(plan, action);
     const changes = [];
     for (const value of plan.resource_changes ?? []) {
-      const resource = object(value);
-      const actions = changeActions(object(resource.change).actions);
+      const resource = object2(value);
+      const actions = changeActions(object2(resource.change).actions);
       if (
         typeof resource.address !== 'string' ||
         typeof resource.type !== 'string' ||
@@ -3781,8 +3875,8 @@ class TerraformRunner {
         throw new Error('Terraform resource change is malformed');
       changes.push({ address: resource.address, type: resource.type, actions });
     }
-    const outputs = Object.values(object(plan.output_changes ?? {})).map((output) =>
-      changeActions(object(output).actions, true),
+    const outputs = Object.values(object2(plan.output_changes ?? {})).map((output) =>
+      changeActions(object2(output).actions, true),
     );
     const resourcesUnchanged =
       changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
@@ -3865,7 +3959,7 @@ class TerraformRunner {
       throw error;
     }
     if (!['applying', 'applied'].includes(String(journal.state))) return;
-    const actions = object(journal.receipt).actionInvocations;
+    const actions = object2(journal.receipt).actionInvocations;
     if (!Array.isArray(actions) || actions.length === 0) return;
     try {
       await privateRead(join8(directory, 'action-attempt.json'));
@@ -3890,7 +3984,7 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       const journal = decode2((await privateRead(join8(directory, 'plan-receipt.json'))).toString());
-      const receipt = object(journal.receipt);
+      const receipt = object2(journal.receipt);
       if (
         !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
@@ -3902,7 +3996,7 @@ class TerraformRunner {
       const outputs = decode2(await this.#run(['output', '-json'], env, signal));
       const selected = {};
       for (const name of names) {
-        const output = object(outputs[name]);
+        const output = object2(outputs[name]);
         if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
           throw new Error('Requested Terraform output is unavailable, malformed or sensitive');
         selected[name] = output.value;
@@ -3973,24 +4067,24 @@ class TerraformRunner {
       if (!Array.isArray(changes)) throw new Error('Terraform plan resource identities unavailable');
       const result = {};
       for (const [address, fields] of Object.entries(selections)) {
-        const matches = changes.map(object).filter((resource) => resource.address === address);
+        const matches = changes.map(object2).filter((resource) => resource.address === address);
         if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
         if (!matches.length) {
           result[address] = null;
           continue;
         }
-        const change = object(matches[0].change);
+        const change = object2(matches[0].change);
         if (change.before === null || change.before === undefined) {
           result[address] = null;
           continue;
         }
-        const before = object(change.before);
+        const before = object2(change.before);
         const sensitivity =
           change.before_sensitive === undefined || change.before_sensitive === false
             ? {}
             : change.before_sensitive === true
               ? true
-              : object(change.before_sensitive);
+              : object2(change.before_sensitive);
         const selected = projectResourceFields(before, sensitivity, fields);
         result[address] = selected;
       }
@@ -4045,7 +4139,7 @@ class TerraformRunner {
       const journalBytes = await privateRead(journalPath),
         planBytes = await privateRead(planPath);
       const journal = decode2(journalBytes.toString()),
-        stored = object(journal.receipt);
+        stored = object2(journal.receipt);
       if (journal.state !== 'planned' || (stored.operation && stored.operation !== 'destroy'))
         throw new Error('Current resource plan is consumed or requires reconciliation');
       const version = decode2(await this.#run(['version', '-json'], env, signal));
@@ -4140,13 +4234,13 @@ class TerraformRunner {
         (state.terraform_version !== manifest.terraformVersion && !minimalEmptyState)
       )
         throw new Error('Terraform state format or version changed');
-      const module = object(object(state.values ?? {}).root_module ?? {});
+      const module = object2(object2(state.values ?? {}).root_module ?? {});
       const resources = module.resources ?? [];
       if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
       if (
         (Array.isArray(module.child_modules) && module.child_modules.length) ||
         resources
-          .map(object)
+          .map(object2)
           .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
       )
         throw new Error('Foreign state resource requires reconciliation');
@@ -4154,7 +4248,7 @@ class TerraformRunner {
       for (const [address, fields] of Object.entries(selections)) {
         const reviewed = receipt.changes.filter((change) => change.address === address);
         if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
-        const matches = resources.map(object).filter((resource) => resource.address === address);
+        const matches = resources.map(object2).filter((resource) => resource.address === address);
         if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
         if (!matches.length) {
           result[address] = null;
@@ -4168,7 +4262,7 @@ class TerraformRunner {
         )
           throw new Error('Terraform state resource differs from reviewed identity');
         if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
-        result[address] = projectResourceFields(object(resource.values), resource.sensitive_values, fields);
+        result[address] = projectResourceFields(object2(resource.values), resource.sensitive_values, fields);
       }
       if (digest3(snapshot) !== digest3(await privateRead(statePath)))
         throw new Error('Terraform state changed during identity inspection');
@@ -4189,6 +4283,7 @@ class TerraformRunner {
     });
   }
   async apply(receipt, env, signal) {
+    if (this.#cleanup?.verification) throw new Error('Capture cleanup verification cannot submit an apply');
     if (
       this.#cleanup &&
       (receipt.operation !== 'destroy' ||
