@@ -10,7 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** bumped to v2.4.51
+- **`terraform` 2.4.52** binds serialized Google provider lifecycle candidates to
+  original RPC record hashes while retaining independent process and insert admission holds (#1559).
 
 - **`terraform` 2.4.49** inspects bounded HTTP dump blocks inside original RPC traces,
   retaining explicit source/insert admission holds and fixed credential lifetimes (#1559).

@@ -1121,3 +1121,15 @@ and 26 independent group absences without cloud mutations. Source-only synthetic
 scope fields do not establish installed or CE acceptance. Original
 provider/RPC/resource/create/audit/incarnation joins, full capture and every
 subsequent acceptance gate remain open.
+
+Attempt 412 qualifies [original Google provider lifecycle candidates](gcp-original-provider-lifecycle-20261110.md).
+The checksum-verified pinned upstream contract and strict serialized parser
+preserve separate schema and execution processes. A fresh standard-runner
+fixture joins one read HTTP candidate to the exact lifecycle RPC by request ID,
+resource type, plan hash and both raw RPC record hashes. Focused tests pass
+33 cases and the shared suite passes 1,036; all three native typechecks pass.
+No-change planning, typed teardown, empty destroy, stable empty state, two
+non-submitting resumes and 26 independent group absences pass without cloud
+mutations. Original provider process and stderr pipe corroboration,
+managed action/create/request/audit/incarnation joins, full capture and every
+subsequent acceptance gate remain open. Qualification flags remain false.
