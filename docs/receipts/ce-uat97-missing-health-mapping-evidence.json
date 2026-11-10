@@ -1,0 +1,17 @@
+{
+  "candidateRevision": 97,
+  "sourceValidation": {
+    "testsPassed": 2134,
+    "assertions": 12820,
+    "platformTypeScript": "pass",
+    "runtimeBuilds": ["platform", "aws", "azure", "terraform"]
+  },
+  "regressionFailedBeforeRepair": true,
+  "missingMalformedHealthMappingReturnsUnknown": true,
+  "unavailableMappingNetworkRequests": 0,
+  "producerRepinned": false,
+  "archiveQualified": false,
+  "installedQualified": false,
+  "liveQualified": false,
+  "fullCeAcceptance": false
+}

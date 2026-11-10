@@ -1,0 +1,26 @@
+{
+  "candidateRevision": 86,
+  "sourceCommit": "feb1fe5e2182f452a1ec10b4bdc3764c6a6f561e",
+  "cliVersion": "23.9.3",
+  "installedAssetDigestsVerified": true,
+  "publicInventory": {
+    "passed": true,
+    "selectedRegions": 1,
+    "historicalTerminatedInstances": 1,
+    "runningInstances": 1,
+    "attachedInterfaces": 2,
+    "engineOwnershipVerified": true,
+    "f5HealthNotInferred": true
+  },
+  "publicSiteRead": {
+    "passed": true,
+    "exactOwnedReplacementUidVerified": true,
+    "resourceVersionReturned": true
+  },
+  "automated": {
+    "inventoryTests": 3,
+    "platformToolsAndRuntimeTests": 89,
+    "platformToolsAndRuntimeAssertions": 400
+  },
+  "fullCeAcceptance": false
+}

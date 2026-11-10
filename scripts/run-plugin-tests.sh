@@ -44,6 +44,7 @@ XCSH_VALIDATION_PACKAGE="$REPO_ROOT/scripts/agent-validation-runtime/node_module
 bun test tests/presentation-tracker.test.ts tests/presentation-ownership.test.ts tests/installed-salesforce-verifier.test.ts tests/native-capture-contract.test.ts tests/marketplace-qualification.test.ts tests/marketplace-observer.test.ts tests/salesforce-lifecycle-qualification.test.ts tests/salesforce-fixture-outcomes.test.ts || exit 1
 python3 tests/test_native_capture_tools.py || exit 1
 bun test scripts/presentation-inventory.test.ts scripts/salesforce-campaign-observer.test.ts scripts/observed-lifecycle-component.test.ts scripts/observe-marketplace-lifecycle.test.ts || exit 1
+bun test scripts/ce-uat-public-mappings.test.ts scripts/ce-uat-readiness.test.ts scripts/ce-runtime-assets.test.ts || exit 1
 (cd scripts/agent-validation-runtime && bun test .) || exit 1
 
 bun test tests/integration-lifecycle.test.ts tests/firecrawl-status.test.ts tests/ghostty-probe.test.ts tests/zoom-presentation.test.ts tests/terraform-lifecycle.test.ts || {

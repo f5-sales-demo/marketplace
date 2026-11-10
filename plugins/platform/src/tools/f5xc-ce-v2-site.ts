@@ -1,189 +1,169 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { CeV2Driver, CeV2SiteConfig } from '../ce/driver';
-import { createDefaultCeV2Driver } from '../ce/driver';
-import {
-  assertSafeName,
-  assertSecretFree,
-  containsControlCharacters,
-  PublicCeError,
-  publicFailure,
-  redactExternal,
-} from '../ce/security';
-import { assertCapabilitiesSupportConfig, assertCeV2SiteConfig } from '../ce/site-config';
+import type { SiteBinding } from '../ce/runtime';
+import { assertSafeName, assertSecretFree, PublicCeError, publicFailure } from '../ce/security';
+import { type CePlatformService, createCePlatformService } from '../ce/service';
+import type { WireSiteIntent } from '../ce/wire-site';
 import type { PlatformToolApi, PlatformToolContext } from '../types';
 
-interface SiteParams {
+export interface SiteParams {
   action: 'create' | 'read' | 'update' | 'delete';
   namespace: string;
   siteName: string;
-  config?: CeV2SiteConfig;
-  expectedEtag?: string;
+  binding: SiteBinding;
+  config?: WireSiteIntent;
+  expectedUid?: string;
+  expectedResourceVersion?: string;
+  platformContext?: string;
   planSha256?: string;
 }
-
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value && typeof value === 'object')
-    return `{${Object.keys(value as Record<string, unknown>)
-      .sort()
-      .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
-      .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
+    return `{${Object.entries(value)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
-
-function hash(value: unknown): string {
-  return createHash('sha256').update(canonical(value)).digest('hex');
-}
-
-function hashesEqual(left: string, right: string): boolean {
-  if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
-  return timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
-}
-
-export function createSitePlan(request: Omit<SiteParams, 'planSha256'>) {
-  assertSafeName(request.namespace, 'namespace');
+export function createSitePlan(request: Omit<SiteParams, 'planSha256'>, tenantOrigin?: string) {
   assertSafeName(request.siteName, 'siteName');
-  assertSecretFree(request.config ?? {});
-  if (request.action === 'create' || request.action === 'update') assertCeV2SiteConfig(request.config);
-  if (request.expectedEtag && containsControlCharacters(request.expectedEtag))
-    throw new PublicCeError('expectedEtag contains control characters');
-  const draft = {
-    schemaVersion: 2 as const,
-    action: request.action,
-    namespace: request.namespace,
-    siteName: request.siteName,
-    config: request.config ?? null,
-    expectedEtag: request.expectedEtag ?? null,
-  };
-  const planSha256 = hash(draft);
+  if (request.namespace !== 'system' || request.binding?.siteName !== request.siteName)
+    throw new PublicCeError('The exact system-namespace deployment binding is required');
+  assertSecretFree(request);
+  if (['create', 'update'].includes(request.action) && !request.config)
+    throw new PublicCeError('A schema-valid site intent with resolved node interfaces is required');
+  if (['update', 'delete'].includes(request.action) && !request.expectedUid)
+    throw new PublicCeError('The exact existing site UID is required');
+  if (request.action === 'update' && !request.expectedResourceVersion)
+    throw new PublicCeError('The exact existing resource version is required');
+  const { planSha256: _hash, ...params } = request as SiteParams;
+  const draft = { schemaVersion: 3, ...params, tenantOrigin };
+  const planSha256 = createHash('sha256').update(canonical(draft)).digest('hex');
   return { ...draft, planId: `f5xc-ce-v2-${planSha256.slice(0, 24)}`, planSha256 };
 }
-
+export function ceBindingSchema(pi: PlatformToolApi) {
+  const { Type } = pi.typebox;
+  return Type.Object({
+    owner: Type.Object({
+      deploymentId: Type.String(),
+      engine: Type.Union([Type.Literal('native'), Type.Literal('terraform')]),
+      provider: Type.Union([Type.Literal('aws'), Type.Literal('azure')]),
+      account: Type.String(),
+      region: Type.String(),
+    }),
+    siteName: Type.String(),
+    nodes: Type.Array(Type.String()),
+  });
+}
 export function createF5xcCeV2SiteTool(
   pi: PlatformToolApi,
-  makeDriver: (context?: PlatformToolContext) => CeV2Driver = createDefaultCeV2Driver,
+  makeService: (ctx?: PlatformToolContext) => CePlatformService = () => createCePlatformService(),
 ) {
   const { Type } = pi.typebox;
   return {
     name: 'f5xc_ce_v2_site',
     label: 'F5 Secure Mesh Site v2',
     description:
-      'Plan, create, read, update, or delete Secure Mesh Site v2 configuration and its ordered interface, VRF, BGP, and network metadata. Mutations require the exact canonical plan hash.',
+      'Plan and execute owned CE site operations through the native or Terraform lifecycle service. Creation and replacement require resolved MAC/device interfaces and an exact tenant-bound plan hash.',
     parameters: Type.Object({
-      action: Type.Union([
-        Type.Literal('create'),
-        Type.Literal('read'),
-        Type.Literal('update'),
-        Type.Literal('delete'),
-      ]),
+      action: Type.Union(['create', 'read', 'update', 'delete'].map((v) => Type.Literal(v))),
       namespace: Type.String(),
       siteName: Type.String(),
+      binding: ceBindingSchema(pi),
       config: Type.Optional(
         Type.Object({
+          schemaVersion: Type.Literal(2),
           provider: Type.Union([Type.Literal('aws'), Type.Literal('azure')]),
           haMode: Type.Union([Type.Literal('one-node'), Type.Literal('three-node')]),
-          vrfs: Type.Array(Type.Object({ index: Type.Number(), name: Type.String() })),
-          interfaces: Type.Array(
-            Type.Object({
-              index: Type.Number(),
-              role: Type.Union([
-                Type.Literal('slo'),
-                Type.Literal('sli'),
-                Type.Literal('management'),
-                Type.Literal('service'),
-                Type.Literal('workload'),
-              ]),
-              vrf: Type.String(),
-              addressing: Type.Object({
-                mode: Type.Union([Type.Literal('dhcp'), Type.Literal('static')]),
-                addresses: Type.Array(Type.String()),
-                gateway: Type.Optional(Type.String()),
-              }),
-            }),
-          ),
-          bgpPeers: Type.Array(
-            Type.Object({
-              index: Type.Number(),
-              vrf: Type.String(),
-              interfaceIndex: Type.Number(),
-              peerAddress: Type.String(),
-              localAsn: Type.Number(),
-              peerAsn: Type.Number(),
-            }),
-          ),
-          providerNetwork: Type.Object({ profile: Type.String(), metadata: Type.Unknown() }),
+          nodes: Type.Array(Type.Object({ hostname: Type.String(), interfaces: Type.Array(Type.Unknown()) })),
+          settings: Type.Unknown(),
         }),
       ),
-      expectedEtag: Type.Optional(Type.String()),
+      expectedUid: Type.Optional(Type.String()),
+      expectedResourceVersion: Type.Optional(Type.String()),
+      platformContext: Type.Optional(Type.String()),
       planSha256: Type.Optional(Type.String()),
     }),
     async execute(
       _id: string,
       params: SiteParams,
-      _signal: AbortSignal | undefined,
+      signal: AbortSignal | undefined,
       _update: unknown,
       ctx: PlatformToolContext,
     ) {
       try {
-        assertSafeName(params.namespace, 'namespace');
-        assertSafeName(params.siteName, 'siteName');
-        const driver = makeDriver(ctx);
-        const capabilities = await driver.capabilities();
+        const service = makeService(ctx);
+        const capability = await service.capabilities(params.platformContext);
+        const plan = createSitePlan(params, capability.tenantOrigin);
+        const runtime = await service.runtime(params.binding.owner.engine, params.platformContext);
+        if (params.config) runtime.contract.buildSite(params.config);
         if (params.action === 'read') {
-          const result = await driver.site('read', params);
+          const site = await runtime.observeOwnedSite(params.binding, signal);
           return {
-            content: [
-              { type: 'text' as const, text: `Read Secure Mesh Site v2 ${params.namespace}/${params.siteName}.` },
-            ],
-            details: { tool: 'f5xc_ce_v2_site', site: redactExternal(result) },
+            content: [{ type: 'text' as const, text: `Read ${params.siteName}.` }],
+            details: {
+              tool: 'f5xc_ce_v2_site',
+              siteUid: (site.system_metadata as Record<string, unknown>).uid,
+              resourceVersion: site.resource_version,
+            },
           };
         }
-        const plan = createSitePlan(params);
-        if (plan.config && (params.action === 'create' || params.action === 'update'))
-          assertCapabilitiesSupportConfig(capabilities, plan.config);
         if (!params.planSha256) {
           const artifactId = await ctx.sessionManager.saveArtifact(
             JSON.stringify({ kind: 'f5xc-ce-v2-site-plan', plan }),
             'f5xc-ce-v2-site-plan',
           );
           return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Site plan ID: ${plan.planId}\nSHA-256: ${plan.planSha256}\nArtifact: ${artifactId ? `artifact://${artifactId}` : 'session memory only'}`,
-              },
-            ],
+            content: [{ type: 'text' as const, text: `Site plan: ${plan.planId}\nSHA-256: ${plan.planSha256}` }],
             details: { tool: 'f5xc_ce_v2_site', plan, artifactId },
           };
         }
-        if (!hashesEqual(params.planSha256, plan.planSha256))
-          throw new Error('Site plan SHA-256 does not match the canonical request');
+        if (
+          !/^[a-f0-9]{64}$/.test(params.planSha256) ||
+          !timingSafeEqual(Buffer.from(params.planSha256, 'hex'), Buffer.from(plan.planSha256, 'hex'))
+        )
+          throw new PublicCeError('Site plan SHA-256 does not match the canonical request and tenant');
         if (!ctx.hasUI && process.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
-          throw new Error('Headless site mutation requires XCSH_CE_HEADLESS_MUTATIONS=1');
+          throw new PublicCeError('Headless mutation requires XCSH_CE_HEADLESS_MUTATIONS=1');
         if (params.action === 'delete' && !ctx.hasUI && process.env.XCSH_CE_ALLOW_DESTROY !== '1')
-          throw new Error('Headless site deletion requires XCSH_CE_ALLOW_DESTROY=1');
+          throw new PublicCeError('Headless deletion requires XCSH_CE_ALLOW_DESTROY=1');
         if (
           ctx.hasUI &&
           !(await ctx.ui.confirm(`${params.action} Secure Mesh Site v2`, `${plan.planId}\n${plan.planSha256}`))
         )
-          throw new Error('Site mutation was not approved');
-        const result = await driver.site(params.action, params);
+          throw new PublicCeError('Site mutation was not approved');
+        const store = await service.storage(params.binding.owner);
+        const checkpoint = (record: Record<string, unknown>) =>
+          store.write(`public-site-${params.siteName}.json`, { planId: plan.planId, record });
+        if (params.action === 'create') {
+          if (!params.config) throw new PublicCeError('Site intent is required');
+          await runtime.ensureSite(params.binding, params.config, checkpoint, signal);
+        } else if (params.action === 'update') {
+          if (!params.config || !params.expectedUid || !params.expectedResourceVersion)
+            throw new PublicCeError('Exact replacement identity is required');
+          await runtime.replaceSite(
+            params.binding,
+            params.config,
+            { uid: params.expectedUid, resourceVersion: params.expectedResourceVersion },
+            checkpoint,
+            signal,
+          );
+        } else {
+          if (!params.expectedUid) throw new PublicCeError('Exact deletion UID is required');
+          await runtime.deleteSiteExact(params.binding, params.expectedUid, signal);
+        }
         return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `${params.action} completed for Secure Mesh Site v2 ${params.namespace}/${params.siteName}.`,
-            },
-          ],
-          details: { tool: 'f5xc_ce_v2_site', planId: plan.planId, site: redactExternal(result) },
+          content: [{ type: 'text' as const, text: `${params.action} completed for ${params.siteName}.` }],
+          details: { tool: 'f5xc_ce_v2_site', planId: plan.planId },
         };
       } catch (error) {
+        signal?.throwIfAborted();
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Secure Mesh Site v2 operation failed: ${publicFailure(error, 'the authenticated tenant operation was rejected')}`,
+              text: `CE site operation failed: ${publicFailure(error, 'the owned lifecycle operation was rejected')}`,
             },
           ],
           isError: true,

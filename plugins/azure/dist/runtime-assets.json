@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "plugin": "azure",
+  "assets": [
+    {
+      "sourcePath": "plugins/azure/terraform/azapi-provider-lock.hcl",
+      "runtimePath": "assets/plugins/azure/terraform/azapi-provider-lock.hcl",
+      "sha256": "a790dc5ef41a452a2669ca89229f8d2ede8a378eb3b4eb02414c7d468d59c305"
+    },
+    {
+      "sourcePath": "plugins/azure/terraform/provider-lock.hcl",
+      "runtimePath": "assets/plugins/azure/terraform/provider-lock.hcl",
+      "sha256": "901676ec098461ba0766d62124a4b011ae29e8554dda8c5be71371b1a0684b1b"
+    },
+    {
+      "sourcePath": "plugins/terraform/locks/xcsh-provider.hcl",
+      "runtimePath": "assets/plugins/terraform/locks/xcsh-provider.hcl",
+      "sha256": "6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782"
+    }
+  ]
+}
