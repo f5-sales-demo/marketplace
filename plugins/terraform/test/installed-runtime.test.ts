@@ -36,22 +36,25 @@ async function fixture() {
   };
   return { root, owner, deployment, store, platform };
 }
-test('installed resolver preserves a legacy GCP manifest without selecting new credentials or dependencies', async () => {
+test('legacy GCP resume reports missing setup without rewriting its manifest or credential mode', async () => {
   const f = await fixture();
   await mkdir(join(f.store.directory, f.owner.deploymentId), { mode: 0o700 });
   await writeFile(join(f.store.directory, f.owner.deploymentId, 'deployment.json'), JSON.stringify(f.deployment), {
     mode: 0o600,
   });
   const resolve = createInstalledRuntimeResolver({ XCSH_TERRAFORM_RUNTIME_DIR: join(f.root, 'absent-runtime') });
-  expect(
-    await resolve({
+  await expect(
+    resolve({
       owner: f.owner,
       deployment: f.deployment,
       directory: f.store.directory,
       resume: true,
       platform: f.platform,
     }),
-  ).toEqual({});
+  ).rejects.toThrow('set up the Terraform');
+  expect(await Bun.file(join(f.store.directory, f.owner.deploymentId, 'deployment.json')).text()).toBe(
+    JSON.stringify(f.deployment),
+  );
   expect(await Bun.file(join(f.store.directory, 'google-runtime-mode.json')).exists()).toBe(false);
 });
 test('new GCP sessions report the installed prerequisite before creating a credential-mode receipt', async () => {

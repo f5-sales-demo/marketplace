@@ -10722,6 +10722,7 @@ function resolveGcpTerraformArtifacts(input) {
 var GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
+  GCP_TERRAFORM1171_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   packagedProfiles;
 var init_terraform_public_artifacts = __esm(() => {
@@ -10880,7 +10881,7 @@ provider "registry.terraform.io/hashicorp/google" {
 `,
     expectedLockSha256: 'sha256:fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
   };
-  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+  GCP_TERRAFORM1171_ARTIFACTS = {
     configurationVersion: 2,
     versions: { terraform: '1.17.1', google: '8.11.0', xcsh: '15.15.7' },
     providerLock: `# This file is maintained automatically by "terraform init".
@@ -10929,10 +10930,15 @@ provider "registry.terraform.io/hashicorp/google" {
 `,
     expectedLockSha256: 'sha256:c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
   };
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS = GCP_TERRAFORM1171_ARTIFACTS && {
+    ...GCP_TERRAFORM1171_ARTIFACTS,
+    versions: { ...GCP_TERRAFORM1171_ARTIFACTS.versions, terraform: '1.17.2' },
+  };
   packagedProfiles = [
     GCP_LEGACY_TERRAFORM_ARTIFACTS,
     GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
     GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
+    GCP_TERRAFORM1171_ARTIFACTS,
     GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   ].filter((profile) => profile !== undefined);
   Object.freeze(packagedProfiles);

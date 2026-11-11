@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.83 and **`gcloud`** v1.7.47 select authenticated
+  Terraform 1.17.2 with Google 8.11.0 and xcsh 15.15.7. Setup retains known
+  historical executables in a version cache and preserves the existing default.
+  Legacy cleanup selects its stored version and retains unresolved execution locks.
+  Full provider refresh, installed runtime and live acceptance remain incomplete.
+
 - **`terraform`** v2.4.82 adds fixed observer-image reads and original private
   image evidence. Exact numeric identity, namespace, timestamps and owned files
   are rechecked; partial failures and expired evidence retain explicit refusal.

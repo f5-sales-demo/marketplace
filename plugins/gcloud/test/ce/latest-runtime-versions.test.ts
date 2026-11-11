@@ -4,12 +4,13 @@ import {
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  GCP_TERRAFORM1171_ARTIFACTS,
   resolveGcpTerraformArtifacts,
 } from '../../src/ce/terraform-public-artifacts';
 
 test('new GCP deployments select the currently verified latest stable Terraform and providers', () => {
   expect(GCP_PUBLIC_TERRAFORM_ARTIFACTS?.versions).toEqual({
-    terraform: '1.17.1',
+    terraform: '1.17.2',
     google: '8.11.0',
     xcsh: '15.15.7',
   });
@@ -49,4 +50,14 @@ test('Google8.10 stored profile remains byte-identical after the new default', (
   expect(previous.expectedLockSha256).toBe('sha256:fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0');
   expect(resolveGcpTerraformArtifacts(structuredClone(previous))).toBe(previous);
   expect(previous).not.toBe(GCP_PUBLIC_TERRAFORM_ARTIFACTS);
+});
+
+test('Terraform1.17.1 stored profile retains its exact lock and versions after the executable upgrade', () => {
+  const previous = GCP_TERRAFORM1171_ARTIFACTS;
+  const current = GCP_PUBLIC_TERRAFORM_ARTIFACTS;
+  if (!previous || !current) throw new Error('Original and current GCP profiles required');
+  expect(previous.versions).toEqual({ terraform: '1.17.1', google: '8.11.0', xcsh: '15.15.7' });
+  expect(previous.providerLock).toBe(current.providerLock);
+  expect(resolveGcpTerraformArtifacts(structuredClone(previous))).toBe(previous);
+  expect(previous).not.toBe(current);
 });

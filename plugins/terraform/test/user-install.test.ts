@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { terraformInstallArgv, terraformRuntimeInstallArgv } from '../extensions/integration';
+import {
+  terraformInstallArgv,
+  terraformRuntimeInstallArgv,
+  terraformVerificationArgv,
+} from '../extensions/integration';
 
 describe('Terraform user-scope setup', () => {
   test('Linux runtime setup uses the bundled isolated Python prerequisite without sudo or global pip', () => {
@@ -50,4 +54,9 @@ describe('Terraform user-scope setup', () => {
     if (code !== 0) throw new Error(`User installer safety failed: ${stdout}${stderr}`);
     expect(code).toBe(0);
   });
+});
+
+test('Linux setup verifies the qualified version cache rather than an unrelated ambient version', () => {
+  expect(terraformVerificationArgv('linux')).toEqual([...terraformInstallArgv('linux'), '--check']);
+  expect(terraformVerificationArgv('darwin')).toEqual(['terraform', 'version']);
 });

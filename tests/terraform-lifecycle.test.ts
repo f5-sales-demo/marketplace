@@ -1,5 +1,8 @@
 import { describe, expect, it, spyOn } from 'bun:test';
-import terraformIntegration, { terraformRuntimeInstallArgv } from '../plugins/terraform/extensions/integration';
+import terraformIntegration, {
+  terraformRuntimeInstallArgv,
+  terraformVerificationArgv,
+} from '../plugins/terraform/extensions/integration';
 
 function definition() {
   let integration: { probe(): Promise<{ state: string; reason?: string }> } | undefined;
@@ -33,8 +36,8 @@ describe('Terraform lifecycle probe', () => {
       spawn.mockReturnValue({ exitCode: 0 } as ReturnType<typeof Bun.spawnSync>);
       expect(await definition().probe()).toEqual({ state: 'ready' });
       expect(spawn.mock.calls).toEqual([
-        [['terraform', 'version']],
-        [['terraform', 'version']],
+        [terraformVerificationArgv()],
+        [terraformVerificationArgv()],
         ...(process.platform === 'linux' ? [[[...terraformRuntimeInstallArgv(), '--check']]] : []),
       ]);
     } finally {

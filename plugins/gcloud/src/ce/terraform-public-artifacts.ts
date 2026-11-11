@@ -35,7 +35,7 @@ export const GCP_GOOGLE810_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent
 };
 
 /** Authenticated Google8.11 packages; process and live mapping gates remain separate. */
-export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined = {
+export const GCP_TERRAFORM1171_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined = {
   configurationVersion: 2,
   versions: { terraform: '1.17.1', google: '8.11.0', xcsh: '15.15.7' },
   providerLock:
@@ -43,10 +43,18 @@ export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> 
   expectedLockSha256: 'sha256:c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
 };
 
+/** Current Terraform artifact; historical provider lock and versions remain resolvable. */
+export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined =
+  GCP_TERRAFORM1171_ARTIFACTS && {
+    ...GCP_TERRAFORM1171_ARTIFACTS,
+    versions: { ...GCP_TERRAFORM1171_ARTIFACTS.versions, terraform: '1.17.2' },
+  };
+
 const packagedProfiles = [
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
+  GCP_TERRAFORM1171_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
 ].filter((profile): profile is Omit<GcpTerraformInputs, 'intent'> => profile !== undefined);
 Object.freeze(packagedProfiles);

@@ -1447,3 +1447,7 @@ Renewed exact-head CI and every remaining live and delivery gate are required.
 The [original observer image producer](gcp-original-observer-image-20261111.md)
 verifies the pinned image with retained authenticated source evidence. Observer
 execution, default capture and every remaining installed/live/release gate stay open.
+
+The [versioned Terraform installation](gcp-versioned-terraform-installation-20261111.md)
+retains current and historical executable identities with supported user setup.
+Terraform 1.17.2 provider refresh, installed runtime and full live/release gates remain open.

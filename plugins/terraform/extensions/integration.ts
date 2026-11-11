@@ -7,7 +7,17 @@ interface ExtensionApi {
 export function terraformInstallArgv(platform = process.platform): string[] {
   if (platform === 'darwin') return ['brew', 'install', 'terraform'];
   if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Hashicorp.Terraform'];
-  return ['python3', join(import.meta.dir, '../scripts/install_terraform.py')];
+  return [
+    'python3',
+    join(import.meta.dir, '../scripts/install_terraform.py'),
+    ...(process.env.XCSH_TERRAFORM_EXECUTABLES_DIR
+      ? ['--versions-dir', process.env.XCSH_TERRAFORM_EXECUTABLES_DIR]
+      : []),
+  ];
+}
+
+export function terraformVerificationArgv(platform = process.platform): string[] {
+  return platform === 'linux' ? [...terraformInstallArgv(platform), '--check'] : ['terraform', 'version'];
 }
 
 export function terraformRuntimeInstallArgv(platform = process.platform): string[] {
@@ -42,7 +52,7 @@ export default function terraformIntegration(pi: ExtensionApi) {
           : []),
       ],
       verification: [
-        { argv: ['terraform', 'version'], timeoutMs: 30_000 },
+        { argv: terraformVerificationArgv(), timeoutMs: 30_000 },
         ...(process.platform === 'linux'
           ? [{ argv: [...terraformRuntimeInstallArgv(), '--check'], timeoutMs: 30_000 }]
           : []),
@@ -50,7 +60,7 @@ export default function terraformIntegration(pi: ExtensionApi) {
     },
     async probe() {
       try {
-        if (Bun.spawnSync(['terraform', 'version']).exitCode !== 0)
+        if (Bun.spawnSync(terraformVerificationArgv()).exitCode !== 0)
           return { state: 'setup_required', reason: 'cli_missing' };
         if (process.platform === 'linux') {
           try {

@@ -73,3 +73,13 @@ test('shared Terraform binary alone cannot silently select another Google provid
     resolveInstalledGcpExecutableProfile(tf, '1c620693bca3fe61c3b8ce8d313f3c6dc35648f2246784e5d92fe3d22e0dfd9f'),
   ).toThrow();
 });
+
+test('Terraform 1.17.2 resolves its own verified binary while the same provider lock retains 1.17.1', () => {
+  const lock = 'c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14';
+  const current = resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256: lock });
+  const previous = resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.1', providerLockSha256: lock });
+  expect(current.terraformSha256).toBe('dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e');
+  expect(previous.terraformSha256).toBe('1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc');
+  expect(current.googleProviderSha256).toBe(previous.googleProviderSha256);
+  expect(current.xcProviderSha256).toBe(previous.xcProviderSha256);
+});

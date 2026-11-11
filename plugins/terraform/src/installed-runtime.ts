@@ -21,7 +21,9 @@ import {
 } from './installed-final-capture';
 import { createInstalledGcpInvocationCompiler, selectInstalledGcpEnvironment } from './installed-gcp-invocation';
 import pins from './installed-runtime-pins.json';
+import { resolveInstalledTerraformExecutable } from './installed-terraform-executable';
 import { resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import { createLegacyInstalledTerraformExecutor } from './legacy-installed-executor';
 import { linuxMonotonicMs } from './linux-clock';
 import {
   assertSameOriginalInput,
@@ -309,18 +311,25 @@ export function createInstalledRuntimeResolver(
     }
     const existingDeployment = await Bun.file(join(executionDirectory, 'deployment.json')).exists();
     if (!resume && existingDeployment) throw new Error('Existing deployment must resume its original runtime');
-    if (resume && !mode && existingDeployment) return {};
+    const legacy = resume && !mode && existingDeployment;
     const runtime = await assertInstalledRuntime(env);
     const versionProfile = resolveInstalledGcpVersionProfile({
       terraformVersion: deployment.terraformVersion,
       providerLockSha256: hash(deployment.providerLock),
     });
-    const terraform = Bun.which('terraform', { PATH: env.PATH ?? process.env.PATH });
-    if (!terraform) throw new InstalledTerraformSetupRequired();
-    const terraformPath = await realpath(terraform),
-      terraformFile = await owned(terraformPath);
-    if (terraformFile.binding.sha256 !== versionProfile.terraformSha256)
-      throw new Error('Qualified installed Terraform executable required');
+    const terraformBinding = await resolveInstalledTerraformExecutable(versionProfile, env);
+    const terraformPath = terraformBinding.path;
+    const terraformFile = { binding: terraformBinding };
+    if (legacy) {
+      return {
+        execute: createLegacyInstalledTerraformExecutor({
+          directory: executionDirectory,
+          inputs: { ...runtime.bindings, terraform: terraformBinding },
+          python: { path: runtime.python, sha256: runtime.bindings.python.sha256 },
+          executable: { path: terraformBinding.path, sha256: terraformBinding.sha256 },
+        }),
+      };
+    }
     const accountSha256 = selectedGoogleAccountSha256(env);
     const sourcePath =
       env.GOOGLE_APPLICATION_CREDENTIALS ??
