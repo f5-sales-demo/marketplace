@@ -1435,3 +1435,7 @@ networking, review, publication and installation gate remain open.
 The [installed original guest worker adapter](gcp-installed-guest-worker-adapter-20261111.md)
 adds source-process admission and separate closure evidence. Default capture,
 positive GCP guest evidence and all remaining live and delivery gates stay open.
+
+The [current-provider Site SSH mapping](gcp-current-site-access-mapping-20261111.md)
+qualifies xcsh 15.15.7 configuration compatibility while preserving historical
+access fingerprints. Positive SSH, default capture and live acceptance remain open.

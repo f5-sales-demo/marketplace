@@ -1261,6 +1261,11 @@ var init_types2 = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/site-access.ts
+function resolveGcpSiteAccessMapping(providerVersion) {
+  if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
+  throw new GcpSiteAccessMappingUnavailable();
+}
 function validateGcpSiteAccess(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
   const access = value;
@@ -1304,7 +1309,7 @@ function assertGcpSiteAccessProfile(intent) {
 function gcpSiteAccessSpec(intent, providerVersion) {
   if (intent.initialAccess === undefined) return;
   assertGcpSiteAccessProfile(intent);
-  if (providerVersion !== GCP_SITE_ACCESS_MAPPING.version) throw new GcpSiteAccessMappingUnavailable();
+  resolveGcpSiteAccessMapping(providerVersion);
   return {
     admin_user_credentials: { ssh_key: intent.initialAccess.publicKey },
     blocked_services: {
@@ -1318,15 +1323,15 @@ function gcpSiteAccessSpec(intent, providerVersion) {
     },
   };
 }
-function gcpSiteAccessFingerprint(intent) {
+function gcpSiteAccessFingerprint(intent, providerVersion = GCP_SITE_ACCESS_MAPPING.version) {
   if (intent.initialAccess === undefined) return;
   validateGcpSiteAccess(intent.initialAccess);
-  return fingerprint({ mapping: GCP_SITE_ACCESS_MAPPING, access: intent.initialAccess });
+  return fingerprint({ mapping: resolveGcpSiteAccessMapping(providerVersion), access: intent.initialAccess });
 }
-var GCP_SITE_ACCESS_MAPPING, GcpSiteAccessMappingUnavailable;
+var GCP_SITE_ACCESS_MAPPING, GCP_CURRENT_SITE_ACCESS_MAPPING, GcpSiteAccessMappingUnavailable;
 var init_site_access = __esm(() => {
   init_discovery();
-  GCP_SITE_ACCESS_MAPPING = {
+  GCP_SITE_ACCESS_MAPPING = Object.freeze({
     schemaVersion: 1,
     provider: 'f5-sales-demo/xcsh',
     version: '15.13.0',
@@ -1334,10 +1339,17 @@ var init_site_access = __esm(() => {
     blockedServices: 'blocked_services.blocked_service',
     sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
     user: 'admin',
-  };
+  });
+  GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.15.7',
+    sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
+  });
   GcpSiteAccessMappingUnavailable = class GcpSiteAccessMappingUnavailable extends Error {
     constructor() {
-      super('Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0 mapping');
+      super(
+        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0 or 15.15.7 mapping',
+      );
     }
   };
 });
@@ -11800,7 +11812,7 @@ function createGcpCeTools(
               profile: 'site-ssh-sli',
               required: [
                 'two-interface external-IP Terraform HA profile',
-                'published XC 15.13.0 Site admin key and SLI local-service mapping',
+                'published XC 15.13.0 or 15.15.7 Site admin key and SLI local-service mapping',
               ],
               mutationAttempted: false,
             },

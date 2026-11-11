@@ -10,7 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.79 adds the installed original guest worker adapter.
+- **`gcloud`** v1.7.45 maps the published xcsh 15.15.7 Site admin-key and
+  SLI service fields. Historical access fingerprints stay stable; explicit current
+  mappings receive their own fingerprint. Live capture and lifecycle gates remain open.
+
+- **`terraform`** v2.4.80 adds the installed original guest worker adapter.
   One retained signal-free execution binds the original context, complete source
   pins and owned IPC; later closure evidence preserves initial capture failures.
   Default guest capture and live qualification remain incomplete.
@@ -28,7 +32,7 @@ and this project adheres to
 - **`gcloud`** v1.7.44 consumes the shared runner's reviewed data-source
   ownership projection without exporting sensitive fields or accepting foreign state.
 
-- **`platform`** v6.3.19 repairs namespace-refusal fixture formatting for CI.
+- **`platform`** v6.3.20 repairs namespace-refusal fixture formatting for CI.
 
 - **`salesforce`** v2.3.18 repairs long corrective-detail fixture formatting
   while preserving its complete literal-content checks.

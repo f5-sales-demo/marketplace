@@ -3,13 +3,14 @@ import * as typebox from '@sinclair/typebox';
 import { translateGcpNativeCompute, translateGcpPublicTerraformSiteCompute } from '../../src/ce/compute-plan';
 import { collectGcpDeploymentPrerequisites } from '../../src/ce/deployment-review';
 import { fingerprint } from '../../src/ce/discovery';
-import type { gcpSiteAccessSpec } from '../../src/ce/site-access';
+import { gcpSiteAccessFingerprint, type gcpSiteAccessSpec } from '../../src/ce/site-access';
 import { assertGcpTerraformHaProfile, gcpDeploymentLifecycleFingerprint } from '../../src/ce/terraform-ha-profile';
 import type { GcpCeIntent } from '../../src/ce/types';
 import { validateIntent } from '../../src/ce/validation';
 import type { PluginInterface } from '../../src/gcloud/types';
 import { createGcpCeTools } from '../../src/tools/gcp-ce';
 import { intent } from './fixtures';
+import currentSchema from './site-access-schema-15.15.7.json';
 import { terraformHaProfileFixture } from './terraform-ha-profile.test';
 
 function publicKey(byte = 7) {
@@ -186,11 +187,40 @@ it('public tools report the concrete unsupported Site access mapping before exte
       profile: 'site-ssh-sli',
       required: [
         'two-interface external-IP Terraform HA profile',
-        'published XC 15.13.0 Site admin key and SLI local-service mapping',
+        'published XC 15.13.0 or 15.15.7 Site admin key and SLI local-service mapping',
       ],
       mutationAttempted: false,
     });
     expect(JSON.stringify(result)).not.toContain(publicKey());
   }
   expect(calls).toBe(0);
+});
+
+it('maps the published current provider Site SSH fields without changing bootstrap metadata', () => {
+  const i = fixture();
+  const legacy = translateGcpPublicTerraformSiteCompute(i, versions);
+  const current = translateGcpPublicTerraformSiteCompute(i, { terraform: '1.17.1', google: '8.11.0', xcsh: '15.15.7' });
+  expect(currentSchema.provider).toBe('f5-sales-demo/xcsh');
+  expect(currentSchema.version).toBe('15.15.7');
+  expect(currentSchema.admin).toEqual({ nesting_mode: 'single', ssh_key: { type: 'string', optional: true } });
+  expect(currentSchema.services.nesting_mode).toBe('single');
+  expect(currentSchema.services.item_nesting_mode).toBe('list');
+  expect(currentSchema.services.attributes.network_type).toEqual({ type: 'string', optional: true });
+  for (const field of ['ssh', 'dns', 'web_user_interface'] as const)
+    expect(currentSchema.services.attributes[field]).toEqual({ type: ['object', {}], optional: true });
+  const originalSite = Object.values(legacy.configuration.resource.xcsh_securemesh_site_v2)[0];
+  const currentSite = Object.values(current.configuration.resource.xcsh_securemesh_site_v2)[0];
+  expect(currentSite).toEqual(originalSite);
+  expect(current.configuration.resource.google_compute_instance).toEqual(
+    legacy.configuration.resource.google_compute_instance,
+  );
+  expect(current.executable).toBe(false);
+});
+it('preserves legacy access fingerprints and binds an explicit current provider mapping separately', () => {
+  const i = fixture();
+  const old = gcpSiteAccessFingerprint(i);
+  expect(gcpSiteAccessFingerprint(i, '15.13.0')).toBe(old);
+  expect(gcpSiteAccessFingerprint(i, '15.15.7')).not.toBe(old);
+  for (const version of ['15.15.6', '15.15.8', 'latest', '15.15.7\n'])
+    expect(() => gcpSiteAccessFingerprint(i, version)).toThrow('Site SSH');
 });

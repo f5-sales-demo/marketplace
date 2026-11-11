@@ -703,7 +703,7 @@ export function createGcpCeTools(
               profile: 'site-ssh-sli',
               required: [
                 'two-interface external-IP Terraform HA profile',
-                'published XC 15.13.0 Site admin key and SLI local-service mapping',
+                'published XC 15.13.0 or 15.15.7 Site admin key and SLI local-service mapping',
               ],
               mutationAttempted: false,
             },

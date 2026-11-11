@@ -249,6 +249,23 @@ import {
 import { homedir } from 'node:os';
 import { dirname as dirname6, isAbsolute as isAbsolute8, join as join7, resolve as resolve8 } from 'node:path';
 
+// plugins/gcloud/src/ce/site-access.ts
+var GCP_SITE_ACCESS_MAPPING = Object.freeze({
+  schemaVersion: 1,
+  provider: 'f5-sales-demo/xcsh',
+  version: '15.13.0',
+  credentials: 'admin_user_credentials.ssh_key',
+  blockedServices: 'blocked_services.blocked_service',
+  sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
+  user: 'admin',
+});
+var _GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.15.7',
+  sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
+});
+
+// plugins/gcloud/src/ce/discovery.ts
 function fingerprint(value) {
   const stable = (item) =>
     Array.isArray(item)
