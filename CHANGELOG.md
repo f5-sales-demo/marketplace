@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.76** adds bounded original-session guest control frames and
+  parent-verified Site CLI dispatch with strict command, sequence and guard checks.
+  Default installed capture remains held pending complete integration and live proof.
+
 - **`terraform` 2.4.75** binds capture to the original execution workspace,
   passes immutable admitted inputs and requires valid final authorization before
   guest work while retaining independent journal failures.

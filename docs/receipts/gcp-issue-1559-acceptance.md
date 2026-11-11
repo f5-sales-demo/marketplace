@@ -1392,3 +1392,11 @@ failures still permit authorized capture. Fresh registries confirm the latest
 stable defaults remain Terraform 1.17.1, Google 8.11.0 and xcsh 15.15.7.
 Default guest capture, actual expiry, managed insertion, full live/runtime
 acceptance and delivery remain open. No cloud campaign was submitted.
+
+Attempt 446 adds [guest control framing and source dispatch](gcp-guest-control-source-20261110.md).
+Original nonce/sequence, bounded frames, exact parent guard responses and supported
+Site CLI dispatch reject malformed, foreign and injected commands. Seven shipped
+script hashes enter installed admission; 60 Python and 33 related native tests
+pass. Native parent-process integration and the default capture factory remain
+held, with complete guest, VM/token/NIC, expiry, live/runtime and delivery proof
+still required. Offline framing tests do not replace real installed acceptance.
