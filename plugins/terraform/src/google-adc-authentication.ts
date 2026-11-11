@@ -5,6 +5,7 @@ import {
   type GcpInsertAuditWindow,
   hasAuditControlCharacters,
 } from './gcp-insert-audit-query';
+import { GCP_OBSERVER_IMAGE_PIN } from './gcp-observer-image-pin';
 
 export interface GoogleAdcAuthenticationRequest {
   readonly credentialBytes: Uint8Array;
@@ -355,6 +356,13 @@ export async function openGoogleAdcComputeReader(
   };
   return Object.freeze({
     authentication: session.receipt,
+    /** The observer's official image namespace is fixed and separate from the owning lab project. */
+    observerImage: (...args: unknown[]) => {
+      if (args.length) throw new Error('Original fixed observer image read takes no arguments');
+      return readRaw(
+        `https://compute.googleapis.com/compute/v1/projects/${GCP_OBSERVER_IMAGE_PIN.project}/global/images/${GCP_OBSERVER_IMAGE_PIN.name}`,
+      );
+    },
     instance: (zone: string, name: string) => read(zone, name),
     serial: (zone: string, name: string, start: string) => read(zone, name, start),
     operation: (zone: string, name: string) => read(zone, name, undefined, true),

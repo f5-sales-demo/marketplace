@@ -1443,3 +1443,7 @@ access fingerprints. Positive SSH, default capture and live acceptance remain op
 The [final-capture clock fixture repair](gcp-final-capture-clock-fixtures-20261111.md)
 addresses CI on fresh runners without changing installed clocks or fixed budgets.
 Renewed exact-head CI and every remaining live and delivery gate are required.
+
+The [original observer image producer](gcp-original-observer-image-20261111.md)
+verifies the pinned image with retained authenticated source evidence. Observer
+execution, default capture and every remaining installed/live/release gate stay open.

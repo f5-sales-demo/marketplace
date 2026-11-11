@@ -563,6 +563,18 @@ var gcp_capture_source_pins_default = {
 // plugins/terraform/src/google-adc-authentication.ts
 import { createHash as createHash3 } from 'node:crypto';
 
+// plugins/terraform/src/gcp-observer-image-pin.ts
+var _GCP_OBSERVER_IMAGE_PIN = Object.freeze({
+  project: 'ubuntu-os-cloud',
+  name: 'ubuntu-2404-noble-amd64-v20261021',
+  id: '4996011480491275419',
+  architecture: 'X86_64',
+  status: 'READY',
+  selfLink:
+    'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20261021',
+});
+
+// plugins/terraform/src/google-adc-authentication.ts
 var tokenEndpoint = 'https://oauth2.googleapis.com/token';
 var inspectionEndpoint = 'https://www.googleapis.com/oauth2/v2/tokeninfo';
 var hash2 = (value) => createHash3('sha256').update(value).digest('hex');

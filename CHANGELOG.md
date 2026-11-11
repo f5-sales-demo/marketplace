@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.82 adds fixed observer-image reads and original private
+  image evidence. Exact numeric identity, namespace, timestamps and owned files
+  are rechecked; partial failures and expired evidence retain explicit refusal.
+  Observer execution and default installed capture remain unqualified.
+
 - **`terraform`** v2.4.81 binds explicit source-test final-reader clocks while
   installed callers retain Linux monotonic time, fixed budgets and original authority.
   Short-uptime fixtures exercise expiry without negative operation start times.
