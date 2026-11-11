@@ -4,7 +4,9 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedRoutingContract } from '../../../platform/src/ce/routing-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AwsExecApi } from '../aws/exec';
+import { resolveAwsCeActionArgs } from './action-args';
 import { verifyAwsCePlan } from './artifacts';
+import { revalidateAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { canonicalSha256 } from './canonical';
 import { observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
@@ -235,17 +237,10 @@ export function createNativeAwsSiteReplacementDriver(
     const substitutions: Record<string, string> = { __PLAN_SHA256__: plan.planSha256 };
     for (const iface of base.intent.interfaces)
       substitutions[`__ENI_${index}_${iface.index}__`] = plan.interfaceIds[`${node}/${iface.role}`];
-    const args = actions[0].args.map((arg) => arg.replace(/__[A-Z0-9_]+__/g, (key) => substitutions[key] ?? key));
-    if (
-      args[0] !== 'ec2' ||
-      args[1] !== 'run-instances' ||
-      args.includes('--client-token') ||
-      args.some(
-        (arg) =>
-          Array.from(arg).some((character) => character.charCodeAt(0) < 32) ||
-          /__[A-Z0-9_]+__/.test(arg.replace('__BOOTSTRAP_FILE__', '')),
-      )
-    )
+    const args = resolveAwsCeActionArgs(actions[0].args, substitutions, base.bootstrapKeyPair?.name, [
+      '__BOOTSTRAP_FILE__',
+    ]);
+    if (args[0] !== 'ec2' || args[1] !== 'run-instances' || args.includes('--client-token'))
       throw new Error('Unresolved or invalid native replacement launch action');
     if (args[args.indexOf('--user-data') + 1] !== 'file://__BOOTSTRAP_FILE__')
       throw new Error('Private bootstrap file is required');
@@ -362,6 +357,7 @@ export function createNativeAwsSiteReplacementDriver(
             )
           )
             throw new Error('Retained ENIs are not available for launch');
+          await revalidateAwsBootstrapKeyPair(base, observed.api);
           record = {
             schemaVersion: 1,
             planSha256: plan.planSha256,
@@ -377,7 +373,7 @@ export function createNativeAwsSiteReplacementDriver(
             try {
               const result = await observed.api.exec(
                 'aws',
-                args.map((arg) => arg.replace('__BOOTSTRAP_FILE__', path)),
+                resolveAwsCeActionArgs(args, { __BOOTSTRAP_FILE__: path }, base.bootstrapKeyPair?.name),
               );
               if (!result.exitCode) {
                 const rows = list(object(JSON.parse(result.stdout)).Instances);

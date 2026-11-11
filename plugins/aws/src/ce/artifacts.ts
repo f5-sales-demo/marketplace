@@ -1,5 +1,6 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { awsCeObservationRegion, canonicalSha256, safeHexEqual } from './canonical';
 import type { AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_SCHEMA_VERSION } from './types';
@@ -28,6 +29,7 @@ const memoryPlans = new Map<string, AwsCePlanEnvelope[]>();
 
 export function verifyAwsCePlan(plan: AwsCePlan): void {
   awsCeObservationRegion(plan);
+  assertAwsBootstrapKeyPair(plan);
   if (plan.schemaVersion !== AWS_CE_SCHEMA_VERSION || plan.intent.schemaVersion !== AWS_CE_SCHEMA_VERSION)
     throw new Error('Persisted AWS CE plan uses an unsupported schema version');
   if (!['native', 'terraform'].includes(plan.engine) || plan.intent.engine !== plan.engine)

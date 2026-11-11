@@ -26,7 +26,7 @@ function fixture() {
     accountId: '123456789012',
     partition: 'aws',
     region: 'ca-west-1',
-    intent: { awsProfile: 'approved' },
+    intent: { awsProfile: 'approved', operation: 'deploy', instance: {} },
     f5CapabilitiesSha256: 'pinned-capabilities',
     image,
     instance: { type: 'm5.2xlarge' },
@@ -210,5 +210,35 @@ test('brownfield preflight retains all six immutable references and rejects miss
     if (!row) throw new Error('fixture reference missing');
     row.state = {};
     expect(() => assertAwsTerraformPreflight(plan, baseline, changed)).toThrow('reference');
+  }
+});
+
+test('Terraform preflight verifies the exact borrowed key binding before deployment creation', () => {
+  const f = fixture();
+  Object.assign(f.plan.intent, { accountId: f.plan.accountId, partition: f.plan.partition, region: f.plan.region });
+  const reference = {
+    name: 'borrowed-key',
+    id: 'key-0123456789abcdef0',
+    region: f.plan.region,
+    publicKeySha256: 'b'.repeat(64),
+  };
+  f.plan.intent.instance.bootstrapKeyPairName = reference.name;
+  f.plan.bootstrapKeyPair = reference;
+  const before = { ...f.baseline, bootstrapKeyPairs: [reference] } as unknown as AwsCeObservation;
+  expect(() => assertAwsTerraformPreflight(f.plan, before, structuredClone(before))).not.toThrow();
+  for (const change of [
+    { name: 'foreign' },
+    { id: 'key-fedcba9876543210' },
+    { region: 'us-west-2' },
+    { publicKeySha256: 'f'.repeat(64) },
+  ]) {
+    const current = structuredClone(before);
+    current.bootstrapKeyPairs = [{ ...reference, ...change }];
+    expect(() => assertAwsTerraformPreflight(f.plan, before, current)).toThrow();
+  }
+  for (const keys of [undefined, [], [reference, reference]]) {
+    const current = structuredClone(before);
+    current.bootstrapKeyPairs = keys;
+    expect(() => assertAwsTerraformPreflight(f.plan, before, current)).toThrow();
   }
 });

@@ -10,9 +10,11 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { WireSiteIntent } from '../../../platform/src/ce/wire-site';
 import type { AwsExecApi } from '../aws/exec';
+import { resolveAwsCeActionArgs } from './action-args';
 import type { AwsCeToolContext } from './artifacts';
 import { loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from './artifacts';
 import { assertAttachmentAvailable } from './attachment-gate';
+import { assertAwsBootstrapKeyPair, revalidateAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import {
   awsCeObservationRegion,
   fingerprintObservation,
@@ -82,6 +84,7 @@ export function assertAwsObservationFresh(
       .map((item) => item.resourceId),
   ],
 ) {
+  assertAwsBootstrapKeyPair(plan, current);
   const region = awsCeObservationRegion(plan);
   const actual = fingerprintObservation(current, relevantResourceIds, region);
   if (!matchesObservationFingerprint(expected, current, relevantResourceIds, region))
@@ -143,17 +146,6 @@ export function assertAwsApplyAllowed(
     request.env.XCSH_CE_ALLOW_DESTROY !== '1'
   )
     throw new Error('Headless AWS CE teardown requires XCSH_CE_ALLOW_DESTROY=1');
-}
-
-function replaceArgs(args: string[], planSha256: string, values: Record<string, string>): string[] {
-  return args.map((arg) => {
-    let result = arg.replaceAll('__PLAN_SHA256__', planSha256);
-    for (const [placeholder, value] of Object.entries(values)) result = result.replaceAll(placeholder, value);
-    if (/__[A-Z0-9_]+__/.test(result)) throw new Error(`AWS action has an unresolved runtime placeholder: ${result}`);
-    if (Array.from(result).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))
-      throw new Error('AWS action argv contains a control character');
-    return result;
-  });
 }
 
 /** Preserve resumability for plans persisted before the ELBv2 service prefix fix. */
@@ -791,6 +783,7 @@ export async function executeAwsCeApply(
       observedOwnedResourceIds: observedOwnedIds(),
       ownedPlanSha256s: ownershipPlanSha256s,
       resourceRegion: plan.region,
+      ...(plan.bootstrapKeyPair ? { bootstrapKeyPairNames: [plan.bootstrapKeyPair.name] } : {}),
       egressMode: plan.egress.mode,
       routingProfile: plan.routing.profile,
       f5Capabilities,
@@ -979,8 +972,13 @@ export async function executeAwsCeApply(
         }
         const args = executableAwsActionArgs(
           action,
-          replaceArgs(action.args, plan.planSha256, checkpoint.resolvedValues),
+          resolveAwsCeActionArgs(
+            action.args,
+            { ...checkpoint.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
+            plan.bootstrapKeyPair?.name,
+          ),
         );
+        if (action.kind === 'instance-run') await revalidateAwsBootstrapKeyPair(plan, api);
         const result =
           action.kind === 'elastic-ip-associate'
             ? await associateAwsCeEip(api, plan, args, signal)

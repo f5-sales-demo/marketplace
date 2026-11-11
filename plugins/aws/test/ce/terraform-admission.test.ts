@@ -292,3 +292,29 @@ it('rejects unresolved preboot administrator device identities before site or bo
   expect(f.bootstrapped).toEqual([]);
   expect(f.ensuredSites).toEqual([]);
 });
+
+it('Terraform admission verifies a borrowed boot key immediately before node creation', async () => {
+  const f = fixture(false, false, false, undefined, undefined, 'borrowed-key');
+  const result = await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {});
+  expect(result.status).toBe('pending-registration');
+  expect(f.keyState.reads).toBe(1);
+  expect([...f.nodes]).toEqual([1]);
+});
+for (const failure of ['changed', 'denied'] as const) {
+  it(`Terraform admission refuses a ${failure} borrowed key after bootstrap preparation and before node apply`, async () => {
+    const f = fixture(false, false, false, undefined, undefined, 'borrowed-key');
+    const runtime = {
+      ...f.runtime,
+      bootstrap: async (...args: Parameters<typeof f.runtime.bootstrap>) => {
+        const value = await f.runtime.bootstrap(...args);
+        f.keyState[failure] = true;
+        return value;
+      },
+    };
+    await expect(
+      admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {}),
+    ).rejects.toThrow('key-pair');
+    expect([...f.nodes]).toEqual([]);
+    expect(f.keyState.reads).toBe(1);
+  });
+}

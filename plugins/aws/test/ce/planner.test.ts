@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { generateKeyPairSync } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Type } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 import { buildAwsNativePrebootSiteIntent } from '../../src/ce/apply';
-import { verifyAwsCePlan } from '../../src/ce/artifacts';
+import { loadAwsPlan, saveAwsDiscovery, verifyAwsCePlan } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
@@ -15,6 +20,7 @@ import {
   AWS_CE_SSM_PARAMETER,
   AWS_CE_TGW_GUIDE_URL,
 } from '../../src/ce/types';
+import { createAwsCePlanTool } from '../../src/tools/aws-ce-plan';
 
 const capabilities: AwsCeF5Capabilities = {
   smsv2ContractVersion: 'v2',
@@ -1331,3 +1337,96 @@ it('rejects administrator key substitution after the plan is approved', () => {
   plan.intent.adminSshPublicKey = diagnosticPublicKey();
   expect(() => verifyAwsCePlan(plan)).toThrow();
 });
+
+it('binds the discovered factory key to native and Terraform node creation without changing bootstrap bytes', () => {
+  const reference = {
+    name: 'factory-key',
+    id: 'key-0123456789abcdef0',
+    region: 'us-east-1',
+    publicKeySha256: 'b'.repeat(64),
+  };
+  const evidence = observation();
+  evidence.bootstrapKeyPairs = [reference];
+  for (const engine of ['native', 'terraform'] as const) {
+    const input = intent({ engine });
+    input.instance.bootstrapKeyPairName = reference.name;
+    const plan = compileAwsCePlan(input, evidence);
+    verifyAwsCePlan(plan);
+    expect(plan.bootstrapKeyPair).toEqual(reference);
+    const run = plan.actions.find((action) => action.kind === 'instance-run');
+    expect(run?.args).toContain('--key-name=factory-key');
+    if (engine === 'terraform') {
+      const bootstrap = '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-only\n';
+      const config = JSON.parse(renderAwsTerraformFoundation(plan, { '1': bootstrap }));
+      expect(config.resource.aws_instance.node_1.key_name).toBe(reference.name);
+      expect(Buffer.from(config.resource.aws_instance.node_1.user_data_base64, 'base64').toString()).toBe(bootstrap);
+      expect(config.resource.aws_key_pair).toBeUndefined();
+    }
+  }
+});
+
+it('rejects a factory key reference outside the complete regional discovery before plan execution', () => {
+  const input = intent();
+  input.instance.bootstrapKeyPairName = 'factory-key';
+  expect(() => compileAwsCePlan(input, observation())).toThrow('key-pair');
+  const evidence = observation();
+  evidence.bootstrapKeyPairs = [
+    { name: 'factory-key', id: 'key-0123456789abcdef0', region: 'us-west-2', publicKeySha256: 'b'.repeat(64) },
+  ];
+  expect(() => compileAwsCePlan(input, evidence)).toThrow('key-pair');
+});
+
+for (const engine of ['native', 'terraform'] as const) {
+  it(`public ${engine} planning persists and reloads the sealed borrowed key reference`, async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'aws-key-public-plan-'));
+    try {
+      let sequence = 0;
+      const sessionManager = {
+        getSessionId: () => directory,
+        getArtifactsDir: () => directory,
+        saveArtifact: async (content: string) => {
+          const id = String(++sequence);
+          await writeFile(join(directory, `${id}.json`), content);
+          return id;
+        },
+        getArtifactPath: async (id: string) => join(directory, `${id}.json`),
+      };
+      const evidence = observation();
+      const reference = {
+        name: `literal __PLAN_SHA256__ \${var.key}`,
+        id: 'key-0123456789abcdef0',
+        region: 'us-east-1',
+        publicKeySha256: 'b'.repeat(64),
+      };
+      evidence.bootstrapKeyPairs = [reference];
+      const id = await saveAwsDiscovery(sessionManager, evidence);
+      if (!id) throw new Error('Public discovery artifact missing');
+      const input = intent({ engine });
+      input.instance.bootstrapKeyPairName = reference.name;
+      const tool = createAwsCePlanTool({ typebox: { Type } } as never);
+      expect(Value.Check(tool.parameters, { discoveryArtifactId: id, intent: input })).toBe(true);
+      const result = await tool.execute('key-plan', { discoveryArtifactId: id, intent: input }, undefined, undefined, {
+        sessionManager,
+      });
+      expect(result.isError).not.toBe(true);
+      const plan = result.details.plan;
+      if (!plan) throw new Error('Public creation plan missing');
+      expect(plan.bootstrapKeyPair).toEqual(reference);
+      expect((await loadAwsPlan(sessionManager, plan.planId, plan.planSha256)).plan).toEqual(plan);
+      const absent = observation();
+      const absentId = await saveAwsDiscovery(sessionManager, absent);
+      if (!absentId) throw new Error('Negative discovery artifact missing');
+      const rejected = await tool.execute(
+        'missing-key',
+        { discoveryArtifactId: absentId, intent: input },
+        undefined,
+        undefined,
+        { sessionManager },
+      );
+      expect(rejected.isError).toBe(true);
+      expect(rejected.details.plan).toBeUndefined();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}

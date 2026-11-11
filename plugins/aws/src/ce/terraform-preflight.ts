@@ -1,6 +1,7 @@
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
+import { assertAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { canonicalSha256, resourceConfiguration } from './canonical';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { captureAwsRevalidationRejection } from './observation-rejection';
@@ -72,6 +73,7 @@ export async function revalidateAwsTerraformPlan(
       observedOwnedResourceIds: ids,
       ownedPlanSha256s: [plan.planSha256],
       resourceRegion: plan.region,
+      ...(plan.bootstrapKeyPair ? { bootstrapKeyPairNames: [plan.bootstrapKeyPair.name] } : {}),
       egressMode: plan.egress.mode,
       routingProfile: plan.routing.profile,
       f5Capabilities,
@@ -136,6 +138,7 @@ export function assertAwsTerraformPreflight(
   baseline: AwsCeObservation,
   current: AwsCeObservation,
 ): void {
+  assertAwsBootstrapKeyPair(plan, current);
   const region = current.regions.filter((item) => item.name === plan.region);
   if (
     current.identity.accountId !== plan.accountId ||

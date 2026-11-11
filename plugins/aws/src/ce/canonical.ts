@@ -134,6 +134,7 @@ export function fingerprintObservation(
       ),
     })),
     resources: resourceConfiguration(observation.resources.filter((resource) => allowlist.has(resource.id))),
+    ...(observation.bootstrapKeyPairs === undefined ? {} : { bootstrapKeyPairs: observation.bootstrapKeyPairs }),
     // The current plan is added to this authorization allowlist at apply time.
     // Actual resource ownership remains covered by the selected resource snapshots.
     research: observation.research,

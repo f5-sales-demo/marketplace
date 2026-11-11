@@ -5,6 +5,7 @@ import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
+import { revalidateAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { canonicalSha256 } from './canonical';
 import { observeAwsResources } from './discovery';
 import { validateAwsRoutingRebind } from './routing-apply';
@@ -372,6 +373,11 @@ export async function createTerraformAwsSiteReplacementDriver(
     }
     await storage.write(`${plan.planId}-terraform-${phase}-plan.json`, { receipt, identities });
     if (phase === 'quiesce') await admission?.(live.quiescence);
+    if (
+      phase === 'launch' &&
+      receipt.changes.some((change) => change.type === 'aws_instance' && change.actions.includes('create'))
+    )
+      await revalidateAwsBootstrapKeyPair(base, scopedAwsApi(raw, base.intent.awsProfile, signal));
   };
   return {
     quiescenceAdmissionVersion: 1,

@@ -137,7 +137,7 @@ export interface AwsCeIntent {
   /** Explicit ingress composes with routing. Omission preserves schema-v2 legacy profile behavior. */
   ingress?: AwsCeIngress;
   image: { productId: typeof AWS_CE_MARKETPLACE_PRODUCT_ID; amiId: string };
-  instance: { type: string; diskGiB: number; instanceProfileArn?: string };
+  instance: { type: string; diskGiB: number; instanceProfileArn?: string; bootstrapKeyPairName?: string };
   securityGroups: Array<{
     name: string;
     ingress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[]; self?: true }>;
@@ -222,6 +222,13 @@ export interface AwsCeResourceObservation {
   state: Record<string, unknown>;
 }
 
+export interface AwsCeBootstrapKeyPair {
+  name: string;
+  id: string;
+  region: string;
+  publicKeySha256: string;
+}
+
 export interface AwsCeObservation {
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
   identity: { accountId: string; partition: AwsCeIntent['partition']; arn: string; awsProfile?: string };
@@ -229,6 +236,7 @@ export interface AwsCeObservation {
   regions: AwsCeRegionObservation[];
   resources: AwsCeResourceObservation[];
   ownershipPlanSha256s: string[];
+  bootstrapKeyPairs?: AwsCeBootstrapKeyPair[];
   f5Capabilities: AwsCeF5Capabilities;
   f5CapabilitiesSha256: string;
   research: {
@@ -342,6 +350,7 @@ export interface AwsCePlanDraft {
   interfaces: AwsCeInterfaceIntent[];
   image: NonNullable<AwsCeRegionObservation['ami']>;
   instance: AwsCeIntent['instance'];
+  bootstrapKeyPair?: AwsCeBootstrapKeyPair;
   egress: AwsCeIntent['egress'];
   routing: AwsCeIntent['routing'];
   securityGroups: AwsCeIntent['securityGroups'];

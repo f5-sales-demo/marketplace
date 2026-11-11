@@ -184,6 +184,12 @@ export function createAwsCePlanTool(pi: PluginInterface) {
           type: Type.String(),
           diskGiB: Type.Number(),
           instanceProfileArn: Type.Optional(Type.String()),
+          bootstrapKeyPairName: Type.Optional(
+            Type.String({
+              description:
+                'Existing EC2 boot key-pair name sealed from regional discovery; separate from the F5 administrator SSH key. CE does not create or delete this key pair.',
+            }),
+          ),
         }),
         securityGroups: Type.Array(
           Type.Object({ name: Type.String(), ingress: Type.Array(rule), egress: Type.Array(rule) }),

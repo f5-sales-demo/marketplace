@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
 import { XCSH_PROVIDER_LOCK_SHA256, XCSH_PROVIDER_VERSION } from '../../../terraform/src/provider-lock';
+import { normalizeAwsBootstrapKeyPairName, selectAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { canonicalSha256, fingerprintObservation } from './canonical';
 import { prepareRecoverableAction } from './create-recovery';
 import {
@@ -163,6 +164,8 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   if (!['native', 'terraform'].includes(engine)) fail('execution engine must be native or terraform');
   staticAzRoutes(input);
 
+  if (input.instance.bootstrapKeyPairName !== undefined)
+    normalizeAwsBootstrapKeyPairName(input.instance.bootstrapKeyPairName);
   const adminSshPublicKey =
     input.adminSshPublicKey === undefined ? undefined : normalizeAwsAdminSshPublicKey(input.adminSshPublicKey);
   const deploymentName = name(input.deploymentName, 'deploymentName');
@@ -1232,6 +1235,7 @@ function compileActions(
         ...(intent.instance.instanceProfileArn
           ? ['--iam-instance-profile', `Arn=${intent.instance.instanceProfileArn}`]
           : []),
+        ...(intent.instance.bootstrapKeyPairName ? [`--key-name=${intent.instance.bootstrapKeyPairName}`] : []),
         '--user-data',
         'file://__BOOTSTRAP_FILE__',
         '--tag-specifications',
@@ -1599,6 +1603,7 @@ function compileActions(
         ...(intent.instance.instanceProfileArn
           ? ['--iam-instance-profile', `Arn=${intent.instance.instanceProfileArn}`]
           : []),
+        ...(intent.instance.bootstrapKeyPairName ? [`--key-name=${intent.instance.bootstrapKeyPairName}`] : []),
         '--user-data',
         'file://__BOOTSTRAP_FILE__',
         '--tag-specifications',
@@ -2307,6 +2312,7 @@ export function compileAwsCePlan(
     intent.platformContext !== observation.f5Capabilities.platformContext
   )
     fail('execution contexts differ from discovery');
+  const bootstrapKeyPair = selectAwsBootstrapKeyPair(intent, observation);
   validateResearch(observation);
   if (canonicalSha256(observation.f5Capabilities) !== observation.f5CapabilitiesSha256)
     fail('F5 capability digest is inconsistent');
@@ -2470,6 +2476,7 @@ export function compileAwsCePlan(
     interfaces: intent.interfaces,
     image: region.ami,
     instance: intent.instance,
+    ...(bootstrapKeyPair === undefined ? {} : { bootstrapKeyPair }),
     egress: intent.egress,
     routing: intent.routing,
     securityGroups: intent.securityGroups,

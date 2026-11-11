@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
+import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
+import { revalidateAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { renderAwsCeCloudInit } from './cloud-init';
 import { assertAwsAdminPrebootDevices, awsInitialAdminSettings } from './initial-admin';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
+import { scopedAwsApi } from './scoped-exec';
 import { loadAwsTerraformBrownfieldBinding } from './terraform-brownfield-binding';
 import { renderAwsTerraformFoundation } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
@@ -66,9 +69,11 @@ export async function admitAwsTerraformSites(
     plan.intent.vpc.mode === 'brownfield'
       ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
       : undefined;
-  const verifyPlacement = async () => {
+  const verifyPlacement = async (receipt: PlanReceipt) => {
     await storage.verify();
     if (placement) await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal);
+    if (receipt.changes.some((change) => change.type === 'aws_instance' && change.actions.includes('create')))
+      await revalidateAwsBootstrapKeyPair(plan, scopedAwsApi(api, plan.intent.awsProfile, signal));
   };
   const initial = renderAwsTerraformFoundation(plan, {}, placement);
   if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
@@ -125,7 +130,7 @@ export async function admitAwsTerraformSites(
       )
         throw new Error('Interrupted Terraform admission requires lifecycle reconciliation');
       await storage.write('terraform-admission-plan.json', receipt);
-      await verifyPlacement();
+      await verifyPlacement(receipt);
       await session.apply(receipt, env, signal);
       checkpoint.configurationSha256 = receipt.configurationSha256;
       await save();
@@ -226,7 +231,7 @@ export async function admitAwsTerraformSites(
           );
         await storage.write('terraform-admission-plan.json', receipt);
         if (!receipt.noChanges) {
-          await verifyPlacement();
+          await verifyPlacement(receipt);
           await session.apply(receipt, env, signal);
         }
         checkpoint.launchedAtByNode[String(node)] ??= new Date().toISOString();

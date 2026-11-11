@@ -621,3 +621,31 @@ it('binds preboot DHCP configuration to captured MACs, explicit devices and MTU 
     expect(() => buildAwsNativePrebootSiteIntent(plan, [1], captured)).toThrow(/device/);
   }
 });
+
+it('native preflight rejects changed borrowed key identity, digest, region and account before mutation', () => {
+  const reference = {
+    name: 'fixture-key',
+    id: 'key-0123456789abcdef0',
+    region: intent.region,
+    publicKeySha256: 'b'.repeat(64),
+  };
+  const input = structuredClone(intent);
+  input.instance.bootstrapKeyPairName = reference.name;
+  const before = structuredClone(observation);
+  before.bootstrapKeyPairs = [reference];
+  const plan = compileAwsCePlan(input, before);
+  expect(() => assertAwsObservationFresh(plan, structuredClone(before))).not.toThrow();
+  for (const change of [
+    { name: 'different' },
+    { id: 'key-fedcba9876543210' },
+    { region: 'us-west-2' },
+    { publicKeySha256: 'f'.repeat(64) },
+  ]) {
+    const current = structuredClone(before);
+    current.bootstrapKeyPairs = [{ ...reference, ...change }];
+    expect(() => assertAwsObservationFresh(plan, current)).toThrow();
+  }
+  const foreign = structuredClone(before);
+  foreign.identity.accountId = 'example-foreign-account';
+  expect(() => assertAwsObservationFresh(plan, foreign)).toThrow();
+});

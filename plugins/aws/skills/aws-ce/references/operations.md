@@ -66,3 +66,25 @@ network address plus one and AmazonProvidedDNS at the VPC network address plus t
 so an exact VPC CIDR is required. CE configuration is installed before bootstrap using
 the pinned SMSv2 schema, then correlated with registered device and MAC identities.
 Configuration evidence does not establish current operational state, freshness, or traffic.
+
+## Existing EC2 bootstrap key pair
+
+For factory boot access, optionally supply one existing regional EC2 key-pair name as
+`aws_compute_discover.bootstrapKeyPairNames` with an explicit `resourceRegion`. Set the same
+name in `aws_ce_plan.intent.instance.bootstrapKeyPairName`. Discovery calls
+`ec2:DescribeKeyPairs` with `--include-public-key`; the selected AWS profile must allow that
+read in the execution region. The plan records the exact name, regional key-pair ID, and
+SHA-256 of the normalized public key. Private key material is never an input or plan field.
+
+Native RunInstances uses the exact key name; Terraform sets `aws_instance.key_name` with
+literal escaping. Deployment preflight and replacement creation recheck the sealed identity.
+Missing, unauthorized, duplicate, malformed, or changed evidence prevents creation. A completed
+replacement can be observed without recreating or revalidating a retired borrowed key.
+CE teardown preserves the borrowed key pair; its owner handles custody and retirement.
+
+This EC2 reference is separate from `adminSshPublicKey`, which configures the F5 site
+administrator credential. F5-issued bootstrap bytes remain unchanged. Whether an existing
+Marketplace image installs the EC2 key and permits factory SSH requires live qualification;
+the key-pair API and a successful launch do not establish guest access or CE readiness.
+See the public [DescribeKeyPairs API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeKeyPairs.html)
+and [RunInstances API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_RunInstances.html).

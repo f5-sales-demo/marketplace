@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { AwsExecApi } from '../../src/aws/exec';
+import { parseAwsBootstrapKeyPairs } from '../../src/ce/bootstrap-key-pair';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { createNativeAwsSiteReplacementDriver } from '../../src/ce/native-site-replacement';
 import { compileAwsSiteReplacement } from '../../src/ce/site-replacement';
@@ -29,7 +31,7 @@ test('native replacement refuses a Terraform source plan before any cloud reques
   expect(calls).toBe(0);
 });
 
-async function fixture() {
+async function fixture(keyName?: string) {
   const original = foundationPlan();
   const { planId: _id, planSha256: _hash, ...draft } = original;
   const source = {
@@ -68,6 +70,25 @@ async function fixture() {
       },
     ],
   };
+  const bytes = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).subarray(-32);
+  const wire = (part: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(part.length);
+    return Buffer.concat([length, part]);
+  };
+  const row = {
+    KeyName: keyName,
+    KeyPairId: 'key-0123456789abcdef0',
+    KeyType: 'ed25519',
+    PublicKey: `ssh-ed25519 ${Buffer.concat([wire(Buffer.from('ssh-ed25519')), wire(bytes)]).toString('base64')}`,
+  };
+  if (keyName !== undefined) {
+    source.intent.instance.bootstrapKeyPairName = keyName;
+    source.actions[0].args.push(`--key-name=${keyName}`);
+    Object.assign(source, {
+      bootstrapKeyPair: parseAwsBootstrapKeyPairs({ KeyPairs: [row] }, source.region, [keyName])[0],
+    });
+  }
   const hash = canonicalSha256(source);
   const base = { ...source, planId: `aws-ce-${hash.slice(0, 24)}`, planSha256: hash } as AwsCePlan;
   const { binding } = siteBindings(base)[0];
@@ -140,6 +161,8 @@ async function fixture() {
   };
   const events: string[] = [];
   const flags = {
+    changedKey: false,
+    deniedKey: false,
     wrongAccount: false,
     partial: false,
     duplicate: false,
@@ -153,7 +176,7 @@ async function fixture() {
     exec: async (_command, args, options) => {
       options?.signal?.throwIfAborted();
       expect(args[args.indexOf('--profile') + 1]).toBe('ce-profile');
-      expect(args[args.indexOf('--region') + 1]).toBe('us-east-1');
+      if (args[0] !== 'sts') expect(args[args.indexOf('--region') + 1]).toBe('us-east-1');
       const operation = args[1];
       events.push(operation);
       let value: unknown = {};
@@ -162,7 +185,10 @@ async function fixture() {
           Account: flags.wrongAccount ? '999999999999' : base.accountId,
           Arn: `arn:aws:sts::${base.accountId}:assumed-role/test/user`,
         };
-      else if (operation === 'describe-instances') {
+      else if (operation === 'describe-key-pairs') {
+        if (flags.deniedKey) return { stdout: '', stderr: 'AccessDenied', exitCode: 1 };
+        value = { KeyPairs: [{ ...row, KeyPairId: flags.changedKey ? 'key-fedcba9876543210' : row.KeyPairId }] };
+      } else if (operation === 'describe-instances') {
         const filtered = args.includes('--filters');
         const rows = filtered
           ? fresh && !flags.invisibleLaunch
@@ -190,6 +216,7 @@ async function fixture() {
           eni.Status = 'available';
         }
       } else if (operation === 'run-instances') {
+        if (keyName !== undefined) expect(args).toContain(`--key-name=${keyName}`);
         const path = args[args.indexOf('--user-data') + 1].slice(7);
         expect((await stat(path)).mode & 0o777).toBe(0o600);
         expect(await readFile(path, 'utf8')).toBe('#cloud-config\nfixture: private-bootstrap\n');
@@ -418,3 +445,27 @@ test('native shutdown already in progress is reported as partial before reconcil
     await f.cleanup();
   }
 });
+
+test('native replacement preserves a literal borrowed key name through both runtime substitutions', async () => {
+  const f = await fixture(`__PLAN_SHA256__ __BOOTSTRAP_FILE__ \${var.key}`);
+  try {
+    await f.driver.quiesce(f.plan);
+    expect(await f.launch()).toEqual({ 'ce-1': 'i-87654321' });
+  } finally {
+    await f.cleanup();
+  }
+});
+for (const failure of ['changedKey', 'deniedKey'] as const) {
+  test(`native replacement rejects ${failure} before launching or persisting a launch request`, async () => {
+    const f = await fixture('borrowed-key');
+    try {
+      await f.driver.quiesce(f.plan);
+      f.flags[failure] = true;
+      await expect(f.launch()).rejects.toThrow('key-pair');
+      expect(f.events).not.toContain('run-instances');
+      expect((await readdir(f.storage.directory)).some((name) => name.endsWith('-launch.json'))).toBe(false);
+    } finally {
+      await f.cleanup();
+    }
+  });
+}

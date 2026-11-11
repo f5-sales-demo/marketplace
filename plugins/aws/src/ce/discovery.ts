@@ -1,4 +1,5 @@
 import type { AwsExecApi } from '../aws/exec';
+import { normalizeAwsBootstrapKeyPairName, observeAwsBootstrapKeyPairs } from './bootstrap-key-pair';
 import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './canonical';
 import { observeStandardVcpuCapacity, observeTaggedResourceCapacity } from './capacity';
 import { scopedAwsApi } from './scoped-exec';
@@ -32,6 +33,7 @@ export interface AwsComputeDiscoveryInput {
   observedOwnedResourceIds?: string[];
   ownedPlanSha256s?: string[];
   resourceRegion?: string;
+  bootstrapKeyPairNames?: string[];
   egressMode?: AwsCeEgressMode;
   routingProfile?: AwsCeRoutingProfile;
   f5Capabilities: AwsCeF5Capabilities;
@@ -114,6 +116,17 @@ function regionMatchesPartition(region: string, partition: AwsComputeDiscoveryIn
 }
 
 function validateInput(input: AwsComputeDiscoveryInput): string[] {
+  if (input.bootstrapKeyPairNames !== undefined) {
+    if (
+      !Array.isArray(input.bootstrapKeyPairNames) ||
+      input.bootstrapKeyPairNames.length !== 1 ||
+      !input.resourceRegion ||
+      !REGION.test(input.resourceRegion) ||
+      !regionMatchesPartition(input.resourceRegion, input.partition)
+    )
+      throw new Error('One explicit region-local EC2 bootstrap key-pair reference is required');
+    input.bootstrapKeyPairNames.forEach(normalizeAwsBootstrapKeyPairName);
+  }
   if (input.vpcMode !== undefined && !['greenfield', 'brownfield'].includes(input.vpcMode))
     throw new Error('Invalid VPC discovery mode');
   if (!ACCOUNT.test(input.accountId)) throw new Error('accountId must be a 12-digit AWS account ID');
@@ -865,6 +878,9 @@ export async function discoverAwsCompute(
   });
   const selectedRegion =
     input.resourceRegion ?? regions.find((region) => region.enabled)?.name ?? rawRegions[0]?.name ?? 'us-east-1';
+  const bootstrapKeyPairs = input.bootstrapKeyPairNames
+    ? await observeAwsBootstrapKeyPairs(api, selectedRegion, input.bootstrapKeyPairNames)
+    : undefined;
   const resources = await observeAwsResources(
     api,
     [...input.brownfieldResourceIds, ...(input.observedOwnedResourceIds ?? [])],
@@ -883,9 +899,11 @@ export async function discoverAwsCompute(
     'aws service-quotas get-service-quota',
     'aws service-quotas list-service-quotas',
     'aws marketplace-agreement search-agreements',
+    ...(bootstrapKeyPairs ? ['aws ec2 describe-key-pairs --include-public-key'] : []),
   ];
   return {
     schemaVersion: AWS_CE_SCHEMA_VERSION,
+    ...(bootstrapKeyPairs === undefined ? {} : { bootstrapKeyPairs }),
     identity: {
       accountId: input.accountId,
       partition: input.partition,

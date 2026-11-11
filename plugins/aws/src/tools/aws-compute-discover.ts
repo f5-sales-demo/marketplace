@@ -30,6 +30,14 @@ export function createAwsComputeDiscoverTool(pi: PluginInterface, makeApi: (cwd:
       observedOwnedResourceIds: Type.Optional(Type.Array(Type.String())),
       ownedPlanSha256s: Type.Optional(Type.Array(Type.String())),
       resourceRegion: Type.Optional(Type.String()),
+      bootstrapKeyPairNames: Type.Optional(
+        Type.Array(Type.String(), {
+          minItems: 1,
+          maxItems: 1,
+          description:
+            'One existing EC2 boot key-pair name; requires explicit resourceRegion and DescribeKeyPairs permission. The caller retains key custody.',
+        }),
+      ),
       egressMode: Type.Optional(
         Type.Union(['elastic-ip', 'nat-gateway', 'firewall', 'proxy'].map((value) => Type.Literal(value))),
       ),

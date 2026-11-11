@@ -1,10 +1,11 @@
 import { afterEach } from 'bun:test';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { WireSiteIntent } from '../../../platform/src/ce/wire-site';
 import type { TerraformSession } from '../../../terraform/src/service';
+import { parseAwsBootstrapKeyPairs } from '../../src/ce/bootstrap-key-pair';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { qualifyAwsTerraformBrownfieldPlacement } from '../../src/ce/terraform-brownfield-placement';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
@@ -23,6 +24,7 @@ export function admissionFixture(
   brownfield = false,
   configureInterfaces?: (interfaces: AwsCeIntent['interfaces']) => void,
   adminSshPublicKey?: string,
+  bootstrapKeyPairName?: string,
 ) {
   const brownfieldFixture = brownfield ? brownfieldPlacementFixture() : undefined;
   const base = brownfieldFixture?.plan ?? foundationPlan(ha);
@@ -36,11 +38,31 @@ export function admissionFixture(
         addresses: item.subnets.map((subnet) => `${subnet.cidr?.split('/')[0].replace(/\.0$/, '.20')}/24`),
       };
   }
+  const bytes = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).subarray(-32);
+  const wire = (part: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(part.length);
+    return Buffer.concat([length, part]);
+  };
+  const keyRow = {
+    KeyName: bootstrapKeyPairName,
+    KeyPairId: 'key-0123456789abcdef0',
+    KeyType: 'ed25519',
+    PublicKey: `ssh-ed25519 ${Buffer.concat([wire(Buffer.from('ssh-ed25519')), wire(bytes)]).toString('base64')}`,
+  };
+  const keyState = { changed: false, denied: false, reads: 0 };
+  if (bootstrapKeyPairName !== undefined) {
+    base.intent.instance.bootstrapKeyPairName = bootstrapKeyPairName;
+    base.bootstrapKeyPair = parseAwsBootstrapKeyPairs({ KeyPairs: [keyRow] }, base.intent.region, [
+      bootstrapKeyPairName,
+    ])[0];
+  }
   const { planId: _id, planSha256: _sha, ...draft } = base;
   const full = {
     ...draft,
     deploymentName: base.intent.deploymentName,
     accountId: base.intent.accountId,
+    partition: base.intent.partition,
     region: base.intent.region,
   };
   const planSha256 = canonicalSha256(full);
@@ -148,6 +170,16 @@ export function admissionFixture(
         if (!row) throw new Error('unexpected brownfield reference');
         return { exitCode: 0, stderr: '', stdout: JSON.stringify(row.state) };
       }
+      if (args[1] === 'describe-key-pairs') {
+        keyState.reads++;
+        return {
+          exitCode: keyState.denied ? 1 : 0,
+          stderr: keyState.denied ? 'AccessDenied' : '',
+          stdout: JSON.stringify({
+            KeyPairs: [{ ...keyRow, KeyPairId: keyState.changed ? 'key-fedcba9876543210' : keyRow.KeyPairId }],
+          }),
+        };
+      }
       return {
         exitCode: 0,
         stderr: '',
@@ -208,6 +240,7 @@ export function admissionFixture(
   };
   return {
     plan,
+    keyState,
     brownfieldObservation: brownfieldFixture?.observation,
     session: session as TerraformSession,
     storage,

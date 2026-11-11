@@ -178,6 +178,7 @@ export function renderAwsTerraformFoundation(
       instance_type: intent.instance.type,
       user_data_base64: Buffer.from(bootstrap).toString('base64'),
       user_data_replace_on_change: true,
+      ...(intent.instance.bootstrapKeyPairName ? { key_name: literal(intent.instance.bootstrapKeyPairName) } : {}),
       ...(intent.instance.instanceProfileArn
         ? { iam_instance_profile: intent.instance.instanceProfileArn.split('/').at(-1) }
         : {}),
