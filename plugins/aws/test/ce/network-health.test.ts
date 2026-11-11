@@ -217,6 +217,7 @@ function failoverFixture() {
   f.plan.schemaVersion = AWS_CE_SCHEMA_VERSION;
   f.plan.intent = {
     ...f.plan.intent,
+    instance: { type: 'm5.2xlarge', diskGiB: 80, bootstrapKeyPairName: 'demo-bootstrap' },
     schemaVersion: AWS_CE_SCHEMA_VERSION,
     engine: f.plan.engine,
     siteName: f.plan.siteName,

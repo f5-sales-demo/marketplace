@@ -27,6 +27,9 @@ command -v bun >/dev/null 2>&1 || {
   exit 2
 }
 
+# Exercise fresh-checkout setup ordering and fail-closed frozen-install behavior.
+bun test tests/hermetic-dependency-precondition.test.ts || exit 1
+
 # The lockfiles are not enough: an existing workspace can remain physically linked to an
 # obsolete xcsh/provider graph and make source tests exercise different code than the
 # manifests specify. Repair from the frozen locks before any suite runs, then fail if the

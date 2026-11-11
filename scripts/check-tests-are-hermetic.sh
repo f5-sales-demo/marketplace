@@ -41,6 +41,31 @@ if ! bash scripts/check-plugin-runtime-dependencies.sh --repair; then
   exit 1
 fi
 
+# Runtime verification covers a subset of plugins. The independence job must also
+# install the shared agent parser and EVERY Bun-tested plugin from their locks.
+# Complete this before adding sleeping cloud stubs: installation is a precondition,
+# not a test, and a failed install must never become a misleading hermeticity error.
+if [ ! -f scripts/agent-validation-runtime/bun.lock ]; then
+  echo "FATAL: agent-validation-runtime has no bun.lock" >&2
+  exit 1
+fi
+if ! (cd scripts/agent-validation-runtime && bun install --frozen-lockfile); then
+  echo "FATAL: dependency installation failed for agent-validation-runtime" >&2
+  exit 1
+fi
+for dir in plugins/*/; do
+  plugin="$(basename "$dir")"
+  find "$dir" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q . || continue
+  if [ ! -f "$dir/bun.lock" ]; then
+    printf 'FATAL: %s has Bun tests but no bun.lock\n' "$plugin" >&2
+    exit 1
+  fi
+  if ! (cd "$dir" && bun install --frozen-lockfile); then
+    printf 'FATAL: dependency installation failed for %s\n' "$plugin" >&2
+    exit 1
+  fi
+done
+
 STUB_BIN="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN"' EXIT
 
