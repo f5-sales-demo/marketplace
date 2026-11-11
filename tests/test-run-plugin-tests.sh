@@ -4,6 +4,7 @@ set -euo pipefail
 SOURCE_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORKFLOW="$SOURCE_ROOT/.github/workflows/validate-plugins.yml"
 INSTALLER="$SOURCE_ROOT/scripts/install-ci-bun.sh"
+SETUP_ACTION="$SOURCE_ROOT/.github/actions/setup-plugin-tests/action.yml"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
@@ -22,12 +23,40 @@ else
   fail "plugin CI must use current Bun 1.4.4"
 fi
 
-if grep -Fq 'run: ./scripts/install-ci-bun.sh' "$WORKFLOW" &&
-  ! grep -Fq 'oven-sh/setup-bun' "$WORKFLOW"; then
-  pass "plugin CI uses the repository-owned Bun installer"
+uses_owned_bun_installer() {
+  local workflow="$1" action="$2"
+  grep -Fq 'uses: ./.github/actions/setup-plugin-tests' "$workflow" &&
+    grep -Fq 'using: composite' "$action" &&
+    grep -Fq 'run: ./scripts/install-ci-bun.sh' "$action" &&
+    ! grep -Fq 'oven-sh/setup-bun' "$workflow" &&
+    ! grep -Fq 'oven-sh/setup-bun' "$action"
+}
+
+if uses_owned_bun_installer "$WORKFLOW" "$SETUP_ACTION"; then
+  pass "plugin CI uses the repository-owned Bun installer through isolated composite setup"
 else
-  fail "plugin CI must avoid setup-bun's shared runner-home installation"
+  fail "plugin CI must use isolated composite setup and avoid setup-bun's shared runner-home installation"
 fi
+
+printf 'uses: ./.github/actions/setup-plugin-tests\n' >"$WORK/setup-workflow.yml"
+printf 'using: composite\nrun: ./scripts/install-ci-bun.sh\n' >"$WORK/setup-action.yml"
+uses_owned_bun_installer "$WORK/setup-workflow.yml" "$WORK/setup-action.yml" ||
+  fail "isolated composite installer fixture must pass"
+for bad in shared-workflow shared-action missing-installer wrong-action not-composite; do
+  cp "$WORK/setup-workflow.yml" "$WORK/bad-workflow.yml"
+  cp "$WORK/setup-action.yml" "$WORK/bad-action.yml"
+  case "$bad" in
+  shared-workflow) printf 'uses: oven-sh/setup-bun\n' >>"$WORK/bad-workflow.yml" ;;
+  shared-action) printf 'uses: oven-sh/setup-bun\n' >>"$WORK/bad-action.yml" ;;
+  missing-installer) printf 'using: composite\n' >"$WORK/bad-action.yml" ;;
+  wrong-action) printf 'uses: ./.github/actions/other\n' >"$WORK/bad-workflow.yml" ;;
+  not-composite) printf 'run: ./scripts/install-ci-bun.sh\n' >"$WORK/bad-action.yml" ;;
+  esac
+  if uses_owned_bun_installer "$WORK/bad-workflow.yml" "$WORK/bad-action.yml"; then
+    fail "invalid setup contract must reject: $bad"
+  fi
+done
+pass "composite setup rejects shared installations and missing installer bindings"
 
 if [ -x "$INSTALLER" ] &&
   grep -Fq 'RUNNER_TEMP' "$INSTALLER" &&
