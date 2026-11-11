@@ -7,6 +7,8 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NoReturn, Protocol
 
+import psutil
+
 from .gcp_guest_session import GuestGuards, GuestOptions, GuestSession
 from .guest_control import clock_ms, decode_guest_command, integer_type
 
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .gcp_guest_session import GuestBinding
-    from .guest_control import ControlPeer, GuestControlPort
+    from .guest_control import ControlPeer
 
 
 def refuse(message: str) -> NoReturn:
@@ -80,7 +82,7 @@ class ParentGuestGuards:
         self.failed = False
 
     def _check(self, guard: str, role: str | None = None) -> None:
-        if self.failed:
+        if self.failed and not (self.closing and guard == "inputs"):
             msg = "Original parent guest guard retired"
             refuse(msg)
         try:
@@ -131,8 +133,6 @@ class ParentGuestGuards:
 
     def begin_close(self) -> None:
         """Retire cloud commands and retain only the fixed original close checks."""
-        if self.failed:
-            refuse("Original parent guest guard retired")
         self.closing = True
 
     def inputs(self) -> None:
@@ -272,14 +272,33 @@ class GuestControlWorker:
     def serve_once(self) -> dict:
         """Consume one parent command while nested original guards use this port."""
         deadline = min(self.deadlines[1], self.monotonic() + 60000)
-        value = self.port.receive(deadline)
-        result = self.dispatch(value)
+        try:
+            value = self.port.receive(deadline)
+            command = decode_guest_command(value)
+        except BaseException:
+            self.failed = True
+            raise
+        before = len(self.session.retained)
+        try:
+            result = self.dispatch(command)
+        except (ValueError, EOFError, OSError, RuntimeError, psutil.Error) as error:
+            if self.sequence != command["id"]:
+                raise
+            result = {
+                "type": "command-failure",
+                "id": self.sequence,
+                "operation": command["operation"],
+                "anchor": self.anchor,
+                "guestAcceptanceComplete": False,
+                "errorType": type(error).__name__,
+                "evidence": [dict(item) for item in self.session.retained[before:]],
+            }
         self.port.send(result, deadline)
         return result
 
 
 def open_guest_control_worker(
-    port: GuestControlPort,
+    port: ControlPeer,
     root: Path,
     binding: GuestBinding,
     executable: Path,

@@ -291,3 +291,75 @@ def test_worker_uses_original_bound_methods_after_attribute_replacement(
         is True
     )
     assert guest.calls == [("discover", "root"), ("capture", "vpm", None)]
+
+
+def test_failed_cloud_guard_keeps_only_verified_original_input_closure_authority(
+    binding,
+):
+    peer = Peer()
+    now = [1000]
+    guards = ParentGuestGuards(
+        peer, binding, 2000, closure_deadline_ms=2500, monotonic=lambda: now[0]
+    )
+    peer.change = {"approved": False}
+    with pytest.raises(ValueError, match="verification refused"):
+        guards.original(binding)
+    assert guards.failed
+    peer.change = {}
+    now[0] = 2001
+    guards.begin_close()
+    guards.inputs()
+    assert guards.failed
+    with pytest.raises(ValueError, match=r"retired|closing"):
+        guards.original(binding)
+
+
+def test_valid_failed_command_retains_partial_evidence_and_can_close_without_replay(
+    binding,
+):
+    class FailingGuest(Guest):
+        def run(self, kind: str, *, container_id: str | None = None) -> bytes:
+            super().run(kind, container_id=container_id)
+            message = "Incomplete original capture"
+            raise ValueError(message)
+
+    peer = Peer()
+    guest = FailingGuest(binding)
+    worker = GuestControlWorker(peer, guest, 100000, monotonic=lambda: 1000)
+    peer.incoming = {
+        "type": "command",
+        "id": 1,
+        "operation": "capture",
+        "kind": "vpm-journal",
+    }
+    failed = worker.serve_once()
+    assert failed["type"] == "command-failure"
+    assert failed["guestAcceptanceComplete"] is False
+    assert failed["errorType"] == "ValueError"
+    assert failed["evidence"][0]["truncated"] is True
+    assert worker.failed
+    peer.incoming = {"type": "command", "id": 2, "operation": "close"}
+    assert worker.serve_once()["closed"] is True
+    assert len(guest.calls) == 1
+    assert worker.failed
+
+
+def test_malformed_serve_command_permanently_retires_capture_before_any_guest_work(
+    binding,
+):
+    peer = Peer()
+    guest = Guest(binding)
+    worker = GuestControlWorker(peer, guest, 100000, monotonic=lambda: 1000)
+    peer.incoming = {
+        "type": "command",
+        "id": 1,
+        "operation": "capture",
+        "kind": "vpm; shell",
+    }
+    with pytest.raises(ValueError, match="capture kind"):
+        worker.serve_once()
+    assert worker.failed
+    peer.incoming = {"type": "command", "id": 1, "operation": "capture", "kind": "vpm"}
+    with pytest.raises(ValueError, match="retired"):
+        worker.serve_once()
+    assert not guest.calls

@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.78 adds the pinned standalone GCP guest worker and original
+  parent control/FIFO foundation. Exact request, source, executable and descriptor
+  checks preserve failed capture evidence while allowing verified original closure.
+  Installed default capture remains held pending integration and live qualification.
+
 - **`terraform`** v2.4.77 projects exactly reviewed managed/data state fields
   while preserving foreign-state accounting and sensitive-field refusal. Guest
   control uses typed original methods and refuses closure at its fixed deadline.

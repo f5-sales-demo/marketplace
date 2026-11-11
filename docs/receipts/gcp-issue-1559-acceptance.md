@@ -1422,3 +1422,12 @@ three native runtime builds/typechecks and configured source checks pass.
 The failed CI run remains retained; passing required CI for the repaired source
 remains a delivery gate. Full native parent/default capture, managed guest and
 all live/runtime, review, publication and installation gates remain open.
+
+Attempt 452 adds [pinned guest entrypoint and original control transport](gcp-pinned-guest-entrypoint-20261111.md).
+The real standalone worker verifies complete source/input/descriptor identities,
+compiles captured bytes without cache substitution, and refuses false/numeric
+approval or denied input guards before SSH opens. Parent/FIFO control preserves
+original budgets, precise identities and partial failures; only verified original
+closure remains after failed capture. Original-process installed binding/default
+capture, positive managed guest/live/runtime and every remaining full lifecycle,
+networking, review, publication and installation gate remain open.

@@ -228,3 +228,17 @@ def test_schema_must_be_an_integer_and_malformed_frame_retires_port(schema):
     finally:
         left.close()
         right.close()
+
+
+def test_finite_json_number_overflow_refuses_and_permanently_retires_port():
+    left, right, a, _b = ports()
+    try:
+        raw = frame(message={"value": 1})[4:].replace(b'"value": 1', b'"value": 1e999')
+        right.sendall(struct.pack(">I", len(raw)) + raw)
+        with pytest.raises(ValueError, match="Nonfinite"):
+            a.receive(deadline())
+        with pytest.raises(ValueError, match="retired"):
+            a.send({"ok": True}, deadline())
+    finally:
+        left.close()
+        right.close()

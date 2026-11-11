@@ -11,6 +11,7 @@ const names = [
   'gcp_guest_session.py',
   'guest_control.py',
   'guest_worker.py',
+  'guest_entrypoint.py',
   'gcp_provider_process.py',
   'gcp_provider_reader.py',
 ];
@@ -63,5 +64,14 @@ test('same-byte source aliases and replacements cannot inherit admitted script i
   }
   await rm(path);
   await symlink(`${path}.original`, path);
+  await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
+});
+
+test('installed source admission refuses a missing or changed standalone guest entrypoint', async () => {
+  const scripts = await fixture();
+  const path = join(scripts, 'guest_entrypoint.py');
+  await writeFile(path, 'raise RuntimeError("foreign entrypoint")\n');
+  await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
+  await rm(path);
   await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
 });

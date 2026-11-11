@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import select
@@ -48,6 +49,13 @@ def _pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
             refuse(msg)
         result[key] = value
     return result
+
+
+def _finite_float(raw: str) -> float:
+    value = float(raw)
+    if not math.isfinite(value):
+        refuse("Nonfinite original guest control value")
+    return value
 
 
 def integer_type(value: object) -> TypeGuard[int]:
@@ -184,6 +192,7 @@ class GuestControlPort:
             value = json.loads(
                 self._read(size, deadline).decode("utf-8", errors="strict"),
                 object_pairs_hook=_pairs,
+                parse_float=_finite_float,
                 parse_constant=lambda _value: (_ for _ in ()).throw(
                     ValueError("Nonfinite original guest control value")
                 ),
