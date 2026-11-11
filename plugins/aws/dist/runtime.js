@@ -1063,7 +1063,9 @@ function parseAwsBootstrapKeyPairs(value, region, requested) {
     ) {
       throw new Error('Foreign, duplicate or unresolved EC2 bootstrap key-pair identity');
     }
-    const publicKey = normalizeAwsAdminSshPublicKey(row.PublicKey);
+    const publicKey = normalizeAwsAdminSshPublicKey(
+      typeof row.PublicKey === 'string' ? row.PublicKey.trim() : row.PublicKey,
+    );
     if (
       !['rsa', 'ed25519'].includes(String(row.KeyType)) ||
       (row.KeyType === 'rsa' ? !publicKey.startsWith('ssh-rsa ') : !publicKey.startsWith('ssh-ed25519 '))

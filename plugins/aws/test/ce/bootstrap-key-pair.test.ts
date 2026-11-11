@@ -12,6 +12,7 @@ import {
 } from '../../src/ce/bootstrap-key-pair';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { discoverAwsCompute } from '../../src/ce/discovery';
+import { normalizeAwsAdminSshPublicKey } from '../../src/ce/initial-admin';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
 import type { AwsCeObservation, AwsCePlan } from '../../src/ce/types';
 import { createAwsCePlanTool } from '../../src/tools/aws-ce-plan';
@@ -239,4 +240,15 @@ it('escapes Terraform template syntax while preserving the exact EC2 key name an
   const config = JSON.parse(renderAwsTerraformFoundation(plan, { '1': bootstrap }));
   expect(config.resource.aws_instance.node_1.key_name).toBe(`__PLAN_SHA256__ $\${var.key} %%{if true}`);
   expect(Buffer.from(config.resource.aws_instance.node_1.user_data_base64, 'base64').toString()).toBe(bootstrap);
+});
+
+it('accepts AWS-decorated public keys with a key-name comment and one terminal newline', () => {
+  const decorated = `${publicKey} fixture-key-name\n`;
+  expect(parseAwsBootstrapKeyPairs({ KeyPairs: [{ ...row, PublicKey: decorated }] }, region, [name])).toEqual([
+    binding,
+  ]);
+  expect(() => normalizeAwsAdminSshPublicKey(decorated)).toThrow();
+  for (const malformed of [`ssh-ed25519\n${publicKey.split(' ')[1]}`, `${publicKey}\0`]) {
+    expect(() => parseAwsBootstrapKeyPairs({ KeyPairs: [{ ...row, PublicKey: malformed }] }, region, [name])).toThrow();
+  }
 });
