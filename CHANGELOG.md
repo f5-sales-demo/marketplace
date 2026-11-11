@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.71 binds original GCP Site and Token API identities to
+  shared-runner creation hashes, verifies declared labels and the Google provider
+  marker, and refuses state changes while preserving bootstrap admission holds.
+
 - **`gcloud` 1.7.42 / `terraform` 2.4.70** select authenticated Google 8.11.0
   artifacts and explicit binary-bound reader profiles while preserving historical
   provider locks and refusing ambiguous provider-family selection.

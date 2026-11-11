@@ -1,3 +1,5 @@
+export { collectOriginalGcpTerraformBootstrap, readOriginalGcpTerraformBootstrapJwt } from './gcp-bootstrap-evidence';
+
 import type { CeEventBus } from '../../platform/src/ce/service';
 import { assertInstalledRuntime, createInstalledRuntimeResolver } from './installed-runtime';
 import { createCeTerraformService, registerCeTerraformService, requestPlatform } from './service';

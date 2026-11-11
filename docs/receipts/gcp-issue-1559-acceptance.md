@@ -1332,3 +1332,17 @@ typed teardown, empty destroy, two non-submitting resumes and 28 independent
 group absences. No managed cloud resource changed. Full managed insert,
 bootstrap/default capture, actual expiry, native/Terraform live acceptance and
 delivery remain open.
+
+Attempts 435 and 436 retain [owned Site/Token creation evidence](gcp-terraform-bootstrap-creation-20261110.md).
+The latest provider creation hashes match original API resource UIDs. The original
+field capture refused Platform-added labels and remains failed. A separately
+reviewed cleanup successor retained positive metadata, verified both objects
+absent, empty typed destroy, stable empty state, two non-submitting resumes and
+25 independent executor-group absences, with zero GCP managed resources created.
+Terraform plugin 2.4.71 adds a restricted original-state/API collector with exact
+owned labels, Google marker and GCP wire checks, stable state across reads and
+final JWT freshness. Eight failing-first regressions pass; bootstrap qualification
+remains false. Fresh changed-collector composition and post-create no-change
+planning, original VM/token/NIC/lifetime joins, durable single-use checkout, full
+installed capture, actual expiry, all native/Terraform live/runtime and delivery
+gates remain open. No failed flag, historical receipt or publication hold cleared.

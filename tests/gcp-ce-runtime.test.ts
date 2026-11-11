@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from 'bun:test';
+import { afterEach, expect, it, spyOn } from 'bun:test';
 import { copyFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -57,42 +57,51 @@ it('isolated installed GCloud tools expose deploy review and refuse unapproved o
       execute: (...args: unknown[]) => Promise<{ isError?: boolean; details: { mutationAttempted?: boolean } }>;
     }
   >();
-  await (await import(runtime)).default({
-    events: {
-      on: () => () => {},
-      emit: () => {
-        throw new Error('must not request cloud service');
-      },
-    },
-    setLabel: () => {},
-    registerTool: (tool: { name: string } & Parameters<typeof tools.set>[1]) => tools.set(tool.name, tool),
-    integrations: { register: () => ({ get: async () => ({ state: 'ready' }) }) },
-    presentation: { withPresentation: (tool: unknown) => tool },
-    typebox: {
-      Type: new Proxy(
-        {},
-        {
-          get:
-            () =>
-            (...args: unknown[]) => ({ properties: args[0] }),
-        },
-      ),
-    },
+  const presence = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+    expect([...argv]).toEqual(['which', 'gcloud']);
+    return { exitCode: 0, stdout: new Uint8Array(), stderr: new Uint8Array() } as ReturnType<typeof Bun.spawnSync>;
   });
-  const apply = tools.get('gcp_ce_apply');
-  expect(apply?.parameters.properties.operation).toBeDefined();
-  const { intent } = await import('../plugins/gcloud/test/ce/fixtures');
-  const i = structuredClone(intent());
-  i.routing.destinationCidrs = [];
-  for (const engine of ['native', 'terraform']) {
-    const result = await apply?.execute(
-      'unapproved',
-      { project: i.project, region: i.region, operation: 'deploy', engine, intent: { ...i, engine } },
-      undefined,
-      null,
-      { cwd: root },
-    );
-    expect(result?.isError).toBe(true);
-    expect(result?.details.mutationAttempted).toBe(false);
+  try {
+    await (await import(runtime)).default({
+      events: {
+        on: () => () => {},
+        emit: () => {
+          throw new Error('must not request cloud service');
+        },
+      },
+      setLabel: () => {},
+      registerTool: (tool: { name: string } & Parameters<typeof tools.set>[1]) => tools.set(tool.name, tool),
+      integrations: { register: () => ({ get: async () => ({ state: 'ready' }) }) },
+      presentation: { withPresentation: (tool: unknown) => tool },
+      typebox: {
+        Type: new Proxy(
+          {},
+          {
+            get:
+              () =>
+              (...args: unknown[]) => ({ properties: args[0] }),
+          },
+        ),
+      },
+    });
+    const apply = tools.get('gcp_ce_apply');
+    expect(apply?.parameters.properties.operation).toBeDefined();
+    const { intent } = await import('../plugins/gcloud/test/ce/fixtures');
+    const i = structuredClone(intent());
+    i.routing.destinationCidrs = [];
+    for (const engine of ['native', 'terraform']) {
+      const result = await apply?.execute(
+        'unapproved',
+        { project: i.project, region: i.region, operation: 'deploy', engine, intent: { ...i, engine } },
+        undefined,
+        null,
+        { cwd: root },
+      );
+      expect(result?.isError).toBe(true);
+      expect(result?.details.mutationAttempted).toBe(false);
+    }
+    expect(presence).toHaveBeenCalledTimes(1);
+  } finally {
+    presence.mockRestore();
   }
 });
