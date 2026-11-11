@@ -33,6 +33,14 @@ command -v bun >/dev/null 2>&1 || {
   exit 2
 }
 
+# Independent CI jobs start from a fresh checkout: prepare the frozen project
+# graph before shadowing cloud CLIs or starting any test.
+export PUPPETEER_SKIP_DOWNLOAD=true
+if ! bash scripts/check-plugin-runtime-dependencies.sh --repair; then
+  echo "FATAL: plugin runtime dependency precondition failed" >&2
+  exit 1
+fi
+
 STUB_BIN="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN"' EXIT
 
