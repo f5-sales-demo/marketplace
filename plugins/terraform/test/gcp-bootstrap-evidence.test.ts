@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from '../../gcloud/src/ce/terraform-public-artifacts';
 import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
+import { originalGcpBootstrapSource } from '../../platform/src/ce/gcp-bootstrap-evidence';
 import { createGcpLifecycleHttpPort } from '../../platform/src/ce/gcp-http';
 import { openGcpLifecycleHttpCapture } from '../../platform/src/ce/gcp-http-capture';
 import {
@@ -124,6 +125,7 @@ async function fixture(
     tokenBody = await capture.read(capture.evidenceFor(tokenValue));
   const calls: Array<{ receipt: PlanReceipt; selections: Record<string, string[]> }> = [];
   const input = {
+    platform: originalGcpBootstrapSource,
     binding,
     receipt: plan,
     terraformVersion: '1.17.1',
@@ -300,4 +302,12 @@ it('rechecks JWT freshness after the final original state read', async () => {
   } finally {
     Date.now = originalNow;
   }
+});
+
+it('missing historical Platform source methods refuse before original state reads', async () => {
+  const run = await fixture();
+  await expect(
+    collectOriginalGcpTerraformBootstrap({ ...run.input, platform: {} as typeof originalGcpBootstrapSource }),
+  ).rejects.toThrow('Verified Platform bootstrap source unavailable');
+  expect(run.calls).toHaveLength(0);
 });

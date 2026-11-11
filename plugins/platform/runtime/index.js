@@ -1513,6 +1513,11 @@ async function readOriginalGcpBootstrapJwt(value) {
   await assertOriginalGcpPlatformHttpBody(source.token);
   return source.jwt;
 }
+var originalGcpBootstrapSource = Object.freeze({
+  assertBody: assertOriginalGcpPlatformHttpBody,
+  inspect: inspectOriginalGcpBootstrap,
+  readJwt: readOriginalGcpBootstrapJwt,
+});
 
 // plugins/platform/src/ce/gcp-http.ts
 import { createHash as createHash6 } from 'node:crypto';
@@ -9174,6 +9179,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
     return loaded;
   };
   return {
+    gcpBootstrapSource: () => originalGcpBootstrapSource,
     async gcpLifecycle(owner, contextName, signal) {
       if (owner.provider !== 'gcp' || owner.engine !== 'native')
         throw new Error('Native GCP lifecycle ownership required');
@@ -9573,6 +9579,11 @@ var factory = async (pi) => {
   if (pi.events) {
     const service = () => createCePlatformService(activeContextEnvironment(pi, sessionSettings));
     registerCePlatformService(pi.events, {
+      gcpBootstrapSource: () => {
+        const active = service();
+        if (!active.gcpBootstrapSource) throw new Error('Verified Platform bootstrap source unavailable');
+        return active.gcpBootstrapSource();
+      },
       storage: (owner) => service().storage(owner),
       capabilities: (contextName) => service().capabilities(contextName),
       runtime: (engine, contextName) => service().runtime(engine, contextName),

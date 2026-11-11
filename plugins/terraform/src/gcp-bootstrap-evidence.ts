@@ -1,15 +1,11 @@
 import { createHash } from 'node:crypto';
 import { decodeEvidenceObject } from '../../platform/src/ce/evidence-json';
-import {
-  type GcpBootstrapEvidenceBinding,
-  inspectOriginalGcpBootstrap,
-  type OriginalGcpBootstrapEvidence,
-  readOriginalGcpBootstrapJwt,
+import type {
+  GcpBootstrapEvidenceBinding,
+  GcpBootstrapEvidenceSource,
+  OriginalGcpBootstrapEvidence,
 } from '../../platform/src/ce/gcp-bootstrap-evidence';
-import {
-  assertOriginalGcpPlatformHttpBody,
-  type OriginalGcpPlatformHttpBody,
-} from '../../platform/src/ce/gcp-http-capture';
+import type { OriginalGcpPlatformHttpBody } from '../../platform/src/ce/gcp-http-capture';
 import { resolveInstalledGcpVersionProfile } from './installed-version-profile';
 import type { PlanReceipt, TerraformRunner } from './runner';
 
@@ -24,6 +20,8 @@ const object = (value: unknown, context = 'Terraform bootstrap creation'): Json 
 };
 
 export interface GcpTerraformBootstrapInput {
+  /** Trusted registered Platform service only; never a tool argument. */
+  readonly platform: GcpBootstrapEvidenceSource;
   readonly binding: Omit<GcpBootstrapEvidenceBinding, 'siteUid' | 'tokenUid'>;
   readonly receipt: PlanReceipt;
   readonly terraformVersion: string;
@@ -48,7 +46,10 @@ export interface OriginalGcpTerraformBootstrapEvidence {
   readonly gcpWireCorroborated: true;
   readonly bootstrapOwnershipQualified: false;
 }
-const issued = new WeakMap<OriginalGcpTerraformBootstrapEvidence, OriginalGcpBootstrapEvidence>();
+const issued = new WeakMap<
+  OriginalGcpTerraformBootstrapEvidence,
+  { bootstrap: OriginalGcpBootstrapEvidence; platform: GcpBootstrapEvidenceSource }
+>();
 
 function labels(state: Json, api: Json, expected: Record<string, string>, site: boolean) {
   const declared = object(state.labels),
@@ -85,6 +86,13 @@ export async function collectOriginalGcpTerraformBootstrap(
   input: GcpTerraformBootstrapInput,
 ): Promise<OriginalGcpTerraformBootstrapEvidence> {
   input = { ...input, environment: { ...input.environment } };
+  const platform = Object.freeze({ ...input.platform });
+  if (
+    typeof platform.assertBody !== 'function' ||
+    typeof platform.inspect !== 'function' ||
+    typeof platform.readJwt !== 'function'
+  )
+    throw new Error('Verified Platform bootstrap source unavailable; update Platform');
   const binding = structuredClone(input.binding),
     receipt = structuredClone(input.receipt);
   if (
@@ -107,8 +115,8 @@ export async function collectOriginalGcpTerraformBootstrap(
   });
   if (profile.googleVersion !== '8.11.0' || profile.xcshVersion !== '15.15.7')
     throw new Error('Original qualified Terraform bootstrap provider mapping required');
-  await assertOriginalGcpPlatformHttpBody(input.site);
-  await assertOriginalGcpPlatformHttpBody(input.token);
+  await platform.assertBody(input.site);
+  await platform.assertBody(input.token);
   input.signal?.throwIfAborted();
   const siteAddress = `xcsh_securemesh_site_v2.${binding.siteName.replaceAll('-', '_')}`,
     tokenAddress = `xcsh_token.${binding.nodeName.replaceAll('-', '_')}`;
@@ -151,17 +159,17 @@ export async function collectOriginalGcpTerraformBootstrap(
     throw new Error('Original GCP not-managed Site wire mapping required');
   if (tokenState.site_name !== binding.siteName || tokenState.type !== 1)
     throw new Error('Original Terraform bootstrap token Site binding differs');
-  await inspectOriginalGcpBootstrap(input.site, input.token, { ...binding, siteUid, tokenUid });
+  await platform.inspect(input.site, input.token, { ...binding, siteUid, tokenUid });
   input.signal?.throwIfAborted();
-  await assertOriginalGcpPlatformHttpBody(input.site);
-  await assertOriginalGcpPlatformHttpBody(input.token);
+  await platform.assertBody(input.site);
+  await platform.assertBody(input.token);
   const currentState = await readState();
   input.signal?.throwIfAborted();
   if (JSON.stringify(currentState) !== JSON.stringify(state))
     throw new Error('Original Terraform bootstrap state changed during collection');
-  await assertOriginalGcpPlatformHttpBody(input.site);
-  await assertOriginalGcpPlatformHttpBody(input.token);
-  const bootstrap = await inspectOriginalGcpBootstrap(input.site, input.token, { ...binding, siteUid, tokenUid });
+  await platform.assertBody(input.site);
+  await platform.assertBody(input.token);
+  const bootstrap = await platform.inspect(input.site, input.token, { ...binding, siteUid, tokenUid });
   input.signal?.throwIfAborted();
   const value: OriginalGcpTerraformBootstrapEvidence = Object.freeze({
     schemaVersion: 1,
@@ -178,7 +186,7 @@ export async function collectOriginalGcpTerraformBootstrap(
     gcpWireCorroborated: true,
     bootstrapOwnershipQualified: false,
   });
-  issued.set(value, bootstrap);
+  issued.set(value, { bootstrap, platform });
   return value;
 }
 
@@ -186,7 +194,7 @@ export async function collectOriginalGcpTerraformBootstrap(
 export async function readOriginalGcpTerraformBootstrapJwt(
   value: OriginalGcpTerraformBootstrapEvidence,
 ): Promise<string> {
-  const bootstrap = issued.get(value);
-  if (!bootstrap) throw new Error('Original Terraform bootstrap candidate required');
-  return readOriginalGcpBootstrapJwt(bootstrap);
+  const source = issued.get(value);
+  if (!source) throw new Error('Original Terraform bootstrap candidate required');
+  return source.platform.readJwt(source.bootstrap);
 }

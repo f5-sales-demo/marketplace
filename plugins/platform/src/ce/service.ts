@@ -5,6 +5,7 @@ import { resolveGcpContract } from '../../../gcloud/src/ce/contract';
 import { fingerprint } from '../../../gcloud/src/ce/discovery';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import { CeDeploymentStore } from './deployment-store';
+import { type GcpBootstrapEvidenceSource, originalGcpBootstrapSource } from './gcp-bootstrap-evidence';
 import { createGcpLifecycleHttpPort } from './gcp-http';
 import { GcpPlatformLifecycle } from './gcp-lifecycle';
 import { createGcpPlatformObservations, type GcpPlatformObservations } from './gcp-observation';
@@ -35,6 +36,8 @@ export interface CeCapabilityEvidence {
   liveAcceptance: 'not-established';
 }
 export interface CePlatformService {
+  /** Optional for historical services; new consumers require the issuing module verifier. */
+  gcpBootstrapSource?(): GcpBootstrapEvidenceSource;
   storage(owner: CeOwner): Promise<CeDeploymentStore>;
   capabilities(contextName?: string): Promise<CeCapabilityEvidence>;
   runtime(engine: 'native' | 'terraform', contextName?: string): Promise<CeRuntime>;
@@ -74,6 +77,7 @@ export function createCePlatformService(
     return loaded;
   };
   return {
+    gcpBootstrapSource: () => originalGcpBootstrapSource,
     async gcpLifecycle(owner, contextName, signal) {
       if (owner.provider !== 'gcp' || owner.engine !== 'native')
         throw new Error('Native GCP lifecycle ownership required');

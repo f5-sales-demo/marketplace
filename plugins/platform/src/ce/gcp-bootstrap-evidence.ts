@@ -192,3 +192,16 @@ export async function readOriginalGcpBootstrapJwt(value: OriginalGcpBootstrapEvi
   await assertOriginalGcpPlatformHttpBody(source.token);
   return source.jwt;
 }
+
+/** Trusted producer API. Executable methods stay in the issuing Platform module;
+ * callers must not obtain authority through tool arguments or serialized evidence. */
+export interface GcpBootstrapEvidenceSource {
+  readonly assertBody: typeof assertOriginalGcpPlatformHttpBody;
+  readonly inspect: typeof inspectOriginalGcpBootstrap;
+  readonly readJwt: typeof readOriginalGcpBootstrapJwt;
+}
+export const originalGcpBootstrapSource: GcpBootstrapEvidenceSource = Object.freeze({
+  assertBody: assertOriginalGcpPlatformHttpBody,
+  inspect: inspectOriginalGcpBootstrap,
+  readJwt: readOriginalGcpBootstrapJwt,
+});

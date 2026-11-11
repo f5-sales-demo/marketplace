@@ -1346,3 +1346,12 @@ remains false. Fresh changed-collector composition and post-create no-change
 planning, original VM/token/NIC/lifetime joins, durable single-use checkout, full
 installed capture, actual expiry, all native/Terraform live/runtime and delivery
 gates remain open. No failed flag, historical receipt or publication hold cleared.
+
+Attempt 437 repairs the [compiled bootstrap producer bridge](gcp-compiled-bootstrap-bridge-20261110.md).
+Actual compiled Terraform now uses the issuing Platform module for original body
+and candidate verification and private JWT inspection. Copied, foreign-session
+and modified references still refuse; absent historical source methods report
+the prerequisite before state reads. Three failing-first compiled regressions
+pass with the original failed probe preserved. This closes the demonstrated
+source ABI defect, not fresh live composition, VM/token/NIC/lifetime ownership,
+single-use checkout, full capture, expiry, native/Terraform live/runtime or delivery.

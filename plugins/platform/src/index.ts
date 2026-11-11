@@ -45,6 +45,11 @@ const factory: ExtensionFactory = async (pi) => {
   if (pi.events) {
     const service = () => createCePlatformService(activeContextEnvironment(pi, sessionSettings));
     registerCePlatformService(pi.events, {
+      gcpBootstrapSource: () => {
+        const active = service();
+        if (!active.gcpBootstrapSource) throw new Error('Verified Platform bootstrap source unavailable');
+        return active.gcpBootstrapSource();
+      },
       storage: (owner) => service().storage(owner),
       capabilities: (contextName) => service().capabilities(contextName),
       runtime: (engine, contextName) => service().runtime(engine, contextName),
