@@ -775,12 +775,13 @@ function linuxMonotonicMs() {
 var admissions = new WeakMap();
 var windowKeys = ['originalStartMs', 'originalDeadlineMs', 'finalStartedMs', 'finalDeadlineMs'];
 var originalWindows = new Map();
-function withinWindow(snapshot) {
-  const current = linuxMonotonicMs();
+function withinWindow(snapshot, clock) {
+  const current = clock();
   if (current < snapshot.finalStartedMs || current >= snapshot.finalDeadlineMs)
     throw new Error('Original final reader reserve is exhausted or has not started');
 }
-function admitFinalReaderReserve(input) {
+function admitFinalReaderReserve(input, options = {}) {
+  const clock = options.clock ?? linuxMonotonicMs;
   if (
     !input ||
     typeof input.assertOriginal !== 'function' ||
@@ -810,7 +811,7 @@ function admitFinalReaderReserve(input) {
     finalStartedMs: input.finalStartedMs,
     finalDeadlineMs: input.finalDeadlineMs,
   });
-  withinWindow(snapshot);
+  withinWindow(snapshot, clock);
   const key = `${snapshot.identity.boot}:${snapshot.identity.pid}:${snapshot.identity.start}`;
   const original = originalWindows.get(key);
   if (original && windowKeys.some((field) => original[field] !== snapshot[field]))
@@ -825,7 +826,7 @@ function admitFinalReaderReserve(input) {
         finalDeadlineMs: snapshot.finalDeadlineMs,
       }),
     );
-  admissions.set(snapshot, { snapshot, assertOriginal: input.assertOriginal });
+  admissions.set(snapshot, { snapshot, clock, assertOriginal: input.assertOriginal });
   return snapshot;
 }
 function inspectFinalReaderReserve(reserve) {
@@ -835,11 +836,11 @@ function inspectFinalReaderReserve(reserve) {
 }
 async function assertFinalReaderReserve(reserve) {
   const snapshot = inspectFinalReaderReserve(reserve);
-  withinWindow(snapshot);
   const admission = admissions.get(reserve);
   if (!admission) throw new Error('An admitted original final reader reserve is required');
+  withinWindow(snapshot, admission.clock);
   await admission.assertOriginal();
-  withinWindow(snapshot);
+  withinWindow(snapshot, admission.clock);
 }
 
 // plugins/terraform/src/installed-apply-controller.ts

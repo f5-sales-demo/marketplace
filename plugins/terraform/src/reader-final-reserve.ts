@@ -21,17 +21,23 @@ export interface FinalReaderReserveSnapshot {
 export type FinalReaderReserve = Readonly<FinalReaderReserveSnapshot>;
 const admissions = new WeakMap<
   FinalReaderReserve,
-  { snapshot: FinalReaderReserveSnapshot; assertOriginal(): Promise<void> }
+  { snapshot: FinalReaderReserveSnapshot; clock(): number; assertOriginal(): Promise<void> }
 >();
 const windowKeys = ['originalStartMs', 'originalDeadlineMs', 'finalStartedMs', 'finalDeadlineMs'] as const;
 const originalWindows = new Map<string, Pick<FinalReaderReserveSnapshot, (typeof windowKeys)[number]>>();
-function withinWindow(snapshot: FinalReaderReserveSnapshot) {
-  const current = linuxMonotonicMs();
+function withinWindow(snapshot: FinalReaderReserveSnapshot, clock: () => number) {
+  const current = clock();
   if (current < snapshot.finalStartedMs || current >= snapshot.finalDeadlineMs)
     throw new Error('Original final reader reserve is exhausted or has not started');
 }
 /** Compiled capture admission only. Tool receipts and cloned objects cannot issue this authority. */
-export function admitFinalReaderReserve(input: FinalReaderReserveAdmission): FinalReaderReserve {
+export function admitFinalReaderReserve(
+  input: FinalReaderReserveAdmission,
+  options: {
+    /** Offline source fixture only; installed callers use the original Linux clock. */ clock?: () => number;
+  } = {},
+): FinalReaderReserve {
+  const clock = options.clock ?? linuxMonotonicMs;
   if (
     !input ||
     typeof input.assertOriginal !== 'function' ||
@@ -61,7 +67,7 @@ export function admitFinalReaderReserve(input: FinalReaderReserveAdmission): Fin
     finalStartedMs: input.finalStartedMs,
     finalDeadlineMs: input.finalDeadlineMs,
   });
-  withinWindow(snapshot);
+  withinWindow(snapshot, clock);
   const key = `${snapshot.identity.boot}:${snapshot.identity.pid}:${snapshot.identity.start}`;
   const original = originalWindows.get(key);
   if (original && windowKeys.some((field) => original[field] !== snapshot[field]))
@@ -76,7 +82,7 @@ export function admitFinalReaderReserve(input: FinalReaderReserveAdmission): Fin
         finalDeadlineMs: snapshot.finalDeadlineMs,
       }),
     );
-  admissions.set(snapshot, { snapshot, assertOriginal: input.assertOriginal });
+  admissions.set(snapshot, { snapshot, clock, assertOriginal: input.assertOriginal });
   return snapshot;
 }
 export function inspectFinalReaderReserve(reserve: FinalReaderReserve): FinalReaderReserveSnapshot {
@@ -86,9 +92,9 @@ export function inspectFinalReaderReserve(reserve: FinalReaderReserve): FinalRea
 }
 export async function assertFinalReaderReserve(reserve: FinalReaderReserve): Promise<void> {
   const snapshot = inspectFinalReaderReserve(reserve);
-  withinWindow(snapshot);
   const admission = admissions.get(reserve);
   if (!admission) throw new Error('An admitted original final reader reserve is required');
+  withinWindow(snapshot, admission.clock);
   await admission.assertOriginal();
-  withinWindow(snapshot);
+  withinWindow(snapshot, admission.clock);
 }

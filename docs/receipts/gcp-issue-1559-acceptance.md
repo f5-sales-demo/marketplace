@@ -1439,3 +1439,7 @@ positive GCP guest evidence and all remaining live and delivery gates stay open.
 The [current-provider Site SSH mapping](gcp-current-site-access-mapping-20261111.md)
 qualifies xcsh 15.15.7 configuration compatibility while preserving historical
 access fingerprints. Positive SSH, default capture and live acceptance remain open.
+
+The [final-capture clock fixture repair](gcp-final-capture-clock-fixtures-20261111.md)
+addresses CI on fresh runners without changing installed clocks or fixed budgets.
+Renewed exact-head CI and every remaining live and delivery gate are required.

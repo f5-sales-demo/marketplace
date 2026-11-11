@@ -6,8 +6,7 @@ import {
 } from '../src/installed-apply-controller';
 import { createInstalledCaptureContext } from '../src/installed-capture-context';
 import type { InstalledGcpCapture } from '../src/installed-runtime';
-import { linuxMonotonicMs } from '../src/linux-clock';
-import { admitFinalReaderReserve } from '../src/reader-final-reserve';
+import { admitFinalReaderReserve, assertFinalReaderReserve as reserveCheck } from '../src/reader-final-reserve';
 import type { ExecutionCaptureAdmission, FinalExecutionCapture } from '../src/signal-free-executor';
 
 let fixturePid = 1234;
@@ -155,7 +154,7 @@ test('failed preparation is retained and cannot silently retry', async () => {
   expect(run.events.some((e) => e.phase === 'prepare-failed')).toBe(true);
 });
 test('final callback uses original five-minute reserve after operation expiry without renewing it', async () => {
-  const real = linuxMonotonicMs();
+  const real = 7201001;
   const start = real - 7200001;
   const run = fixture(start);
   await run.control.prepare?.(run.context);
@@ -163,14 +162,17 @@ test('final callback uses original five-minute reserve after operation expiry wi
   await run.control.start(admission);
   run.setNow(real);
   const finished = run.final(admission);
-  const reserve = admitFinalReaderReserve({
-    identity: run.identity,
-    originalStartMs: start,
-    originalDeadlineMs: start + 7200000,
-    finalStartedMs: real,
-    finalDeadlineMs: real + 300000,
-    assertOriginal: async () => {},
-  });
+  const reserve = admitFinalReaderReserve(
+    {
+      identity: run.identity,
+      originalStartMs: start,
+      originalDeadlineMs: start + 7200000,
+      finalStartedMs: real,
+      finalDeadlineMs: real + 300000,
+      assertOriginal: async () => {},
+    },
+    { clock: run.now },
+  );
   await run.control.finalCapture(finished, reserve);
   const callback = run.callbacks().after;
   if (!callback) throw new Error('Original final callback required');
@@ -232,7 +234,7 @@ test('preparation failure and failed evidence retention both survive', async () 
 });
 
 test('final capture still runs when its original journal write fails', async () => {
-  const real = linuxMonotonicMs(),
+  const real = 7201001,
     start = real - 7200001,
     run = fixture(start);
   const control = createInstalledApplyController(run.context, run.worker, {
@@ -246,14 +248,17 @@ test('final capture still runs when its original journal write fails', async () 
   await control.start(admission);
   run.setNow(real);
   const finished = run.final(admission);
-  const reserve = admitFinalReaderReserve({
-    identity: run.identity,
-    originalStartMs: start,
-    originalDeadlineMs: start + 7200000,
-    finalStartedMs: real,
-    finalDeadlineMs: real + 300000,
-    assertOriginal: async () => {},
-  });
+  const reserve = admitFinalReaderReserve(
+    {
+      identity: run.identity,
+      originalStartMs: start,
+      originalDeadlineMs: start + 7200000,
+      finalStartedMs: real,
+      finalDeadlineMs: real + 300000,
+      assertOriginal: async () => {},
+    },
+    { clock: run.now },
+  );
   await expect(control.finalCapture(finished, reserve)).rejects.toThrow('final retention failed');
   expect(run.counts().finals).toBe(1);
 });
@@ -292,7 +297,7 @@ test('missing final reserve refuses before worker or final lifecycle is claimed'
 });
 
 test('failed final authorization retains failures without invoking guest work', async () => {
-  const real = linuxMonotonicMs(),
+  const real = 7201001,
     start = real - 7200001,
     run = fixture(start);
   let original = true;
@@ -307,16 +312,19 @@ test('failed final authorization retains failures without invoking guest work', 
   const admission = run.admission();
   await control.start(admission);
   run.setNow(real);
-  const reserve = admitFinalReaderReserve({
-    identity: run.identity,
-    originalStartMs: start,
-    originalDeadlineMs: start + 7200000,
-    finalStartedMs: real,
-    finalDeadlineMs: real + 300000,
-    assertOriginal: async () => {
-      if (!original) throw new Error('reserve ownership changed');
+  const reserve = admitFinalReaderReserve(
+    {
+      identity: run.identity,
+      originalStartMs: start,
+      originalDeadlineMs: start + 7200000,
+      finalStartedMs: real,
+      finalDeadlineMs: real + 300000,
+      assertOriginal: async () => {
+        if (!original) throw new Error('reserve ownership changed');
+      },
     },
-  });
+    { clock: run.now },
+  );
   original = false;
   try {
     await control.finalCapture(run.final(admission), reserve);
@@ -330,4 +338,26 @@ test('failed final authorization retains failures without invoking guest work', 
   }
   expect(run.counts().finals).toBe(0);
   expect(run.events.some((event) => event.phase === 'final-failed')).toBe(true);
+});
+
+test('offline final reserve captures its clock without accepting a copied reserve or renewed deadline', async () => {
+  let now = 7201001;
+  const options = { clock: () => now };
+  const value = {
+    identity: { pid: 100009, group: 100009, start: '909', boot: '11111111-2222-3333-4444-555555555555' },
+    originalStartMs: 1000,
+    originalDeadlineMs: 7201000,
+    finalStartedMs: now,
+    finalDeadlineMs: now + 300000,
+    assertOriginal: async () => {},
+  };
+  const reserve = admitFinalReaderReserve(value, options);
+  options.clock = () => 0;
+  await reserveCheck(reserve);
+  await expect(reserveCheck({ ...reserve })).rejects.toThrow('admitted original');
+  expect(() =>
+    admitFinalReaderReserve({ ...value, finalDeadlineMs: value.finalDeadlineMs + 1 }, { clock: () => now }),
+  ).toThrow('fixed');
+  now = value.finalDeadlineMs;
+  await expect(reserveCheck(reserve)).rejects.toThrow('exhausted');
 });
