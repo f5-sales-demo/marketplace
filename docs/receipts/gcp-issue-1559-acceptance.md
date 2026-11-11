@@ -1431,3 +1431,7 @@ original budgets, precise identities and partial failures; only verified origina
 closure remains after failed capture. Original-process installed binding/default
 capture, positive managed guest/live/runtime and every remaining full lifecycle,
 networking, review, publication and installation gate remain open.
+
+The [installed original guest worker adapter](gcp-installed-guest-worker-adapter-20261111.md)
+adds source-process admission and separate closure evidence. Default capture,
+positive GCP guest evidence and all remaining live and delivery gates stay open.

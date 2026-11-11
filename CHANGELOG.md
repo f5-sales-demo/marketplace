@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.79 adds the installed original guest worker adapter.
+  One retained signal-free execution binds the original context, complete source
+  pins and owned IPC; later closure evidence preserves initial capture failures.
+  Default guest capture and live qualification remain incomplete.
+
 - **`terraform`** v2.4.78 adds the pinned standalone GCP guest worker and original
   parent control/FIFO foundation. Exact request, source, executable and descriptor
   checks preserve failed capture evidence while allowing verified original closure.
