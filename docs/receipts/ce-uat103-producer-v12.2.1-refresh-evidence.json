@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-10-22T13:25:34.311844+00:00",
+  "release": "v12.2.1",
+  "resolvedCommit": "317f4bef441fff5c0913a4584c27da01ec4ff18c",
+  "immutable": true,
+  "assets": [
+    {
+      "name": "smsv2-contract-manifest.json",
+      "digest": "sha256:b3cda3ef8c18a2a1ec0d6e53857a2da0e655faacbbd5b09de072c199449fed47",
+      "downloadedDigestVerified": true
+    },
+    {
+      "name": "smsv2-contract.json",
+      "digest": "sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08",
+      "downloadedDigestVerified": true
+    },
+    {
+      "name": "smsv2-evidence-receipt.json",
+      "digest": "sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932",
+      "downloadedDigestVerified": true
+    }
+  ],
+  "contractVersion": "7.1.0",
+  "contractDigestSameAs1220": true,
+  "evidenceDigestSameAs1220": true,
+  "consumerRepinned": false,
+  "supportedSliControlQualified": false,
+  "originalFreshnessQualified": false,
+  "fullCeAcceptance": false,
+  "manifestCommitAndAssetsVerified": true
+}

@@ -6,8 +6,23 @@ import { presentTool } from '../src/presentation';
 const options = { expanded: false, isPartial: false };
 const result = (details: unknown, text = 'SYNTHETIC_CLI_MARKER') => ({ content: [{ type: 'text', text }], details });
 test('project previews declare twelve rows, exact JSON argv and one expanded evidence copy', () => {
+  const projectIds = [
+    'example-project-0',
+    'example-project-1',
+    'example-project-2',
+    'example-project-3',
+    'example-project-4',
+    'example-project-5',
+    'example-project-6',
+    'example-project-7',
+    'example-project-8',
+    'example-project-9',
+    'example-project-10',
+    'example-project-11',
+    'example-project-12',
+  ];
   const rows = Array.from({ length: 13 }, (_, i) => ({
-    projectId: `synthetic-${i}`,
+    projectId: projectIds[i],
     name: '',
     projectNumber: String(i),
     lifecycleState: 'ACTIVE',
@@ -26,7 +41,7 @@ test('project previews declare twelve rows, exact JSON argv and one expanded evi
   ]);
   const expanded = tool.presentation.result(result({ projects: rows }), { ...options, expanded: true }, args);
   expect(expanded.expandedEvidence).toBe('provided');
-  expect(JSON.stringify(expanded).match(/synthetic-12/g)).toHaveLength(1);
+  expect(JSON.stringify(expanded).match(/example-project-12/g)).toHaveLength(1);
 });
 test('config identity keeps every field, empty strings, zero and false', () => {
   const values = { project: '', account: '', region: 'unknown', zone: '', zero: 0, enabled: false };
