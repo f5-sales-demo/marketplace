@@ -3527,6 +3527,61 @@ function nlbSettings(intent) {
   return { targetInterfaceIndex, healthCheck };
 }
 
+// plugins/aws/src/ce/initial-admin.ts
+function normalizeAwsAdminSshPublicKey(value) {
+  const fail = () => {
+    throw new Error('Administrator SSH key must be a valid OpenSSH public key');
+  };
+  if (typeof value !== 'string' || value.length > 16384 || /[\r\n\0]/.test(value)) return fail();
+  const parts = value.trim().split(/[ \t]+/);
+  const algorithm = parts[0],
+    encoded = parts[1];
+  if (!algorithm || !encoded || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) return fail();
+  const blob = Buffer.from(encoded, 'base64');
+  if (blob.toString('base64') !== encoded) return fail();
+  let offset = 0;
+  const field = () => {
+    if (offset + 4 > blob.length) return fail();
+    const length = blob.readUInt32BE(offset);
+    offset += 4;
+    if (!length || offset + length > blob.length) return fail();
+    const result = blob.subarray(offset, offset + length);
+    offset += length;
+    return result;
+  };
+  if (field().toString('ascii') !== algorithm) return fail();
+  if (algorithm === 'ssh-ed25519') {
+    if (field().length !== 32) return fail();
+  } else if (algorithm === 'ssh-rsa') {
+    for (const integer of [field(), field()])
+      if (integer[0] & 128 || !integer.some((byte) => byte !== 0)) return fail();
+  } else if (/^ecdsa-sha2-nistp(?:256|384|521)$/.test(algorithm)) {
+    const curve = field().toString('ascii');
+    const point = field();
+    const lengths = { nistp256: 65, nistp384: 97, nistp521: 133 };
+    if (algorithm !== `ecdsa-sha2-${curve}` || point.length !== lengths[curve] || point[0] !== 4) return fail();
+  } else return fail();
+  if (offset !== blob.length) return fail();
+  return `${algorithm} ${encoded}`;
+}
+function awsInitialAdminSettings(intent) {
+  return intent.adminSshPublicKey === undefined
+    ? {}
+    : {
+        admin_user_credentials: { ssh_key: normalizeAwsAdminSshPublicKey(intent.adminSshPublicKey) },
+      };
+}
+function assertAwsAdminPrebootDevices(intent) {
+  if (intent.adminSshPublicKey === undefined) return;
+  normalizeAwsAdminSshPublicKey(intent.adminSshPublicKey);
+  const devices = intent.interfaces.map((iface) => iface.guestDevice);
+  if (
+    devices.some((device) => typeof device !== 'string' || !device.length) ||
+    new Set(devices).size !== devices.length
+  )
+    throw new Error('Complete distinct guest device identities are required for preboot administrator configuration');
+}
+
 // plugins/aws/src/ce/interface-addressing.ts
 import { isIP as isIP2 } from 'node:net';
 
@@ -3900,6 +3955,8 @@ function normalizeIntent(input) {
   const engine = input.engine ?? 'native';
   if (!['native', 'terraform'].includes(engine)) fail('execution engine must be native or terraform');
   staticAzRoutes(input);
+  const adminSshPublicKey =
+    input.adminSshPublicKey === undefined ? undefined : normalizeAwsAdminSshPublicKey(input.adminSshPublicKey);
   const deploymentName = name2(input.deploymentName, 'deploymentName');
   const siteName = name2(input.siteName, 'siteName');
   if (input.initialVersions !== undefined) initialSoftwareSettings(input.initialVersions);
@@ -4209,6 +4266,7 @@ function normalizeIntent(input) {
       fail('TGW association or propagation is outside the explicit route-table allowlist');
   return {
     ...input,
+    ...(adminSshPublicKey === undefined ? {} : { adminSshPublicKey }),
     engine,
     deploymentName,
     siteName,
@@ -10117,7 +10175,7 @@ function buildAwsNativePrebootSiteIntent(plan, nodeIndexes, resolvedValues) {
         };
       }),
     })),
-    settings: {},
+    settings: awsInitialAdminSettings(plan.intent),
   };
 }
 async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, signal) {
@@ -10139,6 +10197,7 @@ async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, sig
     authorized,
     destructionAuthorized: authorized && existing?.authorization?.destruction,
   });
+  assertAwsAdminPrebootDevices(plan.intent);
   api = scopedAwsApi(api, plan.intent.awsProfile, signal);
   if (plan.intent.operation === 'deploy' && plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
     throw new Error('The requested interface configuration needs an explicit supported F5 wire mapping');
@@ -14232,6 +14291,7 @@ import { createHash as createHash12 } from 'node:crypto';
 
 async function admitAwsTerraformSites(plan, session, runtime, storage, api, env, signal, haSerialDelayMs = 180000) {
   verifyAwsCePlan(plan);
+  assertAwsAdminPrebootDevices(plan.intent);
   const placement =
     plan.intent.vpc.mode === 'brownfield'
       ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
@@ -14337,7 +14397,7 @@ async function admitAwsTerraformSites(plan, session, runtime, storage, api, env,
                   : { dhcp_client: {} }),
               })),
             })),
-            settings: {},
+            settings: awsInitialAdminSettings(plan.intent),
           },
           (record) => storage.write(`terraform-site-${site.name}.json`, record),
           signal,
@@ -14500,6 +14560,7 @@ var init_terraform_admission = __esm(() => {
 // plugins/aws/src/ce/terraform-workflow.ts
 async function runAwsTerraformAdmission(plan, terraform, runtime, storage, api, revalidate, env, signal) {
   verifyAwsCePlan(plan);
+  assertAwsAdminPrebootDevices(plan.intent);
   const owner = {
     deploymentId: plan.deploymentName,
     engine: 'terraform',

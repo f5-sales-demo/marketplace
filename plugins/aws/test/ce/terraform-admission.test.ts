@@ -1,4 +1,5 @@
 import { expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import { buildWireSite, type WireSiteIntent } from '../../../platform/src/ce/wire-site';
 import { resolveCeSchemaFixture } from '../../../platform/test/fixtures/resolve-schema-fixture';
 import schemaCompact from '../../../platform/test/fixtures/smsv2-create-schema.json';
@@ -239,4 +240,55 @@ it('leaves partial device input to authoritative registration discovery', async 
   ).toBe('pending-registration');
   expect(f.ensuredSites).toEqual([]);
   expect(f.bootstrapped).toEqual(['ce-1']);
+});
+
+it('configures the administrator public key before Terraform bootstrap begins', async () => {
+  const bytes = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+  const head = Buffer.from('ssh-ed25519');
+  const a = Buffer.alloc(4);
+  a.writeUInt32BE(head.length);
+  const b = Buffer.alloc(4);
+  b.writeUInt32BE(bytes.length);
+  const key = `ssh-ed25519 ${Buffer.concat([a, head, b, bytes]).toString('base64')}`;
+  const f = fixture(true, false, false, undefined, key);
+  const calls: string[] = [];
+  const runtime = {
+    ...f.runtime,
+    ensureSite: async (...args: Parameters<typeof f.runtime.ensureSite>) => {
+      calls.push('site');
+      expect(args[1].settings).toMatchObject({ admin_user_credentials: { ssh_key: key } });
+      return f.runtime.ensureSite(...args);
+    },
+    bootstrap: async (...args: Parameters<typeof f.runtime.bootstrap>) => {
+      expect(calls[0]).toBe('site');
+      calls.push('bootstrap');
+      return f.runtime.bootstrap(...args);
+    },
+  };
+  await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {}, undefined, 0);
+  expect(calls).toEqual(['site', 'bootstrap', 'bootstrap', 'bootstrap']);
+});
+
+it('rejects unresolved preboot administrator device identities before site or bootstrap effects', async () => {
+  const raw = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+  const head = Buffer.from('ssh-ed25519'),
+    a = Buffer.alloc(4),
+    b = Buffer.alloc(4);
+  a.writeUInt32BE(head.length);
+  b.writeUInt32BE(raw.length);
+  const key = `ssh-ed25519 ${Buffer.concat([a, head, b, raw]).toString('base64')}`;
+  const f = fixture(
+    true,
+    false,
+    false,
+    (interfaces) => {
+      delete interfaces[0].guestDevice;
+    },
+    key,
+  );
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}, undefined, 0),
+  ).rejects.toThrow('preboot administrator');
+  expect(f.bootstrapped).toEqual([]);
+  expect(f.ensuredSites).toEqual([]);
 });

@@ -22,10 +22,13 @@ export function admissionFixture(
   staticAddressing = false,
   brownfield = false,
   configureInterfaces?: (interfaces: AwsCeIntent['interfaces']) => void,
+  adminSshPublicKey?: string,
 ) {
   const brownfieldFixture = brownfield ? brownfieldPlacementFixture() : undefined;
   const base = brownfieldFixture?.plan ?? foundationPlan(ha);
   configureInterfaces?.(base.intent.interfaces);
+  if (adminSshPublicKey !== undefined)
+    (base.intent as AwsCeIntent & { adminSshPublicKey?: string }).adminSshPublicKey = adminSshPublicKey;
   if (staticAddressing) {
     for (const item of base.intent.interfaces)
       item.addressing = {

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
+import { buildAwsNativePrebootSiteIntent } from '../../src/ce/apply';
 import { verifyAwsCePlan } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
@@ -1289,4 +1291,43 @@ it('preserves DHCP allocation on a mixed DHCP/static deployment', () => {
   const network = JSON.parse(renderAwsTerraformFoundation(compileAwsCePlan(mixed, observation())));
   expect(network.resource.aws_network_interface.node_1_nic_0.private_ip_list).toBeUndefined();
   expect(network.resource.aws_network_interface.node_1_nic_1.private_ip_list).toEqual(['10.1.0.30']);
+});
+
+function diagnosticPublicKey() {
+  const key = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+  const header = Buffer.from('ssh-ed25519');
+  const prefix = Buffer.alloc(4);
+  prefix.writeUInt32BE(header.length);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(key.length);
+  return `ssh-ed25519 ${Buffer.concat([prefix, header, length, key]).toString('base64')}`;
+}
+it('binds a validated administrator key into native configuration before bootstrap', () => {
+  const key = diagnosticPublicKey();
+  const source = intent() as AwsCeIntent & { adminSshPublicKey?: string };
+  source.adminSshPublicKey = key;
+  const plan = compileAwsCePlan(source, observation());
+  expect(plan.intent).toMatchObject({ adminSshPublicKey: key });
+  const config = buildAwsNativePrebootSiteIntent(plan, [1], {
+    __ENI_1_0_MAC__: '00:11:22:33:44:01',
+    __ENI_1_1_MAC__: '00:11:22:33:44:02',
+  });
+  expect(config.settings).toMatchObject({ admin_user_credentials: { ssh_key: key } });
+  verifyAwsCePlan(plan);
+});
+it('rejects malformed or private administrator key material during public planning', () => {
+  const privateHeader = ['-----BEGIN', 'OPENSSH', 'PRIVATE', 'KEY-----'].join(' ');
+  for (const key of ['', 'not-a-key', 'ssh-ed25519 !!!!', privateHeader]) {
+    const source = intent() as AwsCeIntent & { adminSshPublicKey?: string };
+    source.adminSshPublicKey = key;
+    expect(() => compileAwsCePlan(source, observation())).toThrow();
+  }
+});
+
+it('rejects administrator key substitution after the plan is approved', () => {
+  const source = intent();
+  source.adminSshPublicKey = diagnosticPublicKey();
+  const plan = compileAwsCePlan(source, observation());
+  plan.intent.adminSshPublicKey = diagnosticPublicKey();
+  expect(() => verifyAwsCePlan(plan)).toThrow();
 });

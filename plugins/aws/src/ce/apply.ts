@@ -27,6 +27,7 @@ import { executeRecoverableDelete, hasDeleteRecovery } from './delete-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
 import { assertAwsDeploymentCompilerOperation } from './execution-contract';
+import { assertAwsAdminPrebootDevices, awsInitialAdminSettings } from './initial-admin';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { createNativeAwsSiteReplacementDriver } from './native-site-replacement';
@@ -681,7 +682,7 @@ export function buildAwsNativePrebootSiteIntent(
         };
       }),
     })),
-    settings: {},
+    settings: awsInitialAdminSettings(plan.intent),
   };
 }
 
@@ -711,6 +712,7 @@ export async function executeAwsCeApply(
     authorized,
     destructionAuthorized: authorized && existing?.authorization?.destruction,
   });
+  assertAwsAdminPrebootDevices(plan.intent);
   api = scopedAwsApi(api, plan.intent.awsProfile, signal);
   if (plan.intent.operation === 'deploy' && plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
     throw new Error('The requested interface configuration needs an explicit supported F5 wire mapping');

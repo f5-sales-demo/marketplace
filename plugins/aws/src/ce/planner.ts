@@ -10,6 +10,7 @@ import {
   assertAwsDeploymentCompilerOperation,
 } from './execution-contract';
 import { nlbSettings } from './ingress-settings';
+import { normalizeAwsAdminSshPublicKey } from './initial-admin';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { interfaceSecurityGroups } from './interface-security';
 import { routeNode, staticAzRoutes } from './static-routing';
@@ -162,6 +163,8 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   if (!['native', 'terraform'].includes(engine)) fail('execution engine must be native or terraform');
   staticAzRoutes(input);
 
+  const adminSshPublicKey =
+    input.adminSshPublicKey === undefined ? undefined : normalizeAwsAdminSshPublicKey(input.adminSshPublicKey);
   const deploymentName = name(input.deploymentName, 'deploymentName');
   const siteName = name(input.siteName, 'siteName');
   if (input.initialVersions !== undefined) initialSoftwareSettings(input.initialVersions);
@@ -474,6 +477,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       fail('TGW association or propagation is outside the explicit route-table allowlist');
   return {
     ...input,
+    ...(adminSshPublicKey === undefined ? {} : { adminSshPublicKey }),
     engine,
     deploymentName,
     siteName,

@@ -104,6 +104,8 @@ export interface AwsCeIntent {
   siteName: string;
   namespace: string;
   initialVersions?: InitialSiteVersions;
+  /** Administrator OpenSSH public key installed before CE bootstrap. Private keys are rejected. */
+  adminSshPublicKey?: string;
   topology: { nodeCount: 1 | 3; sites?: AwsCeSiteTopology[] };
   vpc: { mode: 'greenfield' | 'brownfield'; vpcId?: string; cidr?: string };
   interfaces: AwsCeInterfaceIntent[];

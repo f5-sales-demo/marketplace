@@ -2,6 +2,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
+import { assertAwsAdminPrebootDevices } from './initial-admin';
 import { admitAwsTerraformSites } from './terraform-admission';
 import {
   loadAwsTerraformBrownfieldBinding,
@@ -30,6 +31,7 @@ export async function runAwsTerraformAdmission(
   signal?: AbortSignal,
 ) {
   verifyAwsCePlan(plan);
+  assertAwsAdminPrebootDevices(plan.intent);
   const owner = {
     deploymentId: plan.deploymentName,
     engine: 'terraform' as const,

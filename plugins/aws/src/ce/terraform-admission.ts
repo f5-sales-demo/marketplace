@@ -5,6 +5,7 @@ import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { renderAwsCeCloudInit } from './cloud-init';
+import { assertAwsAdminPrebootDevices, awsInitialAdminSettings } from './initial-admin';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { loadAwsTerraformBrownfieldBinding } from './terraform-brownfield-binding';
 import { renderAwsTerraformFoundation } from './terraform-foundation';
@@ -60,6 +61,7 @@ export async function admitAwsTerraformSites(
   haSerialDelayMs = 180_000,
 ) {
   verifyAwsCePlan(plan);
+  assertAwsAdminPrebootDevices(plan.intent);
   const placement =
     plan.intent.vpc.mode === 'brownfield'
       ? await loadAwsTerraformBrownfieldBinding(plan, storage, api, signal)
@@ -167,7 +169,7 @@ export async function admitAwsTerraformSites(
                   : { dhcp_client: {} }),
               })),
             })),
-            settings: {},
+            settings: awsInitialAdminSettings(plan.intent),
           },
           (record) => storage.write(`terraform-site-${site.name}.json`, record),
           signal,
