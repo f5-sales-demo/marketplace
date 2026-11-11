@@ -235,7 +235,7 @@ async function readOriginalGcpTerraformBootstrapJwt(value) {
 
 // plugins/terraform/src/installed-runtime.ts
 // plugins/gcloud/src/ce/discovery.ts
-import { createHash as createHash2, createHash as createHash9, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash2, createHash as createHash9, randomUUID as randomUUID4 } from 'node:crypto';
 import { constants as constants5 } from 'node:fs';
 import {
   lstat as lstat7,
@@ -727,6 +727,305 @@ async function authenticateGoogleAdc(input, signal, fetcher = fetch) {
 }
 var _computeMaximum = 4 * 1024 * 1024;
 
+// plugins/terraform/src/linux-clock.ts
+import { dlopen, FFIType, ptr } from 'bun:ffi';
+// plugins/terraform/src/installed-apply-controller.ts
+import { randomUUID as randomUUID2 } from 'node:crypto';
+
+var sample;
+function linuxMonotonicMs() {
+  if (process.platform !== 'linux') throw new Error('Original Linux monotonic clock is unavailable');
+  if (!sample) {
+    const libc = dlopen('libc.so.6', {
+      clock_gettime: { args: [FFIType.i32, FFIType.ptr], returns: FFIType.i32 },
+    });
+    const value = new BigInt64Array(2);
+    sample = () => {
+      if (libc.symbols.clock_gettime(1, ptr(value)) !== 0 || value[0] < 0n || value[1] < 0n || value[1] >= 1000000000n)
+        throw new Error('Original Linux monotonic clock capture failed');
+      const result = value[0] * 1000n + value[1] / 1000000n;
+      if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Original monotonic clock exceeds safe bound');
+      return Number(result);
+    };
+  }
+  return sample();
+}
+
+// plugins/terraform/src/reader-final-reserve.ts
+var admissions = new WeakMap();
+var windowKeys = ['originalStartMs', 'originalDeadlineMs', 'finalStartedMs', 'finalDeadlineMs'];
+var originalWindows = new Map();
+function withinWindow(snapshot) {
+  const current = linuxMonotonicMs();
+  if (current < snapshot.finalStartedMs || current >= snapshot.finalDeadlineMs)
+    throw new Error('Original final reader reserve is exhausted or has not started');
+}
+function admitFinalReaderReserve(input) {
+  if (
+    !input ||
+    typeof input.assertOriginal !== 'function' ||
+    !input.identity ||
+    !Number.isSafeInteger(input.identity.pid) ||
+    input.identity.pid <= 0 ||
+    input.identity.group !== input.identity.pid ||
+    typeof input.identity.start !== 'string' ||
+    !/^[0-9]+$/.test(input.identity.start) ||
+    typeof input.identity.boot !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(input.identity.boot) ||
+    ![input.originalStartMs, input.originalDeadlineMs, input.finalStartedMs, input.finalDeadlineMs].every(
+      Number.isSafeInteger,
+    ) ||
+    input.originalStartMs < 0 ||
+    input.originalDeadlineMs - input.originalStartMs !== 7200000 ||
+    input.finalStartedMs < input.originalStartMs ||
+    input.finalDeadlineMs - input.finalStartedMs !== 300000
+  )
+    throw new Error('Trusted original fixed operation and final reader budgets required');
+  const snapshot = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-final-reader-reserve',
+    identity: Object.freeze({ ...input.identity }),
+    originalStartMs: input.originalStartMs,
+    originalDeadlineMs: input.originalDeadlineMs,
+    finalStartedMs: input.finalStartedMs,
+    finalDeadlineMs: input.finalDeadlineMs,
+  });
+  withinWindow(snapshot);
+  const key = `${snapshot.identity.boot}:${snapshot.identity.pid}:${snapshot.identity.start}`;
+  const original = originalWindows.get(key);
+  if (original && windowKeys.some((field) => original[field] !== snapshot[field]))
+    throw new Error('Original final reader window cannot be renewed');
+  if (!original)
+    originalWindows.set(
+      key,
+      Object.freeze({
+        originalStartMs: snapshot.originalStartMs,
+        originalDeadlineMs: snapshot.originalDeadlineMs,
+        finalStartedMs: snapshot.finalStartedMs,
+        finalDeadlineMs: snapshot.finalDeadlineMs,
+      }),
+    );
+  admissions.set(snapshot, { snapshot, assertOriginal: input.assertOriginal });
+  return snapshot;
+}
+function inspectFinalReaderReserve(reserve) {
+  const admission = admissions.get(reserve);
+  if (!admission) throw new Error('An admitted original final reader reserve is required');
+  return admission.snapshot;
+}
+async function assertFinalReaderReserve(reserve) {
+  const snapshot = inspectFinalReaderReserve(reserve);
+  withinWindow(snapshot);
+  const admission = admissions.get(reserve);
+  if (!admission) throw new Error('An admitted original final reader reserve is required');
+  await admission.assertOriginal();
+  withinWindow(snapshot);
+}
+
+// plugins/terraform/src/installed-apply-controller.ts
+var callbacks = new WeakMap();
+async function assertOriginalApplyCallback(value) {
+  const verify = callbacks.get(value);
+  if (!verify) throw new Error('Original apply callback context required');
+  await verify();
+}
+var sameIdentity = (left, right) => ['pid', 'group', 'start', 'boot'].every((key) => left[key] === right[key]);
+function createInstalledApplyController(original, worker, hooks) {
+  const now = hooks.clock ?? linuxMonotonicMs,
+    persist = hooks.persist;
+  const methods = {
+    prepare: worker.prepare?.bind(worker),
+    start: worker.start.bind(worker),
+    assertOriginal: worker.assertOriginal.bind(worker),
+    finalCapture: worker.finalCapture.bind(worker),
+    close: worker.closeAfterExecutorExit.bind(worker),
+  };
+  const nonce = randomUUID2();
+  let sequence = 0,
+    prepared = false,
+    started,
+    finalStarted = false,
+    groupClosed = false,
+    closed = false;
+  let preparation;
+  const within = async () => {
+    await original.assertInputs();
+    if (now() < original.budget.start || now() >= original.budget.deadline)
+      throw new Error('Original apply operation budget exhausted');
+    await original.assertWithinDeadline();
+  };
+  const record = async (phase, extra = {}) =>
+    persist({
+      schemaVersion: 1,
+      kind: 'original-installed-apply-controller-event',
+      nonce,
+      sequence: ++sequence,
+      phase,
+      observedMs: now(),
+      owner: original.owner,
+      authentication: original.authentication,
+      budget: original.budget,
+      executionIdentity: started?.identity,
+      ...extra,
+      executionQualified: false,
+    });
+  const refuse = async (phase, error) => {
+    try {
+      await record(phase, { errorType: error instanceof Error ? error.name : typeof error });
+    } catch (retention) {
+      throw new AggregateError([error, retention], 'Original apply failure and retention failed');
+    }
+    throw error;
+  };
+  const callback = (phase, execution, reserve) => {
+    const verify = async () => {
+      if (closed || !started || !sameIdentity(execution.identity, started.identity))
+        throw new Error('Original apply callback identity or lifecycle changed');
+      if (phase === 'before') {
+        if (finalStarted) throw new Error('Original before callback retired');
+        await within();
+        if (now() >= execution.startupDeadlineMs) throw new Error('Original apply startup deadline elapsed');
+      } else {
+        if (!finalStarted || !reserve) throw new Error('Original final callback reserve required');
+        await original.assertInputs();
+        await assertFinalReaderReserve(reserve);
+        await original.assertInputs();
+      }
+    };
+    const value = {
+      schemaVersion: 1,
+      kind: 'original-installed-apply-callback',
+      phase,
+      nonce,
+      execution,
+      reserve,
+      async assertOriginal() {
+        await assertOriginalApplyCallback(this);
+      },
+    };
+    Object.defineProperty(value, 'original', { value: original, enumerable: false });
+    Object.freeze(value);
+    callbacks.set(value, verify);
+    return value;
+  };
+  return {
+    async prepare() {
+      if (closed || started || finalStarted) throw new Error('Original apply preparation retired');
+      preparation ??= (async () => {
+        try {
+          await within();
+          await record('prepare-start');
+          await methods.prepare?.(original);
+          await within();
+          await record('prepared');
+          prepared = true;
+        } catch (error) {
+          await refuse('prepare-failed', error);
+        }
+      })();
+      await preparation;
+    },
+    async start(admission) {
+      if (!prepared) throw new Error('Original apply controller must be prepared before release');
+      if (started || closed || finalStarted) throw new Error('Original apply execution already claimed');
+      if (
+        admission.args[0] !== 'apply' ||
+        admission.originalStartMs !== original.budget.start ||
+        admission.originalDeadlineMs !== original.budget.deadline
+      )
+        throw new Error('Original apply invocation or budget differs');
+      if (
+        !Number.isSafeInteger(admission.identity.pid) ||
+        admission.identity.pid <= 0 ||
+        admission.identity.group !== admission.identity.pid ||
+        !/^[0-9]+$/.test(admission.identity.start) ||
+        !/^[a-f0-9-]{36}$/.test(admission.identity.boot)
+      )
+        throw new Error('Original apply execution identity required');
+      await within();
+      if (now() >= admission.startupDeadlineMs) throw new Error('Original apply startup deadline elapsed');
+      started = Object.freeze({
+        ...admission,
+        identity: Object.freeze({ ...admission.identity }),
+        args: Object.freeze([...admission.args]),
+      });
+      await record('before-start');
+      const bound = callback('before', started);
+      await assertOriginalApplyCallback(bound);
+      await methods.start(admission, bound);
+      await assertOriginalApplyCallback(bound);
+      await record('before-complete');
+    },
+    async assertOriginal() {
+      if (closed) throw new Error('Original apply controller closed');
+      await within();
+      if (prepared) await methods.assertOriginal();
+    },
+    async finalCapture(finished, reserve) {
+      if (
+        !started ||
+        !finished.identity ||
+        !sameIdentity(started.identity, finished.identity) ||
+        finished.pid !== started.identity.pid
+      )
+        throw new Error('Original apply final identity differs');
+      if (finalStarted) throw new Error('Original apply final capture already claimed');
+      if (finished.originalDeadlineMs !== original.budget.deadline)
+        throw new Error('Original apply final budget differs');
+      if (reserve) {
+        const snapshot = inspectFinalReaderReserve(reserve);
+        if (
+          !sameIdentity(snapshot.identity, started.identity) ||
+          snapshot.originalStartMs !== original.budget.start ||
+          snapshot.originalDeadlineMs !== original.budget.deadline ||
+          snapshot.finalStartedMs !== finished.finalStartedMs ||
+          snapshot.finalDeadlineMs !== finished.finalDeadlineMs
+        )
+          throw new Error('Original apply final reserve differs');
+      }
+      finalStarted = true;
+      groupClosed = finished.originalGroupClosed;
+      const failures = [];
+      const attempt = async (fn) => {
+        try {
+          await fn();
+        } catch (error) {
+          failures.push(error);
+        }
+      };
+      await attempt(() =>
+        record('final-start', {
+          finalStartedMs: finished.finalStartedMs,
+          finalDeadlineMs: finished.finalDeadlineMs,
+          originalGroupClosed: groupClosed,
+        }),
+      );
+      const bound = callback('after', started, reserve);
+      await attempt(() => assertOriginalApplyCallback(bound));
+      await attempt(() => methods.finalCapture(finished, reserve, bound));
+      await attempt(() => assertOriginalApplyCallback(bound));
+      if (!failures.length) await attempt(() => record('final-complete'));
+      else
+        await attempt(() =>
+          record('final-failed', {
+            failureTypes: failures.map((error) => (error instanceof Error ? error.name : typeof error)),
+          }),
+        );
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1)
+        throw new AggregateError(failures, 'Original apply final capture and retention incomplete');
+    },
+    async closeAfterExecutorExit() {
+      if (closed) return;
+      if (started && (!finalStarted || !groupClosed)) throw new Error('Original apply executor closure required');
+      await original.assertInputs();
+      await methods.close();
+      await record('closed');
+      closed = true;
+    },
+  };
+}
+
 // plugins/terraform/src/installed-capture-context.ts
 import { isAbsolute, resolve } from 'node:path';
 
@@ -834,102 +1133,9 @@ function createInstalledCaptureContext(admission) {
   });
 }
 
-// plugins/terraform/src/linux-clock.ts
-import { dlopen, FFIType, ptr } from 'bun:ffi';
 // plugins/terraform/src/installed-final-capture.ts
 import { isAbsolute as isAbsolute2, join as join2, resolve as resolve2 } from 'node:path';
 
-var sample;
-function linuxMonotonicMs() {
-  if (process.platform !== 'linux') throw new Error('Original Linux monotonic clock is unavailable');
-  if (!sample) {
-    const libc = dlopen('libc.so.6', {
-      clock_gettime: { args: [FFIType.i32, FFIType.ptr], returns: FFIType.i32 },
-    });
-    const value = new BigInt64Array(2);
-    sample = () => {
-      if (libc.symbols.clock_gettime(1, ptr(value)) !== 0 || value[0] < 0n || value[1] < 0n || value[1] >= 1000000000n)
-        throw new Error('Original Linux monotonic clock capture failed');
-      const result = value[0] * 1000n + value[1] / 1000000n;
-      if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Original monotonic clock exceeds safe bound');
-      return Number(result);
-    };
-  }
-  return sample();
-}
-
-// plugins/terraform/src/reader-final-reserve.ts
-var admissions = new WeakMap();
-var windowKeys = ['originalStartMs', 'originalDeadlineMs', 'finalStartedMs', 'finalDeadlineMs'];
-var originalWindows = new Map();
-function withinWindow(snapshot) {
-  const current = linuxMonotonicMs();
-  if (current < snapshot.finalStartedMs || current >= snapshot.finalDeadlineMs)
-    throw new Error('Original final reader reserve is exhausted or has not started');
-}
-function admitFinalReaderReserve(input) {
-  if (
-    !input ||
-    typeof input.assertOriginal !== 'function' ||
-    !input.identity ||
-    !Number.isSafeInteger(input.identity.pid) ||
-    input.identity.pid <= 0 ||
-    input.identity.group !== input.identity.pid ||
-    typeof input.identity.start !== 'string' ||
-    !/^[0-9]+$/.test(input.identity.start) ||
-    typeof input.identity.boot !== 'string' ||
-    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(input.identity.boot) ||
-    ![input.originalStartMs, input.originalDeadlineMs, input.finalStartedMs, input.finalDeadlineMs].every(
-      Number.isSafeInteger,
-    ) ||
-    input.originalStartMs < 0 ||
-    input.originalDeadlineMs - input.originalStartMs !== 7200000 ||
-    input.finalStartedMs < input.originalStartMs ||
-    input.finalDeadlineMs - input.finalStartedMs !== 300000
-  )
-    throw new Error('Trusted original fixed operation and final reader budgets required');
-  const snapshot = Object.freeze({
-    schemaVersion: 1,
-    kind: 'original-final-reader-reserve',
-    identity: Object.freeze({ ...input.identity }),
-    originalStartMs: input.originalStartMs,
-    originalDeadlineMs: input.originalDeadlineMs,
-    finalStartedMs: input.finalStartedMs,
-    finalDeadlineMs: input.finalDeadlineMs,
-  });
-  withinWindow(snapshot);
-  const key = `${snapshot.identity.boot}:${snapshot.identity.pid}:${snapshot.identity.start}`;
-  const original = originalWindows.get(key);
-  if (original && windowKeys.some((field) => original[field] !== snapshot[field]))
-    throw new Error('Original final reader window cannot be renewed');
-  if (!original)
-    originalWindows.set(
-      key,
-      Object.freeze({
-        originalStartMs: snapshot.originalStartMs,
-        originalDeadlineMs: snapshot.originalDeadlineMs,
-        finalStartedMs: snapshot.finalStartedMs,
-        finalDeadlineMs: snapshot.finalDeadlineMs,
-      }),
-    );
-  admissions.set(snapshot, { snapshot, assertOriginal: input.assertOriginal });
-  return snapshot;
-}
-function inspectFinalReaderReserve(reserve) {
-  const admission = admissions.get(reserve);
-  if (!admission) throw new Error('An admitted original final reader reserve is required');
-  return admission.snapshot;
-}
-async function assertFinalReaderReserve(reserve) {
-  const snapshot = inspectFinalReaderReserve(reserve);
-  withinWindow(snapshot);
-  const admission = admissions.get(reserve);
-  if (!admission) throw new Error('An admitted original final reader reserve is required');
-  await admission.assertOriginal();
-  withinWindow(snapshot);
-}
-
-// plugins/terraform/src/installed-final-capture.ts
 function key(identity) {
   if (
     !identity ||
@@ -1738,7 +1944,7 @@ async function verifyProviderPackage(request) {
 }
 
 // plugins/terraform/src/signal-free-executor.ts
-import { createHash as createHash8, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash8, randomUUID as randomUUID3 } from 'node:crypto';
 import { constants as constants4, watch as watch3 } from 'node:fs';
 import {
   lstat as lstat6,
@@ -2231,7 +2437,7 @@ function originalExecutor(input, reserve) {
       python.close();
       throw error;
     }
-    const root = join6(cwd, 'executor-diagnostics', randomUUID2());
+    const root = join6(cwd, 'executor-diagnostics', randomUUID3());
     await mkdir2(root, { recursive: true, mode: 448 });
     const script = join6(root, 'gate.py');
     const bootstrap = join6(root, 'bootstrap.json');
@@ -2844,7 +3050,7 @@ async function assertInstalledRuntime(env = process.env) {
       const inspection = join7(
         env.XDG_STATE_HOME ?? join7(homedir(), '.local/state'),
         'xcsh/terraform/runtime-inspections',
-        randomUUID3(),
+        randomUUID4(),
       );
       await privateDirectory(inspection);
       inspectionDirectory = inspection;
@@ -2960,6 +3166,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     let executor;
     let compileInvocation;
     let capture;
+    let prepareCapture;
     let active = 0;
     const groups = [];
     let originalEnvironment;
@@ -2981,7 +3188,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         await store.verify();
         const currentSource = await owned(sourcePath, 65536);
         assertSameOriginalInput(source.binding, currentSource.binding);
-        const snapshotPath = join7(directory, `google-adc-${randomUUID3()}.private.json`);
+        const snapshotPath = join7(directory, `google-adc-${randomUUID4()}.private.json`);
         await writeFile3(snapshotPath, currentSource.bytes, { flag: 'wx', mode: 256 });
         const saved = await store.read('gcp-terraform-input-identity.json');
         if (
@@ -3013,7 +3220,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         )
           throw new Error('Original selected Platform credential unavailable');
         originalEnvironment = { XCSH_API_URL: url.origin, XCSH_API_TOKEN: context.apiToken };
-        const environmentPath = join7(directory, `platform-environment-${randomUUID3()}.private.json`);
+        const environmentPath = join7(directory, `platform-environment-${randomUUID4()}.private.json`);
         await writeFile3(environmentPath, JSON.stringify(originalEnvironment), { flag: 'wx', mode: 256 });
         const bindings = {
           ...runtime.bindings,
@@ -3042,7 +3249,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
           GOOGLE_APPLICATION_CREDENTIALS: snapshotPath,
           ...originalEnvironment,
         });
-        const invocationEnvironmentPath = join7(directory, `runtime-environment-${randomUUID3()}.private.json`);
+        const invocationEnvironmentPath = join7(directory, `runtime-environment-${randomUUID4()}.private.json`);
         await writeFile3(invocationEnvironmentPath, JSON.stringify(invocationEnvironment), { flag: 'wx', mode: 256 });
         bindings.runtimeEnvironment = (await owned(invocationEnvironmentPath)).binding;
         compileInvocation = createInstalledGcpInvocationCompiler({
@@ -3076,33 +3283,47 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             assertOriginal,
           });
           await writeFile3(
-            join7(directory, `google-authentication-${randomUUID3()}.private.json`),
+            join7(directory, `google-authentication-${randomUUID4()}.private.json`),
             JSON.stringify(authenticated),
             { flag: 'wx', mode: 256 },
           );
-          capture = captureFactory?.(
-            request,
-            createInstalledCaptureContext({
-              authentication: {
-                accountSha256: authenticated.accountSha256,
-                audienceSha256: authenticated.audienceSha256,
-                snapshotSha256: authenticated.snapshotSha256,
-              },
-              owner,
-              executionDirectory,
-              budget: { start, deadline },
-              environment: { GOOGLE_APPLICATION_CREDENTIALS: snapshotPath, ...originalEnvironment },
-              inputs: bindings,
-              assertInputs,
-              assertWithinDeadline,
-              readProviderInputs: async () => {
-                if (!providers || !providerInputs)
-                  throw new Error('Original capture provider packages are not admitted');
-                await providers.assertOriginal();
-                return providerInputs;
-              },
-            }),
-          );
+          const captureContext = createInstalledCaptureContext({
+            authentication: {
+              accountSha256: authenticated.accountSha256,
+              audienceSha256: authenticated.audienceSha256,
+              snapshotSha256: authenticated.snapshotSha256,
+            },
+            owner,
+            executionDirectory,
+            budget: { start, deadline },
+            environment: { GOOGLE_APPLICATION_CREDENTIALS: snapshotPath, ...originalEnvironment },
+            inputs: bindings,
+            assertInputs,
+            assertWithinDeadline,
+            readProviderInputs: async () => {
+              if (!providers || !providerInputs) throw new Error('Original capture provider packages are not admitted');
+              await providers.assertOriginal();
+              return providerInputs;
+            },
+          });
+          const worker = captureFactory?.(request, captureContext);
+          capture = worker
+            ? createInstalledApplyController(captureContext, worker, {
+                persist: async (event) => {
+                  const handle = await open5(
+                    join7(directory, `google-original-apply-${randomUUID4()}.private.json`),
+                    'wx',
+                    256,
+                  );
+                  try {
+                    await handle.writeFile(JSON.stringify(event));
+                    await handle.sync();
+                  } finally {
+                    await handle.close();
+                  }
+                },
+              })
+            : undefined;
           const captureInvocations = new InstalledCaptureInvocations();
           const verifyCaptureGroup = async (record) => {
             const rows = {};
@@ -3162,6 +3383,11 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             providers = await monitorOriginalInputs(providerBindings);
             providerInputs = freezeAdmittedCaptureInputs(providerBindings);
           };
+          prepareCapture = async () => {
+            if (!capture) throw new Error('Original GCP guest capture controller is not qualified');
+            await bindProviders();
+            await capture.prepare?.(captureContext);
+          };
           executor = signalFreeTerraformExecutor({
             python: { path: runtime.python, sha256: installed_runtime_pins_default.pythonSha256 },
             executable: { path: terraformPath, sha256: versionProfile.terraformSha256 },
@@ -3169,7 +3395,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             originalDeadlineMs: deadline,
             assertOriginal,
             beforeRelease: async (admission) => {
-              const currentGroup = join7(directory, 'google-runtime-groups', randomUUID3());
+              const currentGroup = join7(directory, 'google-runtime-groups', randomUUID4());
               await privateDirectory(currentGroup);
               for (const name of ['claim.json', 'lifetime.json'])
                 await writeFile3(
@@ -3198,7 +3424,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             finalCapture: async (finished) =>
               finalizeInstalledCapture(captureInvocations, finished, {
                 persist: async (value) => {
-                  const resultPath = join7(directory, `google-runtime-final-${randomUUID3()}.private.json`);
+                  const resultPath = join7(directory, `google-runtime-final-${randomUUID4()}.private.json`);
                   await writeFile3(resultPath, JSON.stringify(value), { flag: 'wx', mode: 256 });
                 },
                 verify: verifyCaptureGroup,
@@ -3239,6 +3465,10 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         throw new Error('Installed Terraform invocation is outside the owning runner');
       active++;
       try {
+        if (invocation.args[0] === 'apply') {
+          if (!prepareCapture) throw new Error('Original installed capture preparation unavailable');
+          await prepareCapture();
+        }
         return await executor(compileInvocation(invocation));
       } finally {
         active--;
@@ -3256,7 +3486,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
 }
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash10, randomUUID as randomUUID4 } from 'node:crypto';
+import { createHash as createHash10, randomUUID as randomUUID5 } from 'node:crypto';
 import {
   chmod,
   lstat as lstat8,
@@ -3474,7 +3704,7 @@ function terraformExecutor(
         stderr: 'pipe',
       },
     );
-    const invocationId = randomUUID4();
+    const invocationId = randomUUID5();
     const transition = async (phase) => {
       if (!retainFailure) return;
       const directory = join8(cwd, 'executor-diagnostics');
@@ -3565,7 +3795,7 @@ function terraformExecutor(
         await privateDirectory2(cwd);
         const directory = join8(cwd, 'failure-diagnostics');
         await privateDirectory2(directory);
-        await persist(join8(directory, `${randomUUID4()}.json`), {
+        await persist(join8(directory, `${randomUUID5()}.json`), {
           schemaVersion: 1,
           observedAt: new Date().toISOString(),
           operation: args[0],
@@ -3804,7 +4034,7 @@ class TerraformRunner {
         previous: manifest,
         next: { ...manifest, configurationSha256: nextSha256 },
         configuration,
-        archiveId: randomUUID4(),
+        archiveId: randomUUID5(),
       };
       await this.#replacePrivate(join8(directory, 'configuration-transition.json'), JSON.stringify(transition));
       await this.#recoverRevision();
@@ -3823,7 +4053,7 @@ class TerraformRunner {
     }
   }
   async #replacePrivate(path, content) {
-    const temporary = `${path}.${randomUUID4()}.new`;
+    const temporary = `${path}.${randomUUID5()}.new`;
     await writeFile4(temporary, content, { mode: 384, flag: 'wx' });
     await rename2(temporary, path);
   }

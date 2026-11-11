@@ -1374,3 +1374,13 @@ executable and completed version-4 window; historical 8.10 windows remain unchan
 All 23 focused regressions pass. Original insertion and apply qualification remain
 false until fresh actual managed VM/RPC/audit/token/NIC/lifetime evidence passes.
 Full default capture, expiry, native/Terraform live/runtime and delivery remain open.
+
+Attempt 440 integrates the [original-budget apply controller](gcp-original-apply-controller-20261110.md).
+The installed runtime prepares its admitted worker before the 15-second child
+release gate, retaining the original two-hour budget, context and single-flight
+preparation. Issuer-bound startup/final callbacks match the original execution
+and five-minute reserve. Late startup and copies refuse; capture still runs after
+a failed initial final journal write, with all errors retained. Eight new
+controller cases and 1,348 shared/canonical tests pass. Default guest capture,
+actual expiry, managed insertion, native/Terraform live/runtime and delivery remain
+open; no cloud campaign or execution qualification is inferred from these tests.

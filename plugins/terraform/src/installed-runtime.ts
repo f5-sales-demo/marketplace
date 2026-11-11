@@ -8,6 +8,7 @@ import { assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import captureSources from './gcp-capture-source-pins.json';
 import { authenticateGoogleAdc } from './google-adc-authentication';
 import type { GoogleAdcLease } from './google-adc-session';
+import { createInstalledApplyController, type OriginalApplyCallbackContext } from './installed-apply-controller';
 import {
   createInstalledCaptureContext,
   freezeAdmittedCaptureInputs,
@@ -48,9 +49,14 @@ export class InstalledTerraformSetupRequired extends Error {
   }
 }
 export interface InstalledGcpCapture {
-  start(admission: ExecutionCaptureAdmission): Promise<void>;
+  prepare?(context: InstalledCaptureContext): Promise<void>;
+  start(admission: ExecutionCaptureAdmission, callback?: OriginalApplyCallbackContext): Promise<void>;
   assertOriginal(): Promise<void>;
-  finalCapture(capture: FinalExecutionCapture, reserve?: FinalReaderReserve): Promise<void>;
+  finalCapture(
+    capture: FinalExecutionCapture,
+    reserve?: FinalReaderReserve,
+    callback?: OriginalApplyCallbackContext,
+  ): Promise<void>;
   closeAfterExecutorExit(): Promise<void>;
 }
 export class InstalledCaptureSourcesUnavailable extends Error {
@@ -341,6 +347,7 @@ export function createInstalledRuntimeResolver(
     let executor: Executor | undefined;
     let compileInvocation: ReturnType<typeof createInstalledGcpInvocationCompiler> | undefined;
     let capture: InstalledGcpCapture | undefined;
+    let prepareCapture: (() => Promise<void>) | undefined;
     let active = 0;
     const groups: string[] = [];
     let originalEnvironment: { XCSH_API_URL: string; XCSH_API_TOKEN: string } | undefined;
@@ -465,29 +472,43 @@ export function createInstalledRuntimeResolver(
             JSON.stringify(authenticated),
             { flag: 'wx', mode: 0o400 },
           );
-          capture = captureFactory?.(
-            request,
-            createInstalledCaptureContext({
-              authentication: {
-                accountSha256: authenticated.accountSha256,
-                audienceSha256: authenticated.audienceSha256,
-                snapshotSha256: authenticated.snapshotSha256,
-              },
-              owner,
-              executionDirectory,
-              budget: { start, deadline },
-              environment: { GOOGLE_APPLICATION_CREDENTIALS: snapshotPath, ...originalEnvironment },
-              inputs: bindings,
-              assertInputs,
-              assertWithinDeadline,
-              readProviderInputs: async () => {
-                if (!providers || !providerInputs)
-                  throw new Error('Original capture provider packages are not admitted');
-                await providers.assertOriginal();
-                return providerInputs;
-              },
-            }),
-          );
+          const captureContext = createInstalledCaptureContext({
+            authentication: {
+              accountSha256: authenticated.accountSha256,
+              audienceSha256: authenticated.audienceSha256,
+              snapshotSha256: authenticated.snapshotSha256,
+            },
+            owner,
+            executionDirectory,
+            budget: { start, deadline },
+            environment: { GOOGLE_APPLICATION_CREDENTIALS: snapshotPath, ...originalEnvironment },
+            inputs: bindings,
+            assertInputs,
+            assertWithinDeadline,
+            readProviderInputs: async () => {
+              if (!providers || !providerInputs) throw new Error('Original capture provider packages are not admitted');
+              await providers.assertOriginal();
+              return providerInputs;
+            },
+          });
+          const worker = captureFactory?.(request, captureContext);
+          capture = worker
+            ? createInstalledApplyController(captureContext, worker, {
+                persist: async (event) => {
+                  const handle = await open(
+                    join(directory, `google-original-apply-${randomUUID()}.private.json`),
+                    'wx',
+                    0o400,
+                  );
+                  try {
+                    await handle.writeFile(JSON.stringify(event));
+                    await handle.sync();
+                  } finally {
+                    await handle.close();
+                  }
+                },
+              })
+            : undefined;
           const captureInvocations = new InstalledCaptureInvocations();
           const verifyCaptureGroup = async (record: InstalledCaptureInvocation) => {
             const rows: Record<string, Record<string, unknown>> = {};
@@ -546,6 +567,11 @@ export function createInstalledRuntimeResolver(
             }
             providers = await monitorOriginalInputs(providerBindings);
             providerInputs = freezeAdmittedCaptureInputs(providerBindings);
+          };
+          prepareCapture = async () => {
+            if (!capture) throw new Error('Original GCP guest capture controller is not qualified');
+            await bindProviders();
+            await capture.prepare?.(captureContext);
           };
           executor = signalFreeTerraformExecutor({
             python: { path: runtime.python, sha256: pins.pythonSha256 },
@@ -624,6 +650,10 @@ export function createInstalledRuntimeResolver(
         throw new Error('Installed Terraform invocation is outside the owning runner');
       active++;
       try {
+        if (invocation.args[0] === 'apply') {
+          if (!prepareCapture) throw new Error('Original installed capture preparation unavailable');
+          await prepareCapture();
+        }
         return await executor(compileInvocation(invocation));
       } finally {
         active--;

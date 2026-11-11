@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.74** prepares original capture before the release gate and
+  binds startup/final callbacks to the original context, identity and budget,
+  retaining final evidence and failures without renewing its reserve.
+
 - **`terraform` 2.4.73** accepts the source-verified Google 8.11 insert projection
   and requires its exact provider executable and version-4 observation window.
   Original insertion and bootstrap execution qualification remain held.
@@ -18,7 +22,7 @@ and this project adheres to
   bootstrap reference verification through the issuing Platform service, preserving
   original-body provenance and private inspection across plugin bundles.
 
-- **`terraform`** v2.4.73 delegates original reference verification to the issuing
+- **`terraform`** v2.4.74 delegates original reference verification to the issuing
   Platform module and binds GCP Site and Token API identities to
   shared-runner creation hashes, verifies declared labels and the Google provider
   marker, and refuses state changes while preserving bootstrap admission holds.
