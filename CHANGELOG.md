@@ -10,11 +10,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.73** accepts the source-verified Google 8.11 insert projection
+  and requires its exact provider executable and version-4 observation window.
+  Original insertion and bootstrap execution qualification remain held.
+
 - **`gcloud` 1.7.43 / `platform` 6.3.18 / `terraform` 2.4.72** repair compiled
   bootstrap reference verification through the issuing Platform service, preserving
   original-body provenance and private inspection across plugin bundles.
 
-- **`terraform`** v2.4.72 delegates original reference verification to the issuing
+- **`terraform`** v2.4.73 delegates original reference verification to the issuing
   Platform module and binds GCP Site and Token API identities to
   shared-runner creation hashes, verifies declared labels and the Google provider
   marker, and refuses state changes while preserving bootstrap admission holds.

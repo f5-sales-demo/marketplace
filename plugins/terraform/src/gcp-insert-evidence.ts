@@ -131,7 +131,7 @@ export function inspectOriginalGcpInsertBodies(
   assertOriginalGoogleHttpRpcBodies(input);
   const profile = resolveInstalledGcpVersionProfile(binding);
   if (
-    profile.googleVersion !== '8.10.0' ||
+    !['8.10.0', '8.11.0'].includes(profile.googleVersion) ||
     input.googleProviderVersion !== profile.googleVersion ||
     input.rpc !== 'ApplyResourceChange' ||
     input.resourceType !== 'google_compute_instance' ||
@@ -344,6 +344,13 @@ export function joinOriginalGcpInsertSource(input: OriginalGcpInsertSourceJoinIn
     rpc.providerPathSha256 !== hash(input.providerPath)
   )
     throw new Error('Original lifecycle RPC and insert source records differ');
+  // Google8.11 uses the authenticated version4 completed-observation reader.
+  // Historical8.10 source windows retain their original3/4 interpretation.
+  if (
+    profile.googleVersion === '8.11.0' &&
+    (window.schemaVersion !== 4 || window.kind !== 'original-provider-stderr-verified-window')
+  )
+    throw new Error('Original Google8.11 verified window required');
   if (
     ![3, 4].includes(window.schemaVersion) ||
     !['original-provider-stderr-coherent-window', 'original-provider-stderr-verified-window'].includes(window.kind) ||

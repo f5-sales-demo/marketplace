@@ -67,18 +67,23 @@ const operationFixture = () => ({
   selfLink: `https://www.googleapis.com/compute/v1/projects/${project}/zones/${zone}/operations/operation-example`,
   targetLink: `https://www.googleapis.com/compute/v1/projects/${project}/zones/${zone}/instances/${node}`,
 });
-function capture(request: unknown = requestFixture(), response: unknown = operationFixture()) {
+function capture(
+  request: unknown = requestFixture(),
+  response: unknown = operationFixture(),
+  versionBinding = binding,
+  googleVersion = '8.10.0',
+) {
   const row = (message: string, fields = {}) =>
     `${JSON.stringify({
       '@timestamp': '2026-11-10T10:00:00Z',
       '@level': 'debug',
-      '@module': 'provider.terraform-provider-google_v8.10.0_x5',
+      '@module': `provider.terraform-provider-google_v${googleVersion}_x5`,
       '@message': message,
       ...fields,
     })}\n`;
   const rpc = (message: string) => row(message, { '@module': 'sdk.proto', '@level': 'trace', ...identity });
   const end = row('-----------------------------------------------------');
-  const parser = new GoogleHttpRpcTraceParser(scope, binding);
+  const parser = new GoogleHttpRpcTraceParser(scope, versionBinding);
   const [candidate] = parser.push(
     Buffer.from(
       rpc('Received request') +
@@ -196,9 +201,12 @@ test('missing ownership fields and incomplete machine/interface names cannot pas
     expect(() => inspectOriginalGcpInsertBodies(capture(request), binding)).toThrow();
 });
 
-function sourceJoinFixture() {
-  const insert = inspectOriginalGcpInsertBodies(capture(), binding);
-  const providerPath = '/example/provider/terraform-provider-google_v8.10.0_x5';
+function sourceJoinFixture(versionBinding = binding, googleVersion = '8.10.0') {
+  const insert = inspectOriginalGcpInsertBodies(
+    capture(requestFixture(), operationFixture(), versionBinding, googleVersion),
+    versionBinding,
+  );
+  const providerPath = `/example/provider/terraform-provider-google_v${googleVersion}_x5`;
   const parent = { pid: 1234, group: 1234, start: '100', boot: '11111111-2222-3333-4444-555555555555' };
   const provider = {
     pid: 2345,
@@ -206,7 +214,10 @@ function sourceJoinFixture() {
     group: 1234,
     start: '200',
     boot: parent.boot,
-    executable_sha256: 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
+    executable_sha256:
+      googleVersion === '8.11.0'
+        ? 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5'
+        : 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
   };
   const resource = {
     name: node,
@@ -226,7 +237,7 @@ function sourceJoinFixture() {
     deploymentId: 'example-deployment',
     backendIdentity: 'local:example-deployment',
     configurationSha256: createHash('sha256').update(configuration).digest('hex'),
-    providerLockSha256: binding.providerLockSha256,
+    providerLockSha256: versionBinding.providerLockSha256,
     planSha256: scope.planSha256,
     changes: [{ address: 'google_compute_instance.node', type: 'google_compute_instance', actions: ['create'] }],
     noChanges: false,
@@ -302,7 +313,7 @@ function sourceJoinFixture() {
     },
     rpc,
     window,
-    binding,
+    binding: versionBinding,
   };
 }
 
@@ -365,8 +376,18 @@ test('source correlation rejects malformed numeric and time evidence instead of 
     expect(() => joinOriginalGcpInsertSource(changed as never)).toThrow();
 });
 
-async function vmJoinFixture(change: Record<string, unknown> = {}, audit?: (vm: Record<string, unknown>) => unknown[]) {
-  const source = joinOriginalGcpInsertSource(sourceJoinFixture());
+async function vmJoinFixture(
+  change: Record<string, unknown> = {},
+  audit?: (vm: Record<string, unknown>) => unknown[],
+  versionBinding = binding,
+  googleVersion = '8.10.0',
+) {
+  const input = sourceJoinFixture(versionBinding, googleVersion);
+  const source = joinOriginalGcpInsertSource(
+    googleVersion === '8.11.0'
+      ? { ...input, window: { ...input.window, schemaVersion: 4, kind: 'original-provider-stderr-verified-window' } }
+      : input,
+  );
   if (source.targetId === null) throw new Error('Original numeric fixture target required');
   const initial = requestFixture();
   const created = new Date(Date.now() - 500).toISOString();
@@ -490,39 +511,48 @@ test('copied or foreign reader evidence cannot substitute an original operation 
   await expect(joinOriginalGcpVmEvidence({ ...input, operation: foreign.operation })).rejects.toThrow();
 });
 
-async function auditJoinFixture(change?: (entries: Record<string, unknown>[]) => unknown[]) {
-  const input = await vmJoinFixture({}, (vm) => {
-    const entry = (insertId: string) => ({
-      insertId,
-      logName: `projects/${project}/logs/cloudaudit.googleapis.com%2Factivity`,
-      timestamp: vm.creationTimestamp,
-      resource: { type: 'gce_instance', labels: { project_id: project, zone, instance_id: vm.id } },
-      protoPayload: {
-        '@type': 'type.googleapis.com/google.cloud.audit.AuditLog',
-        serviceName: 'compute.googleapis.com',
-        methodName: 'v1.compute.instances.insert',
-        resourceName: `projects/${project}/zones/${zone}/instances/${node}`,
-        authenticationInfo: { principalEmail: 'principal@example.com' },
-        status: {},
-      },
-    });
-    const first = {
-      ...entry('first-audit'),
-      operation: { id: operationFixture().name, producer: 'compute.googleapis.com', first: true },
-      protoPayload: {
-        ...entry('first-audit').protoPayload,
-        request: { '@type': 'example.insert', name: node, labels: requestFixture().labels, canIpForward: true },
-        response: { ...operationFixture(), insertTime: vm.creationTimestamp },
-        requestMetadata: { requestAttributes: { reason: scope.requestReason } },
-      },
-    };
-    const last = {
-      ...entry('last-audit'),
-      operation: { id: operationFixture().name, producer: 'compute.googleapis.com', last: true },
-      protoPayload: { ...entry('last-audit').protoPayload, request: { '@type': 'example.insert' } },
-    };
-    return change ? change([first, last]) : [first, last];
-  });
+async function auditJoinFixture(
+  change?: (entries: Record<string, unknown>[]) => unknown[],
+  versionBinding = binding,
+  googleVersion = '8.10.0',
+) {
+  const input = await vmJoinFixture(
+    {},
+    (vm) => {
+      const entry = (insertId: string) => ({
+        insertId,
+        logName: `projects/${project}/logs/cloudaudit.googleapis.com%2Factivity`,
+        timestamp: vm.creationTimestamp,
+        resource: { type: 'gce_instance', labels: { project_id: project, zone, instance_id: vm.id } },
+        protoPayload: {
+          '@type': 'type.googleapis.com/google.cloud.audit.AuditLog',
+          serviceName: 'compute.googleapis.com',
+          methodName: 'v1.compute.instances.insert',
+          resourceName: `projects/${project}/zones/${zone}/instances/${node}`,
+          authenticationInfo: { principalEmail: 'principal@example.com' },
+          status: {},
+        },
+      });
+      const first = {
+        ...entry('first-audit'),
+        operation: { id: operationFixture().name, producer: 'compute.googleapis.com', first: true },
+        protoPayload: {
+          ...entry('first-audit').protoPayload,
+          request: { '@type': 'example.insert', name: node, labels: requestFixture().labels, canIpForward: true },
+          response: { ...operationFixture(), insertTime: vm.creationTimestamp },
+          requestMetadata: { requestAttributes: { reason: scope.requestReason } },
+        },
+      };
+      const last = {
+        ...entry('last-audit'),
+        operation: { id: operationFixture().name, producer: 'compute.googleapis.com', last: true },
+        protoPayload: { ...entry('last-audit').protoPayload, request: { '@type': 'example.insert' } },
+      };
+      return change ? change([first, last]) : [first, last];
+    },
+    versionBinding,
+    googleVersion,
+  );
   const audit = await input.reader.insertAudit(zone, node, {
     after: new Date(input.absent.startedAt - 1000).toISOString(),
     before: new Date(Date.now() + 1000).toISOString(),
@@ -625,4 +655,81 @@ test('absent first audit metadata reports the missing request reason while spars
     },
   ]);
   expect((await joinOriginalGcpInsertAuditEvidence(sparse)).auditCorroborated).toBe(true);
+});
+
+const google811 = {
+  terraformVersion: '1.17.1',
+  providerLockSha256: 'c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
+};
+
+test('authenticated Google 8.11 map-based insert projection preserves original bodies and grants no execution', () => {
+  const request = {
+    ...requestFixture(),
+    params: {},
+    serviceAccounts: [],
+    disks: [{ boot: true, autoDelete: false, source: `projects/${project}/zones/${zone}/disks/${node}` }],
+  };
+  const bodies = capture(request, operationFixture(), google811, '8.11.0');
+  const candidate = inspectOriginalGcpInsertBodies(bodies, google811);
+  expect(candidate.nodeName).toBe(node);
+  expect(candidate.requestBodySha256).toBe(bodies.requestBodySha256);
+  expect(candidate.originalInsertQualified).toBe(false);
+  expect(candidate.applyRpcQualified).toBe(false);
+  expect(() => inspectOriginalGcpInsertBodies({ ...bodies }, google811)).toThrow('original');
+});
+
+test('Google 8.11 source correspondence requires its exact provider executable and completed version4 window', () => {
+  const original = sourceJoinFixture(google811, '8.11.0');
+  const window = {
+    ...original.window,
+    schemaVersion: 4 as const,
+    kind: 'original-provider-stderr-verified-window' as const,
+  };
+  const joined = joinOriginalGcpInsertSource({ ...original, window });
+  expect(joined.sourceCorroborated).toBe(true);
+  expect(joined.originalInsertQualified).toBe(false);
+  expect(() => joinOriginalGcpInsertSource(original)).toThrow('window');
+  const wrong = {
+    ...window,
+    observations: [
+      {
+        ...window.observations[0],
+        candidate: {
+          ...window.observations[0].candidate,
+          executable_sha256: 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
+        },
+      },
+    ],
+  };
+  expect(() => joinOriginalGcpInsertSource({ ...original, window: wrong })).toThrow();
+});
+
+test('Google 8.11 rejects missing bootstrap, accounts, wrong-engine labels and provider family substitution', () => {
+  for (const request of [
+    { ...requestFixture(), serviceAccounts: [{ email: 'default' }] },
+    { ...requestFixture(), metadata: { items: [] } },
+    { ...requestFixture(), labels: { ...requestFixture().labels, 'xcsh-engine': 'native' } },
+  ])
+    expect(() =>
+      inspectOriginalGcpInsertBodies(capture(request, operationFixture(), google811, '8.11.0'), google811),
+    ).toThrow();
+  expect(() => inspectOriginalGcpInsertBodies(capture(), google811)).toThrow();
+});
+
+test('Google 8.11 VM and audit joins require original numeric identity, bootstrap, NICs and reason', async () => {
+  const input = await auditJoinFixture(undefined, google811, '8.11.0');
+  expect((await joinOriginalGcpVmEvidence(input)).cloudEvidenceCorroborated).toBe(true);
+  expect((await joinOriginalGcpInsertAuditEvidence(input)).auditCorroborated).toBe(true);
+  await expect(joinOriginalGcpVmEvidence({ ...input, instance: { ...input.instance } })).rejects.toThrow();
+  const changed = await vmJoinFixture({ id: '18446744073709551612' }, undefined, google811, '8.11.0');
+  await expect(joinOriginalGcpVmEvidence(changed)).rejects.toThrow();
+  const noReason = await auditJoinFixture(
+    ([first, last]) => [
+      { ...first, protoPayload: { ...(first.protoPayload as object), requestMetadata: { requestAttributes: {} } } },
+      last,
+    ],
+    google811,
+    '8.11.0',
+  );
+  await expect(joinOriginalGcpInsertAuditEvidence(noReason)).rejects.toThrow('request reason');
 });

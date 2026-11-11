@@ -1366,3 +1366,11 @@ completed cleanup with no new unresolved locks and zero CE/GCP managed resources
 The original failed field and ABI captures remain unchanged. VM/token/NIC/lifetime
 joins, single-use bootstrap, Google 8.11 managed insert, full default capture,
 actual expiry, native/Terraform live/runtime and delivery gates remain open.
+
+Attempt 439 adds [Google 8.11 original insert projection](gcp-google811-insert-projection-20261110.md).
+Immutable upstream map/POST/query construction and source-issued original bodies
+support the exact authenticated profile. Correspondence requires its provider
+executable and completed version-4 window; historical 8.10 windows remain unchanged.
+All 23 focused regressions pass. Original insertion and apply qualification remain
+false until fresh actual managed VM/RPC/audit/token/NIC/lifetime evidence passes.
+Full default capture, expiry, native/Terraform live/runtime and delivery remain open.
