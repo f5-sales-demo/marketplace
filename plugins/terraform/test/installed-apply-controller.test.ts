@@ -81,7 +81,7 @@ function fixture(start = 1000, failPrepare = false) {
     },
   });
   const admission = (): ExecutionCaptureAdmission => ({
-    directory: '/example/original/executor-diagnostics/capture',
+    directory: '/example/original',
     args: ['apply'],
     identity,
     stdoutPath: '/example/stdout',
@@ -256,4 +256,78 @@ test('final capture still runs when its original journal write fails', async () 
   });
   await expect(control.finalCapture(finished, reserve)).rejects.toThrow('final retention failed');
   expect(run.counts().finals).toBe(1);
+});
+
+test('foreign execution workspace refuses before capture worker receives admission', async () => {
+  const run = fixture();
+  await run.control.prepare?.(run.context);
+  await expect(run.control.start({ ...run.admission(), directory: '/example/foreign' })).rejects.toThrow('workspace');
+  expect(run.counts().starts).toBe(0);
+});
+
+test('capture worker receives the immutable admitted execution snapshot', async () => {
+  const run = fixture();
+  let received: ExecutionCaptureAdmission | undefined;
+  run.worker.start = async (admission) => {
+    received = admission;
+  };
+  const control = createInstalledApplyController(run.context, run.worker, { clock: run.now, persist: async () => {} });
+  await control.prepare?.(run.context);
+  const admission = run.admission();
+  await control.start(admission);
+  expect(received).not.toBe(admission);
+  expect(Object.isFrozen(received)).toBe(true);
+  expect(Object.isFrozen(received?.identity)).toBe(true);
+  expect(Object.isFrozen(received?.args)).toBe(true);
+});
+
+test('missing final reserve refuses before worker or final lifecycle is claimed', async () => {
+  const run = fixture();
+  await run.control.prepare?.(run.context);
+  const admission = run.admission();
+  await run.control.start(admission);
+  await expect(run.control.finalCapture(run.final(admission))).rejects.toThrow('reserve required');
+  expect(run.counts().finals).toBe(0);
+  expect(run.events.some((event) => event.phase === 'final-start')).toBe(false);
+});
+
+test('failed final authorization retains failures without invoking guest work', async () => {
+  const real = linuxMonotonicMs(),
+    start = real - 7200001,
+    run = fixture(start);
+  let original = true;
+  const control = createInstalledApplyController(run.context, run.worker, {
+    clock: run.now,
+    persist: async (event) => {
+      run.events.push(event);
+      if (event.phase === 'final-start') throw new Error('journal unavailable');
+    },
+  });
+  await control.prepare?.(run.context);
+  const admission = run.admission();
+  await control.start(admission);
+  run.setNow(real);
+  const reserve = admitFinalReaderReserve({
+    identity: run.identity,
+    originalStartMs: start,
+    originalDeadlineMs: start + 7200000,
+    finalStartedMs: real,
+    finalDeadlineMs: real + 300000,
+    assertOriginal: async () => {
+      if (!original) throw new Error('reserve ownership changed');
+    },
+  });
+  original = false;
+  try {
+    await control.finalCapture(run.final(admission), reserve);
+    throw new Error('failure expected');
+  } catch (error) {
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors.map((value) => (value as Error).message)).toContain('journal unavailable');
+    expect((error as AggregateError).errors.map((value) => (value as Error).message)).toContain(
+      'reserve ownership changed',
+    );
+  }
+  expect(run.counts().finals).toBe(0);
+  expect(run.events.some((event) => event.phase === 'final-failed')).toBe(true);
 });

@@ -928,6 +928,7 @@ function createInstalledApplyController(original, worker, hooks) {
     async start(admission) {
       if (!prepared) throw new Error('Original apply controller must be prepared before release');
       if (started || closed || finalStarted) throw new Error('Original apply execution already claimed');
+      if (admission.directory !== original.executionDirectory) throw new Error('Original apply workspace differs');
       if (
         admission.args[0] !== 'apply' ||
         admission.originalStartMs !== original.budget.start ||
@@ -952,7 +953,7 @@ function createInstalledApplyController(original, worker, hooks) {
       await record('before-start');
       const bound = callback('before', started);
       await assertOriginalApplyCallback(bound);
-      await methods.start(admission, bound);
+      await methods.start(started, bound);
       await assertOriginalApplyCallback(bound);
       await record('before-complete');
     },
@@ -972,7 +973,8 @@ function createInstalledApplyController(original, worker, hooks) {
       if (finalStarted) throw new Error('Original apply final capture already claimed');
       if (finished.originalDeadlineMs !== original.budget.deadline)
         throw new Error('Original apply final budget differs');
-      if (reserve) {
+      if (!reserve) throw new Error('Original apply final reserve required');
+      {
         const snapshot = inspectFinalReaderReserve(reserve);
         if (
           !sameIdentity(snapshot.identity, started.identity) ||
@@ -989,8 +991,10 @@ function createInstalledApplyController(original, worker, hooks) {
       const attempt = async (fn) => {
         try {
           await fn();
+          return true;
         } catch (error) {
           failures.push(error);
+          return false;
         }
       };
       await attempt(() =>
@@ -1001,9 +1005,11 @@ function createInstalledApplyController(original, worker, hooks) {
         }),
       );
       const bound = callback('after', started, reserve);
-      await attempt(() => assertOriginalApplyCallback(bound));
-      await attempt(() => methods.finalCapture(finished, reserve, bound));
-      await attempt(() => assertOriginalApplyCallback(bound));
+      const authorized = await attempt(() => assertOriginalApplyCallback(bound));
+      if (authorized) {
+        await attempt(() => methods.finalCapture(finished, reserve, bound));
+        await attempt(() => assertOriginalApplyCallback(bound));
+      }
       if (!failures.length) await attempt(() => record('final-complete'));
       else
         await attempt(() =>

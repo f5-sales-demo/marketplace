@@ -1384,3 +1384,11 @@ a failed initial final journal write, with all errors retained. Eight new
 controller cases and 1,348 shared/canonical tests pass. Default guest capture,
 actual expiry, managed insertion, native/Terraform live/runtime and delivery remain
 open; no cloud campaign or execution qualification is inferred from these tests.
+
+Attempt 441 repairs [original apply workspace and final authorization](gcp-original-apply-authorization-20261110.md).
+Four failing-first regressions require the original workspace, immutable admitted
+inputs and valid original final reserve before guest work. Independent journal
+failures still permit authorized capture. Fresh registries confirm the latest
+stable defaults remain Terraform 1.17.1, Google 8.11.0 and xcsh 15.15.7.
+Default guest capture, actual expiry, managed insertion, full live/runtime
+acceptance and delivery remain open. No cloud campaign was submitted.

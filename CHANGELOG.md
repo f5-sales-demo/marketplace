@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform` 2.4.75** binds capture to the original execution workspace,
+  passes immutable admitted inputs and requires valid final authorization before
+  guest work while retaining independent journal failures.
+
 - **`terraform` 2.4.74** prepares original capture before the release gate and
   binds startup/final callbacks to the original context, identity and budget,
   retaining final evidence and failures without renewing its reserve.
