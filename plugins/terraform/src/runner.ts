@@ -425,7 +425,7 @@ function validateResourceSelections(selections: Record<string, string[]>): void 
     !Object.keys(selections).length ||
     Object.entries(selections).some(
       ([address, fields]) =>
-        !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
+        !/^(?:data\.)?[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
         !Array.isArray(fields) ||
         !fields.length ||
         new Set(fields).size !== fields.length ||
@@ -1585,9 +1585,9 @@ export class TerraformRunner {
         }
         const resource = matches[0];
         if (
-          resource.mode !== 'managed' ||
+          resource.mode !== (address.startsWith('data.') ? 'data' : 'managed') ||
           resource.type !== reviewed[0].type ||
-          resource.type !== address.split('.')[0]
+          resource.type !== address.split('.')[address.startsWith('data.') ? 1 : 0]
         )
           throw new Error('Terraform state resource differs from reviewed identity');
         if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');

@@ -10,6 +10,19 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.77 projects exactly reviewed managed/data state fields
+  while preserving foreign-state accounting and sensitive-field refusal. Guest
+  control uses typed original methods and refuses closure at its fixed deadline.
+  Default capture remains held pending complete integration and live proof.
+
+- **`gcloud`** v1.7.44 consumes the shared runner's reviewed data-source
+  ownership projection without exporting sensitive fields or accepting foreign state.
+
+- **`platform`** v6.3.19 repairs namespace-refusal fixture formatting for CI.
+
+- **`salesforce`** v2.3.18 repairs long corrective-detail fixture formatting
+  while preserving its complete literal-content checks.
+
 - **`terraform` 2.4.76** adds bounded original-session guest control frames and
   parent-verified Site CLI dispatch with strict command, sequence and guard checks.
   Default installed capture remains held pending complete integration and live proof.

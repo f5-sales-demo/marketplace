@@ -146,7 +146,7 @@ test('empty unavailable partial and failed results retain complete corrective gu
       { content: [{ type: 'text', text: 'Opaque progress' }], details: { done: false } },
       {
         isError: true,
-        content: [{ type: 'text', text: 'Literal *failure* `guidance`\n'.repeat(40) + 'FINAL_CORRECTIVE_DETAIL' }],
+        content: [{ type: 'text', text: `${'Literal *failure* `guidance`\n'.repeat(40)}FINAL_CORRECTIVE_DETAIL` }],
       },
     ]) {
       const c = await registered(name);

@@ -9,7 +9,7 @@ import select
 import stat
 import struct
 import time
-from typing import NoReturn
+from typing import NoReturn, Protocol, TypeGuard
 
 from .gcp_guest_session import CONTAINER_ID, DISCOVERY, FIXED
 
@@ -50,8 +50,23 @@ def _pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
     return result
 
 
+def integer_type(value: object) -> TypeGuard[int]:
+    """Reject booleans wherever an original integer identity is required."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _integer(value: object) -> bool:
-    return type(value) is int and 0 < value <= 2**31 - 1
+    return integer_type(value) and 0 < value <= 2**31 - 1
+
+
+class ControlPeer(Protocol):
+    """Bounded parent/worker wire contract; real factories use GuestControlPort."""
+
+    def receive(self, deadline: int) -> dict:
+        """Receive one attributed message within the original deadline."""
+
+    def send(self, message: dict, deadline: int) -> None:
+        """Send one attributed message within the original deadline."""
 
 
 def decode_guest_command(value: object) -> dict:
@@ -108,8 +123,8 @@ class GuestControlPort:
         self.sent = self.received = 0
         self.failed = False
         self.identities = {}
-        for descriptor in {read_fd, write_fd}:
-            if type(descriptor) is not int or descriptor < 0:
+        for descriptor in dict.fromkeys((read_fd, write_fd)):
+            if not integer_type(descriptor) or descriptor < 0:
                 msg = "Original guest control descriptor required"
                 refuse(msg)
             info = os.fstat(descriptor)
@@ -124,7 +139,7 @@ class GuestControlPort:
             msg = "Original guest control port retired"
             refuse(msg)
         now = clock_ms()
-        if type(deadline) is not int or deadline - now > MAX_COMMAND_MS:
+        if not integer_type(deadline) or deadline - now > MAX_COMMAND_MS:
             msg = "Bounded original guest command deadline required"
             refuse(msg)
         if now >= deadline:
@@ -173,15 +188,23 @@ class GuestControlPort:
                     ValueError("Nonfinite original guest control value")
                 ),
             )
+            if not isinstance(value, dict) or set(value) != {
+                "schemaVersion",
+                "kind",
+                "session",
+                "sequence",
+                "message",
+            }:
+                refuse("Original guest control attribution differs")
             if (
-                not isinstance(value, dict)
-                or set(value)
-                != {"schemaVersion", "kind", "session", "sequence", "message"}
-                or type(value["schemaVersion"]) is not int
+                not integer_type(value["schemaVersion"])
                 or value["schemaVersion"] != 1
                 or value["kind"] != "original-guest-control"
                 or value["session"] != self.session
-                or not _integer(value["sequence"])
+            ):
+                refuse("Original guest control attribution differs")
+            if (
+                not _integer(value["sequence"])
                 or value["sequence"] != self.received + 1
                 or not isinstance(value["message"], dict)
             ):

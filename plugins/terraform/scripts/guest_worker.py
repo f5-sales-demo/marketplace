@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import TYPE_CHECKING, NoReturn
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, NoReturn, Protocol
 
 from .gcp_guest_session import GuestGuards, GuestOptions, GuestSession
-from .guest_control import clock_ms, decode_guest_command
+from .guest_control import clock_ms, decode_guest_command, integer_type
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
     from .gcp_guest_session import GuestBinding
-    from .guest_control import GuestControlPort
+    from .guest_control import ControlPeer, GuestControlPort
 
 
 def refuse(message: str) -> NoReturn:
@@ -44,8 +45,8 @@ def close_deadline(operation: int, requested: int | None) -> int:
     """Bound closure by the original declared five-minute reserve."""
     value = operation if requested is None else requested
     if (
-        type(operation) is not int
-        or type(value) is not int
+        not integer_type(operation)
+        or not integer_type(value)
         or operation <= 0
         or not operation <= value <= operation + 300000
     ):
@@ -58,7 +59,7 @@ class ParentGuestGuards:
 
     def __init__(
         self,
-        port: GuestControlPort,
+        port: ControlPeer,
         binding: GuestBinding,
         operation_deadline_ms: int,
         *,
@@ -116,7 +117,7 @@ class ParentGuestGuards:
             }
             if (
                 response != expected
-                or type(response.get("id")) is not int
+                or not integer_type(response.get("id"))
                 or response.get("approved") is not True
             ):
                 msg = "Original parent guest verification refused"
@@ -155,13 +156,50 @@ class ParentGuestGuards:
         self._check("trust", role)
 
 
+class CaptureCommand(Protocol):
+    """Supported capture signature retained from the original guest session."""
+
+    def __call__(self, kind: str, *, container_id: str | None = None) -> bytes:
+        """Retain original guest output for one supported capture."""
+
+
+class GuestCapture(Protocol):
+    """Original session contract; the production factory opens real SSH only."""
+
+    @property
+    def binding(self) -> GuestBinding:
+        """Read the original immutable guest binding."""
+
+    @property
+    def retained(self) -> list[dict[str, object]]:
+        """Read retained evidence from the original session."""
+
+    def run(self, kind: str, *, container_id: str | None = None) -> bytes:
+        """Capture a supported original-node diagnostic."""
+
+    def discover(self, scope: str) -> bytes:
+        """Discover a supported Site CLI scope."""
+
+    def close(self) -> bool:
+        """Close the original session without replay."""
+
+
+@dataclass(frozen=True)
+class OriginalGuestMethods:
+    """Retain typed bound methods without accepting session replacement."""
+
+    capture: CaptureCommand
+    discover: Callable[[str], bytes]
+    close: Callable[[], bool]
+
+
 class GuestControlWorker:
     """Dispatch supported commands and retain incomplete capture as incomplete."""
 
     def __init__(
         self,
-        port: GuestControlPort,
-        session: GuestSession,
+        port: ControlPeer,
+        session: GuestCapture,
         operation_deadline_ms: int,
         *,
         monotonic: Callable[[], int] = clock_ms,
@@ -172,19 +210,17 @@ class GuestControlWorker:
         self.port = port
         self.session = session
         self.anchor = binding_anchor(session.binding)
-        self.deadline = operation_deadline_ms
-        self.closure_deadline = close_deadline(
-            operation_deadline_ms, closure_deadline_ms
+        self.deadlines = (
+            operation_deadline_ms,
+            close_deadline(operation_deadline_ms, closure_deadline_ms),
         )
         self.begin_close = begin_close
         self.monotonic = monotonic
         self.sequence = 0
         self.failed = self.closed = False
-        self.methods = {
-            "capture": session.run,
-            "discover": session.discover,
-            "close": session.close,
-        }
+        self.original_methods = OriginalGuestMethods(
+            session.run, session.discover, session.close
+        )
 
     def dispatch(self, value: object) -> dict:
         """Execute one original-bound supported command and retain evidence."""
@@ -200,7 +236,8 @@ class GuestControlWorker:
             if binding_anchor(self.session.binding) != self.anchor:
                 msg = "Original guest binding changed"
                 refuse(msg)
-            if operation != "close" and self.monotonic() >= self.deadline:
+            limit = self.deadlines[1] if operation == "close" else self.deadlines[0]
+            if self.monotonic() >= limit:
                 msg = "Original guest operation deadline exhausted"
                 expired(msg)
             self.sequence = command["id"]
@@ -215,12 +252,12 @@ class GuestControlWorker:
             if operation == "close":
                 if self.begin_close is not None:
                     self.begin_close()
-                self.closed = self.methods["close"]()
+                self.closed = self.original_methods.close()
                 result["closed"] = self.closed
             elif operation == "discover":
-                self.methods["discover"](command["scope"])
+                self.original_methods.discover(command["scope"])
             else:
-                self.methods["capture"](
+                self.original_methods.capture(
                     command["kind"], container_id=command.get("containerId")
                 )
             if binding_anchor(self.session.binding) != self.anchor:
@@ -230,12 +267,11 @@ class GuestControlWorker:
         except BaseException:
             self.failed = True
             raise
-        else:
-            return result
+        return result
 
     def serve_once(self) -> dict:
         """Consume one parent command while nested original guards use this port."""
-        deadline = min(self.closure_deadline, self.monotonic() + 60000)
+        deadline = min(self.deadlines[1], self.monotonic() + 60000)
         value = self.port.receive(deadline)
         result = self.dispatch(value)
         self.port.send(result, deadline)

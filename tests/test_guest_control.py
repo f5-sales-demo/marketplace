@@ -211,3 +211,20 @@ def test_malformed_command_field_types_refuse(field, value):
         ValueError, match=r"Original|Supported|Unexpected|Duplicate|Nonfinite"
     ):
         decode_guest_command(command)
+
+
+@pytest.mark.parametrize("schema", [True, 1.0, "1"])
+def test_schema_must_be_an_integer_and_malformed_frame_retires_port(schema):
+    left, right, a, _b = ports()
+    try:
+        value = json.loads(frame()[4:])
+        value["schemaVersion"] = schema
+        raw = json.dumps(value).encode()
+        right.sendall(struct.pack(">I", len(raw)) + raw)
+        with pytest.raises(ValueError, match="attribution"):
+            a.receive(deadline())
+        with pytest.raises(ValueError, match="retired"):
+            a.send({"ok": True}, deadline())
+    finally:
+        left.close()
+        right.close()

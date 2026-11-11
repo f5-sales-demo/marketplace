@@ -90,7 +90,7 @@ it('projects only matched identity and liveness, withholding sensitive inspectio
     expect(() => projectGcpRuntimeInspection({ ...raw, status: { ...raw.status, ...changed } }, row)).toThrow();
 });
 it('parses the live namespace column and requires that namespace in the inspection join', () => {
-  const live = table.replace('POD ID POD\n', 'POD ID POD NAMESPACE\n') + ' kube-system\n';
+  const live = `${table.replace('POD ID POD\n', 'POD ID POD NAMESPACE\n')} kube-system\n`;
   const row = parseGcpRuntimeListing(live)[0];
   expect(row.namespace).toBe('kube-system');
   const raw = {
@@ -104,7 +104,7 @@ it('parses the live namespace column and requires that namespace in the inspecti
   expect(projectGcpRuntimeInspection(raw, row).liveness).toBe('running');
   raw.status.labels['io.kubernetes.pod.namespace'] = 'foreign';
   expect(() => projectGcpRuntimeInspection(raw, row)).toThrow();
-  expect(() => parseGcpRuntimeListing(table + ' kube-system')).toThrow();
+  expect(() => parseGcpRuntimeListing(`${table} kube-system`)).toThrow();
   expect(() => parseGcpRuntimeListing(live.replace(' kube-system', ''))).toThrow();
 });
 

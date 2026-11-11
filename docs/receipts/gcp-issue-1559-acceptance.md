@@ -1400,3 +1400,25 @@ script hashes enter installed admission; 60 Python and 33 related native tests
 pass. Native parent-process integration and the default capture factory remain
 held, with complete guest, VM/token/NIC, expiry, live/runtime and delivery proof
 still required. Offline framing tests do not replace real installed acceptance.
+
+Attempt 448 completes [actual original-provider expiry and independent cleanup](gcp-original-provider-expiry-20261110.md).
+The same original Google provider crossed the server-derived conservative expiry
+bound and returned a fresh distinct token with unchanged principal and audience.
+Eighty retained identity rounds and independent raw-response review passed within
+the original two-hour budget. Separately reviewed typed cleanup deleted exactly
+three owned local resources, with zero managed GCP resources, empty stable state,
+two non-submitting resumes and 61 independent group closure checks. The earlier
+expiry receipt keeps its original incomplete-cleanup flag; the later final receipt
+binds it and proves cleanup. Historical failed evidence remains unchanged.
+Managed insertion, bootstrap/guest completeness, current installed runtime,
+full native/Terraform lifecycle and networking, review/CI/merge, publication and
+verified published installation remain open. PR #1698 remains draft.
+
+Attempt 449 repairs [original state projection and guest dispatch](gcp-original-state-and-guest-dispatch-20261110.md).
+Reviewed managed/data state modes preserve foreign-resource and sensitive-field
+refusal. Typed original methods, strict integer identities and direct closure
+reserve boundaries pass 119 Python regressions. The 1,353 shared/canonical tests,
+three native runtime builds/typechecks and configured source checks pass.
+The failed CI run remains retained; passing required CI for the repaired source
+remains a delivery gate. Full native parent/default capture, managed guest and
+all live/runtime, review, publication and installation gates remain open.

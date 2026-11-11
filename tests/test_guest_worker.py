@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
-from collections import namedtuple
+from pathlib import Path
 
 import pytest
 
+from plugins.terraform.scripts.gcp_guest_session import GuestBinding
 from plugins.terraform.scripts.guest_worker import GuestControlWorker, ParentGuestGuards
 
 
 class Peer:
     def __init__(self):
-        self.sent = []
-        self.change = {}
+        self.sent: list[dict] = []
+        self.change: dict = {}
+        self.incoming: dict | None = None
 
-    def send(self, value, deadline):
-        self.sent.append(value)
+    def send(self, message: dict, deadline: int) -> None:
+        self.sent.append(message)
 
-    def receive(self, deadline):
+    def receive(self, deadline: int) -> dict:
+        if self.incoming is not None:
+            return self.incoming
         value = self.sent[-1]
         return {
             "type": "guard-result",
@@ -30,13 +34,13 @@ class Peer:
 
 
 class Guest:
-    def __init__(self, binding):
+    def __init__(self, binding: GuestBinding):
         self.binding = binding
-        self.retained = []
-        self.calls = []
+        self.retained: list[dict[str, object]] = []
+        self.calls: list[tuple[str, str, str | None] | tuple[str, str]] = []
         self.closed = False
 
-    def run(self, kind, *, container_id=None):
+    def run(self, kind: str, *, container_id: str | None = None) -> bytes:
         self.calls.append(("capture", kind, container_id))
         self.retained.append(
             {
@@ -47,7 +51,9 @@ class Guest:
             }
         )
 
-    def discover(self, scope):
+        return b"retained capture"
+
+    def discover(self, scope: str) -> bytes:
         self.calls.append(("discover", scope))
         self.retained.append(
             {
@@ -57,18 +63,41 @@ class Guest:
             }
         )
 
-    def close(self):
+        return b"retained discovery"
+
+    def close(self) -> bool:
         self.closed = True
         return True
 
 
 @pytest.fixture
-def binding():
-
-    value = namedtuple(
-        "Binding", "instance_id observer_id token_sha256 ownership_sha256"
+def binding() -> GuestBinding:
+    node_name = "example-node"
+    site_name = "example-site"
+    return GuestBinding(
+        project="example-project",
+        region="us-central1",
+        site_name="example-site",
+        node_name="example-node",
+        zone="us-central1-a",
+        instance_id="123",
+        observer_name="example-observer",
+        observer_id="456",
+        observer_address="192.0.2.1",
+        address="192.0.2.2",
+        original_interfaces=("192.0.2.3", "192.0.2.2"),
+        token_node=node_name,
+        token_site=site_name,
+        token_expires=2000.0,
+        token_sha256="a" * 64,
+        ownership_sha256="b" * 64,
+        observer_key=Path("/private/observer-key"),
+        ce_key=Path("/private/ce-key"),
+        observer_hosts=Path("/private/observer-hosts"),
+        ce_hosts=Path("/private/ce-hosts"),
+        observer_algorithm="ssh-ed25519",
+        ce_algorithm="ssh-ed25519",
     )
-    return value("123", "456", "a" * 64, "b" * 64)
 
 
 def test_parent_guards_bind_original_node_and_exact_source_response(binding):
@@ -181,7 +210,7 @@ def test_original_close_window_remains_available_after_operation_deadline(bindin
     """Close the original session within its fixed reserve without new capture."""
     now = [2001]
     peer = Peer()
-    peer.receive = lambda _deadline: {"type": "command", "id": 1, "operation": "close"}
+    peer.incoming = {"type": "command", "id": 1, "operation": "close"}
     guest = Guest(binding)
     worker = GuestControlWorker(
         peer, guest, 2000, closure_deadline_ms=2500, monotonic=lambda: now[0]
@@ -218,3 +247,47 @@ def test_closing_parent_guard_allows_only_original_input_checks(binding):
     guards.inputs()
     with pytest.raises(ValueError, match="closing"):
         guards.original(binding)
+
+
+@pytest.mark.parametrize("now", [2500, 2501])
+def test_close_refuses_at_or_after_original_reserve_without_touching_guest(
+    binding, now
+):
+    peer = Peer()
+    guest = Guest(binding)
+    closing = []
+    worker = GuestControlWorker(
+        peer,
+        guest,
+        2000,
+        closure_deadline_ms=2500,
+        monotonic=lambda: now,
+        begin_close=lambda: closing.append(True),
+    )
+    with pytest.raises(TimeoutError, match="deadline"):
+        worker.dispatch({"type": "command", "id": 1, "operation": "close"})
+    assert not guest.closed
+    assert not closing
+
+
+def test_worker_uses_original_bound_methods_after_attribute_replacement(
+    binding, monkeypatch
+):
+    peer = Peer()
+    guest = Guest(binding)
+    worker = GuestControlWorker(peer, guest, 100000, monotonic=lambda: 1000)
+
+    def replaced(*args, **kwargs):
+        pytest.fail("Replacement method must never execute")
+
+    for name in ("run", "discover", "close"):
+        monkeypatch.setattr(guest, name, replaced)
+    worker.dispatch(
+        {"type": "command", "id": 1, "operation": "discover", "scope": "root"}
+    )
+    worker.dispatch({"type": "command", "id": 2, "operation": "capture", "kind": "vpm"})
+    assert (
+        worker.dispatch({"type": "command", "id": 3, "operation": "close"})["closed"]
+        is True
+    )
+    assert guest.calls == [("discover", "root"), ("capture", "vpm", None)]

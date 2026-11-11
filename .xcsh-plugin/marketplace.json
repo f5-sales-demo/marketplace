@@ -143,7 +143,7 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "6.3.18",
+      "version": "6.3.19",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
@@ -230,7 +230,7 @@
     {
       "name": "salesforce",
       "description": "Salesforce pipeline intelligence with shared lifecycle setup, account discovery, context, and reporting tools",
-      "version": "2.3.17",
+      "version": "2.3.18",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -394,7 +394,7 @@
     {
       "name": "gcloud",
       "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
-      "version": "1.7.43",
+      "version": "1.7.44",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {
@@ -528,7 +528,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.4.76",
+      "version": "2.4.77",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
       "license": "Apache-2.0",
       "author": {

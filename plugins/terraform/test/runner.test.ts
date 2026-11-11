@@ -1541,3 +1541,57 @@ test('owning runner isolates ambient controls before the installed compiler admi
   await expect(runner.apply(plan, ambient)).rejects.toThrow('consumed');
   expect(f.calls.filter((c) => c.args[0] === 'apply')).toHaveLength(1);
 });
+
+test('original state projection accounts for reviewed data sources without exporting sensitive token fields', async () => {
+  const resources = [
+    {
+      address: 'terraform_data.ce',
+      mode: 'managed',
+      type: 'terraform_data',
+      values: { id: 'owned-local', input: 'marker' },
+      sensitive_values: {},
+    },
+    {
+      address: 'data.google_client_config.before',
+      mode: 'data',
+      type: 'google_client_config',
+      values: { id: 'scope', project: 'example-project', access_token: 'PRIVATE_TOKEN' },
+      sensitive_values: { access_token: true },
+    },
+  ];
+  const { runner } = await fixture(
+    {
+      resource_changes: resources.map((row) => ({
+        address: row.address,
+        mode: row.mode,
+        type: row.type,
+        change: { actions: [row.mode === 'data' ? 'read' : 'create'] },
+      })),
+    },
+    {},
+    undefined,
+    undefined,
+    { values: { root_module: { resources } } },
+  );
+  const receipt = await runner.plan({});
+  await runner.apply(receipt, {});
+  const selections = { 'terraform_data.ce': ['id'], 'data.google_client_config.before': ['id', 'project'] };
+  const value = await runner.readAppliedResourceFields(receipt, selections, {});
+  expect(value.resources).toEqual({
+    'terraform_data.ce': { id: 'owned-local' },
+    'data.google_client_config.before': { id: 'scope', project: 'example-project' },
+  });
+  expect(JSON.stringify(value)).not.toContain('PRIVATE_TOKEN');
+  await expect(
+    runner.readAppliedResourceFields(
+      receipt,
+      { ...selections, 'data.google_client_config.before': ['access_token'] },
+      {},
+    ),
+  ).rejects.toThrow(/sensitive/);
+  await expect(runner.readAppliedResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).rejects.toThrow(
+    /Foreign/,
+  );
+  resources[1].mode = 'managed';
+  await expect(runner.readAppliedResourceFields(receipt, selections, {})).rejects.toThrow(/identity/);
+});
