@@ -67,6 +67,7 @@ export function createAwsCePlanTool(pi: PluginInterface) {
         siteName: Type.String(),
         namespace: Type.String(),
         initialVersions: Type.Optional(Type.Object({ software: Type.String(), os: Type.String() })),
+        adminSshPublicKey: Type.Optional(Type.String()),
         topology: Type.Object({
           nodeCount: Type.Union([Type.Literal(1), Type.Literal(3)]),
           sites: Type.Optional(
