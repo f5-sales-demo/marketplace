@@ -1355,3 +1355,14 @@ the prerequisite before state reads. Three failing-first compiled regressions
 pass with the original failed probe preserved. This closes the demonstrated
 source ABI defect, not fresh live composition, VM/token/NIC/lifetime ownership,
 single-use checkout, full capture, expiry, native/Terraform live/runtime or delivery.
+
+Attempt 438 passes [fresh live compiled Site/Token composition](gcp-live-compiled-bootstrap-composition-20261110.md).
+One reviewed two-resource apply joined original real API UIDs to original runner
+creation hashes through the compiled producer and consumer, verified private JWT
+inspection, rejected a copied candidate and obtained no-change planning. A
+separately reviewed typed teardown, two fresh independent API absences, empty
+destroy, stable state, two non-submitting resumes and 34 absent executor groups
+completed cleanup with no new unresolved locks and zero CE/GCP managed resources.
+The original failed field and ABI captures remain unchanged. VM/token/NIC/lifetime
+joins, single-use bootstrap, Google 8.11 managed insert, full default capture,
+actual expiry, native/Terraform live/runtime and delivery gates remain open.
