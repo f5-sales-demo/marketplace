@@ -7,6 +7,11 @@ import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { retireAwsNativeBootstrapCredentials } from './native-bootstrap-retirement';
+import {
+  type AwsNativeReservationTeardownPlan,
+  prepareAwsNativeReservationTeardown,
+  runAwsNativeReservationTeardown,
+} from './native-reservation-teardown';
 import { collectAwsTeardownMaterial } from './terraform-teardown-plan';
 import { siteBindings, siteTopology } from './topology';
 import type { AwsCePlan } from './types';
@@ -160,6 +165,8 @@ export async function prepareAwsNativeTeardown(
 ) {
   if (base.engine !== 'native' || cloud.engine !== 'native')
     throw new Error('Native teardown preparation requires native ownership');
+  const reservation = await prepareAwsNativeReservationTeardown(base, cloud, runtime, contract, storage, signal);
+  if (reservation) return reservation;
   const materialName = 'aws-native-teardown-material.json';
   const persisted =
     (await optional(storage, materialName)) ?? (await optional(storage, 'aws-native-teardown-source.json'));
@@ -340,7 +347,7 @@ export async function coordinateAwsNativeTeardown(
 export async function runAwsNativeTeardown(
   base: AwsCePlan,
   cloud: AwsCePlan,
-  plan: AwsNativeTeardownPlan,
+  plan: AwsNativeTeardownPlan | AwsNativeReservationTeardownPlan,
   authorizedPlanSha256: string,
   runtime: CeRuntime,
   contract: VerifiedIngressContract,
@@ -348,6 +355,18 @@ export async function runAwsNativeTeardown(
   retireCloud: NativeTeardownDriver['retireCloud'],
   signal?: AbortSignal,
 ) {
+  if (plan.kind === 'aws-ce-native-reservation-teardown')
+    return runAwsNativeReservationTeardown(
+      base,
+      cloud,
+      plan,
+      authorizedPlanSha256,
+      runtime,
+      contract,
+      storage,
+      retireCloud,
+      signal,
+    );
   const bindings = siteBindings(base);
   const binding = (site: Retirement) => {
     const selected = bindings.find((row) => row.site.name === site.siteName);

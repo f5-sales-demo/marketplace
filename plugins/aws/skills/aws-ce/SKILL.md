@@ -131,3 +131,24 @@ when a generated physical site has no registered nodes. This requires exact owne
 logical and physical UIDs, the expected generated-site state, stable node-bound
 token identities, and absence of registrations, routing and ingress resources.
 Missing identifiers or advanced registration do not authorize this path.
+
+### Native reservation retirement
+
+Before cloud resources are created, an owned single-node logical reservation can
+exist before its generated physical site or bootstrap token. `aws_ce_teardown`
+uses a separate native reservation plan for these states. The plan binds the
+original logical UID, exact source/cloud plan hashes, complete stable owner-bound
+pre-registration inventory, and a physical UID or explicit authoritative absence.
+An omitted physical state is not absence. Complete empty token inventory is valid
+only for this reservation contract; registered token coverage is unchanged.
+
+Apply requires authenticated complete cloud owner absence before any vendor
+mutation. It rereads the no-registration/no-routing/no-ingress inventory and exact
+remaining identities before and after each planned token or logical-site deletion.
+A lost response resumes the same immutable plan using authoritative readback;
+credentials remain staged until all remote identities and cloud owner inventory
+are absent. Changed identities, new tokens, post-admission activity, stale query
+collections, or incomplete/unauthorized/unavailable evidence block further mutation.
+The collection timestamps bound API query age; they are not original CE heartbeat
+timestamps. Supporting infrastructure and full live interruption remain separately
+qualified. This contract does not replace the registered or Terraform lifecycle.

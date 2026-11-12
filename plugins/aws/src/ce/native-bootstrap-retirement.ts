@@ -62,7 +62,9 @@ async function file(path: string) {
 /** Called after the coordinator's final cloud read and per-site deletion observations. */
 export async function retireAwsNativeBootstrapCredentials(
   base: AwsCePlan,
-  plan: AwsNativeTeardownPlan,
+  plan: Pick<AwsNativeTeardownPlan, 'sourcePlanSha256' | 'cloudPlanSha256' | 'planSha256' | 'drain'> & {
+    retirement: Array<{ siteName: string; siteUid: string; tokens: Array<{ node: string; name: string }> }>;
+  },
   store: CeDeploymentStore,
   signal?: AbortSignal,
 ) {
