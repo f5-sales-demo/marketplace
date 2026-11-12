@@ -90,7 +90,8 @@ async function fixture(physical: string | null, withToken = false) {
     drainPlatform: async () => {
       throw Error('Reservation must verify empty platform rather than drain a registered site');
     },
-    deleteBootstrapToken: async () => {
+    deleteBootstrapTokenExact: async (_binding: unknown, _node: string, _name: string, expectedUid: string) => {
+      expect(expectedUid).toBe('token-uid');
       mutations.push('token');
       inventory.resources = [];
       if (tokenLoss) {
@@ -99,7 +100,7 @@ async function fixture(physical: string | null, withToken = false) {
       }
     },
     deleteSiteExact: async () => {
-      mutations.push('site');
+      if (inventory.sites[0].siteUid !== null) mutations.push('site');
       inventory.sites[0].siteUid = null;
       inventory.sites[0].physicalSiteUid = null;
       if (siteLoss) {

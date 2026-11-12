@@ -16218,14 +16218,16 @@ async function runAwsNativeReservationTeardown(
     const completed = ['platform-drained', 'native-cloud-retired'];
     for (const token of plan.retirement[0].tokens) {
       const current = await observe();
+      const expectedToken = plan.reservationInventory.resources.find((r) => r.name === token.name);
+      if (!expectedToken) throw Error('Native reservation token UID is missing');
       if (current.resources.some((r) => r.name === token.name))
-        await runtime.deleteBootstrapToken(binding, token.node, token.name, signal);
+        await runtime.deleteBootstrapTokenExact(binding, token.node, token.name, expectedToken.uid, signal);
       if ((await observe()).resources.some((r) => r.name === token.name))
         throw Error('Native reservation token deletion is pending');
       completed.push(`token:${token.name}`);
     }
-    const before = await observe();
-    if (before.sites[0].siteUid !== null) await runtime.deleteSiteExact(binding, plan.retirement[0].siteUid, signal);
+    await observe();
+    await runtime.deleteSiteExact(binding, plan.retirement[0].siteUid, signal);
     const after = await observe();
     if (after.sites[0].siteUid !== null || after.sites[0].physicalSiteUid !== null || after.resources.length)
       return {
