@@ -1,7 +1,9 @@
 import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformDrainPlan } from '../../../platform/src/ce/platform-drain';
+import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { AzExecApi } from '../az/exec';
@@ -135,7 +137,9 @@ export async function runAzureNativeTeardown(
   await validate();
   if (!api)
     throw Error('Azure native teardown requires independent cloud absence collection before staging retirement');
-  {
+  const releaseRetirement = await acquireProcessLock(join(storage.directory, '.azure-relay-native-mutation-lock'));
+  try {
+    await validate();
     const authorization = {
       schemaVersion: 1,
       engine: 'native',
@@ -164,6 +168,8 @@ export async function runAzureNativeTeardown(
         throw Error('Azure native retirement belongs to another immutable teardown');
       if (saved === undefined) await storage.write(name, value);
     }
+  } finally {
+    await releaseRetirement();
   }
 
   let savedReceipt: unknown;

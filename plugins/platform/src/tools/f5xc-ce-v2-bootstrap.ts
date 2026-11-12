@@ -54,20 +54,23 @@ export function createF5xcCeV2BootstrapTool(
         const known = await service.siteBinding?.(params.siteName, params.platformContext);
         if (!known?.binding.nodes.includes(params.nodeName))
           throw new PublicCeError('A trusted deployment and node binding is required');
-        const runtime = await service.runtime(known.binding.owner.engine, params.platformContext);
-        if (runtime.contract.fingerprint !== known.contractFingerprint)
-          throw new PublicCeError('Deployment contract binding requires refresh');
-        const site = await runtime.observeOwnedSite(known.binding, signal);
-        if ((site.system_metadata as Record<string, unknown>).uid !== known.siteUid)
-          throw new PublicCeError('Deployment site UID changed; refresh bindings');
-        if (ctx.hasUI && !(await ctx.ui.confirm('Checkout CE bootstrap', `${params.siteName}/${params.nodeName}`)))
-          throw new PublicCeError('Bootstrap checkout was not approved');
         const store = await service.storage(known.binding.owner);
-        if (known.binding.owner.engine === 'terraform')
-          release = await acquireProcessLock(
-            join(store.directory, `.${known.binding.owner.provider}-terraform-lifecycle-lock`),
-          );
-        for (const marker of ['azure-terraform-lifecycle-retirement.json', 'aws-terraform-lifecycle-retirement.json']) {
+        const owner = known.binding.owner;
+        const lockName =
+          owner.engine === 'terraform'
+            ? `.${owner.provider}-terraform-lifecycle-lock`
+            : owner.provider === 'aws'
+              ? '.aws-native-teardown-lock'
+              : '.azure-relay-native-mutation-lock';
+        release = await acquireProcessLock(join(store.directory, lockName));
+        signal?.throwIfAborted();
+        for (const marker of [
+          'azure-terraform-lifecycle-retirement.json',
+          'aws-terraform-lifecycle-retirement.json',
+          'azure-native-lifecycle-retirement.json',
+          'aws-native-lifecycle-retirement.json',
+          'aws-native-bootstrap-retirement.json',
+        ]) {
           try {
             await store.read(marker);
           } catch (error) {
@@ -76,6 +79,15 @@ export function createF5xcCeV2BootstrapTool(
           }
           throw new PublicCeError('Deployment retirement has started; bootstrap checkout is unavailable');
         }
+        signal?.throwIfAborted();
+        const runtime = await service.runtime(owner.engine, params.platformContext);
+        if (runtime.contract.fingerprint !== known.contractFingerprint)
+          throw new PublicCeError('Deployment contract binding requires refresh');
+        const site = await runtime.observeOwnedSite(known.binding, signal);
+        if ((site.system_metadata as Record<string, unknown>).uid !== known.siteUid)
+          throw new PublicCeError('Deployment site UID changed; refresh bindings');
+        if (ctx.hasUI && !(await ctx.ui.confirm('Checkout CE bootstrap', `${params.siteName}/${params.nodeName}`)))
+          throw new PublicCeError('Bootstrap checkout was not approved');
         const tokenName = `${params.siteName.slice(0, 40)}-bt-${randomUUID().slice(0, 8)}`;
         let jwt: string | undefined;
         await runtime.bootstrap(

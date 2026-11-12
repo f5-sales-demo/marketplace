@@ -65765,6 +65765,7 @@ var init_terraform_teardown = __esm(() => {
 
 // plugins/azure/src/ce/native-teardown.ts
 import { readdir as readdir42 } from 'node:fs/promises';
+import { join as join53 } from 'node:path';
 
 function validateCloudPlan(base, cloud) {
   verifyAzureCePlan(base);
@@ -65857,7 +65858,9 @@ async function runAzureNativeTeardown(
   await validate();
   if (!api)
     throw Error('Azure native teardown requires independent cloud absence collection before staging retirement');
-  {
+  const releaseRetirement = await acquireProcessLock(join53(storage.directory, '.azure-relay-native-mutation-lock'));
+  try {
+    await validate();
     const authorization = {
       schemaVersion: 1,
       engine: 'native',
@@ -65886,6 +65889,8 @@ async function runAzureNativeTeardown(
         throw Error('Azure native retirement belongs to another immutable teardown');
       if (saved === undefined) await storage.write(name, value);
     }
+  } finally {
+    await releaseRetirement();
   }
   let savedReceipt;
   try {
@@ -66021,6 +66026,7 @@ async function observeAzureNativeGroupAbsence(base, api, signal) {
   return { status: 'retired', absence: 'absent' };
 }
 var init_native_teardown = __esm(() => {
+  init_process_lock();
   init_upgrade_contract();
   init_artifacts();
   init_canonical();
@@ -66034,7 +66040,7 @@ var init_native_teardown = __esm(() => {
 });
 
 // plugins/azure/src/tools/azure-ce-teardown.ts
-import { join as join53 } from 'node:path';
+import { join as join54 } from 'node:path';
 
 function createAzureCeTeardownTool(pi, dependencies = defaults4) {
   const { Type } = pi.typebox;
@@ -66067,7 +66073,7 @@ function createAzureCeTeardownTool(pi, dependencies = defaults4) {
         const platform = await dependencies.platform(pi, signal);
         const storage = await platform.storage(azureUpgradeBinding(plan).owner);
         if (plan.engine === 'terraform')
-          release = await acquireProcessLock(join53(storage.directory, '.azure-terraform-lifecycle-lock'));
+          release = await acquireProcessLock(join54(storage.directory, '.azure-terraform-lifecycle-lock'));
         const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const contract = await dependencies.contract(signal);
         if (params.operation === 'prepare') {

@@ -1,8 +1,10 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Type } from '@sinclair/typebox';
+import { CeDeploymentStore } from '../../src/ce/deployment-store';
+import { acquireProcessLock } from '../../src/ce/process-lock';
 import type { SiteBinding } from '../../src/ce/runtime';
 import type { CePlatformService, CeStoredSiteBinding } from '../../src/ce/service';
 import { buildWireSite, type WireSiteIntent } from '../../src/ce/wire-site';
@@ -110,6 +112,7 @@ function fixture() {
     }),
     observeAzureInterfaces: async () => ({ status: 'unknown', interfaces: [], observedAt: new Date().toISOString() }),
   };
+  let stored: Promise<CeDeploymentStore> | undefined;
   const service = {
     capabilities: async () => ({
       smsv2ContractVersion: 'v2',
@@ -124,14 +127,21 @@ function fixture() {
       calls.push(`runtime:${engine}:${context ?? 'active'}`);
       return runtime;
     },
-    storage: async () => ({
-      read: async (): Promise<unknown> => {
-        throw Object.assign(Error('missing'), { code: 'ENOENT' });
-      },
-      write: async (_name: string, value: unknown) => {
-        privateRecords.push(value);
-      },
-    }),
+    storage: async () => {
+      if (!stored)
+        stored = (async () => {
+          const root = await mkdtemp(join(tmpdir(), 'ce-tool-storage-'));
+          roots.push(root);
+          const store = await CeDeploymentStore.open(root, binding.owner);
+          const write = store.write.bind(store);
+          store.write = async (name, value, signal) => {
+            privateRecords.push(value);
+            await write(name, value, signal);
+          };
+          return store;
+        })();
+      return stored;
+    },
   };
   return { service: service as unknown as CePlatformService, rawService: service, runtime, calls, privateRecords, jwt };
 }
@@ -347,12 +357,13 @@ test('does not report a partial HA binding set as a complete public status obser
 
 test('public bootstrap rejects a retired deployment before token issuance', async () => {
   const f = fixture();
-  f.rawService.storage = async () => ({
-    read: async () => ({ schemaVersion: 1 }),
-    write: async () => {
-      throw Error('unexpected write');
-    },
-  });
+  f.rawService.storage = async () =>
+    ({
+      read: async () => ({ schemaVersion: 1 }),
+      write: async () => {
+        throw Error('unexpected write');
+      },
+    }) as unknown as CeDeploymentStore;
   const tool = createF5xcCeV2BootstrapTool(pi, () => f.service);
   const result = await tool.execute(
     'id',
@@ -364,3 +375,110 @@ test('public bootstrap rejects a retired deployment before token issuance', asyn
   expect(result.isError).toBe(true);
   expect(f.calls).not.toContain('bootstrap');
 });
+
+for (const provider of ['aws', 'azure'] as const) {
+  for (const hasUI of [true, false])
+    test(`native ${provider} retirement rejects ${hasUI ? 'interactive' : 'headless'} checkout`, async () => {
+      process.env.XCSH_CE_HEADLESS_MUTATIONS = '1';
+      const f = fixture(),
+        root = await mkdtemp(join(tmpdir(), 'native-bootstrap-retired-'));
+      roots.push(root);
+      const owned = { ...binding, owner: { ...binding.owner, provider } };
+      const store = await CeDeploymentStore.open(join(root, 'deployments'), owned.owner);
+      await store.write(`${provider}-native-lifecycle-retirement.json`, { schemaVersion: 1, owner: owned.owner });
+      f.rawService.storage = async () => store;
+      f.rawService.siteBinding = async () => ({ ...known, binding: owned });
+      const result = await createF5xcCeV2BootstrapTool(pi, () => f.service, join(root, 'opaque')).execute(
+        'retired',
+        { namespace: 'system', siteName: owned.siteName, nodeName: 'node-one', expiresInSeconds: 60 },
+        undefined,
+        undefined,
+        context(hasUI),
+      );
+      expect(result.isError).toBe(true);
+      expect(f.calls).not.toContain('bootstrap');
+      const release = await acquireProcessLock(
+        join(store.directory, provider === 'aws' ? '.aws-native-teardown-lock' : '.azure-relay-native-mutation-lock'),
+      );
+      await release();
+    });
+  test(`native ${provider} checkout excludes the owning live retirement lock`, async () => {
+    const f = fixture(),
+      root = await mkdtemp(join(tmpdir(), 'native-bootstrap-locked-'));
+    roots.push(root);
+    const owned = { ...binding, owner: { ...binding.owner, provider } };
+    const store = await CeDeploymentStore.open(join(root, 'deployments'), owned.owner);
+    f.rawService.storage = async () => store;
+    f.rawService.siteBinding = async () => ({ ...known, binding: owned });
+    const lock = join(
+      store.directory,
+      provider === 'aws' ? '.aws-native-teardown-lock' : '.azure-relay-native-mutation-lock',
+    );
+    const release = await acquireProcessLock(lock);
+    try {
+      const result = await createF5xcCeV2BootstrapTool(pi, () => f.service, join(root, 'opaque')).execute(
+        'locked',
+        { namespace: 'system', siteName: owned.siteName, nodeName: 'node-one', expiresInSeconds: 60 },
+        undefined,
+        undefined,
+        context(),
+      );
+      expect(result.isError).toBe(true);
+      expect(f.calls).not.toContain('bootstrap');
+    } finally {
+      await release();
+    }
+  });
+}
+
+for (const provider of ['aws', 'azure'] as const) {
+  test(`native ${provider} cancelled checkout releases custody without issuing`, async () => {
+    const f = fixture(),
+      root = await mkdtemp(join(tmpdir(), 'native-bootstrap-cancelled-'));
+    roots.push(root);
+    const owned = { ...binding, owner: { ...binding.owner, provider } };
+    const store = await CeDeploymentStore.open(join(root, 'deployments'), owned.owner);
+    f.rawService.storage = async () => store;
+    f.rawService.siteBinding = async () => ({ ...known, binding: owned });
+    const controller = new AbortController();
+    controller.abort(Error('cancelled fixture'));
+    await expect(
+      createF5xcCeV2BootstrapTool(pi, () => f.service, join(root, 'opaque')).execute(
+        'cancelled',
+        { namespace: 'system', siteName: owned.siteName, nodeName: 'node-one', expiresInSeconds: 60 },
+        controller.signal,
+        undefined,
+        context(),
+      ),
+    ).rejects.toThrow('cancelled fixture');
+    expect(f.calls).not.toContain('bootstrap');
+    const release = await acquireProcessLock(
+      join(store.directory, provider === 'aws' ? '.aws-native-teardown-lock' : '.azure-relay-native-mutation-lock'),
+    );
+    await release();
+  });
+  test(`native ${provider} malformed retirement evidence rejects without exposing parser context`, async () => {
+    const f = fixture(),
+      root = await mkdtemp(join(tmpdir(), 'native-bootstrap-malformed-'));
+    roots.push(root);
+    const owned = { ...binding, owner: { ...binding.owner, provider } };
+    const store = await CeDeploymentStore.open(join(root, 'deployments'), owned.owner);
+    await writeFile(
+      join(store.directory, `${provider}-native-lifecycle-retirement.json`),
+      '{"private":"synthetic-parser-context',
+      { mode: 0o600 },
+    );
+    f.rawService.storage = async () => store;
+    f.rawService.siteBinding = async () => ({ ...known, binding: owned });
+    const result = await createF5xcCeV2BootstrapTool(pi, () => f.service, join(root, 'opaque')).execute(
+      'malformed',
+      { namespace: 'system', siteName: owned.siteName, nodeName: 'node-one', expiresInSeconds: 60 },
+      undefined,
+      undefined,
+      context(),
+    );
+    expect(result.isError).toBe(true);
+    expect(f.calls).not.toContain('bootstrap');
+    expect(JSON.stringify(result)).not.toContain('synthetic-parser-context');
+  });
+}

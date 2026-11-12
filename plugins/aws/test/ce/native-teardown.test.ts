@@ -231,3 +231,52 @@ test('resumes native cloud and platform retirement without duplicate mutations',
     'site:site-3',
   ]);
 });
+
+test('native retirement reserves exact identity before a pending drain and rejects changed resumes', async () => {
+  const f = fixture(),
+    plan = compileAwsNativeTeardown(f.base, f.cloud, f.drain, f.retirement);
+  const root = await mkdtemp(join(tmpdir(), 'aws-native-retirement-start-'));
+  directories.push(root);
+  const storage = await CeDeploymentStore.open(root, f.drain.owner);
+  let drains = 0;
+  const driver = {
+    engine: 'native' as const,
+    siteContractFingerprint: 'site-contract',
+    ingressContractFingerprint: 'ingress-contract',
+    drain: async () => {
+      drains++;
+      expect(await storage.read('aws-native-lifecycle-retirement.json')).toEqual({
+        schemaVersion: 1,
+        engine: 'native',
+        owner: storage.owner,
+        sourcePlanSha256: f.base.planSha256,
+        teardownPlanSha256: plan.planSha256,
+      });
+      return { status: 'pending-origin' as const };
+    },
+    retireCloud: async () => {
+      throw Error('pending drain must not retire cloud');
+    },
+    observeSite: async () => {
+      throw Error('pending drain must not observe retirement');
+    },
+    revokeToken: async () => {
+      throw Error('pending drain must not revoke');
+    },
+    deleteSite: async () => {
+      throw Error('pending drain must not delete');
+    },
+  };
+  expect((await coordinateAwsNativeTeardown(f.base, f.cloud, plan, plan.planSha256, storage, driver)).status).toBe(
+    'pending-platform-drain',
+  );
+  expect((await coordinateAwsNativeTeardown(f.base, f.cloud, plan, plan.planSha256, storage, driver)).status).toBe(
+    'pending-platform-drain',
+  );
+  expect(drains).toBe(2);
+  await storage.write('aws-native-lifecycle-retirement.json', { schemaVersion: 1, teardownPlanSha256: 'foreign' });
+  await expect(coordinateAwsNativeTeardown(f.base, f.cloud, plan, plan.planSha256, storage, driver)).rejects.toThrow(
+    'another immutable teardown',
+  );
+  expect(drains).toBe(2);
+});

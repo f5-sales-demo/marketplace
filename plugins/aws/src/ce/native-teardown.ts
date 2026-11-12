@@ -235,6 +235,18 @@ export async function coordinateAwsNativeTeardown(
   await validate();
   const release = await acquireProcessLock(join(storage.directory, '.aws-native-teardown-lock'));
   try {
+    const retirementName = 'aws-native-lifecycle-retirement.json';
+    const retirement = {
+      schemaVersion: 1,
+      engine: 'native',
+      owner: storage.owner,
+      sourcePlanSha256: base.planSha256,
+      teardownPlanSha256: plan.planSha256,
+    };
+    const priorRetirement = await optional(storage, retirementName);
+    if (priorRetirement !== undefined && canonicalSha256(priorRetirement) !== canonicalSha256(retirement))
+      throw new Error('AWS native retirement belongs to another immutable teardown');
+    if (priorRetirement === undefined) await storage.write(retirementName, retirement, signal);
     const sourceName = `${plan.planId}-source.json`;
     const saved = await optional(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, plan);
