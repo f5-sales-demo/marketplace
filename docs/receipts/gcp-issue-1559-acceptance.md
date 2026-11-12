@@ -243,8 +243,8 @@ policy is unchanged. The original failure remains private.
 | 8 | Verified CE-interface backend binding and symmetric content traffic | Interface/identity tests and narrow observation implementation | No traffic acceptance claim | None | Disposable clients/origins, health/backend joins and independent route/traffic receipts required |
 | 9 | Software/OS upgrades, coupled replacement, targeted repair, reviewed failover and owned networking restoration | Explicit operation refusals; candidate power/replacement/restoration helpers | Upgrade/failover unavailable behavior exercised | None | Current supported targets, qualified mappings, durable execution and full live qualification required |
 | 10 | Recovery within 120 seconds with separate route/application/loss/convergence facts | Failing-first clock regressions repaired; delayed completion, exact boundary, late recovery, transient success and missing content tested | Source evaluator only | None | Measure each live disruption and restoration-command start independently |
-| 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Earlier source checkpoint: 873 plugin tests; current Terraform/Platform continuation: 404 tests and both native typechecks; runtime builds, tracker and normal hooks pass | Historical ordinary installed prompts passed; new SDK/plugin snapshots need fresh Ubuntu acceptance | No cloud mutations in runtime probes | Qualify current registered-tool execution, authentication behavior, doctor warnings and published artifact smoke |
-| 12 | Fresh original-bound guest capture and Terraform HA acceptance | Attempt 236 passes 467 collector, 198 trust, 167 admission, 25 focused Python and 166 Bun tests; two conditional fixtures exercised through Python | Attempt 235 normal installed runtime passed without a private PluginInterface | q31 created and independently cleaned 21 resources; CE host-algorithm negotiation failed; no accepted guest capture | Prepare fresh serial-verified RSA CE trust; both guest mappings remain held; q30 reader and locks stay unresolved |
+| 11 | Focused/shared tests, builds, catalog/dependencies, lint/privacy and real prompts | Current observer candidate: 1,429 shared/canonical tests and 11,565 assertions; three native typechecks/builds, provider validation, tracker, privacy and normal hooks pass; 153 private collector tests passed | Historical ordinary installed prompts passed; new SDK/plugin snapshots need fresh Ubuntu acceptance | No cloud mutations in runtime probes | Qualify current registered-tool execution, authentication behavior, doctor warnings and published artifact smoke |
+| 12 | Fresh original-bound guest capture and Terraform HA acceptance | New observer translator accounts for all 21 resources, pins the numeric image ID and restricts SSH; public dispatch and owned observer teardown remain held. Attempt 236 passes 467 collector, 198 trust, 167 admission, 25 focused Python and 166 Bun tests; two conditional fixtures exercised through Python | Attempt 235 normal installed runtime passed without a private PluginInterface | q31 created and independently cleaned 21 resources; CE host-algorithm negotiation failed; no accepted guest capture | Prepare fresh serial-verified RSA CE trust; both guest mappings remain held; q30 reader and locks stay unresolved |
 | 13 | Both engines, single/HA, lifecycle and interruption campaigns; final reconciliation/no-change/typed teardown/absences | Existing narrow engine and cleanup code/tests preserved | Changed candidate not live qualified | None for this continuation | Full resource inventories, reviews, content traffic, final state and restoration evidence required |
 | 14 | Review/CI/merge, immutable new publication, published user-scope installation and cleanup | Source checkpoint delivered to conflict-free draft PR; current-head CI and review remain separate gates | Historical isolated staging only; new snapshots unqualified | SDK prerequisite release verified; GCloud/Platform/Terraform publication remains held | Keep PR draft until source, installed and every applicable live gate passes; then qualified plugin release and published installation |
 
@@ -1450,4 +1450,22 @@ execution, default capture and every remaining installed/live/release gate stay 
 
 The [versioned Terraform installation](gcp-versioned-terraform-installation-20261111.md)
 retains current and historical executable identities with supported user setup.
-Terraform 1.17.2 provider refresh, installed runtime and full live/release gates remain open.
+A fresh local-only campaign independently verified Terraform 1.17.2 refresh across
+conservative token expiry through the same original Google provider. Installed
+runtime and full managed live/release gates remain open.
+
+The [observer graph source qualification](gcp-observer-graph-source-20261111.md)
+adds the explicit 18 CE plus three observer candidate inventory in GCloud 1.7.48.
+Actual Terraform/provider validation passes without submission. The default
+installed capture, same owning runner projection, observer ownership and teardown
+mapping must be integrated before public dispatch selects this graph. Legacy
+stored deployment graphs and cleanup paths retain their original meanings.
+
+The separate Terraform 1.17.2 expiry campaign retained complete before/after
+captures, unchanged principal/audience, the same original provider PID/start/boot
+and executable bytes, original fixed apply budget and verified runtime lifetime.
+Its three local resources were independently reviewed and removed; empty destroy,
+stable state and two non-submitting resumes passed. Cleanup used a separate fixed
+budget after recovery; the original apply budget was preserved. This establishes
+provider refresh and local cleanup, not managed insertion or authenticated guest
+capture. Current-head CI and every remaining live/runtime/delivery gate remain open.
