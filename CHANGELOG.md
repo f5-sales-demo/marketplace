@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** v1.7.49 bundles the owning runner read channel while preserving
+  legacy execution and cleanup. Full managed capture and live acceptance remain incomplete.
+
+- **`terraform`** v2.4.84 adds a source-qualified owning runner plan channel for
+  current GCP execution. Capture receives the original read-only projection without
+  overlapping runner inspection; stale, copied and retired sources refuse.
+
 - **`gcloud`** v1.7.48 adds a source-qualified Terraform HA observer graph with
   a pinned Ubuntu image, separate disk and restricted SSH firewall. The original
   21-resource inventory is explicit; installed capture and live acceptance remain incomplete.

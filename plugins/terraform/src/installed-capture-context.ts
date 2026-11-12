@@ -1,6 +1,7 @@
 import { isAbsolute, resolve } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { OriginalInputBinding } from './original-input-monitor';
+import { assertOriginalTerraformPlanProjection, type OriginalTerraformPlanProjection } from './runner';
 
 type Inputs = Readonly<Record<string, OriginalInputBinding>>;
 export interface CaptureAuthenticationIdentity {
@@ -9,6 +10,8 @@ export interface CaptureAuthenticationIdentity {
   readonly snapshotSha256: string;
 }
 export interface InstalledCaptureAdmission {
+  /** Original owning runner projection, available only during that one original apply invocation. */
+  readonly readOriginalPlanSource?: () => Promise<OriginalTerraformPlanProjection>;
   readonly authentication: Readonly<CaptureAuthenticationIdentity>;
   readonly owner: CeOwner;
   readonly executionDirectory: string;
@@ -84,7 +87,8 @@ export function createInstalledCaptureContext(admission: InstalledCaptureAdmissi
     admission.budget.deadline - admission.budget.start !== 7200000 ||
     typeof admission.assertInputs !== 'function' ||
     typeof admission.assertWithinDeadline !== 'function' ||
-    typeof admission.readProviderInputs !== 'function'
+    typeof admission.readProviderInputs !== 'function' ||
+    (admission.readOriginalPlanSource !== undefined && typeof admission.readOriginalPlanSource !== 'function')
   )
     throw new Error('Trusted original GCP capture admission required');
   const inputs = freezeAdmittedCaptureInputs(admission.inputs);
@@ -112,10 +116,48 @@ export function createInstalledCaptureContext(admission: InstalledCaptureAdmissi
   const assertInputs = admission.assertInputs,
     assertWithinDeadline = admission.assertWithinDeadline,
     readProviders = admission.readProviderInputs;
+  const readPlanSource = admission.readOriginalPlanSource;
+  let planSourceRefused = false;
+  let originalPlanProjection: OriginalTerraformPlanProjection | undefined;
+  const originalPlanOwner = Object.freeze(structuredClone(admission.owner));
+  const originalPlanDirectory = admission.executionDirectory;
   let originalProviders: Inputs | undefined;
   return Object.freeze({
     schemaVersion: 2,
     kind: 'original-installed-gcp-capture-context',
+    ...(readPlanSource
+      ? {
+          async readOriginalPlanSource() {
+            if (planSourceRefused) throw new Error('Original owning plan capture handoff remains refused');
+            try {
+              await assertWithinDeadline();
+              await assertInputs();
+              const source = await readPlanSource();
+              await assertOriginalTerraformPlanProjection(source);
+              if (originalPlanProjection && originalPlanProjection !== source)
+                throw new Error('Original owning plan capture view changed');
+              if (
+                source.executionAuthorized !== false ||
+                source.directory !== originalPlanDirectory ||
+                source.scope.cloud !== 'gcp' ||
+                source.scope.account !== originalPlanOwner.account ||
+                source.scope.region !== originalPlanOwner.region ||
+                source.receipt.engine !== 'terraform' ||
+                source.receipt.deploymentId !== originalPlanOwner.deploymentId
+              )
+                throw new Error('Original installed capture owning plan scope differs');
+              await assertWithinDeadline();
+              await assertInputs();
+              await assertOriginalTerraformPlanProjection(source);
+              originalPlanProjection ??= source;
+              return source;
+            } catch (error) {
+              planSourceRefused = true;
+              throw error;
+            }
+          },
+        }
+      : {}),
     owner: Object.freeze(structuredClone(admission.owner)),
     executionDirectory: admission.executionDirectory,
     budget: Object.freeze({ ...admission.budget }),

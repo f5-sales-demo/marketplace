@@ -136,8 +136,11 @@ export function createInstalledGcpInvocationCompiler(input: {
     )
       throw new Error('Original owning runner internal environment required');
     const tracing = args[0] === 'apply';
+    if (request.originalPlanSource && !tracing)
+      throw new Error('Original plan source belongs only to its saved-plan apply');
     return {
       cwd: directory,
+      ...(request.originalPlanSource ? { originalPlanSource: request.originalPlanSource } : {}),
       args: tracing ? ['apply', '-json', '-parallelism=1', ...args.slice(1)] : args,
       env: { ...selected, ...internal, ...(tracing ? { TF_LOG: 'JSON' } : {}) },
       ...(request.signal ? { signal: request.signal } : {}),

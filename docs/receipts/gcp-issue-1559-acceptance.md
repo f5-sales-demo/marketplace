@@ -1469,3 +1469,11 @@ stable state and two non-submitting resumes passed. Cleanup used a separate fixe
 budget after recovery; the original apply budget was preserved. This establishes
 provider refresh and local cleanup, not managed insertion or authenticated guest
 capture. Current-head CI and every remaining live/runtime/delivery gate remain open.
+
+The [owning runner plan source](gcp-owning-runner-plan-source-20261112.md)
+resolves capture access to the reviewed original plan while the same runner owns
+apply. Private issuer registries reject copied or retired sources and projections;
+original file watches, scope and deadline checks remain independent. Legacy
+execution stays on its original path. A caller-receipt mutation race was reproduced
+and fixed without rewriting stored receipts. Observer intent/ownership/teardown,
+default installed capture and all live/runtime/release gates remain open.

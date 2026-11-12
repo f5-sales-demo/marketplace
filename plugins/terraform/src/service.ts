@@ -116,6 +116,8 @@ export interface GoogleAdcPolicy {
   }): Promise<GoogleAdcLease>;
 }
 export interface CeTerraformRuntimeOptions {
+  /** Trusted opt-in read channel; does not grant execution or alter historical executor selection. */
+  readonly planSource?: 'gcp-resource-plan-v1';
   /** Source-owned preflight before consuming a saved plan; invocation release still rechecks live capture. */
   readonly assertApplyReady?: () => Promise<void>;
   /** Opt-in trusted policy; legacy stored sessions retain their original behavior. */
@@ -136,12 +138,15 @@ export interface CeTerraformServiceOptions extends CeTerraformRuntimeOptions {
 }
 function freezeRuntime(options: CeTerraformRuntimeOptions): CeTerraformRuntimeOptions {
   const execute = options.execute;
+  const planSource = options.planSource;
+  if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || !execute))
+    throw new Error('Qualified versioned plan source requires its original executor');
   const assertApplyReady = options.assertApplyReady;
   const googleAdc = options.googleAdc
     ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
     : undefined;
   if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
-  return Object.freeze({ execute, googleAdc, assertApplyReady });
+  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource });
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
@@ -152,7 +157,7 @@ export function createCeTerraformService(
   // Capture the policy once so mutation of the options object cannot redirect later sessions.
   const defaults = freezeRuntime(options);
   const resolveRuntime = options.resolveRuntime;
-  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady))
+  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady || defaults.planSource))
     throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
@@ -174,7 +179,7 @@ export function createCeTerraformService(
       const directory = deployment.stage
         ? join(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
-      const { execute, googleAdc, assertApplyReady } = resolveRuntime
+      const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
         ? freezeRuntime(
             await resolveRuntime({
               owner: structuredClone(owner),
@@ -237,7 +242,7 @@ export function createCeTerraformService(
                 );
               })
           : execute;
-      const runner = new TerraformRunner(directory, guardedExecute);
+      const runner = new TerraformRunner(directory, guardedExecute, undefined, planSource);
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {

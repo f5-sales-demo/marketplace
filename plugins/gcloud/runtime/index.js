@@ -7699,6 +7699,7 @@ var fileKeys,
   controls = (value) =>
     Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127);
 var init_installed_capture_context = __esm(() => {
+  init_runner();
   fileKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
   parentKeys = ['dev', 'ino', 'uid', 'mode'];
 });
@@ -7855,8 +7856,15 @@ import {
   rm as rm3,
   writeFile as writeFile3,
 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute5, join as join8, resolve as resolve4 } from 'node:path';
+import { dirname as dirname4, isAbsolute as isAbsolute5, join as join8, resolve as resolve4 } from 'node:path';
 
+function freezeOriginalPlan(value) {
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeOriginalPlan(child);
+    Object.freeze(value);
+  }
+  return value;
+}
 function object7(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Terraform JSON object is malformed');
@@ -8229,13 +8237,17 @@ class TerraformRunner {
   #directory;
   #manifest;
   #busy = false;
+  #planSource;
   #cleanup;
   #cleanupEmpty = false;
   #cleanupMonitor;
   #verificationMonitor;
-  constructor(root, execute = executeTerraform, cleanup) {
+  constructor(root, execute = executeTerraform, cleanup, planSource) {
     this.root = root;
     this.execute = execute;
+    if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || execute === executeTerraform))
+      throw new Error('Trusted versioned owning plan source requires its original executor');
+    this.#planSource = planSource === 'gcp-resource-plan-v1';
     if (!isAbsolute5(root) || resolve4(root) !== root) throw new Error('Terraform storage must be an absolute path');
     if (cleanup) {
       if (
@@ -8630,9 +8642,15 @@ class TerraformRunner {
       TF_WORKSPACE: 'default',
     };
   }
-  async #run(args, env, signal) {
+  async #run(args, env, signal, originalPlanSource) {
     signal?.throwIfAborted();
-    const result = await this.execute({ cwd: this.#state().directory, args, env: this.#environment(env), signal });
+    const result = await this.execute({
+      cwd: this.#state().directory,
+      args,
+      env: this.#environment(env),
+      signal,
+      ...(originalPlanSource ? { originalPlanSource } : {}),
+    });
     if (result.code !== 0) throw new TerraformCommandError(args[0], result.code, result.failureCategory);
     return result.stdout;
   }
@@ -9233,7 +9251,132 @@ class TerraformRunner {
       };
     });
   }
+  async #openOriginalPlanSource(plan, receipt) {
+    const { directory, manifest } = this.#state();
+    if (!this.#busy || manifest.scope.cloud !== 'gcp' || receipt.actionInvocations?.length)
+      throw new Error('Original GCP resource-only plan producer required');
+    const inspected = this.#inspectPlan(plan, undefined, receipt.operation === 'destroy');
+    if (canonical2(inspected.changes) !== canonical2(receipt.changes) || inspected.noChanges !== receipt.noChanges)
+      throw new Error('Original owning resource plan inspection differs');
+    const identityFields = [
+      'id',
+      'name',
+      'project',
+      'region',
+      'zone',
+      'namespace',
+      'site_name',
+      'image_id',
+      'self_link',
+    ];
+    const resources = (plan.resource_changes === undefined ? [] : plan.resource_changes).map((input) => {
+      const row = object7(input),
+        change = object7(row.change);
+      if (
+        typeof row.address !== 'string' ||
+        typeof row.type !== 'string' ||
+        (row.mode !== 'managed' && row.mode !== 'data') ||
+        !Array.isArray(change.actions)
+      )
+        throw new Error('Exact original resource plan identity required');
+      const phase = receipt.operation === 'destroy' ? 'before' : 'after';
+      const values = change[phase] === null || change[phase] === undefined ? {} : object7(change[phase]);
+      const sensitivity = change[`${phase}_sensitive`],
+        unknown = change[`${phase}_unknown`];
+      if (
+        unknown !== undefined &&
+        typeof unknown !== 'boolean' &&
+        (unknown === null || typeof unknown !== 'object' || Array.isArray(unknown))
+      )
+        throw new Error('Original Terraform identity unknown marker is malformed');
+      const fields = {};
+      for (const field of identityFields) {
+        const unknownMarker =
+          unknown === true ? true : unknown && typeof unknown === 'object' ? unknown[field] : undefined;
+        if (unknownMarker !== undefined && typeof unknownMarker !== 'boolean')
+          throw new Error('Original Terraform identity unknown marker is malformed');
+        if (unknownMarker === true) {
+          fields[field] = { status: 'unknown' };
+        } else if (!Object.hasOwn(values, field)) {
+          fields[field] = { status: 'unavailable' };
+        } else {
+          const value = projectResourceFields(values, sensitivity, [field])[field];
+          if (
+            value !== null &&
+            typeof value !== 'string' &&
+            typeof value !== 'boolean' &&
+            !(typeof value === 'number' && Number.isSafeInteger(value))
+          )
+            throw new Error('Original Terraform plan identity scalar required');
+          fields[field] = { status: 'known', value };
+        }
+      }
+      return { address: row.address, type: row.type, mode: row.mode, actions: change.actions, fields };
+    });
+    const files = {};
+    const hashes = {
+      'saved.tfplan': receipt.planSha256,
+      'main.tf.json': receipt.configurationSha256,
+      '.terraform.lock.hcl': receipt.providerLockSha256,
+      'deployment.json': digest2(await privateRead(join8(directory, 'deployment.json'))),
+    };
+    const fileKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+    const parentKeys = ['dev', 'ino', 'uid', 'mode'];
+    for (const [name, hash] of Object.entries(hashes)) {
+      const path = join8(directory, name),
+        before = await lstat7(path, { bigint: true }),
+        parent = await lstat7(dirname4(path), { bigint: true });
+      const raw = await privateRead(path),
+        after = await lstat7(path, { bigint: true }),
+        finalParent = await lstat7(dirname4(path), { bigint: true });
+      if (
+        digest2(raw) !== hash ||
+        fileKeys.some((key) => before[key] !== after[key]) ||
+        parentKeys.some((key) => parent[key] !== finalParent[key])
+      )
+        throw new Error('Original owning plan input changed during admission');
+      if (name === 'deployment.json' && canonical2(decode(raw.toString())) !== canonical2(manifest))
+        throw new Error('Original owning deployment manifest changed');
+      files[name] = {
+        path,
+        sha256: hash,
+        expectedIdentity: Object.fromEntries(fileKeys.map((key) => [key, before[key].toString()])),
+        expectedParentIdentity: Object.fromEntries(parentKeys.map((key) => [key, parent[key].toString()])),
+      };
+    }
+    const monitor = await monitorOriginalInputs(files);
+    const projection = freezeOriginalPlan(
+      structuredClone({
+        schemaVersion: 1,
+        kind: 'original-terraform-resource-plan',
+        directory,
+        scope: manifest.scope,
+        terraformVersion: manifest.terraformVersion,
+        receipt,
+        resources,
+        executionAuthorized: false,
+      }),
+    );
+    const source = Object.freeze({
+      schemaVersion: 1,
+      kind: 'original-terraform-plan-source',
+      directory,
+      planSha256: receipt.planSha256,
+    });
+    const lease = { projection, assertOriginal: monitor.assertOriginal, active: true };
+    originalPlanSources.set(source, lease);
+    originalPlanProjections.set(projection, lease);
+    return {
+      source,
+      assertOriginal: monitor.assertOriginal,
+      close: () => {
+        lease.active = false;
+        monitor.close();
+      },
+    };
+  }
   async apply(receipt, env, signal) {
+    receipt = structuredClone(receipt);
     if (this.#cleanup?.verification) throw new Error('Capture cleanup verification cannot submit an apply');
     if (
       this.#cleanup &&
@@ -9278,8 +9421,23 @@ class TerraformRunner {
           receipt,
         });
       }
-      await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
-      await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
+      const originalSource =
+        this.#planSource && this.#state().manifest.scope.cloud === 'gcp' && !expectedActions.length
+          ? await this.#openOriginalPlanSource(plan, receipt)
+          : undefined;
+      try {
+        await originalSource?.assertOriginal();
+        await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
+        await this.#run(
+          ['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'],
+          env,
+          signal,
+          originalSource?.source,
+        );
+        await originalSource?.assertOriginal();
+      } finally {
+        originalSource?.close();
+      }
       await persist(join8(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });
       if (this.#cleanup) {
         this.#cleanupEmpty = true;
@@ -9288,7 +9446,9 @@ class TerraformRunner {
     });
   }
 }
-var cliConfig = `provider_installation {
+var originalPlanSources,
+  originalPlanProjections,
+  cliConfig = `provider_installation {
   direct {}
 }
 disable_checkpoint = true
@@ -9301,6 +9461,8 @@ var init_runner = __esm(() => {
   init_failure();
   init_installed_capture_context();
   init_original_input_monitor();
+  originalPlanSources = new WeakMap();
+  originalPlanProjections = new WeakMap();
   safeId = /^[a-z][a-z0-9-]{0,62}$/;
   executeTerraform = terraformExecutor(undefined, true);
 });
@@ -9310,17 +9472,20 @@ import { join as join9 } from 'node:path';
 
 function freezeRuntime(options) {
   const execute = options.execute;
+  const planSource = options.planSource;
+  if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || !execute))
+    throw new Error('Qualified versioned plan source requires its original executor');
   const assertApplyReady = options.assertApplyReady;
   const googleAdc = options.googleAdc
     ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
     : undefined;
   if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
-  return Object.freeze({ execute, googleAdc, assertApplyReady });
+  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource });
 }
 function createCeTerraformService(platform, options = {}) {
   const defaults = freezeRuntime(options);
   const resolveRuntime = options.resolveRuntime;
-  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady))
+  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady || defaults.planSource))
     throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
@@ -9342,7 +9507,7 @@ function createCeTerraformService(platform, options = {}) {
       const directory = deployment.stage
         ? join9(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
-      const { execute, googleAdc, assertApplyReady } = resolveRuntime
+      const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
         ? freezeRuntime(
             await resolveRuntime({
               owner: structuredClone(owner),
@@ -9405,7 +9570,7 @@ function createCeTerraformService(platform, options = {}) {
                 );
               })
           : execute;
-      const runner = new TerraformRunner(directory, guardedExecute);
+      const runner = new TerraformRunner(directory, guardedExecute, undefined, planSource);
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {

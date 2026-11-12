@@ -33,7 +33,7 @@ import {
 } from './original-input-monitor';
 import { verifyProviderPackage } from './provider-package';
 import type { FinalReaderReserve } from './reader-final-reserve';
-import type { Executor } from './runner';
+import { type Executor, type OriginalTerraformPlanSource, readOriginalTerraformPlanSource } from './runner';
 import type { CeTerraformRuntimeOptions, CeTerraformRuntimeRequest, GoogleAdcPolicy } from './service';
 import {
   type ExecutionCaptureAdmission,
@@ -354,6 +354,16 @@ export function createInstalledRuntimeResolver(
     let providers: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
     let providerInputs: Readonly<Record<string, OriginalInputBinding>> | undefined;
     let executor: Executor | undefined;
+    const planSource = versionProfile.terraformVersion === '1.17.2' ? ('gcp-resource-plan-v1' as const) : undefined;
+    const sourceExpectation = Object.freeze({
+      directory: executionDirectory,
+      engine: 'terraform' as const,
+      deploymentId: owner.deploymentId,
+      scope: Object.freeze({ cloud: 'gcp' as const, account: owner.account, region: owner.region }),
+      terraformVersion: versionProfile.terraformVersion,
+      backendIdentity: deployment.backendIdentity,
+    });
+    let originalPlanSource: OriginalTerraformPlanSource | undefined;
     let compileInvocation: ReturnType<typeof createInstalledGcpInvocationCompiler> | undefined;
     let capture: InstalledGcpCapture | undefined;
     let prepareCapture: (() => Promise<void>) | undefined;
@@ -482,6 +492,9 @@ export function createInstalledRuntimeResolver(
             { flag: 'wx', mode: 0o400 },
           );
           const captureContext = createInstalledCaptureContext({
+            ...(planSource
+              ? { readOriginalPlanSource: () => readOriginalTerraformPlanSource(originalPlanSource, sourceExpectation) }
+              : {}),
             authentication: {
               accountSha256: authenticated.accountSha256,
               audienceSha256: authenticated.audienceSha256,
@@ -660,6 +673,11 @@ export function createInstalledRuntimeResolver(
       active++;
       try {
         if (invocation.args[0] === 'apply') {
+          if (planSource) {
+            if (originalPlanSource) throw new Error('Original owning plan source cannot admit another apply actor');
+            await readOriginalTerraformPlanSource(invocation.originalPlanSource, sourceExpectation);
+            originalPlanSource = invocation.originalPlanSource;
+          }
           if (!prepareCapture) throw new Error('Original installed capture preparation unavailable');
           await prepareCapture();
         }
@@ -671,6 +689,7 @@ export function createInstalledRuntimeResolver(
     return {
       googleAdc,
       execute,
+      ...(planSource ? { planSource } : {}),
       assertApplyReady: async () => {
         if (!captureFactory) throw new Error('Original GCP guest capture controller is not qualified');
         await store.verify();
