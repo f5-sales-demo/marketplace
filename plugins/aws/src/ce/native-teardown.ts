@@ -6,6 +6,7 @@ import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import { retireAwsNativeBootstrapCredentials } from './native-bootstrap-retirement';
 import { collectAwsTeardownMaterial } from './terraform-teardown-plan';
 import { siteBindings, siteTopology } from './topology';
 import type { AwsCePlan } from './types';
@@ -293,6 +294,7 @@ export async function coordinateAwsNativeTeardown(
       finalCloud.absence !== 'absent'
     )
       throw new Error('Final native cloud absence did not converge');
+    const credentials = await retireAwsNativeBootstrapCredentials(base, plan, storage, signal);
     const receipt = {
       status: 'ce-retired-supporting-infrastructure-unverified' as const,
       owner: storage.owner,
@@ -300,6 +302,8 @@ export async function coordinateAwsNativeTeardown(
       sourcePlanSha256: base.planSha256,
       cloudPlanSha256: plan.cloudPlanSha256,
       completed,
+      credentialStaging: credentials.status,
+      credentialRetirementEvidenceSha256: credentials.evidenceSha256,
       cloudInventory: 'absent' as const,
       observedAt: new Date().toISOString(),
     };
