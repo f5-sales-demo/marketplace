@@ -1495,3 +1495,11 @@ source checks do not qualify normal installed behavior or managed guest capture.
 Current HA provider, default capture and every remaining live/delivery gate
 remain open. Previous-head 16929567 CI independently passed 28 checks with four skips;
 this changed source requires its own exact-head checks.
+
+The [campaign key CI repair and required OpenSSH host check](gcp-campaign-openssh-ci-20261112.md)
+retains the failed broader job at a863c4c2 and separates portable no-spawn key
+custody tests from actual OpenSSH format qualification. Both real keys pass
+on Ubuntu; unavailable OpenSSH remains an unmet host gate. All-plugin hermetic
+validation passes 3,032 tests with zero skips, and shared validation passes
+1,465 tests. Current repair CI and all managed, installed and release gates
+remain required. Production capture/HA holds and original receipts stay intact.

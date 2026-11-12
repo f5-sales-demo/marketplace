@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 import { chmod, link, lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,27 +29,29 @@ async function fixture() {
   return CeDeploymentStore.open(root, owner);
 }
 
-test('creates distinct OpenSSH keys, returns only public data and preserves exact files across restart', async () => {
-  const store = await fixture();
-  const access = await prepareOriginalGcpCampaignAccess(store, request);
-  expect(Object.keys(access).sort()).toEqual(['cePublicKey', 'observerPublicKey', 'schemaVersion']);
-  expect(access.cePublicKey).not.toBe(access.observerPublicKey);
-  const original = await readOriginalGcpCampaignAccess(store, request);
-  expect(original.publicAccess).toEqual(access);
-  for (const [name, publicKey] of [
-    ['ce_key', access.cePublicKey],
-    ['observer_key', access.observerPublicKey],
-  ]) {
-    const input = original.inputs[name];
-    expect(Number((await lstat(input.path)).mode) & 0o777).toBe(0o400);
-    const child = Bun.spawn(['/usr/bin/ssh-keygen', '-y', '-f', input.path], { stdout: 'pipe', stderr: 'pipe' });
-    expect(await new Response(child.stdout).text()).toBe(`${publicKey}\n`);
-    expect(await child.exited).toBe(0);
+test('creates distinct original keys without external programs and preserves public data across restart', async () => {
+  const external = spyOn(Bun, 'spawn').mockImplementation(() => {
+    throw new Error('External program unavailable in unit scope');
+  });
+  try {
+    const store = await fixture();
+    const access = await prepareOriginalGcpCampaignAccess(store, request);
+    expect(Object.keys(access).sort()).toEqual(['cePublicKey', 'observerPublicKey', 'schemaVersion']);
+    expect(access.cePublicKey).not.toBe(access.observerPublicKey);
+    const original = await readOriginalGcpCampaignAccess(store, request);
+    expect(original.publicAccess).toEqual(access);
+    for (const name of ['ce_key', 'observer_key']) {
+      const input = original.inputs[name];
+      expect(Number((await lstat(input.path)).mode) & 0o777).toBe(0o400);
+    }
+    expect(await prepareOriginalGcpCampaignAccess(store, request)).toEqual(access);
+    expect((await readOriginalGcpCampaignAccess(store, request)).inputs).toEqual(original.inputs);
+    expect(JSON.stringify(access)).not.toContain(store.directory);
+    expect(JSON.stringify(access)).not.toContain('PRIVATE KEY');
+    expect(external).not.toHaveBeenCalled();
+  } finally {
+    external.mockRestore();
   }
-  expect(await prepareOriginalGcpCampaignAccess(store, request)).toEqual(access);
-  expect((await readOriginalGcpCampaignAccess(store, request)).inputs).toEqual(original.inputs);
-  expect(JSON.stringify(access)).not.toContain(store.directory);
-  expect(JSON.stringify(access)).not.toContain('PRIVATE KEY');
 });
 
 test('binds one exact intent and original manifest, never rebinds or mints replacement keys', async () => {

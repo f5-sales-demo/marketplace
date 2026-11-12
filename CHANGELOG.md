@@ -24,6 +24,10 @@ and this project adheres to
 - **`gcloud`** v1.7.49 bundles the owning runner read channel while preserving
   legacy execution and cleanup. Full managed capture and live acceptance remain incomplete.
 
+- **`terraform`** v2.4.87 separates portable key custody tests from required
+  OpenSSH host qualification. The host check verifies both actual keys and refuses
+  a missing executable; production key generation and capture gates are unchanged.
+
 - **`terraform`** v2.4.86 generates distinct original campaign Ed25519 keys,
   binds their private file identities to one intent and refuses replacement or
   missing authorization evidence. Installed capture and live qualification remain open.
