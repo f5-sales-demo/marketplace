@@ -1,4 +1,5 @@
 import { PROJECT_ID_PATTERN } from '../gcloud/types';
+import { assertGcpTerraformObserverScope, gcpTerraformObserverIdentity } from './observer-scope';
 import { validateGcpSiteAccess } from './site-access';
 import { GCP_CE_IMAGE_PROJECT, GCP_CE_OPERATIONS, type GcpCeImage, type GcpCeIntent } from './types';
 
@@ -48,7 +49,12 @@ function keys(value: object, allowed: string[]) {
   if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
 }
 export function validateIntent(intent: GcpCeIntent) {
-  if (intent?.schemaVersion !== 1) throw new Error('Unsupported GCP CE intent version');
+  if (intent?.schemaVersion !== 1 && intent?.schemaVersion !== 2) throw new Error('Unsupported GCP CE intent version');
+  if (
+    (intent.schemaVersion === 1 && Object.hasOwn(intent, 'observer')) ||
+    (intent.schemaVersion === 2 && !intent.observer)
+  )
+    throw new Error('Observer scope requires its complete version2 intent');
   keys(intent, [
     'schemaVersion',
     'project',
@@ -64,6 +70,7 @@ export function validateIntent(intent: GcpCeIntent) {
     'ipForwarding',
     'initialVersions',
     'initialAccess',
+    ...(intent.schemaVersion === 2 ? ['observer'] : []),
     'egress',
     'ingress',
     'routing',
@@ -142,5 +149,11 @@ export function validateIntent(intent: GcpCeIntent) {
         throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
       shape = current;
     }
+  }
+  if (intent.schemaVersion === 2) {
+    const observer = intent.observer;
+    if (!observer) throw new Error('Versioned observer scope required');
+    assertGcpTerraformObserverScope(observer, intent);
+    gcpTerraformObserverIdentity(intent);
   }
 }

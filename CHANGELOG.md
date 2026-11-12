@@ -10,10 +10,17 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** v1.7.50 adds versioned observer intent, original 21-resource
+  ownership, image/account/NIC joins and typed full or partial-disk cleanup.
+  Legacy graphs remain unchanged; live qualification and default capture remain open.
+
+- **`platform`** v6.3.22 and **`terraform`** v2.4.84 bundle the versioned
+  observer input contract while preserving original receipts and execution gates.
+
 - **`gcloud`** v1.7.49 bundles the owning runner read channel while preserving
   legacy execution and cleanup. Full managed capture and live acceptance remain incomplete.
 
-- **`terraform`** v2.4.84 adds a source-qualified owning runner plan channel for
+- **`terraform`** v2.4.85 adds a source-qualified owning runner plan channel for
   current GCP execution. Capture receives the original read-only projection without
   overlapping runner inspection; stale, copied and retired sources refuse.
 

@@ -274,6 +274,13 @@ var _GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
   sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
 });
 
+// plugins/gcloud/src/ce/observer-scope.ts
+var _GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
+  project: 'ubuntu-os-cloud',
+  name: 'ubuntu-2404-noble-amd64-v20261021',
+  id: '4996011480491275419',
+});
+
 // plugins/gcloud/src/ce/discovery.ts
 function fingerprint(value) {
   const stable = (item) =>

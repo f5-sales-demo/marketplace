@@ -7,9 +7,14 @@ import { createGcpTerraformRequestReason } from './request-reason';
 import { assertGcpSiteAccessProfile } from './site-access';
 import { publicTerraformContextHash } from './terraform-context';
 import { googleTerraformEnvironment } from './terraform-google-environment';
-import { GCP_PUBLIC_TERRAFORM_ARTIFACTS, resolveGcpTerraformArtifacts } from './terraform-public-artifacts';
+import {
+  GCP_OBSERVER_TERRAFORM_ARTIFACTS,
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  resolveGcpTerraformArtifacts,
+} from './terraform-public-artifacts';
 import { type GcpTerraformInputs, openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
 import type { GcpCeIntent } from './types';
+import { validateIntent } from './validation';
 
 /** Credentials, configuration and locks are server-owned implementation details. */
 export async function openPublicTerraformRuntime(
@@ -20,11 +25,14 @@ export async function openPublicTerraformRuntime(
   installedService?: CeTerraformService,
 ) {
   intent = structuredClone(intent);
+  validateIntent(intent);
+  const currentArtifacts =
+    intent.schemaVersion === 2 ? GCP_OBSERVER_TERRAFORM_ARTIFACTS : GCP_PUBLIC_TERRAFORM_ARTIFACTS;
   assertGcpSiteAccessProfile(intent);
   if (
     intent.engine !== 'terraform' ||
-    !GCP_PUBLIC_TERRAFORM_ARTIFACTS ||
-    GCP_PUBLIC_TERRAFORM_ARTIFACTS.configurationVersion !== 2
+    !currentArtifacts ||
+    currentArtifacts.configurationVersion !== (intent.schemaVersion === 2 ? 3 : 2)
   )
     throw new Error('Published creation identity provider qualification unavailable');
   const owner = {
@@ -41,9 +49,7 @@ export async function openPublicTerraformRuntime(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  const artifacts = inputs
-    ? resolveGcpTerraformArtifacts((inputs as { inputs?: unknown }).inputs)
-    : GCP_PUBLIC_TERRAFORM_ARTIFACTS;
+  const artifacts = inputs ? resolveGcpTerraformArtifacts((inputs as { inputs?: unknown }).inputs) : currentArtifacts;
   const requestReason = inputs
     ? (inputs as { inputs?: GcpTerraformInputs }).inputs?.requestReason
     : createGcpTerraformRequestReason(intent);

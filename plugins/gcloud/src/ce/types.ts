@@ -25,7 +25,9 @@ export interface GcpCeInterface {
   cidr: string;
 }
 export interface GcpCeIntent {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
+  /** Version2 original HA observer scope; forbidden in legacy version1 intents. */
+  observer?: import('./observer-scope').GcpTerraformObserverScope;
   project: string;
   region: string;
   deploymentName: string;

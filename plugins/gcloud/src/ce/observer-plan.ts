@@ -1,48 +1,17 @@
 import { translateGcpPublicTerraformSiteCompute } from './compute-plan';
 import { fingerprint } from './discovery';
+import {
+  assertGcpTerraformObserverScope,
+  GCP_TERRAFORM_OBSERVER_IMAGE,
+  type GcpTerraformObserverScope,
+} from './observer-scope';
 import type { GcpTerraformRequestReason } from './request-reason';
-import { assertGcpSiteAccessProfile, validateGcpSiteAccess } from './site-access';
+import { assertGcpSiteAccessProfile } from './site-access';
+import { validateIntent } from './validation';
+
+export { GCP_TERRAFORM_OBSERVER_IMAGE, type GcpTerraformObserverScope } from './observer-scope';
+
 import type { GcpCeIntent } from './types';
-
-/** Candidate scope only. Key freshness, original image reads and trust need independent live evidence. */
-export interface GcpTerraformObserverScope {
-  schemaVersion: 1;
-  profile: 'original-ha-observer';
-  publicKey: string;
-  sshSourceCidr: string;
-}
-
-export const GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
-  project: 'ubuntu-os-cloud',
-  name: 'ubuntu-2404-noble-amd64-v20261021',
-  id: '4996011480491275419',
-});
-
-function assertScope(scope: GcpTerraformObserverScope, intent: GcpCeIntent) {
-  if (
-    !scope ||
-    typeof scope !== 'object' ||
-    Array.isArray(scope) ||
-    Object.keys(scope).sort().join(',') !== 'profile,publicKey,schemaVersion,sshSourceCidr' ||
-    scope.schemaVersion !== 1 ||
-    scope.profile !== 'original-ha-observer'
-  )
-    throw new Error('Exact versioned original observer scope required');
-  validateGcpSiteAccess({ schemaVersion: 1, profile: 'site-ssh-sli', publicKey: scope.publicKey });
-  if (!intent.initialAccess || intent.initialAccess.publicKey === scope.publicKey)
-    throw new Error('Distinct observer and CE campaign public keys required');
-  if (typeof scope.sshSourceCidr !== 'string') throw new Error('One exact observer SSH source required');
-  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/32$/.exec(scope.sshSourceCidr);
-  if (
-    !match ||
-    match[0] !== scope.sshSourceCidr ||
-    match.slice(1).some((part) => Number(part) > 255 || String(Number(part)) !== part) ||
-    [0, 127].includes(Number(match[1])) ||
-    Number(match[1]) >= 224 ||
-    (Number(match[1]) === 169 && Number(match[2]) === 254)
-  )
-    throw new Error('Observer SSH requires one canonical unicast IPv4 /32 source');
-}
 
 /** Separate version preserves historical 18-resource plans and their stored teardown receipts. */
 export function translateGcpTerraformObserverSiteCompute(
@@ -52,10 +21,16 @@ export function translateGcpTerraformObserverSiteCompute(
   requestReason?: GcpTerraformRequestReason,
 ) {
   assertGcpSiteAccessProfile(intent);
-  assertScope(observer, intent);
+  assertGcpTerraformObserverScope(observer, intent);
+  validateIntent(intent);
+  if (intent.schemaVersion === 2 && fingerprint(observer) !== fingerprint(intent.observer))
+    throw new Error('Original observer scope differs from its versioned intent');
   if (fingerprint(versions) !== fingerprint({ terraform: '1.17.2', google: '8.11.0', xcsh: '15.15.7' }))
     throw new Error('Qualified exact observer Terraform/provider tuple required');
-  const base = translateGcpPublicTerraformSiteCompute(intent, versions, requestReason);
+  const ceIntent = structuredClone(intent);
+  ceIntent.schemaVersion = 1;
+  delete ceIntent.observer;
+  const base = translateGcpPublicTerraformSiteCompute(ceIntent, versions, requestReason);
   const site = intent.sites[0];
   const sli = site.nodes[0].interfaces[1];
   if (site.nodes.some((node) => fingerprint(node.interfaces[1]) !== fingerprint(sli)))

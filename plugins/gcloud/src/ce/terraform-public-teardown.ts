@@ -14,6 +14,7 @@ import { gcpDeploymentLifecycleFingerprint } from './terraform-ha-profile';
 import { type PublicTerraformJournal, readOptional } from './terraform-public';
 import {
   assertOriginalFirewallInsert,
+  assertOriginalObserverLiveBindings,
   observePublicTerraformPlatform,
   type PublicTerraformOwnership,
   publicTerraformAddresses,
@@ -33,7 +34,7 @@ export async function verifyPublicTerraformLiveOwnership(
   allowAbsent = true,
 ) {
   if (
-    owned.schemaVersion !== 2 ||
+    owned.schemaVersion !== (intent.schemaVersion === 2 ? 3 : 2) ||
     owned.intentFingerprint !== fingerprint(intent) ||
     new Set(owned.addresses).size !== owned.addresses.length ||
     owned.addresses.some((a) => !publicTerraformAddresses(intent).includes(a))
@@ -48,6 +49,15 @@ export async function verifyPublicTerraformLiveOwnership(
     if (live ? !original || original.id !== live.id || original.selfLink !== live.selfLink : !!original && !allowAbsent)
       throw new Error('Original cloud identity replaced or unavailable');
     if (!live) absent.push(addresses[n]);
+  }
+  if (intent.schemaVersion === 2) {
+    const present = owned.resources.filter(
+      (row) =>
+        !absent.includes(
+          publicTerraformAddresses(intent)[scope.findIndex((expected) => expected.selfLink === row.selfLink)],
+        ),
+    );
+    await assertOriginalObserverLiveBindings(runtime, intent, present, signal);
   }
   for (const { address, absent: isAbsent, hash } of await observePublicTerraformPlatform(runtime, intent, signal)) {
     if (
@@ -190,7 +200,7 @@ export async function planPublicTerraformTeardown(
     if (state.lineage !== before.lineage || state.serial < before.serial)
       throw new Error('Cleanup state lineage changed');
     const body = {
-      schemaVersion: 2 as const,
+      schemaVersion: (intent.schemaVersion === 2 ? 3 : 2) as 2 | 3,
       operation: 'teardown' as const,
       engine: 'terraform' as const,
       intentFingerprint: fingerprint(intent),
@@ -234,7 +244,7 @@ export async function applyPublicTerraformTeardown(
     )) as PublicTerraformCleanupReview;
     const { planHash, ...body } = plan;
     if (
-      plan.schemaVersion !== 2 ||
+      plan.schemaVersion !== (intent.schemaVersion === 2 ? 3 : 2) ||
       plan.operation !== 'teardown' ||
       plan.engine !== 'terraform' ||
       planHash !== approvedHash ||
@@ -337,7 +347,7 @@ export async function applyPublicTerraformTeardown(
     if (!journal.finalState || fingerprint(journal.finalState) !== fingerprint(await stableState(runtime)))
       throw new Error('Final empty destroy state binding changed');
     return {
-      schemaVersion: 2,
+      schemaVersion: intent.schemaVersion === 2 ? 3 : 2,
       engine: 'terraform',
       state: 'done',
       phase: 'independent-absence',

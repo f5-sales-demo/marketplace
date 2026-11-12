@@ -1477,3 +1477,11 @@ original file watches, scope and deadline checks remain independent. Legacy
 execution stays on its original path. A caller-receipt mutation race was reproduced
 and fixed without rewriting stored receipts. Observer intent/ownership/teardown,
 default installed capture and all live/runtime/release gates remain open.
+
+The [versioned observer ownership and cleanup](gcp-observer-ownership-cleanup-20261112.md)
+connects intent version2 to configuration version3 and all21original identities.
+Independent observer account/NIC/source-image reads supplement state identities.
+Typed full and disk-only cleanup regressions preserve empty destroy, stable state
+and repeats without submission; legacy18-resource intent/configuration/receipt
+semantics stay intact. CE operational/provider gates are unchanged. Default
+installed capture, positive guest/live behavior and full delivery remain open.

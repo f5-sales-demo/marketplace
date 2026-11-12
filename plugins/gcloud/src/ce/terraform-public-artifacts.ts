@@ -50,12 +50,17 @@ export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> 
     versions: { ...GCP_TERRAFORM1171_ARTIFACTS.versions, terraform: '1.17.2' },
   };
 
+/** Separate graph version; never rewrites or substitutes a stored version2 profile. */
+export const GCP_OBSERVER_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined =
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS && { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, configurationVersion: 3 };
+
 const packagedProfiles = [
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
   GCP_TERRAFORM1171_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  GCP_OBSERVER_TERRAFORM_ARTIFACTS,
 ].filter((profile): profile is Omit<GcpTerraformInputs, 'intent'> => profile !== undefined);
 Object.freeze(packagedProfiles);
 for (const profile of packagedProfiles) {

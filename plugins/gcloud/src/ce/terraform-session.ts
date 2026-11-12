@@ -9,12 +9,14 @@ import { makeExecApi } from '../tools/shared';
 import { translateGcpPublicTerraformSiteCompute, translateGcpTerraformSiteCompute } from './compute-plan';
 import { fingerprint } from './discovery';
 import { withGcpCorporateFunding } from './funding-session';
+import { translateGcpTerraformObserverSiteCompute } from './observer-plan';
 import type { GcpTerraformRequestReason } from './request-reason';
 import type { GcpCeIntent } from './types';
+import { validateIntent } from './validation';
 
 export interface GcpTerraformInputs {
   intent: GcpCeIntent;
-  configurationVersion?: 2;
+  configurationVersion?: 2 | 3;
   requestReason?: GcpTerraformRequestReason;
   versions: { terraform: string; google: string; xcsh: string };
   providerLock: string;
@@ -28,6 +30,17 @@ export async function openGcpTerraformSession(
   installedService?: CeTerraformService,
 ): Promise<TerraformSession> {
   inputs = structuredClone(inputs);
+  validateIntent(inputs.intent);
+  if (
+    inputs.configurationVersion !== undefined &&
+    inputs.configurationVersion !== 2 &&
+    inputs.configurationVersion !== 3
+  )
+    throw new Error('Unsupported original Terraform configuration version');
+  if ((inputs.intent.schemaVersion === 2) !== (inputs.configurationVersion === 3))
+    throw new Error('Observer intent requires its original version3 configuration');
+  if (inputs.configurationVersion === 3 && !installedService)
+    throw new Error('Installed owning Terraform service required for observer configuration');
   if (inputs.intent.engine !== 'terraform') throw new Error('Terraform adapter cannot mutate a native deployment');
   if (!resume) await installedService?.assertNewRuntime?.('gcp');
   if (!/^sha256:[a-f0-9]{64}$/.test(inputs.expectedLockSha256)) throw new Error('Exact provider lock digest required');
@@ -50,9 +63,16 @@ export async function openGcpTerraformSession(
       throw new Error('Pinned provider version/checksums missing from lock');
   }
   const translated =
-    inputs.configurationVersion === 2
-      ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason)
-      : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason);
+    inputs.configurationVersion === 3
+      ? translateGcpTerraformObserverSiteCompute(
+          inputs.intent,
+          inputs.versions,
+          inputs.intent.observer as NonNullable<GcpCeIntent['observer']>,
+          inputs.requestReason,
+        )
+      : inputs.configurationVersion === 2
+        ? translateGcpPublicTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason)
+        : translateGcpTerraformSiteCompute(inputs.intent, inputs.versions, inputs.requestReason);
   const owner = {
     deploymentId: inputs.intent.deploymentName,
     engine: 'terraform' as const,

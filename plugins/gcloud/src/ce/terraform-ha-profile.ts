@@ -1,5 +1,6 @@
 import type { GcpCeContractBoundary } from './contract';
 import { fingerprint } from './discovery';
+import { GCP_TERRAFORM_OBSERVER_IMAGE, gcpTerraformObserverIdentity } from './observer-scope';
 import { qualifiedOperationalRelease } from './operational-health';
 import { assertGcpSiteAccessProfile, gcpSiteAccessFingerprint } from './site-access';
 import type { GcpCeIntent } from './types';
@@ -82,6 +83,15 @@ export function gcpDeploymentLifecycleFingerprint(intent: GcpCeIntent, boundary:
   const siteAccessFingerprint = gcpSiteAccessFingerprint(intent);
   return fingerprint({
     profile,
+    ...(intent.schemaVersion === 2
+      ? {
+          observerScope: {
+            access: intent.observer,
+            identity: gcpTerraformObserverIdentity(intent),
+            image: GCP_TERRAFORM_OBSERVER_IMAGE,
+          },
+        }
+      : {}),
     ...(siteAccessFingerprint ? { siteAccessFingerprint } : {}),
     operationalQualificationFingerprint:
       boundary.operationalHealthContract?.qualificationFingerprint ??

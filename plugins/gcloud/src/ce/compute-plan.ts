@@ -119,6 +119,7 @@ export function translateGcpTerraformCompute(
   requestReason?: GcpTerraformRequestReason,
 ) {
   validateIntent(intent);
+  if (intent.schemaVersion === 2) throw new Error('Observer intent requires the version3 original configuration');
   if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
   if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
   if (requestReason !== undefined) assertGcpTerraformRequestReason(requestReason, intent, googleProviderVersion);

@@ -44,7 +44,7 @@ async function sessionBinding(
   };
   if (
     saved.schemaVersion !== 1 ||
-    saved.inputs?.configurationVersion !== 2 ||
+    saved.inputs?.configurationVersion !== (intent.schemaVersion === 2 ? 3 : 2) ||
     intent.engine !== 'terraform' ||
     fingerprint(saved.inputs.intent) !== fingerprint(intent) ||
     fingerprint(identity.intent) !== fingerprint(intent) ||
@@ -87,7 +87,7 @@ export async function planPublicTerraformDeployment(
       runtime,
       intent,
       {
-        schemaVersion: 2,
+        schemaVersion: intent.schemaVersion === 2 ? 3 : 2,
         intentFingerprint: fingerprint(intent),
         receiptFingerprint: '',
         state: { sha256: '', lineage: '', serial: 0 },
