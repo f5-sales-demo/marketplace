@@ -56,3 +56,22 @@ test('never leaks malformed material or JWT in diagnostics', () => {
   }
   expect(() => bindAwsCloudInit({ cloud_init_config: template }, 'token\ninjected: true')).toThrow('JWT');
 });
+
+test('rejects malformed VPM YAML and conflicting parsed tokens without leaking bootstrap data', () => {
+  for (const material of [`${template}      dns_servers: [\n`, `${template}      "token": attacker-token\n`]) {
+    let error: unknown;
+    try {
+      bindAwsCloudInit({ cloud_init_config: material }, jwt);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).not.toContain(jwt);
+    expect(String(error)).not.toContain('attacker-token');
+  }
+});
+
+test('preserves valid issued VPM YAML and optional configuration byte for byte', () => {
+  const material = `${template}      http_proxy: http://proxy.example.invalid:8080\n      dns_servers:\n        - 192.0.2.1\n`;
+  expect(bindAwsCloudInit({ cloud_init_config: material }, jwt)).toBe(material.replace('{{ .Token }}', jwt));
+});

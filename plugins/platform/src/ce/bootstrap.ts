@@ -32,6 +32,14 @@ export function bindAwsCloudInit(response: unknown, jwt: string): string {
   const tokens = userData[0].content.split(/\r?\n/).filter((line) => line.startsWith('token:'));
   if (tokens.length !== 1 || tokens[0].slice('token:'.length).trim() !== jwt)
     throw new Error('Cloud-init does not contain the issued site-bound JWT');
+  let vpm: Json;
+  try {
+    vpm = object(Bun.YAML.parse(userData[0].content));
+  } catch {
+    // Inner YAML diagnostics can also contain the issued JWT.
+    throw new Error('Malformed cloud-init VPM user data');
+  }
+  if (vpm.token !== jwt) throw new Error('Cloud-init VPM token does not match the issued site-bound JWT');
   return bound;
 }
 
