@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** v1.7.48 adds a source-qualified Terraform HA observer graph with
+  a pinned Ubuntu image, separate disk and restricted SSH firewall. The original
+  21-resource inventory is explicit; installed capture and live acceptance remain incomplete.
+
 - **`terraform`** v2.4.83 and **`gcloud`** v1.7.47 select authenticated
   Terraform 1.17.2 with Google 8.11.0 and xcsh 15.15.7. Setup retains known
   historical executables in a version cache and preserves the existing default.
@@ -25,7 +29,7 @@ and this project adheres to
   installed callers retain Linux monotonic time, fixed budgets and original authority.
   Short-uptime fixtures exercise expiry without negative operation start times.
 
-- **`gcloud`** v1.7.48 and **`platform`** v6.3.21 package the current Site SSH
+- **`gcloud`** v1.7.46 and **`platform`** v6.3.21 package the current Site SSH
   mapping with corrected historical changelog attribution. Live acceptance remains incomplete.
 
 - **`terraform`** v2.4.80 and **`platform`** v6.3.20 bundle the current-provider
