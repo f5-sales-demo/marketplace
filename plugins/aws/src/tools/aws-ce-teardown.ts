@@ -284,6 +284,8 @@ export function createAwsCeTeardownTool(
                   if (applied.checkpoint.state !== 'complete') throw new Error('Native cloud teardown remains partial');
                   const ownerDigests = [
                     ...new Set([
+                      plan.planSha256,
+                      cloud.planSha256,
                       ...observation.ownershipPlanSha256s,
                       ...observation.resources
                         .map((row) => row.tags['xcsh-plan-sha256'])

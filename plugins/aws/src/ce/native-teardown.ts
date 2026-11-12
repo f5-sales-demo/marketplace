@@ -63,7 +63,6 @@ export function compileAwsNativeTeardown(
     canonicalSha256(drain.owner) !== canonicalSha256(selected[0].binding.owner) ||
     drain.sites.length !== selected.length ||
     retirement.length !== selected.length ||
-    !cloud.actions.length ||
     cloud.actions.some(
       (action) =>
         action.phase !== 'teardown' ||
@@ -74,7 +73,7 @@ export function compileAwsNativeTeardown(
     throw new Error('Native teardown source, cloud plan, topology, or restoration support differs');
   const cloudDeletes = cloud.ownershipInventory.filter((row) => row.owned && row.action === 'delete');
   if (
-    !cloudDeletes.length ||
+    (!cloudDeletes.length && (cloud.actions.length !== 0 || cloud.ownershipInventory.some((row) => row.owned))) ||
     cloud.actions.filter((action) => action.kind === 'resource-delete').length !== cloudDeletes.length
   )
     throw new Error('Native teardown cloud deletion inventory is incomplete');
@@ -260,6 +259,17 @@ export async function coordinateAwsNativeTeardown(
         completed: [...completed],
         observedAt: new Date().toISOString(),
       });
+    if (cloud.actions.length === 0) {
+      const initialCloud = await driver.retireCloud(plan, signal);
+      if (
+        initialCloud.status !== 'native-cloud-retired' ||
+        initialCloud.cloudPlanId !== plan.cloudPlanId ||
+        initialCloud.cloudPlanSha256 !== plan.cloudPlanSha256 ||
+        initialCloud.absence !== 'absent'
+      )
+        throw new Error('Initial native owner inventory absence did not converge');
+      await validate();
+    }
     const drained = await driver.drain(signal);
     if (drained.status !== 'platform-drained')
       return { status: 'pending-platform-drain' as const, cloudInventory: 'unknown' as const };

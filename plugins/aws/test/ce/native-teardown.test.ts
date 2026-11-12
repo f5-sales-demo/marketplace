@@ -280,3 +280,58 @@ test('native retirement reserves exact identity before a pending drain and rejec
   );
   expect(drains).toBe(2);
 });
+
+test('native empty cloud retirement is explicit and proves owner absence before platform drain', async () => {
+  const f = fixture();
+  const { planId: _id, planSha256: _sha, ...draft } = f.cloud;
+  const cloud = signed({ ...draft, actions: [], ownershipInventory: [] });
+  const plan = compileAwsNativeTeardown(f.base, cloud, f.drain, f.retirement);
+  const root = await mkdtemp(join(tmpdir(), 'native-empty-retirement-'));
+  directories.push(root);
+  const storage = await CeDeploymentStore.open(root, f.drain.owner);
+  const order: string[] = [];
+  let unavailable = true;
+  const driver = {
+    engine: 'native' as const,
+    siteContractFingerprint: 'site-contract',
+    ingressContractFingerprint: 'ingress-contract',
+    retireCloud: async () => {
+      order.push('absence');
+      if (unavailable) throw Error('owner inventory unavailable');
+      return {
+        status: 'native-cloud-retired' as const,
+        cloudPlanId: cloud.planId,
+        cloudPlanSha256: cloud.planSha256,
+        absence: 'absent' as const,
+      };
+    },
+    drain: async () => {
+      order.push('drain');
+      return { status: 'pending-origin' as const };
+    },
+    observeSite: async () => {
+      throw Error('pending drain');
+    },
+    revokeToken: async () => {
+      throw Error('pending drain');
+    },
+    deleteSite: async () => {
+      throw Error('pending drain');
+    },
+  };
+  await expect(coordinateAwsNativeTeardown(f.base, cloud, plan, plan.planSha256, storage, driver)).rejects.toThrow(
+    'owner inventory unavailable',
+  );
+  expect(order).toEqual(['absence']);
+  unavailable = false;
+  expect((await coordinateAwsNativeTeardown(f.base, cloud, plan, plan.planSha256, storage, driver)).status).toBe(
+    'pending-platform-drain',
+  );
+  expect(order).toEqual(['absence', 'absence', 'drain']);
+  const invalid = signed({
+    ...draft,
+    actions: [],
+    ownershipInventory: [{ resourceId: 'i-12345678', owned: true, action: 'reference' }],
+  });
+  expect(() => compileAwsNativeTeardown(f.base, invalid, f.drain, f.retirement)).toThrow();
+});

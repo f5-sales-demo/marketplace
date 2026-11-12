@@ -1,6 +1,7 @@
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256 } from './canonical';
 import { observeAwsResources } from './discovery';
+import { collectAwsNativeEmptyCloudInventory } from './native-empty-inventory';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCePlan } from './types';
 
 export function hasDeleteRecovery(action: AwsCeAction): boolean {
@@ -140,7 +141,7 @@ export async function collectAwsNativeCloudRetirement(
   const ids = plan.ownershipInventory
     .filter((row) => row.owned && row.action === 'delete')
     .map((row) => row.resourceId);
-  if (!ids.length) throw new Error('Native cloud retirement inventory is empty');
+  if (!ids.length) return collectAwsNativeEmptyCloudInventory(api, plan, ownershipPlanSha256s);
   const observations = await observeAwsResources(api, ids, plan.region, {
     deploymentName: plan.deploymentName,
     planSha256s: ownershipPlanSha256s,

@@ -116,3 +116,12 @@ Missing, malformed or unproven evidence remains blocked. During retirement, only
 selected pending F5 delete uses the ordinary reconciliation path. Physical or partial
 registration requires its own retirement contract. Source or synthetic receipts do not qualify live interruption/recovery,
 sensitive staging retirement, or full CE acceptance.
+
+A native teardown plan with no cloud actions still requires a current account-bound
+EC2 tag inventory and complete regional Resource Groups Tagging API inventory.
+Require `sts get-caller-identity` for the expected account, plus the
+`ec2:DescribeTags` and `tag:GetResources` read permissions for the inventory. Pending, foreign, partial,
+malformed, or unavailable owner evidence blocks platform and credential retirement.
+Do not treat an empty plan or missing resource IDs as proof that cloud resources
+are absent. Native teardown retains its separate supporting-infrastructure
+qualification boundary.
