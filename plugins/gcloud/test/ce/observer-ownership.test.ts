@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import * as typebox from '@sinclair/typebox';
+import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { fingerprint } from '../../src/ce/discovery';
 import { publicTerraformContextHash } from '../../src/ce/terraform-context';
@@ -14,10 +16,12 @@ import {
 } from '../../src/ce/terraform-public-ownership';
 import {
   applyPublicTerraformTeardown,
-  planPublicTerraformTeardown,
+  type planPublicTerraformTeardown,
   verifyPublicTerraformLiveOwnership,
 } from '../../src/ce/terraform-public-teardown';
 import type { GcpTerraformTeardownRuntime } from '../../src/ce/terraform-teardown';
+import type { PluginInterface } from '../../src/gcloud/types';
+import { createGcpCeTools } from '../../src/tools/gcp-ce';
 import { intent } from './fixtures';
 import { terraformHaProfileFixture } from './terraform-ha-profile.test';
 
@@ -284,6 +288,8 @@ test('typed21-resource teardown and disk-only recovery finish with empty destroy
         schemaVersion: 1,
         contextHash: publicTerraformContextHash(f.i, 'https://original.example.test'),
       });
+      files.set('gcp-terraform-input-identity.json', { intent: f.i });
+      files.set('gcp-terraform-session-inputs.json', { inputs: { configurationVersion: 3 } });
       f.runtime.store = {
         directory: root,
         read: async (name) => {
@@ -335,7 +341,44 @@ test('typed21-resource teardown and disk-only recovery finish with empty destroy
           observedAt: new Date().toISOString(),
           normalizedSha256: fingerprint('policy'),
         };
-      const review = await planPublicTerraformTeardown(f.runtime, f.i, boundary, policy);
+      // Exercise the public installed-tool dispatcher, including disk-only cleanup without guest keys.
+      f.runtime.session.googleAdcEnvironment = async () => ({
+        GOOGLE_APPLICATION_CREDENTIALS: '/tmp/original-example-adc.json',
+      });
+      const platform = {
+        storage: async () => f.runtime.store,
+        gcpObservations: async () => ({
+          teardown: f.runtime.observePlatform,
+          terraformEnvironment: async () => f.runtime.environment,
+        }),
+      } as unknown as CePlatformService;
+      const tools = createGcpCeTools(
+        { typebox } as unknown as PluginInterface,
+        () => f.runtime.api,
+        async () => boundary,
+        async () => platform,
+        undefined,
+        async () => policy,
+        async () => f.runtime.session,
+      );
+      const tool = tools.find((candidate) => candidate.name === 'gcp_ce_plan');
+      if (!tool) throw new Error('Public cleanup planning tool missing');
+      const prepared = await tool.execute(
+        'id',
+        {
+          project: f.i.project,
+          region: f.i.region,
+          deploymentName: f.i.deploymentName,
+          platformContext: f.i.platformContext,
+          engine: 'terraform',
+          operation: 'teardown',
+        },
+        undefined,
+        undefined,
+        { cwd: root },
+      );
+      expect(prepared.isError).toBeUndefined();
+      const review = prepared.details.plan as Awaited<ReturnType<typeof planPublicTerraformTeardown>>;
       expect(review.schemaVersion).toBe(3);
       expect(review.remaining).toHaveLength(diskOnly ? 1 : 21);
       expect(review.savedPlan.changes.every((change) => change.actions.join(',') === 'delete')).toBe(true);

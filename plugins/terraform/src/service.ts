@@ -1,6 +1,11 @@
 import { join } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
+import type {
+  GcpCampaignAccessBinding,
+  GcpCampaignAccessRequest,
+  GcpCampaignPublicAccess,
+} from './gcp-campaign-access';
 import { type GoogleAdcLease, openGoogleAdcSession } from './google-adc-session';
 import {
   type AppliedResourceProjection,
@@ -97,6 +102,13 @@ export interface TerraformSession {
   apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void>;
 }
 export interface CeTerraformService {
+  /** Installed source generates one campaign key set; only public data leaves the service. */
+  prepareGcpCaptureAccess?(
+    owner: CeOwner,
+    request: GcpCampaignAccessRequest,
+  ): Promise<Readonly<GcpCampaignPublicAccess>>;
+  /** Bind existing private keys to one exact intent before preparing its configuration. */
+  bindGcpCaptureAccess?(owner: CeOwner, binding: GcpCampaignAccessBinding): Promise<void>;
   /** Source-owned prerequisite inspection before new cloud adapters create their local preparation receipts. */
   assertNewRuntime?(provider: 'aws' | 'azure' | 'gcp'): Promise<void>;
   open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;

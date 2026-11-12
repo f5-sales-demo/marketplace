@@ -1485,3 +1485,13 @@ Typed full and disk-only cleanup regressions preserve empty destroy, stable stat
 and repeats without submission; legacy18-resource intent/configuration/receipt
 semantics stay intact. CE operational/provider gates are unchanged. Default
 installed capture, positive guest/live behavior and full delivery remain open.
+
+The [original campaign SSH key preparation](gcp-campaign-access-20261112.md)
+adds installed public-key preparation before version3 observer planning and
+private original-file/intent custody. The public tool dispatcher now supports
+full 21-resource and disk-only version3 cleanup independently of guest keys.
+All 1,465 shared/canonical tests and three native builds/typechecks pass. These
+source checks do not qualify normal installed behavior or managed guest capture.
+Current HA provider, default capture and every remaining live/delivery gate
+remain open. Previous-head 16929567 CI independently passed 28 checks with four skips;
+this changed source requires its own exact-head checks.

@@ -42,6 +42,18 @@ export async function openPublicTerraformRuntime(
     account: intent.project,
     region: intent.region,
   };
+  if (intent.schemaVersion === 2) {
+    if (!installedService?.bindGcpCaptureAccess || !intent.initialAccess || !intent.observer)
+      throw new Error('Installed original campaign access required for observer deployment');
+    await installedService.bindGcpCaptureAccess(owner, {
+      schemaVersion: 1,
+      platformContext: intent.platformContext,
+      sshSourceCidr: intent.observer.sshSourceCidr,
+      cePublicKey: intent.initialAccess.publicKey,
+      observerPublicKey: intent.observer.publicKey,
+      intentSha256: fingerprint(intent).slice(7),
+    });
+  }
   const store = await platform.storage(owner);
   let inputs: unknown;
   try {

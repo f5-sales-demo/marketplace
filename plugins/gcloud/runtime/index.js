@@ -11593,6 +11593,18 @@ async function openGcpTerraformSession(platform, inputs, resume = false, install
     providerLock: inputs.providerLock,
     backendIdentity: `local:${owner.deploymentId}`,
   };
+  if (!resume && inputs.configurationVersion === 3) {
+    if (!installedService?.bindGcpCaptureAccess || !inputs.intent.initialAccess || !inputs.intent.observer)
+      throw new Error('Installed original campaign access preparation required before observer planning');
+    await installedService.bindGcpCaptureAccess(owner, {
+      schemaVersion: 1,
+      platformContext: inputs.intent.platformContext,
+      sshSourceCidr: inputs.intent.observer.sshSourceCidr,
+      cePublicKey: inputs.intent.initialAccess.publicKey,
+      observerPublicKey: inputs.intent.observer.publicKey,
+      intentSha256: fingerprint(inputs.intent).slice(7),
+    });
+  }
   const store = await platform.storage(owner);
   const identity = {
     schemaVersion: 1,
@@ -11676,6 +11688,18 @@ async function openPublicTerraformRuntime(platform, api, intent, signal, install
     account: intent.project,
     region: intent.region,
   };
+  if (intent.schemaVersion === 2) {
+    if (!installedService?.bindGcpCaptureAccess || !intent.initialAccess || !intent.observer)
+      throw new Error('Installed original campaign access required for observer deployment');
+    await installedService.bindGcpCaptureAccess(owner, {
+      schemaVersion: 1,
+      platformContext: intent.platformContext,
+      sshSourceCidr: intent.observer.sshSourceCidr,
+      cePublicKey: intent.initialAccess.publicKey,
+      observerPublicKey: intent.observer.publicKey,
+      intentSha256: fingerprint(intent).slice(7),
+    });
+  }
   const store = await platform.storage(owner);
   let inputs;
   try {
@@ -11786,6 +11810,10 @@ function createGcpCeTools(
 ) {
   const { Type } = pi.typebox;
   const definitions = [
+    [
+      'gcp_ce_access_prepare',
+      'Prepare one original campaign-only CE and observer SSH key set before Terraform HA planning. Requires explicit Terraform engine, deployment, Platform context and one SSH source IPv4 /32. Returns public keys only; submits no cloud resources.',
+    ],
     ['gcp_project_identity', 'Read explicit GCP project identity. Does not change the active project or authenticate.'],
     [
       'gcp_compute_discover',
@@ -11834,6 +11862,9 @@ function createGcpCeTools(
       ),
       platformContext: Type.Optional(
         Type.String({ description: 'Persisted F5 context; use with explicit region for ledger-bound status/diagnose' }),
+      ),
+      sshSourceCidr: Type.Optional(
+        Type.String({ description: 'One canonical IPv4 /32 source for campaign observer SSH' }),
       ),
       engine: Type.Optional(
         Type.Union([Type.Literal('native'), Type.Literal('terraform')], {
@@ -11920,6 +11951,51 @@ function createGcpCeTools(
           );
         }
         const api = makeApi(ctx.cwd);
+        if (tool === 'gcp_ce_access_prepare') {
+          if (
+            params.engine !== 'terraform' ||
+            !params.region ||
+            !params.deploymentName ||
+            !params.platformContext ||
+            !params.sshSourceCidr ||
+            params.operation ||
+            params.approvedPlanHash ||
+            params.intent
+          )
+            throw new Error('Explicit pre-plan GCP Terraform campaign access scope required');
+          const service = await requestGcpTerraformService(pi.events, signal);
+          if (!service.prepareGcpCaptureAccess) throw new GcpTerraformSetupRequired();
+          const access = await service.prepareGcpCaptureAccess(
+            {
+              deploymentId: params.deploymentName,
+              provider: 'gcp',
+              engine: 'terraform',
+              account: params.project,
+              region: params.region,
+            },
+            { platformContext: params.platformContext, sshSourceCidr: params.sshSourceCidr },
+          );
+          if (
+            access?.schemaVersion !== 1 ||
+            Object.keys(access).sort().join(',') !== 'cePublicKey,observerPublicKey,schemaVersion' ||
+            access.cePublicKey === access.observerPublicKey
+          )
+            throw new Error('Original campaign public access result differs');
+          for (const publicKey of [access.cePublicKey, access.observerPublicKey])
+            validateGcpSiteAccess({ schemaVersion: 1, profile: 'site-ssh-sli', publicKey });
+          return result(tool, {
+            availability: 'campaign-access-prepared',
+            cloudSubmission: false,
+            mutationAttempted: false,
+            initialAccess: { schemaVersion: 1, profile: 'site-ssh-sli', publicKey: access.cePublicKey },
+            observer: {
+              schemaVersion: 1,
+              profile: 'original-ha-observer',
+              publicKey: access.observerPublicKey,
+              sshSourceCidr: params.sshSourceCidr,
+            },
+          });
+        }
         if (['gcp_ce_plan', 'gcp_ce_apply'].includes(tool) && params.operation === 'deploy') {
           const intent = params.intent;
           if (
@@ -12129,7 +12205,10 @@ function createGcpCeTools(
               } catch (error) {
                 if (error.code !== 'ENOENT') throw error;
               }
-              if (storedInputs?.inputs?.configurationVersion === 2) {
+              if (
+                storedInputs?.inputs?.configurationVersion === 2 ||
+                storedInputs?.inputs?.configurationVersion === 3
+              ) {
                 if (params.approvedPlanHash) {
                   const evidence = await applyPublicTerraformTeardown(
                     runtime,

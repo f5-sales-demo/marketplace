@@ -90,6 +90,19 @@ export async function openGcpTerraformSession(
     providerLock: inputs.providerLock,
     backendIdentity: `local:${owner.deploymentId}`,
   };
+  // Cleanup resumes do not require keys or guest access; new observer plans must bind them first.
+  if (!resume && inputs.configurationVersion === 3) {
+    if (!installedService?.bindGcpCaptureAccess || !inputs.intent.initialAccess || !inputs.intent.observer)
+      throw new Error('Installed original campaign access preparation required before observer planning');
+    await installedService.bindGcpCaptureAccess(owner, {
+      schemaVersion: 1,
+      platformContext: inputs.intent.platformContext,
+      sshSourceCidr: inputs.intent.observer.sshSourceCidr,
+      cePublicKey: inputs.intent.initialAccess.publicKey,
+      observerPublicKey: inputs.intent.observer.publicKey,
+      intentSha256: fingerprint(inputs.intent).slice(7),
+    });
+  }
   // Opening shared storage is an additional cross-engine boundary before prepare.
   const store = await platform.storage(owner);
   const identity = {

@@ -114,6 +114,15 @@ test('observer configuration uses its own version3 artifact profile and immutabl
       } as CePlatformService;
     let configuration = '';
     const service = {
+      bindGcpCaptureAccess: async (
+        _owner: unknown,
+        binding: { intentSha256: string; cePublicKey: string; observerPublicKey: string },
+      ) => {
+        if (!i.initialAccess || !i.observer) throw new Error('Complete observer fixture required');
+        expect(binding.cePublicKey).toBe(i.initialAccess.publicKey);
+        expect(binding.observerPublicKey).toBe(i.observer.publicKey);
+        expect(binding.intentSha256).toMatch(/^[a-f0-9]{64}$/);
+      },
       open: async (_owner: unknown, deployment: { configuration: string }) => {
         configuration = deployment.configuration;
         return {} as never;

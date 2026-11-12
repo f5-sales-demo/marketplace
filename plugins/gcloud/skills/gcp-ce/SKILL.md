@@ -75,6 +75,24 @@ Read [provider contract](references/provider-contract.md) before planning and
    single-node access requests refuse before cloud calls. This provider-validated
    configuration does not establish authenticated guest access or HA acceptance.
    Do not place this key in CE VM metadata or create guest shell accounts.
+   For the original observer capture candidate, first call `gcp_ce_access_prepare`
+   with `engine=terraform`, the explicit project, region, deployment name,
+   `platformContext` and one canonical `sshSourceCidr` IPv4 `/32`. The installed
+   Terraform service generates two distinct campaign-only Ed25519 keys in private
+   deployment storage. It returns only the `initialAccess` and `observer` public
+   blocks. Copy those blocks unchanged into a schema-v2 intent before planning.
+   The original observer configuration contains 18 CE resources plus its VM, disk
+   and narrow SSH firewall: 21 resources total. Its Ubuntu image is pinned to
+   `ubuntu-2404-noble-amd64-v20261021`, numeric ID `4996011480491275419`; it has no
+   cloud service account. CE cloud-init remains token-only; the admin public key
+   uses the documented Site setting. Never request private keys from the user or
+   return them to the model. Existing keys remain bound to the original owner,
+   context, source CIDR and exact intent; partial preparation and changed inputs
+   refuse recreation. Access preparation submits no cloud resources and proves
+   neither SSH trust nor guest health. The default live capture and current HA
+   provider qualification remain required deployment gates. Owned teardown and
+   disk-only cleanup use the public configuration-v3 path independently of keys
+   and guest access.
 5. Inventory and status without a context read cloud provisioning only. For an
    existing owned deployment, status/diagnose with explicit region and its persisted
    `platformContext` use the shared Platform service and exact ledger topology to

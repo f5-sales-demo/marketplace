@@ -250,6 +250,8 @@ test('installed Terraform extension registers an executable service through the 
   const service = await new Promise<CeTerraformService>((resolve) =>
     bus.emit(TERRAFORM_SERVICE_CHANNEL, { version: 1, resolve }),
   );
+  expect(typeof service.prepareGcpCaptureAccess).toBe('function');
+  expect(typeof service.bindGcpCaptureAccess).toBe('function');
   await service.open(owner, deployment, false);
   await service.open(owner, deployment, true);
 });
