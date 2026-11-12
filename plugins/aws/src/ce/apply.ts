@@ -26,6 +26,7 @@ import {
 import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { executeRecoverableDelete, hasDeleteRecovery } from './delete-recovery';
+import { projectAwsPendingDeleteObservation } from './delete-revalidation';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
 import { assertAwsDeploymentCompilerOperation } from './execution-contract';
@@ -793,6 +794,25 @@ export async function executeAwsCeApply(
       api,
       fetcher,
     );
+    const pendingAction = existing?.pendingDelete ? plan.actions[existing.completedActionIds.length] : undefined;
+    const currentForRevalidation = existing?.pendingDelete
+      ? projectAwsPendingDeleteObservation(
+          plan,
+          current,
+          existing,
+          pendingAction
+            ? executableAwsActionArgs(
+                pendingAction,
+                resolveAwsCeActionArgs(
+                  pendingAction.args ?? [],
+                  { ...existing.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
+                  plan.bootstrapKeyPair?.name,
+                ),
+              )
+            : [],
+          ownershipPlanSha256s,
+        )
+      : current;
     const childReplacementActive =
       Boolean(existing?.childPlanSha256s?.length) &&
       plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
@@ -806,7 +826,7 @@ export async function executeAwsCeApply(
       existing?.completedActionIds.length ?? 0,
     );
     try {
-      assertAwsObservationFresh(plan, current, revalidation.expected, revalidation.ids);
+      assertAwsObservationFresh(plan, currentForRevalidation, revalidation.expected, revalidation.ids);
     } catch {
       throw await captureAwsRevalidationRejection(
         plan,
@@ -822,7 +842,7 @@ export async function executeAwsCeApply(
       if (
         !matchesOwnedResourceFingerprint(
           existing.ownedStateFingerprint,
-          current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
+          currentForRevalidation.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
         )
       )
         throw new Error('Stale AWS CE plan: owned resource tags, targets, attachments, peers, or state changed');

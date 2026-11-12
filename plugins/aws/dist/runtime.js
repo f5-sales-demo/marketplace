@@ -2172,6 +2172,48 @@ async function observeRegion(
     brownfieldProximity: 0,
   };
 }
+function resourceResponseField(id) {
+  if (id.startsWith('i-')) return 'Reservations';
+  if (id.startsWith('eni-')) return 'NetworkInterfaces';
+  if (id.startsWith('subnet-')) return 'Subnets';
+  if (id.startsWith('sg-')) return 'SecurityGroups';
+  if (id.startsWith('rtb-')) return 'RouteTables';
+  if (id.startsWith('igw-')) return 'InternetGateways';
+  if (id.startsWith('vpc-')) return 'Vpcs';
+  if (id.startsWith('eipalloc-') || id.startsWith('eipassoc-')) return 'Addresses';
+  if (id.startsWith('tgw-connect-peer-')) return 'TransitGatewayConnectPeers';
+  if (id.startsWith('tgw-attach-')) return 'TransitGatewayAttachments';
+  if (id.startsWith('tgw-rtb-')) return 'Associations';
+  if (id.startsWith('tgw-')) return 'TransitGateways';
+  if (/^arn:[^:]+:elasticloadbalancing:.*:targetgroup\//.test(id)) return 'TargetHealthDescriptions';
+  if (/^arn:[^:]+:elasticloadbalancing:.*:loadbalancer\//.test(id)) return 'LoadBalancers';
+  if (/^arn:[^:]+:elasticloadbalancing:.*:listener\//.test(id)) return 'Listeners';
+  return 'ResourceTagMappingList';
+}
+function exactResourceNotFound(id, stderr) {
+  const field = resourceResponseField(id);
+  const code = {
+    Reservations: 'InvalidInstanceID.NotFound',
+    NetworkInterfaces: 'InvalidNetworkInterfaceID.NotFound',
+    Subnets: 'InvalidSubnetID.NotFound',
+    SecurityGroups: 'InvalidGroup.NotFound',
+    RouteTables: 'InvalidRouteTableID.NotFound',
+    InternetGateways: 'InvalidInternetGatewayID.NotFound',
+    Vpcs: 'InvalidVpcID.NotFound',
+    Addresses: id.startsWith('eipalloc-') ? 'InvalidAllocationID.NotFound' : 'InvalidAssociationID.NotFound',
+    TransitGatewayConnectPeers: 'InvalidTransitGatewayConnectPeerID.NotFound',
+    TransitGatewayAttachments: 'InvalidTransitGatewayAttachmentID.NotFound',
+    Associations: 'InvalidRouteTableID.NotFound',
+    TransitGateways: 'InvalidTransitGatewayID.NotFound',
+    TargetHealthDescriptions: 'TargetGroupNotFound',
+    LoadBalancers: 'LoadBalancerNotFound',
+    Listeners: 'ListenerNotFound',
+  };
+  const expected = code[field];
+  if (!expected) return false;
+  const standard = /^An error occurred \(([^)]+)\) when calling /m.exec(stderr)?.[1];
+  return standard === expected || stderr.trim().startsWith(`${expected}:`) || stderr.trim() === expected;
+}
 async function observeResource(api, id, region, deploymentName, ownedPlanSha256s) {
   let args;
   if (id.startsWith('i-')) args = ['ec2', 'describe-instances', '--instance-ids', id];
@@ -2202,7 +2244,7 @@ async function observeResource(api, id, region, deploymentName, ownedPlanSha256s
   else args = ['resourcegroupstaggingapi', 'get-resources', '--resource-arn-list', id];
   const result = await api.exec('aws', [...args, '--region', region, '--output', 'json']);
   if (result.exitCode !== 0) {
-    if (/not.?found|does not exist|invalid.*not found/i.test(result.stderr))
+    if (exactResourceNotFound(id, result.stderr))
       return { id, region, exists: false, owned: false, tags: {}, state: {} };
     throw new Error(`AWS resource observation failed for ${id}: ${result.stderr}`);
   }
@@ -2212,6 +2254,9 @@ async function observeResource(api, id, region, deploymentName, ownedPlanSha256s
       throw new Error('Incomplete AWS resource observation');
   };
   complete(raw);
+  if (!Array.isArray(raw[resourceResponseField(id)])) throw new Error('Missing AWS resource observation collection');
+  if (id.startsWith('i-') && raw.Reservations.some((r) => !r || !Array.isArray(r.Instances)))
+    throw Error('Malformed AWS instance observation collection');
   if (id.startsWith('tgw-rtb-')) {
     const table = await json(api, [
       'ec2',
@@ -2295,6 +2340,8 @@ async function observeResource(api, id, region, deploymentName, ownedPlanSha256s
     }
   };
   visit(raw);
+  if (!matches.length && raw[resourceResponseField(id)].length)
+    throw Error('AWS resource response contains a different identity');
   const tagSets = matches.filter((object) => Array.isArray(object.Tags) || Array.isArray(object.TagSet));
   if (tagSets.length > 1) throw new Error('AWS ownership evidence is ambiguous');
   if (tagSets[0]?.Tags !== undefined && tagSets[0]?.TagSet !== undefined)
@@ -7589,25 +7636,68 @@ function mutationConverged(action, state) {
   const attachments = Array.isArray(gateways[0]?.Attachments) ? gateways[0].Attachments : [];
   return /^vpc-[0-9a-f]{8,21}$/.test(vpcId ?? '') && !attachments.some((row) => row.VpcId === vpcId);
 }
-async function executeRecoverableDelete(api, plan, action, args, checkpoint, persist, ownershipPlanSha256s, signal) {
-  if (!hasDeleteRecovery(action) || !action.resourceId) throw new Error('AWS delete recovery driver is unavailable');
-  const requestSha256 = canonicalSha256({
-    plan: plan.planSha256,
-    action: action.id,
-    resourceId: action.resourceId,
-    args,
-  });
+function awsDeleteRequestSha256(plan, action, args) {
+  return canonicalSha256({ plan: plan.planSha256, action: action.id, resourceId: action.resourceId, args });
+}
+function assertAwsPendingDeleteBinding(plan, action, args, checkpoint, ownerDigests) {
   const pending = checkpoint.pendingDelete;
   if (
-    pending &&
-    (pending.actionId !== action.id ||
-      pending.resourceId !== action.resourceId ||
-      pending.requestSha256 !== requestSha256)
+    !pending ||
+    !hasDeleteRecovery(action) ||
+    pending.actionId !== action.id ||
+    pending.resourceId !== action.resourceId ||
+    pending.requestSha256 !== awsDeleteRequestSha256(plan, action, args)
   )
-    throw new Error('Pending AWS deletion differs from the immutable request');
+    throw Error('Pending AWS deletion differs from the immutable request');
+  const before = pending.before;
+  if (
+    !before ||
+    before.id !== pending.resourceId ||
+    before.region !== plan.region ||
+    !before.exists ||
+    !before.owned ||
+    pending.beforeSha256 !== canonicalSha256(before) ||
+    before.tags['xcsh-managed-by'] !== 'aws-ce' ||
+    before.tags['xcsh-execution-engine'] !== plan.engine ||
+    before.tags['xcsh-deployment-id'] !== plan.deploymentName ||
+    !ownerDigests.includes(before.tags['xcsh-plan-sha256'])
+  )
+    throw Error('Pending AWS deletion original observation is unavailable or foreign');
+  return before;
+}
+function provenRequestRejection(result) {
+  return (
+    [252, 253].includes(result.exitCode) ||
+    /^An error occurred \((?:UnauthorizedOperation|AccessDenied|AccessDeniedException|AuthFailure|InvalidClientTokenId|ExpiredToken|UnrecognizedClientException)\) when calling /m.test(
+      result.stderr,
+    )
+  );
+}
+async function executeRecoverableDelete(api, plan, action, args, checkpoint, persist, ownershipPlanSha256s, signal) {
+  if (!hasDeleteRecovery(action) || !action.resourceId) throw new Error('AWS delete recovery driver is unavailable');
+  const requestSha256 = awsDeleteRequestSha256(plan, action, args);
+  const pending = checkpoint.pendingDelete;
+  if (pending) assertAwsPendingDeleteBinding(plan, action, args, checkpoint, ownershipPlanSha256s);
+  let rejectedResult;
   let submitted = false;
   if (!pending) {
-    checkpoint.pendingDelete = { actionId: action.id, resourceId: action.resourceId, requestSha256 };
+    const before = (
+      await observeAwsResources(api, [action.resourceId], plan.region, {
+        deploymentName: plan.deploymentName,
+        planSha256s: [...new Set(ownershipPlanSha256s)].sort(),
+      })
+    )[0];
+    if (!before) throw Error('AWS deletion original observation is unavailable');
+    if (!before.exists) return { exitCode: 0, stdout: '{}', stderr: '' };
+    if (!before.owned || before.tags['xcsh-execution-engine'] !== plan.engine)
+      throw Error('AWS deletion original target ownership differs');
+    checkpoint.pendingDelete = {
+      actionId: action.id,
+      resourceId: action.resourceId,
+      requestSha256,
+      before,
+      beforeSha256: canonicalSha256(before),
+    };
     try {
       await persist();
     } catch (error) {
@@ -7616,12 +7706,8 @@ async function executeRecoverableDelete(api, plan, action, args, checkpoint, per
     }
     try {
       const result = await api.exec('aws', args, { signal });
-      if (result.exitCode !== 0) {
-        checkpoint.pendingDelete = undefined;
-        await persist();
-        return result;
-      }
-      submitted = true;
+      if (result.exitCode !== 0) rejectedResult = result;
+      else submitted = true;
     } catch {
       signal?.throwIfAborted();
     }
@@ -7644,6 +7730,14 @@ async function executeRecoverableDelete(api, plan, action, args, checkpoint, per
     )
       return { exitCode: 0, stdout: '{}', stderr: '' };
     if (!observation.owned) throw new Error('AWS deletion target ownership changed during reconciliation');
+    if (rejectedResult && provenRequestRejection(rejectedResult)) {
+      const before = assertAwsPendingDeleteBinding(plan, action, args, checkpoint, ownershipPlanSha256s);
+      if (fingerprintOwnedResources([before]) !== fingerprintOwnedResources([observation]))
+        throw Error('Rejected AWS deletion target changed; intent is retained');
+      checkpoint.pendingDelete = undefined;
+      await persist();
+      return rejectedResult;
+    }
     if (!submitted || Date.now() >= deadline)
       throw new Error('AWS deletion has not converged; resume with the same plan');
     await new Promise((resolve, reject) => {
@@ -7682,6 +7776,54 @@ async function collectAwsNativeCloudRetirement(api, plan, ownershipPlanSha256s) 
 var init_delete_recovery = __esm(() => {
   init_canonical();
   init_discovery();
+});
+
+// plugins/aws/src/ce/delete-revalidation.ts
+function projectAwsPendingDeleteObservation(plan, current, checkpoint, args, ownerDigests) {
+  const index = checkpoint.completedActionIds.length,
+    action = plan.actions[index];
+  if (!action || checkpoint.completedActionIds.some((id, i) => plan.actions[i]?.id !== id))
+    throw Error('Pending AWS deletion is not the next ordered action');
+  const before = assertAwsPendingDeleteBinding(plan, action, args, checkpoint, ownerDigests);
+  const selected = current.resources.filter((r) => r.id === before.id);
+  if (selected.length !== 1 || selected[0].region !== before.region)
+    throw Error('Pending AWS deletion current observation is incomplete');
+  const actual = selected[0];
+  if (actual.exists && fingerprintOwnedResources([actual]) !== fingerprintOwnedResources([before])) {
+    const expected = structuredClone(before);
+    if (action.kind === 'route-table-disassociate') {
+      const id = args[args.indexOf('--association-id') + 1],
+        tables = expected.state.RouteTables;
+      if (
+        !/^rtbassoc-[a-f0-9]{8,21}$/.test(id ?? '') ||
+        !Array.isArray(tables) ||
+        tables.length !== 1 ||
+        !Array.isArray(tables[0].Associations) ||
+        tables[0].Associations.filter((a) => a.RouteTableAssociationId === id).length !== 1
+      )
+        throw Error('Pending AWS route association binding is incomplete');
+      tables[0].Associations = tables[0].Associations.filter((a) => a.RouteTableAssociationId !== id);
+    } else if (action.kind === 'internet-gateway-detach') {
+      const id = args[args.indexOf('--vpc-id') + 1],
+        gateways = expected.state.InternetGateways;
+      if (
+        !/^vpc-[a-f0-9]{8,21}$/.test(id ?? '') ||
+        !Array.isArray(gateways) ||
+        gateways.length !== 1 ||
+        !Array.isArray(gateways[0].Attachments) ||
+        gateways[0].Attachments.filter((a) => a.VpcId === id).length !== 1
+      )
+        throw Error('Pending AWS gateway attachment binding is incomplete');
+      gateways[0].Attachments = gateways[0].Attachments.filter((a) => a.VpcId !== id);
+    } else throw Error('Pending AWS deletion target changed outside its authorized transition');
+    if (fingerprintOwnedResources([actual]) !== fingerprintOwnedResources([expected]))
+      throw Error('Pending AWS deletion contains unrelated target drift');
+  }
+  return { ...current, resources: current.resources.map((r) => (r.id === before.id ? structuredClone(before) : r)) };
+}
+var init_delete_revalidation = __esm(() => {
+  init_canonical();
+  init_delete_recovery();
 });
 
 // plugins/aws/src/ce/eip-association.ts
@@ -10681,6 +10823,25 @@ async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, sig
       api,
       fetcher,
     );
+    const pendingAction = existing?.pendingDelete ? plan.actions[existing.completedActionIds.length] : undefined;
+    const currentForRevalidation = existing?.pendingDelete
+      ? projectAwsPendingDeleteObservation(
+          plan,
+          current,
+          existing,
+          pendingAction
+            ? executableAwsActionArgs(
+                pendingAction,
+                resolveAwsCeActionArgs(
+                  pendingAction.args ?? [],
+                  { ...existing.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
+                  plan.bootstrapKeyPair?.name,
+                ),
+              )
+            : [],
+          ownershipPlanSha256s,
+        )
+      : current;
     const childReplacementActive =
       Boolean(existing?.childPlanSha256s?.length) &&
       plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
@@ -10694,7 +10855,7 @@ async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, sig
       existing?.completedActionIds.length ?? 0,
     );
     try {
-      assertAwsObservationFresh(plan, current, revalidation.expected, revalidation.ids);
+      assertAwsObservationFresh(plan, currentForRevalidation, revalidation.expected, revalidation.ids);
     } catch {
       throw await captureAwsRevalidationRejection(
         plan,
@@ -10710,7 +10871,7 @@ async function executeAwsCeApply(input, ctx, api, platform, fetcher = fetch, sig
       if (
         !matchesOwnedResourceFingerprint(
           existing.ownedStateFingerprint,
-          current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
+          currentForRevalidation.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
         )
       )
         throw new Error('Stale AWS CE plan: owned resource tags, targets, attachments, peers, or state changed');
@@ -11052,6 +11213,7 @@ var init_apply = __esm(() => {
   init_canonical();
   init_create_recovery();
   init_delete_recovery();
+  init_delete_revalidation();
   init_discovery();
   init_execution_contract();
   init_interface_addressing();

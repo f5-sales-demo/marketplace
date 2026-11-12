@@ -619,6 +619,48 @@ async function observeRegion(
   };
 }
 
+function resourceResponseField(id: string): string {
+  if (id.startsWith('i-')) return 'Reservations';
+  if (id.startsWith('eni-')) return 'NetworkInterfaces';
+  if (id.startsWith('subnet-')) return 'Subnets';
+  if (id.startsWith('sg-')) return 'SecurityGroups';
+  if (id.startsWith('rtb-')) return 'RouteTables';
+  if (id.startsWith('igw-')) return 'InternetGateways';
+  if (id.startsWith('vpc-')) return 'Vpcs';
+  if (id.startsWith('eipalloc-') || id.startsWith('eipassoc-')) return 'Addresses';
+  if (id.startsWith('tgw-connect-peer-')) return 'TransitGatewayConnectPeers';
+  if (id.startsWith('tgw-attach-')) return 'TransitGatewayAttachments';
+  if (id.startsWith('tgw-rtb-')) return 'Associations';
+  if (id.startsWith('tgw-')) return 'TransitGateways';
+  if (/^arn:[^:]+:elasticloadbalancing:.*:targetgroup\//.test(id)) return 'TargetHealthDescriptions';
+  if (/^arn:[^:]+:elasticloadbalancing:.*:loadbalancer\//.test(id)) return 'LoadBalancers';
+  if (/^arn:[^:]+:elasticloadbalancing:.*:listener\//.test(id)) return 'Listeners';
+  return 'ResourceTagMappingList';
+}
+function exactResourceNotFound(id: string, stderr: string): boolean {
+  const field = resourceResponseField(id);
+  const code: Record<string, string> = {
+    Reservations: 'InvalidInstanceID.NotFound',
+    NetworkInterfaces: 'InvalidNetworkInterfaceID.NotFound',
+    Subnets: 'InvalidSubnetID.NotFound',
+    SecurityGroups: 'InvalidGroup.NotFound',
+    RouteTables: 'InvalidRouteTableID.NotFound',
+    InternetGateways: 'InvalidInternetGatewayID.NotFound',
+    Vpcs: 'InvalidVpcID.NotFound',
+    Addresses: id.startsWith('eipalloc-') ? 'InvalidAllocationID.NotFound' : 'InvalidAssociationID.NotFound',
+    TransitGatewayConnectPeers: 'InvalidTransitGatewayConnectPeerID.NotFound',
+    TransitGatewayAttachments: 'InvalidTransitGatewayAttachmentID.NotFound',
+    Associations: 'InvalidRouteTableID.NotFound',
+    TransitGateways: 'InvalidTransitGatewayID.NotFound',
+    TargetHealthDescriptions: 'TargetGroupNotFound',
+    LoadBalancers: 'LoadBalancerNotFound',
+    Listeners: 'ListenerNotFound',
+  };
+  const expected = code[field];
+  if (!expected) return false;
+  const standard = /^An error occurred \(([^)]+)\) when calling /m.exec(stderr)?.[1];
+  return standard === expected || stderr.trim().startsWith(`${expected}:`) || stderr.trim() === expected;
+}
 async function observeResource(
   api: AwsExecApi,
   id: string,
@@ -655,7 +697,7 @@ async function observeResource(
   else args = ['resourcegroupstaggingapi', 'get-resources', '--resource-arn-list', id];
   const result = await api.exec('aws', [...args, '--region', region, '--output', 'json']);
   if (result.exitCode !== 0) {
-    if (/not.?found|does not exist|invalid.*not found/i.test(result.stderr))
+    if (exactResourceNotFound(id, result.stderr))
       return { id, region, exists: false, owned: false, tags: {}, state: {} };
     throw new Error(`AWS resource observation failed for ${id}: ${result.stderr}`);
   }
@@ -665,6 +707,12 @@ async function observeResource(
       throw new Error('Incomplete AWS resource observation');
   };
   complete(raw);
+  if (!Array.isArray(raw[resourceResponseField(id)])) throw new Error('Missing AWS resource observation collection');
+  if (
+    id.startsWith('i-') &&
+    (raw.Reservations as Array<Record<string, unknown>>).some((r) => !r || !Array.isArray(r.Instances))
+  )
+    throw Error('Malformed AWS instance observation collection');
   if (id.startsWith('tgw-rtb-')) {
     const table = await json<Record<string, unknown>>(api, [
       'ec2',
@@ -749,6 +797,8 @@ async function observeResource(
     }
   };
   visit(raw);
+  if (!matches.length && (raw[resourceResponseField(id)] as unknown[]).length)
+    throw Error('AWS resource response contains a different identity');
   const tagSets = matches.filter((object) => Array.isArray(object.Tags) || Array.isArray(object.TagSet));
   if (tagSets.length > 1) throw new Error('AWS ownership evidence is ambiguous');
   if (tagSets[0]?.Tags !== undefined && tagSets[0]?.TagSet !== undefined)

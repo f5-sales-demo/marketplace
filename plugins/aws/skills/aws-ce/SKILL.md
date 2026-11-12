@@ -175,3 +175,21 @@ unqualified. Private credential retirement now records a version2 journal and
 verifies empty launch-directory identity before removing interrupted empty staging.
 This unreleased project does not migrate older private journals. Source and
 controlled installed receipts still do not establish full live UAT acceptance.
+
+### Native deletion response loss and revalidation
+
+Before dispatch, native deletion records the exact action/resource/resolved request
+hash and an owner-verified resource observation. A nonzero CLI result does not clear
+that intent merely because a response was returned. Complete current readback must
+prove deletion or its exact association/detachment effect; unavailable evidence
+retains the intent and blocks replay. A proven client/service rejection can clear
+intent only when complete owned readback verifies unchanged configuration.
+
+Resume validates the original request and observation digests. Initial revalidation
+compares the recorded target before its exact authorized transition while preserving
+checks on every other resource and all regional, account, agreement, image, quota,
+bootstrap and capability evidence. A changed target, foreign owner, malformed
+snapshot, missing/duplicate observation or unrelated route/attachment change
+rejects rather than granting broader deletion authority. The original failed
+installed UAT256 recovery remains preserved until the changed candidate passes
+actual public installed execution and independent cleanup verification.

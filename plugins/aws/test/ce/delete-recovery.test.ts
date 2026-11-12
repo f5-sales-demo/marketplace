@@ -5,6 +5,7 @@ import type { AwsCeAction, AwsCeCheckpoint, AwsCePlan } from '../../src/ce/types
 function fixture() {
   const ownerSha = 'a'.repeat(64);
   const plan = {
+    engine: 'native',
     planSha256: 'b'.repeat(64),
     region: 'us-east-2',
     deploymentName: 'ce-demo',
