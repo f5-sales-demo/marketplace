@@ -3885,8 +3885,58 @@ function interfaceSecurityGroups(intent, index) {
   return [...groups].sort();
 }
 
-// plugins/aws/src/ce/static-routing.ts
+// plugins/aws/src/ce/network-cidrs.ts
 import { isIP as isIP3 } from 'node:net';
+
+function range(cidr, label) {
+  const [address, mask, extra] = cidr.split('/');
+  const prefix = Number(mask);
+  if (
+    extra !== undefined ||
+    isIP3(address) !== 4 ||
+    !Number.isInteger(prefix) ||
+    prefix < 16 ||
+    prefix > 28 ||
+    mask !== String(prefix)
+  )
+    throw new Error(`AWS CE plan validation failed: ${label} must be an IPv4 /16 through /28`);
+  const start = address.split('.').reduce((value, octet) => value * 256 + Number(octet), 0);
+  const size = 2 ** (32 - prefix);
+  if (start % size !== 0)
+    throw new Error(`AWS CE plan validation failed: ${label} must use a canonical network address`);
+  return { start, end: start + size - 1, label };
+}
+function validateAwsCeNetworkCidrs(input) {
+  if (!['greenfield', 'brownfield'].includes(input.vpc.mode))
+    throw new Error('AWS CE plan validation failed: VPC mode is invalid');
+  const vpc = input.vpc.cidr ? range(input.vpc.cidr, 'vpc.cidr') : undefined;
+  const prohibited = [
+    [0, 16777215],
+    [2130706432, 2147483647],
+    [2851995648, 2852061183],
+    [3758096384, 4026531839],
+  ];
+  if (vpc && prohibited.some(([start, end]) => vpc.start <= end && vpc.end >= start))
+    throw new Error('AWS CE plan validation failed: vpc.cidr intersects an AWS-prohibited IPv4 range');
+  const subnets = input.interfaces.flatMap((item) =>
+    item.subnets.flatMap((subnet, node) =>
+      subnet.cidr ? [range(subnet.cidr, `interfaces[${item.index}].subnets[${node}].cidr`)] : [],
+    ),
+  );
+  if (input.vpc.mode !== 'greenfield') return;
+  if (!vpc) throw new Error('AWS CE plan validation failed: greenfield VPC requires a CIDR');
+  for (const subnet of subnets)
+    if (subnet.start < vpc.start || subnet.end > vpc.end)
+      throw new Error(`AWS CE plan validation failed: ${subnet.label} must be contained in vpc.cidr`);
+  const ordered = [...subnets].sort((left, right) => left.start - right.start);
+  for (let index = 1; index < ordered.length; index++)
+    if (ordered[index].start <= ordered[index - 1].end)
+      throw new Error('AWS CE plan validation failed: newly created subnet CIDRs must not overlap');
+}
+var init_network_cidrs = () => {};
+
+// plugins/aws/src/ce/static-routing.ts
+import { isIP as isIP4 } from 'node:net';
 
 function staticAzRoutes(intent) {
   const routes = intent.routing.staticAzRoutes;
@@ -3912,7 +3962,7 @@ function staticAzRoutes(intent) {
         return values
           .map((value) => {
             const [ip, prefix, extra] = value.split('/');
-            if (isIP3(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || Number(prefix) > 32 || extra !== undefined)
+            if (isIP4(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || Number(prefix) > 32 || extra !== undefined)
               throw new Error('Static TGW route prefix is invalid');
             const octets = ip.split('.').map(Number);
             const address = octets.reduce((acc, octet) => (acc * 256 + octet) >>> 0, 0);
@@ -4003,11 +4053,11 @@ function siteBindings(plan) {
 }
 
 // plugins/aws/src/ce/transport-routes.ts
-import { isIP as isIP4 } from 'node:net';
+import { isIP as isIP5 } from 'node:net';
 
 function network2(value) {
   const [address, prefix, extra] = value.split('/');
-  if (extra !== undefined || isIP4(address) !== 4 || !/^(?:[0-9]|[12][0-9]|3[0-2])$/.test(prefix ?? ''))
+  if (extra !== undefined || isIP5(address) !== 4 || !/^(?:[0-9]|[12][0-9]|3[0-2])$/.test(prefix ?? ''))
     throw new Error('GRE transport requires canonical IPv4 CIDR evidence');
   const first = address.split('.').reduce((sum, octet) => sum * 256 + Number(octet), 0);
   const size = 2 ** (32 - Number(prefix));
@@ -4059,7 +4109,7 @@ function observedConnectCidrs(intent, observation) {
 var init_transport_routes = () => {};
 
 // plugins/aws/src/ce/planner.ts
-import { isIP as isIP5 } from 'node:net';
+import { isIP as isIP6 } from 'node:net';
 
 function fail(message) {
   throw new Error(`AWS CE plan validation failed: ${message}`);
@@ -4086,16 +4136,21 @@ function name2(value, label) {
 function cidr(value, label) {
   const normalized = safeString(value, label);
   if (!CIDR.test(normalized)) fail(`${label} is not a CIDR`);
+  const [address, mask] = normalized.split('/');
+  const family = isIP6(address),
+    prefix = Number(mask);
+  if (!family || !Number.isInteger(prefix) || prefix < 0 || prefix > (family === 4 ? 32 : 128))
+    fail(`${label} has an invalid IP address or prefix length`);
   return normalized;
 }
 function ipv4Number(value) {
-  if (isIP5(value) !== 4) fail('listener service address must be IPv4');
+  if (isIP6(value) !== 4) fail('listener service address must be IPv4');
   return value.split('.').reduce((result, octet) => result * 256 + Number(octet), 0);
 }
 function cidrHost(value, offset) {
   const [address, length] = value.split('/');
   const prefix = Number(length);
-  if (isIP5(address) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28)
+  if (isIP6(address) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28)
     fail('NLB SLI subnet must be an IPv4 /16 through /28');
   const size = 2 ** (32 - prefix);
   const network = Math.floor(ipv4Number(address) / size) * size;
@@ -4105,7 +4160,7 @@ function cidrHost(value, offset) {
 function usableSubnetAddress(address, subnet) {
   const [base, length] = subnet.split('/');
   const prefix = Number(length);
-  if (isIP5(base) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28) return false;
+  if (isIP6(base) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28) return false;
   const size = 2 ** (32 - prefix);
   const network = Math.floor(ipv4Number(base) / size) * size;
   const value = ipv4Number(address);
@@ -4237,6 +4292,7 @@ function normalizeIntent(input) {
       },
     };
   });
+  validateAwsCeNetworkCidrs({ vpc: input.vpc, interfaces });
   validateAwsCeAddressing({ ...input, interfaces });
   if (
     sites.some((site) => site.nodeIndexes.length === 3) &&
@@ -4349,7 +4405,7 @@ function normalizeIntent(input) {
       if ('transitGatewayAddress' in peer && peer.transitGatewayAddress !== undefined) {
         if (
           typeof peer.transitGatewayAddress !== 'string' ||
-          isIP5(peer.transitGatewayAddress) !== 4 ||
+          isIP6(peer.transitGatewayAddress) !== 4 ||
           endpoints.has(peer.transitGatewayAddress)
         )
           fail('GRE transit gateway endpoints must be unique IPv4 addresses');
@@ -4425,7 +4481,7 @@ function normalizeIntent(input) {
             ) ||
             !Array.isArray(loadBalancer.privateAddresses) ||
             loadBalancer.privateAddresses.length !== loadBalancer.subnetIds.length ||
-            loadBalancer.privateAddresses.some((address) => isIP5(address) !== 4))) ||
+            loadBalancer.privateAddresses.some((address) => isIP6(address) !== 4))) ||
         (primary
           ? listenerKeys !== 'domain,name,namespace,originPool,usePrimaryInterfaceAddress'
           : listenerKeys !== 'domain,name,namespace,originPool,privateAddresses' && !legacyTeardownListener) ||
@@ -6481,6 +6537,7 @@ var init_planner = __esm(() => {
   init_create_recovery();
   init_execution_contract();
   init_interface_addressing();
+  init_network_cidrs();
   init_static_routing();
   init_transport_routes();
   init_types2();
@@ -6763,7 +6820,7 @@ var init_aws_ce_plan = __esm(() => {
 });
 
 // plugins/platform/src/ce/wire-ingress.ts
-import { isIP as isIP6 } from 'node:net';
+import { isIP as isIP7 } from 'node:net';
 
 function projectInsideHttpListener(spec, schemas, validate) {
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw new Error('Malformed HTTP listener response');
@@ -6846,7 +6903,7 @@ function buildInsideHttpListener(input, validate) {
         ? site.insideAddress !== undefined
         : site.usePrimaryInterfaceAddress !== undefined ||
           typeof site.insideAddress !== 'string' ||
-          isIP6(site.insideAddress) !== 4 ||
+          isIP7(site.insideAddress) !== 4 ||
           addresses.has(site.insideAddress))
     )
       throw new Error('Invalid or ambiguous inside HTTP listener placement');
@@ -6892,7 +6949,7 @@ function buildInsideHttpListener(input, validate) {
 var init_wire_ingress = () => {};
 
 // plugins/platform/src/ce/wire-origin.ts
-import { isIP as isIP7 } from 'node:net';
+import { isIP as isIP8 } from 'node:net';
 
 function projectSiteLocalHttpOrigin(spec, schemas, validate) {
   const result = projectReplaceSnapshot(spec, schemas, 'viewsorigin_poolCreateSpecType');
@@ -6921,7 +6978,7 @@ function buildSiteLocalHttpOrigin(input, validate) {
     Object.keys(input).sort().join(',') !== 'name,namespace,originAddress,port,siteNames' ||
     ![input.name, input.namespace].every((value) => typeof value === 'string' && name.test(value)) ||
     typeof input.originAddress !== 'string' ||
-    isIP7(input.originAddress) !== 4 ||
+    isIP8(input.originAddress) !== 4 ||
     !Number.isInteger(input.port) ||
     input.port < 1 ||
     input.port > 65535 ||
@@ -7997,7 +8054,7 @@ var init_native_routing_checkpoint = __esm(() => {
 });
 
 // plugins/aws/src/ce/network-health.ts
-import { isIP as isIP8 } from 'node:net';
+import { isIP as isIP9 } from 'node:net';
 
 function object9(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed network evidence');
@@ -8175,7 +8232,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
         )
           throw new Error('Peer topology differs');
         if (
-          isIP8(String(config.TransitGatewayAddress)) !== 4 ||
+          isIP9(String(config.TransitGatewayAddress)) !== 4 ||
           !Array.isArray(config.InsideCidrBlocks) ||
           config.InsideCidrBlocks.length !== 1 ||
           typeof config.InsideCidrBlocks[0] !== 'string'
@@ -8187,7 +8244,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
         const ipv4 = (address) => address.split('.').reduce((value, octet) => value * 256 + Number(octet), 0);
         if (
           config.InsideCidrBlocks[0] !== plannedCidr ||
-          isIP8(insideAddress) !== 4 ||
+          isIP9(insideAddress) !== 4 ||
           insidePrefix !== '29' ||
           ipv4(insideAddress) % 8 !== 0
         )
@@ -8206,8 +8263,8 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
           const session = object9(item);
           const endpoint = String(session.TransitGatewayAddress);
           if (
-            isIP8(endpoint) !== 4 ||
-            isIP8(String(session.PeerAddress)) !== 4 ||
+            isIP9(endpoint) !== 4 ||
+            isIP9(String(session.PeerAddress)) !== 4 ||
             addresses.has(endpoint) ||
             session.TransitGatewayAsn !== plan.routing.transitGatewayAsn ||
             session.PeerAsn !== plan.routing.customerAsn ||
@@ -8273,7 +8330,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
             !/^tgw-rtb-[0-9a-f]{8,21}$/.test(tableId ?? '') || !/^tgw-attach-[0-9a-f]{8,21}$/.test(attachmentId ?? ''),
         ) ||
         routes.some(
-          ({ destination }) => !destination || (isIP8(destination.split('/')[0]) === 0 && destination !== '0.0.0.0/0'),
+          ({ destination }) => !destination || (isIP9(destination.split('/')[0]) === 0 && destination !== '0.0.0.0/0'),
         )
       )
         throw new Error('Missing planned TGW route identities');
@@ -8415,7 +8472,7 @@ async function collectAwsNetworkHealth(kind, plan, checkpoint, api, signal) {
         ? (plan.intent.ingress.listener.privateAddresses ??
           Array.from({ length: plan.topology.nodeCount }, (_, index) => values[`__NODE_${index + 1}_SLI_IP__`]))
         : Array.from({ length: plan.topology.nodeCount }, (_, index) => values[`__NODE_${index + 1}_SLI_IP__`]);
-    if (expected.some((address) => isIP8(address ?? '') !== 4) || new Set(expected).size !== expected.length)
+    if (expected.some((address) => isIP9(address ?? '') !== 4) || new Set(expected).size !== expected.length)
       throw new Error('Missing target identities');
     const raw = await read(api, ['elbv2', 'describe-target-health', '--target-group-arn', arn], plan.region);
     if (!Array.isArray(raw.TargetHealthDescriptions) || raw.TargetHealthDescriptions.length !== expected.length)
@@ -9836,7 +9893,7 @@ var init_site_replacement = __esm(() => {
 });
 
 // plugins/aws/src/ce/traffic-probe.ts
-import { isIP as isIP9 } from 'node:net';
+import { isIP as isIP10 } from 'node:net';
 
 function validSampleTimes(evidence, now, current) {
   const start = Date.parse(String(evidence.startedAt)),
@@ -9855,7 +9912,7 @@ function verifiedPeer(plan, address) {
   return (
     plan.intent.ingress?.mode === 'nlb' &&
     typeof address === 'string' &&
-    isIP9(address) === 4 &&
+    isIP10(address) === 4 &&
     plan.intent.ingress.loadBalancer.privateAddresses.includes(address)
   );
 }
@@ -13063,12 +13120,12 @@ var init_terraform_direct_activation = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-direct-ownership.ts
-import { isIP as isIP10 } from 'node:net';
+import { isIP as isIP11 } from 'node:net';
 
 function destination(cidr) {
   const [ip, bits, ...extra] = cidr.split('/');
   const prefix = Number(bits);
-  if (extra.length || isIP10(ip) !== 4 || !/^\d{1,2}$/.test(bits) || prefix < 1 || prefix > 32)
+  if (extra.length || isIP11(ip) !== 4 || !/^\d{1,2}$/.test(bits) || prefix < 1 || prefix > 32)
     throw Error('Original direct route destination unresolved');
   const address = ip.split('.').reduce((value, octet) => value * 256 + Number(octet), 0);
   if (address % 2 ** (32 - prefix)) throw Error('Original direct route destination unaligned');
@@ -13487,7 +13544,7 @@ var init_terraform_direct_stage = __esm(() => {
 });
 
 // plugins/aws/src/ce/terraform-identities.ts
-import { isIP as isIP11 } from 'node:net';
+import { isIP as isIP12 } from 'node:net';
 
 async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
   if (plan.engine !== 'terraform') throw new Error('Terraform interface discovery requires Terraform ownership');
@@ -13573,7 +13630,7 @@ async function discoverAwsTerraformInterfaces(plan, outputs, rawApi, signal) {
       typeof candidate.mac !== 'string' ||
       mac !== candidate.mac.toLowerCase() ||
       typeof eni.PrivateIpAddress !== 'string' ||
-      isIP11(eni.PrivateIpAddress) !== 4 ||
+      isIP12(eni.PrivateIpAddress) !== 4 ||
       eni.PrivateIpAddress !== candidate.private_ip ||
       (staticIp !== undefined && eni.PrivateIpAddress !== staticIp) ||
       Object.entries(expectedTags).some(
@@ -20115,7 +20172,7 @@ var init_whole_site_power = __esm(() => {
 
 // plugins/platform/src/ce/bgp-power-policy.ts
 import { createHash as createHash18 } from 'node:crypto';
-import { isIP as isIP12 } from 'node:net';
+import { isIP as isIP13 } from 'node:net';
 
 function object27(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed BGP maintenance policy');
@@ -20141,7 +20198,7 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
   for (const cidr of prefixes) {
     const [ip, bits, extra] = cidr.split('/');
     if (
-      isIP12(ip) !== 4 ||
+      isIP13(ip) !== 4 ||
       !/^\d{1,2}$/.test(bits ?? '') ||
       Number(bits) < 1 ||
       Number(bits) > 32 ||
@@ -20206,7 +20263,7 @@ function buildAwsBgpPowerPolicyRevision(snapshot, siteName, prefixes, effect, va
       typeof metadata.name !== 'string' ||
       peerNames.has(metadata.name) ||
       typeof external.address !== 'string' ||
-      isIP12(external.address) !== 4 ||
+      isIP13(external.address) !== 4 ||
       addresses.has(external.address)
     )
       throw Error('BGP maintenance original peers ambiguous or foreign policy');
@@ -20240,7 +20297,7 @@ var hash9 = (value) => createHash18('sha256').update(canonical(value)).digest('h
 var init_bgp_power_policy = () => {};
 
 // plugins/aws/src/ce/whole-site-power-connect.ts
-import { isIP as isIP13 } from 'node:net';
+import { isIP as isIP14 } from 'node:net';
 
 function object28(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed Connect service evidence');
@@ -20258,7 +20315,7 @@ function exactly(v) {
 function network3(cidr) {
   const [ip, prefix, extra] = cidr.split('/'),
     bits = Number(prefix);
-  if (isIP13(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || bits < 1 || bits > 32 || extra !== undefined)
+  if (isIP14(ip) !== 4 || !/^\d{1,2}$/.test(prefix ?? '') || bits < 1 || bits > 32 || extra !== undefined)
     throw Error('Connect service prefix unresolved or broad');
   const address = ip.split('.').reduce((n, o) => (n * 256 + Number(o)) >>> 0, 0),
     mask = (4294967295 << (32 - bits)) >>> 0;
@@ -20365,7 +20422,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
       (p) =>
         !/^tgw-connect-peer-[a-f0-9]{8,21}$/.test(p.peerId ?? '') ||
         !attachmentIds.includes(p.attachmentId ?? '') ||
-        isIP13(p.peerAddress ?? '') !== 4 ||
+        isIP14(p.peerAddress ?? '') !== 4 ||
         !/^eni-[a-f0-9]{8,17}$/.test(p.eni ?? '') ||
         !/^i-[a-f0-9]{8,17}$/.test(p.instance ?? '') ||
         !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(p.mac ?? ''),
@@ -20493,7 +20550,7 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
     if (
       config.Protocol !== 'gre' ||
       config.PeerAddress !== selected.peerAddress ||
-      isIP13(String(config.TransitGatewayAddress)) !== 4 ||
+      isIP14(String(config.TransitGatewayAddress)) !== 4 ||
       (selected.gatewayAddress !== undefined && config.TransitGatewayAddress !== selected.gatewayAddress) ||
       !Array.isArray(cidrs) ||
       cidrs.length !== 1 ||
@@ -20512,8 +20569,8 @@ async function collectAwsPowerConnectRoutes(base, values, raw, signal) {
         status = String(session.BgpStatus);
       const ip = (s) => s.split('.').reduce((n, o) => n * 256 + Number(o), 0);
       if (
-        isIP13(endpoint) !== 4 ||
-        isIP13(ceEndpoint) !== 4 ||
+        isIP14(endpoint) !== 4 ||
+        isIP14(ceEndpoint) !== 4 ||
         endpoints.has(endpoint) ||
         endpoint === ceEndpoint ||
         session.TransitGatewayAsn !== routing.transitGatewayAsn ||
@@ -21804,7 +21861,7 @@ var init_terraform_whole_site_power = __esm(() => {
 
 // plugins/aws/src/ce/whole-site-power-services.ts
 import { createHash as createHash22 } from 'node:crypto';
-import { isIP as isIP14 } from 'node:net';
+import { isIP as isIP15 } from 'node:net';
 
 function object33(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('Malformed NLB service evidence');
@@ -21836,7 +21893,7 @@ async function collectAwsPowerNlbServices(base, values, raw, signal) {
     if (typeof arn !== 'string' || !arn.startsWith(prefix + kind) || !/^[a-zA-Z0-9:/_.-]+$/.test(arn))
       throw Error('NLB runtime identity unresolved or foreign');
   const target = { Id: ingress.listener.privateAddresses[0], Port: ingress.port, AvailabilityZone: 'all' };
-  if (isIP14(target.Id) !== 4 || !Number.isInteger(target.Port) || target.Port < 1 || target.Port > 65535)
+  if (isIP15(target.Id) !== 4 || !Number.isInteger(target.Port) || target.Port < 1 || target.Port > 65535)
     throw Error('NLB target identity unresolved');
   const api = scopedAwsApi(raw, base.intent.awsProfile ?? 'default', signal);
   const read = async (args) => {
@@ -27480,7 +27537,7 @@ var init_whole_site_power_identities = __esm(() => {
 });
 
 // plugins/aws/src/ce/whole-site-power-routes.ts
-import { isIP as isIP15 } from 'node:net';
+import { isIP as isIP16 } from 'node:net';
 
 function object43(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed direct route evidence');
@@ -27493,7 +27550,7 @@ function rows11(value) {
 function network4(cidr) {
   const parts = cidr.split('/'),
     bits = Number(parts[1]);
-  if (parts.length !== 2 || isIP15(parts[0]) !== 4 || !/^\d{1,2}$/.test(parts[1]) || bits < 0 || bits > 32)
+  if (parts.length !== 2 || isIP16(parts[0]) !== 4 || !/^\d{1,2}$/.test(parts[1]) || bits < 0 || bits > 32)
     throw Error('Malformed direct service route prefix');
   const start = parts[0].split('.').reduce((value, octet) => value * 256 + Number(octet), 0),
     size = 2 ** (32 - bits);
@@ -27532,7 +27589,7 @@ async function collectAwsPowerDirectRoutes(base, values, raw, signal) {
         !base.intent.brownfield.routeTableIds.includes(route.routeTableId) ||
         route.node !== 1 ||
         parts.length !== 2 ||
-        isIP15(parts[0]) !== 4 ||
+        isIP16(parts[0]) !== 4 ||
         !Number.isInteger(prefix) ||
         prefix < 1 ||
         prefix > 32
@@ -27679,7 +27736,7 @@ var init_whole_site_power_routes = __esm(() => {
 });
 
 // plugins/aws/src/ce/whole-site-power-tgw.ts
-import { isIP as isIP16 } from 'node:net';
+import { isIP as isIP17 } from 'node:net';
 
 function object44(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed static TGW evidence');
@@ -27697,7 +27754,7 @@ function exactly3(value) {
 function network5(cidr) {
   const parts = cidr.split('/'),
     bits = Number(parts[1]);
-  if (parts.length !== 2 || isIP16(parts[0]) !== 4 || !/^\d{1,2}$/.test(parts[1]) || bits < 0 || bits > 32)
+  if (parts.length !== 2 || isIP17(parts[0]) !== 4 || !/^\d{1,2}$/.test(parts[1]) || bits < 0 || bits > 32)
     throw Error('Malformed static TGW route prefix');
   const start = parts[0].split('.').reduce((value, octet) => value * 256 + Number(octet), 0),
     size = 2 ** (32 - bits);

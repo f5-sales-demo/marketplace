@@ -48,7 +48,7 @@ function interfaces(nodeCount: 1 | 3, count: number): AwsCeIntent['interfaces'] 
     guestDevice: `ens${5 + index}`,
     role: index === 0 ? ('slo' as const) : index === 1 ? ('sli' as const) : ('service' as const),
     vrf: `vrf-${index}`,
-    subnets: zones.map((availabilityZone, node) => ({ availabilityZone, cidr: `10.${index}.${node}.0/24` })),
+    subnets: zones.map((availabilityZone, node) => ({ availabilityZone, cidr: `10.0.${index * 16 + node}.0/24` })),
     addressing: { mode: 'dhcp' as const },
   }));
 }
@@ -164,7 +164,7 @@ function observation(overrides: Partial<AwsCeObservation> = {}): AwsCeObservatio
 function primaryIntent(engine: 'native' | 'terraform', ha: boolean): AwsCeIntent {
   return intent({
     engine,
-    vpc: { mode: 'greenfield', cidr: '10.0.0.0/8' },
+    vpc: { mode: 'greenfield', cidr: '10.0.0.0/16' },
     topology: {
       nodeCount: 3,
       sites: ha
@@ -269,12 +269,12 @@ for (const engine of ['native', 'terraform'] as const)
         expect.arrayContaining([1, 2, 3].map((node) => `Id=__NODE_${node}_SLI_IP__,AvailabilityZone=all`)),
       );
       for (let node = 1; node <= 3; node++) {
-        expect(awsCeInterfacePrivateAddresses(plan.intent, node, 1)).toEqual([`10.1.${node - 1}.5`]);
+        expect(awsCeInterfacePrivateAddresses(plan.intent, node, 1)).toEqual([`10.0.${16 + node - 1}.5`]);
         const eni = plan.actions.find(
           (row) => row.kind === 'eni-create' && row.node === node && row.description.endsWith('ENI 1'),
         );
         expect(eni?.args?.filter((arg) => arg.startsWith('PrivateIpAddress='))).toEqual([
-          `PrivateIpAddress=10.1.${node - 1}.5,Primary=true`,
+          `PrivateIpAddress=10.0.${16 + node - 1}.5,Primary=true`,
         ]);
       }
       if (engine === 'terraform') {
@@ -291,7 +291,7 @@ for (const engine of ['native', 'terraform'] as const)
         );
         for (let node = 1; node <= 3; node++) {
           expect(rendered.resource.aws_network_interface[`node_${node}_nic_1`].private_ip_list).toEqual([
-            `10.1.${node - 1}.5`,
+            `10.0.${16 + node - 1}.5`,
           ]);
           expect(rendered.resource.aws_lb_target_group_attachment[`node_${node}`].target_id).toBe(
             `\${aws_network_interface.node_${node}_nic_1.private_ip}`,
@@ -301,12 +301,12 @@ for (const engine of ['native', 'terraform'] as const)
     });
 it('primary mode pins static primary addresses and rejects conflicting or incomplete execution identities', () => {
   const input = primaryIntent('native', true);
-  input.interfaces[1].addressing = { mode: 'static', addresses: ['10.1.0.20/24', '10.1.1.20/24', '10.1.2.20/24'] };
+  input.interfaces[1].addressing = { mode: 'static', addresses: ['10.0.16.20/24', '10.0.17.20/24', '10.0.18.20/24'] };
   const plan = compileAwsCePlan(input, primaryObservation());
-  expect(awsCeInterfacePrivateAddresses(plan.intent, 2, 1)).toEqual(['10.1.1.20']);
+  expect(awsCeInterfacePrivateAddresses(plan.intent, 2, 1)).toEqual(['10.0.17.20']);
   for (const mutate of [
     (value: AwsCeIntent) => {
-      if (value.ingress?.mode === 'nlb') value.ingress.listener.privateAddresses = ['10.1.0.10'];
+      if (value.ingress?.mode === 'nlb') value.ingress.listener.privateAddresses = ['10.0.16.10'];
     },
     (value: AwsCeIntent) => {
       if (value.ingress?.mode === 'nlb') Object.assign(value.ingress.listener, { usePrimaryInterfaceAddress: false });
@@ -386,7 +386,7 @@ async function installFixture(engine: 'native' | 'terraform', ha: boolean) {
           mtu: 1500,
           linkUp: !(state.fault === 'down' && node === 2),
           ipv4: {
-            address: state.fault === 'wrong-ip' && node === 2 ? '10.1.1.20' : `10.1.${node - 1}.5`,
+            address: state.fault === 'wrong-ip' && node === 2 ? '10.0.17.20' : `10.0.${16 + node - 1}.5`,
             prefixLength: 24,
           },
         },
@@ -422,7 +422,7 @@ async function installFixture(engine: 'native' | 'terraform', ha: boolean) {
     [1, 2, 3].flatMap((node) => [
       [`__ENI_${node}_1__`, `eni-0000000000000000${node}`],
       [`__ENI_${node}_1_MAC__`, `02:00:00:00:00:0${node}`],
-      [`__NODE_${node}_SLI_IP__`, `10.1.${node - 1}.5`],
+      [`__NODE_${node}_SLI_IP__`, `10.0.${16 + node - 1}.5`],
     ]),
   );
   const api = {
@@ -459,9 +459,9 @@ for (const engine of ['native', 'terraform'] as const)
       const marker = (await f.store.read('aws-platform-ingress.json')) as { ingressPlanId: string };
       const saved = (await f.store.read(`ingress-plan-${marker.ingressPlanId}.json`)) as CeIngressPlan;
       expect(saved.material.placements.map((row) => row.interface.ipv4?.address)).toEqual([
-        '10.1.0.5',
-        '10.1.1.5',
-        '10.1.2.5',
+        '10.0.16.5',
+        '10.0.17.5',
+        '10.0.18.5',
       ]);
       expect(saved.request.spec.advertise_custom.advertise_where).toHaveLength(ha ? 1 : 3);
       expect(JSON.stringify(saved.request.spec.advertise_custom)).not.toContain('"ip"');

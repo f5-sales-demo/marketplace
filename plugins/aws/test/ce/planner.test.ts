@@ -53,7 +53,7 @@ function interfaces(nodeCount: 1 | 3, count: number): AwsCeIntent['interfaces'] 
     guestDevice: `ens${5 + index}`,
     role: index === 0 ? ('slo' as const) : index === 1 ? ('sli' as const) : ('service' as const),
     vrf: `vrf-${index}`,
-    subnets: zones.map((availabilityZone, node) => ({ availabilityZone, cidr: `10.${index}.${node}.0/24` })),
+    subnets: zones.map((availabilityZone, node) => ({ availabilityZone, cidr: `10.0.${index * 16 + node}.0/24` })),
     addressing: { mode: 'dhcp' as const },
   }));
 }
@@ -852,7 +852,7 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
             name: 'ce-listener',
             namespace: 'default',
             domain: 'ce.example.invalid',
-            privateAddresses: ['10.1.0.10', '10.1.1.10', '10.1.2.10'],
+            privateAddresses: ['10.0.16.10', '10.0.17.10', '10.0.18.10'],
             originPool: { name: 'ce-origin', namespace: 'default' },
           },
           probe: {
@@ -902,9 +902,9 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     ]);
     expect(plan.actions.find((action) => action.kind === 'nlb-register-targets')?.args).toEqual(
       expect.arrayContaining([
-        'Id=10.1.0.10,AvailabilityZone=all',
-        'Id=10.1.1.10,AvailabilityZone=all',
-        'Id=10.1.2.10,AvailabilityZone=all',
+        'Id=10.0.16.10,AvailabilityZone=all',
+        'Id=10.0.17.10,AvailabilityZone=all',
+        'Id=10.0.18.10,AvailabilityZone=all',
       ]),
     );
     expect(nlb?.args).toEqual(
@@ -920,8 +920,8 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     for (const [index, action] of sliEnis.entries())
       expect(action.args).toEqual(
         expect.arrayContaining([
-          `PrivateIpAddress=10.1.${index}.5,Primary=true`,
-          `PrivateIpAddress=10.1.${index}.10,Primary=false`,
+          `PrivateIpAddress=10.0.${16 + index}.5,Primary=true`,
+          `PrivateIpAddress=10.0.${16 + index}.10,Primary=false`,
         ]),
       );
     const platformIngress = plan.actions.find((action) => action.kind === 'f5-ingress-configure');
@@ -1045,7 +1045,7 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
           name: 'ce-listener',
           namespace: 'system',
           domain: 'ce.example.invalid',
-          privateAddresses: ['10.1.0.10', '10.1.1.10', '10.1.2.10'],
+          privateAddresses: ['10.0.16.10', '10.0.17.10', '10.0.18.10'],
           originPool: { name: 'ce-origin', namespace: 'system' },
         },
         probe: {
@@ -1223,7 +1223,7 @@ it('preserves each static primary address in native and Terraform ENIs', () => {
       ...item,
       addressing: {
         mode: 'static' as const,
-        addresses: item.subnets.map((_, node) => `10.${item.index}.${node}.20/24`),
+        addresses: item.subnets.map((_, node) => `10.0.${item.index * 16 + node}.20/24`),
       },
     }));
     const topology = {
@@ -1250,7 +1250,7 @@ it('preserves each static primary address in native and Terraform ENIs', () => {
           (action) => action.node === node && action.description.endsWith(`ENI ${item.index}`),
         );
         if (!action?.args) throw new Error('Missing ENI action');
-        const selected = `10.${item.index}.${node - 1}.20`;
+        const selected = `10.0.${item.index * 16 + node - 1}.20`;
         expect(action.args).toContain('--private-ip-addresses');
         expect(action.args).toContain(`PrivateIpAddress=${selected},Primary=true`);
         expect(network.resource.aws_network_interface[`node_${node}_nic_${item.index}`].private_ip_list).toEqual([
@@ -1293,10 +1293,10 @@ it('rejects missing, ambiguous, malformed, reserved and prefix-inconsistent stat
 
 it('preserves DHCP allocation on a mixed DHCP/static deployment', () => {
   const mixed = intent({ engine: 'terraform' });
-  mixed.interfaces[1].addressing = { mode: 'static', addresses: ['10.1.0.30/24'] };
+  mixed.interfaces[1].addressing = { mode: 'static', addresses: ['10.0.16.30/24'] };
   const network = JSON.parse(renderAwsTerraformFoundation(compileAwsCePlan(mixed, observation())));
   expect(network.resource.aws_network_interface.node_1_nic_0.private_ip_list).toBeUndefined();
-  expect(network.resource.aws_network_interface.node_1_nic_1.private_ip_list).toEqual(['10.1.0.30']);
+  expect(network.resource.aws_network_interface.node_1_nic_1.private_ip_list).toEqual(['10.0.16.30']);
 });
 
 function diagnosticPublicKey() {

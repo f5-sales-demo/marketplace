@@ -43,7 +43,7 @@ function interfaces(nodeCount: 1 | 3, count: number): AwsCeIntent['interfaces'] 
     guestDevice: `ens${5 + index}`,
     role: index === 0 ? ('slo' as const) : index === 1 ? ('sli' as const) : ('service' as const),
     vrf: `vrf-${index}`,
-    subnets: zones.map((availabilityZone, node) => ({ availabilityZone, cidr: `10.${index}.${node}.0/24` })),
+    subnets: zones.map((availabilityZone, node) => ({ availabilityZone, cidr: `10.0.${index * 16 + node}.0/24` })),
     addressing: { mode: 'dhcp' as const },
   }));
 }
@@ -159,7 +159,7 @@ function observation(overrides: Partial<AwsCeObservation> = {}): AwsCeObservatio
 function primaryIntent(engine: 'native' | 'terraform', ha: boolean): AwsCeIntent {
   return intent({
     engine,
-    vpc: { mode: 'greenfield', cidr: '10.0.0.0/8' },
+    vpc: { mode: 'greenfield', cidr: '10.0.0.0/16' },
     topology: {
       nodeCount: 3,
       sites: ha
@@ -347,7 +347,7 @@ export async function genuineIngressFixture(engine: 'native' | 'terraform', ha: 
           mtu: 1500,
           linkUp: !(state.fault === 'down' && node === 2),
           ipv4: {
-            address: state.fault === 'wrong-ip' && node === 2 ? '10.1.1.20' : `10.1.${node - 1}.5`,
+            address: state.fault === 'wrong-ip' && node === 2 ? '10.0.17.20' : `10.0.${16 + node - 1}.5`,
             prefixLength: 24,
           },
         },
@@ -383,7 +383,7 @@ export async function genuineIngressFixture(engine: 'native' | 'terraform', ha: 
     [1, 2, 3].flatMap((node) => [
       [`__ENI_${node}_1__`, `eni-0000000000000000${node}`],
       [`__ENI_${node}_1_MAC__`, `02:00:00:00:00:0${node}`],
-      [`__NODE_${node}_SLI_IP__`, `10.1.${node - 1}.5`],
+      [`__NODE_${node}_SLI_IP__`, `10.0.${16 + node - 1}.5`],
     ]),
   );
   const api = {

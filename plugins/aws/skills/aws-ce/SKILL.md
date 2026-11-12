@@ -37,6 +37,11 @@ contract for their acceptance scope and public-tool integration status.
 
 ## Workflow
 
+For greenfield networks, use canonical IPv4 VPC and subnet CIDRs from `/16` through `/28`.
+Every new subnet must be contained in the VPC and must not overlap another new subnet.
+AWS-prohibited IPv4 ranges are rejected before planning. Brownfield subnet membership must
+come from observed placement; a primary VPC CIDR alone does not bound secondary ranges.
+
 1. Use `web_search` to read the dedicated `f5xc-ce-automation-policy/v2` document, the current official
    F5 AWS SMSv2 guide, and relevant current AWS Marketplace, EC2, AMI policy, quota, NLB, and TGW
    documentation. Cite the sources used.

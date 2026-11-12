@@ -14,6 +14,7 @@ import { nlbSettings } from './ingress-settings';
 import { normalizeAwsAdminSshPublicKey } from './initial-admin';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { interfaceSecurityGroups } from './interface-security';
+import { validateAwsCeNetworkCidrs } from './network-cidrs';
 import { routeNode, staticAzRoutes } from './static-routing';
 import { siteForNode, siteTopology } from './topology';
 import { observedConnectCidrs } from './transport-routes';
@@ -67,6 +68,11 @@ function name(value: string, label: string): string {
 function cidr(value: string, label: string): string {
   const normalized = safeString(value, label);
   if (!CIDR.test(normalized)) fail(`${label} is not a CIDR`);
+  const [address, mask] = normalized.split('/');
+  const family = isIP(address),
+    prefix = Number(mask);
+  if (!family || !Number.isInteger(prefix) || prefix < 0 || prefix > (family === 4 ? 32 : 128))
+    fail(`${label} has an invalid IP address or prefix length`);
   return normalized;
 }
 
@@ -232,6 +238,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       },
     };
   });
+  validateAwsCeNetworkCidrs({ vpc: input.vpc, interfaces });
   validateAwsCeAddressing({ ...input, interfaces });
   if (
     sites.some((site) => site.nodeIndexes.length === 3) &&
