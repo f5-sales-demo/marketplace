@@ -85,7 +85,37 @@ export async function collectAwsTeardownMaterial(
     namespaces.add(originNamespace);
   }
   const observe = async () => {
-    const receipt = await runtime.teardownInventory(bindings, [...namespaces].sort(), contract, signal);
+    let receipt = await runtime.teardownInventory(bindings, [...namespaces].sort(), contract, signal);
+    if (
+      receipt.status !== 'observed' &&
+      base.engine === 'native' &&
+      bindings.length === 1 &&
+      bindings[0].nodes.length === 1
+    ) {
+      const pending = await runtime.preRegistrationInventory(bindings, [...namespaces].sort(), contract, signal);
+      if (
+        pending.status === 'observed' &&
+        pending.sites.length === bindings.length &&
+        pending.sites.every(
+          (site) =>
+            typeof site.siteUid === 'string' &&
+            !!site.siteUid.trim() &&
+            typeof site.physicalSiteUid === 'string' &&
+            !!site.physicalSiteUid.trim(),
+        ) &&
+        pending.resources.every((resource) => resource.kind === 'tokens')
+      ) {
+        receipt = {
+          ...pending,
+          status: 'observed',
+          sites: pending.sites.map((site) => ({
+            siteName: site.siteName,
+            siteUid: site.siteUid as string,
+            physicalSiteUid: site.physicalSiteUid as string,
+          })),
+        };
+      }
+    }
     const observedAt = Date.parse(receipt.observedAt);
     if (
       receipt.status !== 'observed' ||

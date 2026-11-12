@@ -125,3 +125,9 @@ malformed, or unavailable owner evidence blocks platform and credential retireme
 Do not treat an empty plan or missing resource IDs as proof that cloud resources
 are absent. Native teardown retains its separate supporting-infrastructure
 qualification boundary.
+
+Single-node native preparation can use the platform pre-registration inventory
+when a generated physical site has no registered nodes. This requires exact owned
+logical and physical UIDs, the expected generated-site state, stable node-bound
+token identities, and absence of registrations, routing and ingress resources.
+Missing identifiers or advanced registration do not authorize this path.
