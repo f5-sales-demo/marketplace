@@ -31,6 +31,7 @@ import { associateAwsCeEip } from './eip-association';
 import { assertAwsDeploymentCompilerOperation } from './execution-contract';
 import { assertAwsAdminPrebootDevices, awsInitialAdminSettings } from './initial-admin';
 import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
+import { withAwsNativeOperation } from './native-operation';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { createNativeAwsSiteReplacementDriver } from './native-site-replacement';
 import { collectAwsNetworkHealth } from './network-health';
@@ -720,404 +721,418 @@ export async function executeAwsCeApply(
     account: plan.accountId,
     region: plan.region,
   });
-  const ingressContract =
-    plan.intent.ingress?.mode === 'nlb' ? await VerifiedIngressContract.release(fetcher, signal) : undefined;
+  const execute = async () => {
+    const ingressContract =
+      plan.intent.ingress?.mode === 'nlb' ? await VerifiedIngressContract.release(fetcher, signal) : undefined;
 
-  if (existing && existing.engine !== plan.engine)
-    throw new Error('Checkpoint execution engine differs from deployment');
-  const completedRoutingAction = plan.actions.find((action) => action.kind === 'f5-routing-configure');
-  if (
-    plan.intent.operation === 'deploy' &&
-    existing &&
-    completedRoutingAction &&
-    existing.completedActionIds.includes(completedRoutingAction.id)
-  )
-    await configureAwsRouting(
-      runtime,
-      plan,
-      existing,
-      api,
-      () => saveAwsCheckpoint(ctx.sessionManager, existing),
-      signal,
-    );
-  const brownfieldIds = [
-    ...new Set([
-      ...plan.intent.brownfield.resourceIds,
-      ...plan.intent.brownfield.routeTableIds,
-      ...plan.intent.brownfield.transitGatewayRouteTableIds,
-    ]),
-  ].sort();
-  const resourceIdPattern =
-    /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
-  const observedOwnedIds = () =>
-    [
+    if (existing && existing.engine !== plan.engine)
+      throw new Error('Checkpoint execution engine differs from deployment');
+    const completedRoutingAction = plan.actions.find((action) => action.kind === 'f5-routing-configure');
+    if (
+      plan.intent.operation === 'deploy' &&
+      existing &&
+      completedRoutingAction &&
+      existing.completedActionIds.includes(completedRoutingAction.id)
+    )
+      await configureAwsRouting(
+        runtime,
+        plan,
+        existing,
+        api,
+        () => saveAwsCheckpoint(ctx.sessionManager, existing),
+        signal,
+      );
+    const brownfieldIds = [
       ...new Set([
-        ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id),
-        ...Object.values(existing?.resolvedValues ?? {}).filter((value) => resourceIdPattern.test(value)),
+        ...plan.intent.brownfield.resourceIds,
+        ...plan.intent.brownfield.routeTableIds,
+        ...plan.intent.brownfield.transitGatewayRouteTableIds,
       ]),
     ].sort();
-  const ownershipPlanSha256s = [
-    ...new Set([
-      ...observation.ownershipPlanSha256s,
-      ...(existing?.childPlanSha256s ?? []),
-      ...observation.resources
-        .filter((resource) => resource.owned)
-        .map((resource) => resource.tags['xcsh-plan-sha256'])
-        .filter((digest): digest is string => /^[a-f0-9]{64}$/.test(digest ?? '')),
-      plan.planSha256,
-    ]),
-  ].sort();
-  const current = await discoverAwsCompute(
-    {
-      awsProfile: plan.intent.awsProfile,
-      vpcMode: plan.intent.vpc.mode,
-      accountId: plan.accountId,
-      partition: plan.partition,
-      deploymentName: plan.deploymentName,
-      requiredEnis: plan.interfaces.length,
-      nodeCount: plan.topology.nodeCount,
-      // Recollect the same reviewed candidate set. Narrowing this to only the selected
-      // type changes every regional observation and falsely makes an untouched plan stale.
-      instanceTypes: observedInstanceTypeNames(observation),
-      brownfieldResourceIds: brownfieldIds,
-      observedOwnedResourceIds: observedOwnedIds(),
-      ownedPlanSha256s: ownershipPlanSha256s,
-      resourceRegion: plan.region,
-      ...(plan.bootstrapKeyPair ? { bootstrapKeyPairNames: [plan.bootstrapKeyPair.name] } : {}),
-      egressMode: plan.egress.mode,
-      routingProfile: plan.routing.profile,
-      f5Capabilities,
-    },
-    api,
-    fetcher,
-  );
-  const childReplacementActive =
-    Boolean(existing?.childPlanSha256s?.length) &&
-    plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
-  const revalidation = resumeObservationInputs(
-    plan,
-    observation,
-    childReplacementActive
-      ? plan.observationFingerprint
-      : (existing?.observationFingerprint ?? plan.observationFingerprint),
-    childReplacementActive ? brownfieldIds : [...brownfieldIds, ...observedOwnedIds()],
-    existing?.completedActionIds.length ?? 0,
-  );
-  try {
-    assertAwsObservationFresh(plan, current, revalidation.expected, revalidation.ids);
-  } catch {
-    throw await captureAwsRevalidationRejection(
+    const resourceIdPattern =
+      /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+    const observedOwnedIds = () =>
+      [
+        ...new Set([
+          ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id),
+          ...Object.values(existing?.resolvedValues ?? {}).filter((value) => resourceIdPattern.test(value)),
+        ]),
+      ].sort();
+    const ownershipPlanSha256s = [
+      ...new Set([
+        ...observation.ownershipPlanSha256s,
+        ...(existing?.childPlanSha256s ?? []),
+        ...observation.resources
+          .filter((resource) => resource.owned)
+          .map((resource) => resource.tags['xcsh-plan-sha256'])
+          .filter((digest): digest is string => /^[a-f0-9]{64}$/.test(digest ?? '')),
+        plan.planSha256,
+      ]),
+    ].sort();
+    const current = await discoverAwsCompute(
+      {
+        awsProfile: plan.intent.awsProfile,
+        vpcMode: plan.intent.vpc.mode,
+        accountId: plan.accountId,
+        partition: plan.partition,
+        deploymentName: plan.deploymentName,
+        requiredEnis: plan.interfaces.length,
+        nodeCount: plan.topology.nodeCount,
+        // Recollect the same reviewed candidate set. Narrowing this to only the selected
+        // type changes every regional observation and falsely makes an untouched plan stale.
+        instanceTypes: observedInstanceTypeNames(observation),
+        brownfieldResourceIds: brownfieldIds,
+        observedOwnedResourceIds: observedOwnedIds(),
+        ownedPlanSha256s: ownershipPlanSha256s,
+        resourceRegion: plan.region,
+        ...(plan.bootstrapKeyPair ? { bootstrapKeyPairNames: [plan.bootstrapKeyPair.name] } : {}),
+        egressMode: plan.egress.mode,
+        routingProfile: plan.routing.profile,
+        f5Capabilities,
+      },
+      api,
+      fetcher,
+    );
+    const childReplacementActive =
+      Boolean(existing?.childPlanSha256s?.length) &&
+      plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
+    const revalidation = resumeObservationInputs(
       plan,
       observation,
-      current,
-      revalidation.expected,
-      revalidation.ids,
-      'native-fingerprint',
-      storage,
-    );
-  }
-  if (existing?.ownedStateFingerprint && !childReplacementActive) {
-    if (
-      !matchesOwnedResourceFingerprint(
-        existing.ownedStateFingerprint,
-        current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
-      )
-    )
-      throw new Error('Stale AWS CE plan: owned resource tags, targets, attachments, peers, or state changed');
-  }
-  const expectedPrefix = plan.actions.slice(0, existing?.completedActionIds.length ?? 0).map((action) => action.id);
-  if (existing && JSON.stringify(existing.completedActionIds) !== JSON.stringify(expectedPrefix))
-    throw new Error('AWS CE checkpoint is not an ordered prefix of the immutable plan');
-  if (ctx.hasUI) {
-    if (!authorized && !(await ctx.ui.confirm('Apply immutable AWS CE plan', `${plan.planId}\n${plan.planSha256}`)))
-      throw new Error('AWS CE apply was not approved');
-    if (
-      plan.intent.operation === 'teardown' &&
-      !(authorized && existing?.authorization?.destruction) &&
-      !(await ctx.ui.confirm(
-        'Tear down AWS Customer Edge',
-        'Restore approved brownfield state and delete only owned resources?',
-      ))
-    )
-      throw new Error('AWS CE teardown was not approved');
-  }
-  const completed = new Set(existing?.completedActionIds ?? []);
-  const checkpoint: AwsCeCheckpoint = {
-    schemaVersion: AWS_CE_SCHEMA_VERSION,
-    engine: plan.engine,
-    authorization: { planSha256: plan.planSha256, mutations: true, destruction: plan.intent.operation === 'teardown' },
-    planId: plan.planId,
-    planSha256: plan.planSha256,
-    completedActionIds: [...completed],
-    childPlanSha256s: existing?.childPlanSha256s ? [...existing.childPlanSha256s] : undefined,
-    observationFingerprint: existing?.observationFingerprint,
-    resolvedValues: { ...(existing?.resolvedValues ?? {}) },
-    state: 'running',
-    pendingCreate: existing?.pendingCreate,
-    pendingDelete: existing?.pendingDelete,
-  };
-  for (const action of plan.actions) {
-    if (completed.has(action.id)) continue;
-    let launchDirectory: string | undefined;
-    let gateMutation = false;
-    const previousObservationFingerprint = checkpoint.observationFingerprint;
-    const previousOwnedStateFingerprint = checkpoint.ownedStateFingerprint;
-    const previousCaptures = new Map(
-      [...(action.capture ? [action.capture] : []), ...(action.captures ?? [])].map((capture) => [
-        capture.placeholder,
-        checkpoint.resolvedValues[capture.placeholder],
-      ]),
+      childReplacementActive
+        ? plan.observationFingerprint
+        : (existing?.observationFingerprint ?? plan.observationFingerprint),
+      childReplacementActive ? brownfieldIds : [...brownfieldIds, ...observedOwnedIds()],
+      existing?.completedActionIds.length ?? 0,
     );
     try {
-      if (!(hasDeleteRecovery(action) && checkpoint.pendingDelete?.actionId === action.id))
-        await assertAwsActionOwnership(plan, action, api, checkpoint.resolvedValues);
-      const convergenceDeadline = Date.now() + 15 * 60_000;
-      while (true) {
-        try {
-          const gate = await assertGate(
-            action,
-            runtime,
-            plan,
-            checkpoint,
-            async (evidence) => {
-              if (evidence)
-                await storage.write(`${action.id}-evidence.json`, {
-                  ...evidence,
-                  planId: plan.planId,
-                  planSha256: plan.planSha256,
-                });
-              return saveAwsCheckpoint(ctx.sessionManager, checkpoint);
-            },
-            storage,
-            ingressContract,
-            api,
-            fetcher,
-            signal,
-          );
-          gateMutation = gate?.mutated === true;
-          if (gate?.pending) break;
-          if (action.kind === 'f5-routing-configure')
-            await persistAwsNativeRoutingCheckpoint(plan, checkpoint, storage);
-          break;
-        } catch (error) {
-          if (
-            signal?.aborted ||
-            !(error instanceof Error) ||
-            !error.message.includes('has not converged') ||
-            Date.now() >= convergenceDeadline
-          )
-            throw error;
-          await new Promise<void>((resolve, reject) => {
-            const abort = () => {
-              clearTimeout(timer);
-              reject(new Error('AWS CE convergence cancelled'));
-            };
-            const timer = setTimeout(() => {
-              signal?.removeEventListener('abort', abort);
-              resolve();
-            }, 10_000);
-            signal?.addEventListener('abort', abort, { once: true });
-            if (signal?.aborted) abort();
-          });
-        }
-      }
-      if (action.command && action.args) {
-        if (action.requiresBootstrap && action.node) {
-          const selected = siteBindings(plan).find(({ site }) => site.nodeIndexes.includes(action.node ?? 0));
-          if (!selected) throw new Error('Bootstrap node has no site binding');
-          const { site, binding } = selected;
-          const hostname = `${plan.deploymentName}-${action.node}`;
-          if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
-            throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
-          const siteCheckpoint = async (record: Record<string, unknown>) => {
-            checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
-            await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
-          };
-          if (awsNativePrebootSiteRequired(plan, site.nodeIndexes.length)) {
-            const position = site.nodeIndexes.indexOf(action.node);
-            const previous = site.nodeIndexes[position - 1];
-            if (previous !== undefined) {
-              const launchedAt = checkpoint.resolvedValues[`__HA_LAUNCHED_AT_${previous}__`];
-              if (!launchedAt || Number.isNaN(Date.parse(launchedAt)))
-                throw new Error('Prior HA node launch boundary is unavailable');
-              await waitUntil(Date.parse(launchedAt) + 180_000, signal);
-            }
-            await runtime.ensureSite(
-              binding,
-              buildAwsNativePrebootSiteIntent(plan, site.nodeIndexes, checkpoint.resolvedValues),
-              siteCheckpoint,
+      assertAwsObservationFresh(plan, current, revalidation.expected, revalidation.ids);
+    } catch {
+      throw await captureAwsRevalidationRejection(
+        plan,
+        observation,
+        current,
+        revalidation.expected,
+        revalidation.ids,
+        'native-fingerprint',
+        storage,
+      );
+    }
+    if (existing?.ownedStateFingerprint && !childReplacementActive) {
+      if (
+        !matchesOwnedResourceFingerprint(
+          existing.ownedStateFingerprint,
+          current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
+        )
+      )
+        throw new Error('Stale AWS CE plan: owned resource tags, targets, attachments, peers, or state changed');
+    }
+    const expectedPrefix = plan.actions.slice(0, existing?.completedActionIds.length ?? 0).map((action) => action.id);
+    if (existing && JSON.stringify(existing.completedActionIds) !== JSON.stringify(expectedPrefix))
+      throw new Error('AWS CE checkpoint is not an ordered prefix of the immutable plan');
+    if (ctx.hasUI) {
+      if (!authorized && !(await ctx.ui.confirm('Apply immutable AWS CE plan', `${plan.planId}\n${plan.planSha256}`)))
+        throw new Error('AWS CE apply was not approved');
+      if (
+        plan.intent.operation === 'teardown' &&
+        !(authorized && existing?.authorization?.destruction) &&
+        !(await ctx.ui.confirm(
+          'Tear down AWS Customer Edge',
+          'Restore approved brownfield state and delete only owned resources?',
+        ))
+      )
+        throw new Error('AWS CE teardown was not approved');
+    }
+    const completed = new Set(existing?.completedActionIds ?? []);
+    const checkpoint: AwsCeCheckpoint = {
+      schemaVersion: AWS_CE_SCHEMA_VERSION,
+      engine: plan.engine,
+      authorization: {
+        planSha256: plan.planSha256,
+        mutations: true,
+        destruction: plan.intent.operation === 'teardown',
+      },
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      completedActionIds: [...completed],
+      childPlanSha256s: existing?.childPlanSha256s ? [...existing.childPlanSha256s] : undefined,
+      observationFingerprint: existing?.observationFingerprint,
+      resolvedValues: { ...(existing?.resolvedValues ?? {}) },
+      state: 'running',
+      pendingCreate: existing?.pendingCreate,
+      pendingDelete: existing?.pendingDelete,
+    };
+    for (const action of plan.actions) {
+      if (completed.has(action.id)) continue;
+      let launchDirectory: string | undefined;
+      let gateMutation = false;
+      const previousObservationFingerprint = checkpoint.observationFingerprint;
+      const previousOwnedStateFingerprint = checkpoint.ownedStateFingerprint;
+      const previousCaptures = new Map(
+        [...(action.capture ? [action.capture] : []), ...(action.captures ?? [])].map((capture) => [
+          capture.placeholder,
+          checkpoint.resolvedValues[capture.placeholder],
+        ]),
+      );
+      try {
+        if (!(hasDeleteRecovery(action) && checkpoint.pendingDelete?.actionId === action.id))
+          await assertAwsActionOwnership(plan, action, api, checkpoint.resolvedValues);
+        const convergenceDeadline = Date.now() + 15 * 60_000;
+        while (true) {
+          try {
+            const gate = await assertGate(
+              action,
+              runtime,
+              plan,
+              checkpoint,
+              async (evidence) => {
+                if (evidence)
+                  await storage.write(`${action.id}-evidence.json`, {
+                    ...evidence,
+                    planId: plan.planId,
+                    planSha256: plan.planSha256,
+                  });
+                return saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+              },
+              storage,
+              ingressContract,
+              api,
+              fetcher,
               signal,
             );
-          } else await runtime.reserveSite(binding, siteCheckpoint, signal);
-          const root = storage.directory;
-          await mkdir(root, { recursive: true, mode: 0o700 });
-          await chmod(root, 0o700);
-          launchDirectory = await mkdtemp(join(root, 'node-'));
-          await chmod(launchDirectory, 0o700);
-          const path = join(launchDirectory, 'cloud-init.yaml');
-          const tokenName = `${plan.deploymentName.slice(0, 40)}-${action.node}-${plan.planSha256.slice(0, 12)}`;
-          const material = await runtime.bootstrap(
-            binding,
-            hostname,
-            tokenName,
-            async (secret) => {
-              await storage.write(`${tokenName}.json`, secret);
-              checkpoint.resolvedValues[`__F5_TOKEN_${action.node}__`] = tokenName;
-              await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
-            },
-            signal,
-          );
-          await writeFile(path, renderAwsCeCloudInit({ nodeName: hostname, material }), { mode: 0o600 });
-          checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
+            gateMutation = gate?.mutated === true;
+            if (gate?.pending) break;
+            if (action.kind === 'f5-routing-configure')
+              await persistAwsNativeRoutingCheckpoint(plan, checkpoint, storage);
+            break;
+          } catch (error) {
+            if (
+              signal?.aborted ||
+              !(error instanceof Error) ||
+              !error.message.includes('has not converged') ||
+              Date.now() >= convergenceDeadline
+            )
+              throw error;
+            await new Promise<void>((resolve, reject) => {
+              const abort = () => {
+                clearTimeout(timer);
+                reject(new Error('AWS CE convergence cancelled'));
+              };
+              const timer = setTimeout(() => {
+                signal?.removeEventListener('abort', abort);
+                resolve();
+              }, 10_000);
+              signal?.addEventListener('abort', abort, { once: true });
+              if (signal?.aborted) abort();
+            });
+          }
         }
-        const args = executableAwsActionArgs(
-          action,
-          resolveAwsCeActionArgs(
-            action.args,
-            { ...checkpoint.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
-            plan.bootstrapKeyPair?.name,
-          ),
-        );
-        if (action.kind === 'instance-run') await revalidateAwsBootstrapKeyPair(plan, api);
-        const result =
-          action.kind === 'elastic-ip-associate'
-            ? await associateAwsCeEip(api, plan, args, signal)
-            : hasCreateRecovery(action)
-              ? await executeRecoverableCreate(
-                  api,
-                  plan,
-                  action,
-                  args,
-                  checkpoint,
-                  () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
-                  signal,
-                )
-              : hasDeleteRecovery(action)
-                ? await executeRecoverableDelete(
+        if (action.command && action.args) {
+          if (action.requiresBootstrap && action.node) {
+            const selected = siteBindings(plan).find(({ site }) => site.nodeIndexes.includes(action.node ?? 0));
+            if (!selected) throw new Error('Bootstrap node has no site binding');
+            const { site, binding } = selected;
+            const hostname = `${plan.deploymentName}-${action.node}`;
+            if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
+              throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
+            const siteCheckpoint = async (record: Record<string, unknown>) => {
+              checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
+              await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+            };
+            if (awsNativePrebootSiteRequired(plan, site.nodeIndexes.length)) {
+              const position = site.nodeIndexes.indexOf(action.node);
+              const previous = site.nodeIndexes[position - 1];
+              if (previous !== undefined) {
+                const launchedAt = checkpoint.resolvedValues[`__HA_LAUNCHED_AT_${previous}__`];
+                if (!launchedAt || Number.isNaN(Date.parse(launchedAt)))
+                  throw new Error('Prior HA node launch boundary is unavailable');
+                await waitUntil(Date.parse(launchedAt) + 180_000, signal);
+              }
+              await runtime.ensureSite(
+                binding,
+                buildAwsNativePrebootSiteIntent(plan, site.nodeIndexes, checkpoint.resolvedValues),
+                siteCheckpoint,
+                signal,
+              );
+            } else await runtime.reserveSite(binding, siteCheckpoint, signal);
+            const root = storage.directory;
+            await mkdir(root, { recursive: true, mode: 0o700 });
+            await chmod(root, 0o700);
+            launchDirectory = await mkdtemp(join(root, 'node-'));
+            await chmod(launchDirectory, 0o700);
+            const path = join(launchDirectory, 'cloud-init.yaml');
+            const tokenName = `${plan.deploymentName.slice(0, 40)}-${action.node}-${plan.planSha256.slice(0, 12)}`;
+            const material = await runtime.bootstrap(
+              binding,
+              hostname,
+              tokenName,
+              async (secret) => {
+                await storage.write(`${tokenName}.json`, secret);
+                checkpoint.resolvedValues[`__F5_TOKEN_${action.node}__`] = tokenName;
+                await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+              },
+              signal,
+            );
+            await writeFile(path, renderAwsCeCloudInit({ nodeName: hostname, material }), { mode: 0o600 });
+            checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
+          }
+          const args = executableAwsActionArgs(
+            action,
+            resolveAwsCeActionArgs(
+              action.args,
+              { ...checkpoint.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
+              plan.bootstrapKeyPair?.name,
+            ),
+          );
+          if (action.kind === 'instance-run') await revalidateAwsBootstrapKeyPair(plan, api);
+          const result =
+            action.kind === 'elastic-ip-associate'
+              ? await associateAwsCeEip(api, plan, args, signal)
+              : hasCreateRecovery(action)
+                ? await executeRecoverableCreate(
                     api,
                     plan,
                     action,
                     args,
                     checkpoint,
                     () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
-                    ownershipPlanSha256s,
                     signal,
                   )
-                : action.kind === 'brownfield-restore' &&
-                    (await isAwsBrownfieldRestoreConverged(plan, { ...action, args }, api))
-                  ? { exitCode: 0, stdout: '{}', stderr: '' }
-                  : await api.exec(action.command, args);
-        if (launchDirectory) {
-          delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
-          await rm(launchDirectory, { recursive: true, force: true });
-          launchDirectory = undefined;
-        }
-        if (result.exitCode !== 0) throw new Error(`AWS action ${action.id} failed with exit code ${result.exitCode}`);
-        if (action.capture || action.captures) {
-          let raw: unknown;
-          try {
-            raw = JSON.parse(result.stdout);
-          } catch {
-            throw new Error(`AWS action ${action.id} returned invalid capture JSON`);
+                : hasDeleteRecovery(action)
+                  ? await executeRecoverableDelete(
+                      api,
+                      plan,
+                      action,
+                      args,
+                      checkpoint,
+                      () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
+                      ownershipPlanSha256s,
+                      signal,
+                    )
+                  : action.kind === 'brownfield-restore' &&
+                      (await isAwsBrownfieldRestoreConverged(plan, { ...action, args }, api))
+                    ? { exitCode: 0, stdout: '{}', stderr: '' }
+                    : await api.exec(action.command, args);
+          if (launchDirectory) {
+            delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
+            await rm(launchDirectory, { recursive: true, force: true });
+            launchDirectory = undefined;
           }
-          if (action.kind === 'eni-create' && action.node) {
-            const item = plan.interfaces.find((item) =>
-              action.captures?.some((capture) => capture.placeholder === `__ENI_${action.node}_${item.index}_MAC__`),
-            );
-            if (!item) throw new Error('ENI response has no planned interface binding');
-            const selected = awsCeStaticIp(plan.intent, action.node, item.index);
-            const eni = (raw as { NetworkInterface?: { PrivateIpAddress?: string } }).NetworkInterface;
-            if (selected && eni?.PrivateIpAddress !== selected.ip_address.split('/')[0])
-              throw new Error('Allocated static primary address differs from the plan');
-          }
-          for (const capture of [...(action.capture ? [action.capture] : []), ...(action.captures ?? [])]) {
-            const value = valueAtPath(raw, capture.path);
-            if (!value) throw new Error(`AWS action ${action.id} did not return ${capture.path}`);
-            checkpoint.resolvedValues[capture.placeholder] = value;
-          }
-          if (
-            action.kind === 'instance-run' &&
-            action.node &&
-            siteBindings(plan).some(
-              ({ site }) => site.nodeIndexes.length === 3 && site.nodeIndexes.includes(action.node ?? 0),
+          if (result.exitCode !== 0)
+            throw new Error(`AWS action ${action.id} failed with exit code ${result.exitCode}`);
+          if (action.capture || action.captures) {
+            let raw: unknown;
+            try {
+              raw = JSON.parse(result.stdout);
+            } catch {
+              throw new Error(`AWS action ${action.id} returned invalid capture JSON`);
+            }
+            if (action.kind === 'eni-create' && action.node) {
+              const item = plan.interfaces.find((item) =>
+                action.captures?.some((capture) => capture.placeholder === `__ENI_${action.node}_${item.index}_MAC__`),
+              );
+              if (!item) throw new Error('ENI response has no planned interface binding');
+              const selected = awsCeStaticIp(plan.intent, action.node, item.index);
+              const eni = (raw as { NetworkInterface?: { PrivateIpAddress?: string } }).NetworkInterface;
+              if (selected && eni?.PrivateIpAddress !== selected.ip_address.split('/')[0])
+                throw new Error('Allocated static primary address differs from the plan');
+            }
+            for (const capture of [...(action.capture ? [action.capture] : []), ...(action.captures ?? [])]) {
+              const value = valueAtPath(raw, capture.path);
+              if (!value) throw new Error(`AWS action ${action.id} did not return ${capture.path}`);
+              checkpoint.resolvedValues[capture.placeholder] = value;
+            }
+            if (
+              action.kind === 'instance-run' &&
+              action.node &&
+              siteBindings(plan).some(
+                ({ site }) => site.nodeIndexes.length === 3 && site.nodeIndexes.includes(action.node ?? 0),
+              )
             )
-          )
-            checkpoint.resolvedValues[`__HA_LAUNCHED_AT_${action.node}__`] ??= new Date().toISOString();
+              checkpoint.resolvedValues[`__HA_LAUNCHED_AT_${action.node}__`] ??= new Date().toISOString();
+          }
         }
-      }
-      if (action.mutates || gateMutation) {
-        const ids = [
-          ...new Set([
-            ...brownfieldIds,
-            ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id),
-            ...Object.values(checkpoint.resolvedValues).filter((value) => resourceIdPattern.test(value)),
-          ]),
-        ].sort();
-        if (ids.length) {
-          const resources = await observeAwsResources(api, ids, plan.region, {
-            deploymentName: plan.deploymentName,
-            planSha256s: ownershipPlanSha256s,
-          });
-          const ownedIds = ids.filter((id) => !brownfieldIds.includes(id));
-          checkpoint.ownedStateFingerprint = fingerprintOwnedResources(
-            resources.filter((resource) => ownedIds.includes(resource.id)),
-          );
-          checkpoint.observationFingerprint = fingerprintObservation(
-            { ...current, resources },
-            ids,
-            awsCeObservationRegion(plan),
-          );
+        if (action.mutates || gateMutation) {
+          const ids = [
+            ...new Set([
+              ...brownfieldIds,
+              ...observation.resources.filter((resource) => resource.owned).map((resource) => resource.id),
+              ...Object.values(checkpoint.resolvedValues).filter((value) => resourceIdPattern.test(value)),
+            ]),
+          ].sort();
+          if (ids.length) {
+            const resources = await observeAwsResources(api, ids, plan.region, {
+              deploymentName: plan.deploymentName,
+              planSha256s: ownershipPlanSha256s,
+            });
+            const ownedIds = ids.filter((id) => !brownfieldIds.includes(id));
+            checkpoint.ownedStateFingerprint = fingerprintOwnedResources(
+              resources.filter((resource) => ownedIds.includes(resource.id)),
+            );
+            checkpoint.observationFingerprint = fingerprintObservation(
+              { ...current, resources },
+              ids,
+              awsCeObservationRegion(plan),
+            );
+          }
         }
-      }
-      if (gateMutation) {
-        const saved = (await storage.read(`${action.id}-initial-mtu-replacement.json`)) as {
-          plan?: AwsSiteReplacementPlan;
-        };
-        const child = saved.plan;
-        const childCheckpoint = child
-          ? ((await storage.read(`${child.planId}.json`)) as { phase?: string })
-          : undefined;
-        if (childCheckpoint?.phase !== 'complete')
-          throw new Error('Automatic preboot MTU replacement has not converged');
-      }
-      completed.add(action.id);
-      checkpoint.completedActionIds = [...completed];
-      checkpoint.failedActionId = undefined;
-      const pendingCreate = checkpoint.pendingCreate;
-      const pendingDelete = checkpoint.pendingDelete;
-      checkpoint.pendingCreate = undefined;
-      checkpoint.pendingDelete = undefined;
-      try {
-        await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
-      } catch (error) {
-        checkpoint.pendingCreate = pendingCreate;
-        checkpoint.pendingDelete = pendingDelete;
-        completed.delete(action.id);
+        if (gateMutation) {
+          const saved = (await storage.read(`${action.id}-initial-mtu-replacement.json`)) as {
+            plan?: AwsSiteReplacementPlan;
+          };
+          const child = saved.plan;
+          const childCheckpoint = child
+            ? ((await storage.read(`${child.planId}.json`)) as { phase?: string })
+            : undefined;
+          if (childCheckpoint?.phase !== 'complete')
+            throw new Error('Automatic preboot MTU replacement has not converged');
+        }
+        completed.add(action.id);
         checkpoint.completedActionIds = [...completed];
-        throw error;
-      }
-    } catch (error) {
-      if (!gateMutation) {
-        checkpoint.observationFingerprint = previousObservationFingerprint;
-        checkpoint.ownedStateFingerprint = previousOwnedStateFingerprint;
-      }
-      if (checkpoint.pendingCreate?.actionId === action.id) {
-        for (const [placeholder, value] of previousCaptures) {
-          if (value === undefined) delete checkpoint.resolvedValues[placeholder];
-          else checkpoint.resolvedValues[placeholder] = value;
+        checkpoint.failedActionId = undefined;
+        const pendingCreate = checkpoint.pendingCreate;
+        const pendingDelete = checkpoint.pendingDelete;
+        checkpoint.pendingCreate = undefined;
+        checkpoint.pendingDelete = undefined;
+        try {
+          await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+        } catch (error) {
+          checkpoint.pendingCreate = pendingCreate;
+          checkpoint.pendingDelete = pendingDelete;
+          completed.delete(action.id);
+          checkpoint.completedActionIds = [...completed];
+          throw error;
         }
+      } catch (error) {
+        if (!gateMutation) {
+          checkpoint.observationFingerprint = previousObservationFingerprint;
+          checkpoint.ownedStateFingerprint = previousOwnedStateFingerprint;
+        }
+        if (checkpoint.pendingCreate?.actionId === action.id) {
+          for (const [placeholder, value] of previousCaptures) {
+            if (value === undefined) delete checkpoint.resolvedValues[placeholder];
+            else checkpoint.resolvedValues[placeholder] = value;
+          }
+        }
+        if (launchDirectory) await rm(launchDirectory, { recursive: true, force: true });
+        delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
+        checkpoint.state = 'partial';
+        checkpoint.failedActionId = action.id;
+        await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
+        );
       }
-      if (launchDirectory) await rm(launchDirectory, { recursive: true, force: true });
-      delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
-      checkpoint.state = 'partial';
-      checkpoint.failedActionId = action.id;
-      await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
-      throw new Error(
-        `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
-      );
     }
-  }
-  checkpoint.state = 'complete';
-  await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
-  return { plan, checkpoint };
+    checkpoint.state = 'complete';
+    await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+    return { plan, checkpoint };
+  };
+  return plan.engine === 'native'
+    ? withAwsNativeOperation(
+        storage,
+        { kind: 'apply', planSha256: plan.planSha256, operation: plan.intent.operation },
+        execute,
+      )
+    : execute();
 }

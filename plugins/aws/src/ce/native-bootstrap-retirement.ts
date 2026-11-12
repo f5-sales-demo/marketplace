@@ -18,6 +18,7 @@ type Item = {
   tokenDigest: string;
   checkout?: BootstrapCheckoutBinding;
 };
+type EmptyDirectory = { path: string; inode: number; device: number };
 const markerName = 'aws-native-bootstrap-retirement.json';
 const hash = (body: string | Uint8Array) => createHash('sha256').update(body).digest('hex');
 const object = (value: unknown): Record<string, unknown> => {
@@ -94,10 +95,18 @@ export async function retireAwsNativeBootstrapCredentials(
   if (tokens.size !== plan.retirement.reduce((count, site) => count + site.tokens.length, 0))
     throw Error('Native token retirement inventory is duplicated');
   let marker = (await optional(() => store.read(markerName))) as
-    | { schemaVersion: number; evidenceSha256: string; items: Item[]; inventorySha256: string; status: string }
+    | {
+        schemaVersion: number;
+        evidenceSha256: string;
+        items: Item[];
+        emptyDirectories: EmptyDirectory[];
+        inventorySha256: string;
+        status: string;
+      }
     | undefined;
   if (!marker) {
     const items: Item[] = [];
+    const emptyDirectories: EmptyDirectory[] = [];
     const digests = new Map<string, { node: string; digest: string }>();
     for (const [name, expected] of tokens) {
       const bytes = await optional(() => file(join(store.directory, `${name}.json`)));
@@ -162,6 +171,11 @@ export async function retireAwsNativeBootstrapCredentials(
       } else if (/^node-[A-Za-z0-9]{6}$/.test(name)) {
         const path = join(store.directory, name);
         await directory(path);
+        if ((await readdir(path)).length === 0) {
+          const info = await lstat(path);
+          emptyDirectories.push({ path: name, inode: info.ino, device: info.dev });
+          continue;
+        }
         if (JSON.stringify((await readdir(path)).sort()) !== JSON.stringify(['cloud-init.yaml']))
           throw Error('Native launch staging inventory differs');
         const bytes = await file(join(path, 'cloud-init.yaml'));
@@ -198,14 +212,22 @@ export async function retireAwsNativeBootstrapCredentials(
         });
       }
     }
-    marker = { schemaVersion: 1, evidenceSha256, items, inventorySha256: canonicalSha256(items), status: 'retiring' };
+    marker = {
+      schemaVersion: 2,
+      evidenceSha256,
+      items,
+      emptyDirectories,
+      inventorySha256: canonicalSha256({ items, emptyDirectories }),
+      status: 'retiring',
+    };
     await store.write(markerName, marker, signal);
   }
   if (
-    marker.schemaVersion !== 1 ||
+    marker.schemaVersion !== 2 ||
     marker.evidenceSha256 !== evidenceSha256 ||
     !Array.isArray(marker.items) ||
-    marker.inventorySha256 !== canonicalSha256(marker.items) ||
+    !Array.isArray(marker.emptyDirectories) ||
+    marker.inventorySha256 !== canonicalSha256({ items: marker.items, emptyDirectories: marker.emptyDirectories }) ||
     !['retiring', 'retired'].includes(marker.status)
   )
     throw Error('Native credential retirement journal differs');
@@ -237,6 +259,25 @@ export async function retireAwsNativeBootstrapCredentials(
     const bytes = await optional(() => file(join(store.directory, item.path)));
     if (bytes && hash(bytes) !== item.sha256) throw Error('Native credential staging changed after preparation');
   }
+  const emptyPaths = new Set<string>();
+  for (const item of marker.emptyDirectories) {
+    if (
+      !/^node-[A-Za-z0-9]{6}$/.test(item.path) ||
+      emptyPaths.has(item.path) ||
+      !Number.isSafeInteger(item.inode) ||
+      !Number.isSafeInteger(item.device) ||
+      marker.items.some((file) => file.path.startsWith(`${item.path}/`))
+    )
+      throw Error('Native empty launch directory journal differs');
+    emptyPaths.add(item.path);
+    const path = join(store.directory, item.path),
+      info = await optional(() => lstat(path));
+    if (info) {
+      await directory(path);
+      if (info.ino !== item.inode || info.dev !== item.device || (await readdir(path)).length)
+        throw Error('Native empty launch directory changed after preparation');
+    }
+  }
   for (const item of marker.items.filter((item) => item.kind === 'checkout')) {
     signal?.throwIfAborted();
     if (!item.checkout) throw Error('Native checkout retirement binding is missing');
@@ -257,6 +298,18 @@ export async function retireAwsNativeBootstrapCredentials(
       }
     }
   }
+  for (const item of marker.emptyDirectories) {
+    signal?.throwIfAborted();
+    await store.verify();
+    const path = join(store.directory, item.path),
+      info = await optional(() => lstat(path));
+    if (info) {
+      await directory(path);
+      if (info.ino !== item.inode || info.dev !== item.device || (await readdir(path)).length)
+        throw Error('Native empty launch directory changed before retirement');
+      await rmdir(path);
+    }
+  }
   for (const name of await readdir(store.directory)) {
     if (/^bootstrap-checkout-[a-f0-9-]{36}\.json$/.test(name) || /^node-[A-Za-z0-9]{6}$/.test(name))
       throw Error('New native credential staging blocks completion');
@@ -268,6 +321,6 @@ export async function retireAwsNativeBootstrapCredentials(
     status: 'bootstrap-credentials-retired' as const,
     evidenceSha256,
     inventorySha256: marker.inventorySha256,
-    retiredArtifacts: marker.items.length,
+    retiredArtifacts: marker.items.length + marker.emptyDirectories.length,
   };
 }

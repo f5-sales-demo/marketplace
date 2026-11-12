@@ -7,6 +7,7 @@ import { executeAwsCeApply } from '../ce/apply';
 import { type AwsCeToolContext, loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from '../ce/artifacts';
 import { safeHexEqual } from '../ce/canonical';
 import { collectAwsNativeCloudRetirement } from '../ce/delete-recovery';
+import type { AwsNativeFoundationTeardownPlan } from '../ce/native-foundation-teardown';
 import type { AwsNativeReservationTeardownPlan } from '../ce/native-reservation-teardown';
 import { type AwsNativeTeardownPlan, prepareAwsNativeTeardown, runAwsNativeTeardown } from '../ce/native-teardown';
 import { awsPlatformService } from '../ce/platform';
@@ -181,7 +182,8 @@ export function createAwsCeTeardownTool(
           | AwsFoundationTeardownPlan
           | AwsPendingTeardownPlan
           | AwsNativeTeardownPlan
-          | AwsNativeReservationTeardownPlan;
+          | AwsNativeReservationTeardownPlan
+          | AwsNativeFoundationTeardownPlan;
         if (
           teardown.planId !== params.teardownPlanId ||
           !safeHexEqual(teardown.planSha256, params.teardownPlanSha256) ||
@@ -252,7 +254,7 @@ export function createAwsCeTeardownTool(
                     (teardown as AwsNativeTeardownPlan).cloudPlanSha256,
                   )
                 ).plan,
-                teardown as AwsNativeTeardownPlan | AwsNativeReservationTeardownPlan,
+                teardown as AwsNativeTeardownPlan | AwsNativeReservationTeardownPlan | AwsNativeFoundationTeardownPlan,
                 params.teardownPlanSha256,
                 runtime,
                 contract,

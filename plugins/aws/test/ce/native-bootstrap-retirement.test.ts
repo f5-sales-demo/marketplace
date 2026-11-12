@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
@@ -224,4 +224,41 @@ test('aborted journal publication resumes without exposing or deleting changed m
   expect((await retireAwsNativeBootstrapCredentials(f.base, f.plan, f.store)).status).toBe(
     'bootstrap-credentials-retired',
   );
+});
+
+test('retires private empty launch staging and records its directory identity', async () => {
+  const f = await setup();
+  const path = join(f.store.directory, 'node-EMPTY1');
+  await mkdir(path, { mode: 0o700 });
+  const result = await retireAwsNativeBootstrapCredentials(f.base, f.plan, f.store);
+  expect(result.status).toBe('bootstrap-credentials-retired');
+  expect(existsSync(path)).toBe(false);
+  const journal = (await f.store.read('aws-native-bootstrap-retirement.json')) as {
+    schemaVersion: number;
+    emptyDirectories: Array<{ path: string; inode: number; device: number }>;
+  };
+  expect(journal.schemaVersion).toBe(2);
+  expect(journal.emptyDirectories).toHaveLength(1);
+  expect(journal.emptyDirectories[0].path).toBe('node-EMPTY1');
+});
+
+test('a replaced empty launch directory blocks credential deletion', async () => {
+  const f = await setup();
+  const path = join(f.store.directory, 'node-EMPTY1');
+  await mkdir(path, { mode: 0o700 });
+  const original = f.store.write.bind(f.store);
+  let changed = false;
+  f.store.write = async (...args) => {
+    await original(...args);
+    if (args[0] === 'aws-native-bootstrap-retirement.json' && !changed) {
+      changed = true;
+      await rename(path, join(f.store.directory, 'unrelated-empty'));
+      await mkdir(path, { mode: 0o700 });
+    }
+  };
+  await expect(retireAwsNativeBootstrapCredentials(f.base, f.plan, f.store)).rejects.toThrow(
+    'empty launch directory changed',
+  );
+  expect(existsSync(path)).toBe(true);
+  expect(existsSync(join(f.store.directory, `${f.token.name}.json`))).toBe(true);
 });

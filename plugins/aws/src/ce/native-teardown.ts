@@ -8,6 +8,12 @@ import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { retireAwsNativeBootstrapCredentials } from './native-bootstrap-retirement';
 import {
+  type AwsNativeFoundationTeardownPlan,
+  prepareAwsNativeFoundationTeardown,
+  runAwsNativeFoundationTeardown,
+} from './native-foundation-teardown';
+import { withAwsNativeOperation } from './native-operation';
+import {
   type AwsNativeReservationTeardownPlan,
   prepareAwsNativeReservationTeardown,
   runAwsNativeReservationTeardown,
@@ -46,12 +52,7 @@ const intentScope = (plan: AwsCePlan) => {
   return intent;
 };
 
-export function compileAwsNativeTeardown(
-  base: AwsCePlan,
-  cloud: AwsCePlan,
-  drain: CePlatformDrainPlan,
-  retirement: Retirement[],
-): AwsNativeTeardownPlan {
+export function validateAwsNativeCloudTeardown(base: AwsCePlan, cloud: AwsCePlan) {
   verifyAwsCePlan(base);
   verifyAwsCePlan(cloud);
   const selected = siteBindings(base);
@@ -63,11 +64,6 @@ export function compileAwsNativeTeardown(
     canonicalSha256(intentScope(base)) !== canonicalSha256(intentScope(cloud)) ||
     canonicalSha256(siteTopology(base.intent)) !== canonicalSha256(siteTopology(cloud.intent)) ||
     canonicalSha256(base.rollback.resources) !== canonicalSha256(cloud.rollback.resources) ||
-    drain.schemaVersion !== 1 ||
-    drain.sourcePlanSha256 !== base.planSha256 ||
-    canonicalSha256(drain.owner) !== canonicalSha256(selected[0].binding.owner) ||
-    drain.sites.length !== selected.length ||
-    retirement.length !== selected.length ||
     cloud.actions.some(
       (action) =>
         action.phase !== 'teardown' ||
@@ -82,6 +78,24 @@ export function compileAwsNativeTeardown(
     cloud.actions.filter((action) => action.kind === 'resource-delete').length !== cloudDeletes.length
   )
     throw new Error('Native teardown cloud deletion inventory is incomplete');
+  return selected;
+}
+
+export function compileAwsNativeTeardown(
+  base: AwsCePlan,
+  cloud: AwsCePlan,
+  drain: CePlatformDrainPlan,
+  retirement: Retirement[],
+): AwsNativeTeardownPlan {
+  const selected = validateAwsNativeCloudTeardown(base, cloud);
+  if (
+    drain.schemaVersion !== 1 ||
+    drain.sourcePlanSha256 !== base.planSha256 ||
+    canonicalSha256(drain.owner) !== canonicalSha256(selected[0].binding.owner) ||
+    drain.sites.length !== selected.length ||
+    retirement.length !== selected.length
+  )
+    throw Error('Native teardown source, cloud plan, topology, or restoration support differs');
   const peers = base.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
   const routingAbsent = drain.sites.every((row) => row.routing.length === 0);
   const exportPolicies = drain.sites.flatMap((row) => row.routing).filter((row) => row.kind === 'bgp_routing_policy');
@@ -165,6 +179,8 @@ export async function prepareAwsNativeTeardown(
 ) {
   if (base.engine !== 'native' || cloud.engine !== 'native')
     throw new Error('Native teardown preparation requires native ownership');
+  const foundation = await prepareAwsNativeFoundationTeardown(base, cloud, runtime, contract, storage, signal);
+  if (foundation) return foundation;
   const reservation = await prepareAwsNativeReservationTeardown(base, cloud, runtime, contract, storage, signal);
   if (reservation) return reservation;
   const materialName = 'aws-native-teardown-material.json';
@@ -239,115 +255,117 @@ export async function coordinateAwsNativeTeardown(
       throw new Error('Native teardown ownership, authorization, or contract differs');
   };
   await validate();
-  const release = await acquireProcessLock(join(storage.directory, '.aws-native-teardown-lock'));
-  try {
-    const retirementName = 'aws-native-lifecycle-retirement.json';
-    const retirement = {
-      schemaVersion: 1,
-      engine: 'native',
-      owner: storage.owner,
-      sourcePlanSha256: base.planSha256,
-      teardownPlanSha256: plan.planSha256,
-    };
-    const priorRetirement = await optional(storage, retirementName);
-    if (priorRetirement !== undefined && canonicalSha256(priorRetirement) !== canonicalSha256(retirement))
-      throw new Error('AWS native retirement belongs to another immutable teardown');
-    if (priorRetirement === undefined) await storage.write(retirementName, retirement, signal);
-    const sourceName = `${plan.planId}-source.json`;
-    const saved = await optional(storage, sourceName);
-    if (saved === undefined) await storage.write(sourceName, plan);
-    else if (canonicalSha256(saved) !== canonicalSha256(plan))
-      throw new Error('Persisted native teardown source differs');
-    const completed: string[] = [];
-    const checkpoint = () =>
-      storage.write(`${plan.planId}-progress.json`, {
+  return withAwsNativeOperation(storage, { kind: 'retire', cloudPlanSha256: plan.cloudPlanSha256 }, async () => {
+    const release = await acquireProcessLock(join(storage.directory, '.aws-native-teardown-lock'));
+    try {
+      const retirementName = 'aws-native-lifecycle-retirement.json';
+      const retirement = {
         schemaVersion: 1,
-        planSha256: plan.planSha256,
-        completed: [...completed],
-        observedAt: new Date().toISOString(),
-      });
-    if (cloud.actions.length === 0) {
-      const initialCloud = await driver.retireCloud(plan, signal);
-      if (
-        initialCloud.status !== 'native-cloud-retired' ||
-        initialCloud.cloudPlanId !== plan.cloudPlanId ||
-        initialCloud.cloudPlanSha256 !== plan.cloudPlanSha256 ||
-        initialCloud.absence !== 'absent'
-      )
-        throw new Error('Initial native owner inventory absence did not converge');
-      await validate();
-    }
-    const drained = await driver.drain(signal);
-    if (drained.status !== 'platform-drained')
-      return { status: 'pending-platform-drain' as const, cloudInventory: 'unknown' as const };
-    completed.push('platform-drained');
-    await checkpoint();
-    await validate();
-    const cloudReceipt = await driver.retireCloud(plan, signal);
-    if (
-      cloudReceipt.status !== 'native-cloud-retired' ||
-      cloudReceipt.cloudPlanId !== plan.cloudPlanId ||
-      cloudReceipt.cloudPlanSha256 !== plan.cloudPlanSha256 ||
-      cloudReceipt.absence !== 'absent'
-    )
-      throw new Error('Native cloud retirement did not produce exact absence evidence');
-    completed.push('native-cloud-retired');
-    await checkpoint();
-    for (const site of plan.retirement) {
-      await validate();
-      if (!['pending', 'deleted'].includes((await driver.observeSite(site, signal)).status))
-        throw new Error('Native site retirement identity evidence is unknown');
-      for (const token of site.tokens) {
+        engine: 'native',
+        owner: storage.owner,
+        sourcePlanSha256: base.planSha256,
+        teardownPlanSha256: plan.planSha256,
+      };
+      const priorRetirement = await optional(storage, retirementName);
+      if (priorRetirement !== undefined && canonicalSha256(priorRetirement) !== canonicalSha256(retirement))
+        throw new Error('AWS native retirement belongs to another immutable teardown');
+      if (priorRetirement === undefined) await storage.write(retirementName, retirement, signal);
+      const sourceName = `${plan.planId}-source.json`;
+      const saved = await optional(storage, sourceName);
+      if (saved === undefined) await storage.write(sourceName, plan);
+      else if (canonicalSha256(saved) !== canonicalSha256(plan))
+        throw new Error('Persisted native teardown source differs');
+      const completed: string[] = [];
+      const checkpoint = () =>
+        storage.write(`${plan.planId}-progress.json`, {
+          schemaVersion: 1,
+          planSha256: plan.planSha256,
+          completed: [...completed],
+          observedAt: new Date().toISOString(),
+        });
+      if (cloud.actions.length === 0) {
+        const initialCloud = await driver.retireCloud(plan, signal);
+        if (
+          initialCloud.status !== 'native-cloud-retired' ||
+          initialCloud.cloudPlanId !== plan.cloudPlanId ||
+          initialCloud.cloudPlanSha256 !== plan.cloudPlanSha256 ||
+          initialCloud.absence !== 'absent'
+        )
+          throw new Error('Initial native owner inventory absence did not converge');
         await validate();
-        await driver.revokeToken(site, token, signal);
-        completed.push(`token:${token.name}`);
+      }
+      const drained = await driver.drain(signal);
+      if (drained.status !== 'platform-drained')
+        return { status: 'pending-platform-drain' as const, cloudInventory: 'unknown' as const };
+      completed.push('platform-drained');
+      await checkpoint();
+      await validate();
+      const cloudReceipt = await driver.retireCloud(plan, signal);
+      if (
+        cloudReceipt.status !== 'native-cloud-retired' ||
+        cloudReceipt.cloudPlanId !== plan.cloudPlanId ||
+        cloudReceipt.cloudPlanSha256 !== plan.cloudPlanSha256 ||
+        cloudReceipt.absence !== 'absent'
+      )
+        throw new Error('Native cloud retirement did not produce exact absence evidence');
+      completed.push('native-cloud-retired');
+      await checkpoint();
+      for (const site of plan.retirement) {
+        await validate();
+        if (!['pending', 'deleted'].includes((await driver.observeSite(site, signal)).status))
+          throw new Error('Native site retirement identity evidence is unknown');
+        for (const token of site.tokens) {
+          await validate();
+          await driver.revokeToken(site, token, signal);
+          completed.push(`token:${token.name}`);
+          await checkpoint();
+        }
+        await validate();
+        await driver.deleteSite(site, signal);
+        if ((await driver.observeSite(site, signal)).status !== 'deleted')
+          return {
+            status: 'pending-site-retirement' as const,
+            siteName: site.siteName,
+            cloudInventory: 'absent' as const,
+          };
+        completed.push(`site:${site.siteName}`);
         await checkpoint();
       }
       await validate();
-      await driver.deleteSite(site, signal);
-      if ((await driver.observeSite(site, signal)).status !== 'deleted')
-        return {
-          status: 'pending-site-retirement' as const,
-          siteName: site.siteName,
-          cloudInventory: 'absent' as const,
-        };
-      completed.push(`site:${site.siteName}`);
-      await checkpoint();
+      const finalCloud = await driver.retireCloud(plan, signal);
+      if (
+        finalCloud.status !== 'native-cloud-retired' ||
+        finalCloud.cloudPlanId !== plan.cloudPlanId ||
+        finalCloud.cloudPlanSha256 !== plan.cloudPlanSha256 ||
+        finalCloud.absence !== 'absent'
+      )
+        throw new Error('Final native cloud absence did not converge');
+      const credentials = await retireAwsNativeBootstrapCredentials(base, plan, storage, signal);
+      const receipt = {
+        status: 'ce-retired-supporting-infrastructure-unverified' as const,
+        owner: storage.owner,
+        planSha256: plan.planSha256,
+        sourcePlanSha256: base.planSha256,
+        cloudPlanSha256: plan.cloudPlanSha256,
+        completed,
+        credentialStaging: credentials.status,
+        credentialRetirementEvidenceSha256: credentials.evidenceSha256,
+        cloudInventory: 'absent' as const,
+        observedAt: new Date().toISOString(),
+      };
+      await storage.write(`${plan.planId}-receipt.json`, receipt);
+      await storage.write('aws-native-teardown-receipt.json', receipt);
+      return receipt;
+    } finally {
+      await release();
     }
-    await validate();
-    const finalCloud = await driver.retireCloud(plan, signal);
-    if (
-      finalCloud.status !== 'native-cloud-retired' ||
-      finalCloud.cloudPlanId !== plan.cloudPlanId ||
-      finalCloud.cloudPlanSha256 !== plan.cloudPlanSha256 ||
-      finalCloud.absence !== 'absent'
-    )
-      throw new Error('Final native cloud absence did not converge');
-    const credentials = await retireAwsNativeBootstrapCredentials(base, plan, storage, signal);
-    const receipt = {
-      status: 'ce-retired-supporting-infrastructure-unverified' as const,
-      owner: storage.owner,
-      planSha256: plan.planSha256,
-      sourcePlanSha256: base.planSha256,
-      cloudPlanSha256: plan.cloudPlanSha256,
-      completed,
-      credentialStaging: credentials.status,
-      credentialRetirementEvidenceSha256: credentials.evidenceSha256,
-      cloudInventory: 'absent' as const,
-      observedAt: new Date().toISOString(),
-    };
-    await storage.write(`${plan.planId}-receipt.json`, receipt);
-    await storage.write('aws-native-teardown-receipt.json', receipt);
-    return receipt;
-  } finally {
-    await release();
-  }
+  });
 }
 
 export async function runAwsNativeTeardown(
   base: AwsCePlan,
   cloud: AwsCePlan,
-  plan: AwsNativeTeardownPlan | AwsNativeReservationTeardownPlan,
+  plan: AwsNativeTeardownPlan | AwsNativeReservationTeardownPlan | AwsNativeFoundationTeardownPlan,
   authorizedPlanSha256: string,
   runtime: CeRuntime,
   contract: VerifiedIngressContract,
@@ -355,6 +373,18 @@ export async function runAwsNativeTeardown(
   retireCloud: NativeTeardownDriver['retireCloud'],
   signal?: AbortSignal,
 ) {
+  if (plan.kind === 'aws-ce-native-foundation-teardown')
+    return runAwsNativeFoundationTeardown(
+      base,
+      cloud,
+      plan,
+      authorizedPlanSha256,
+      runtime,
+      contract,
+      storage,
+      retireCloud,
+      signal,
+    );
   if (plan.kind === 'aws-ce-native-reservation-teardown')
     return runAwsNativeReservationTeardown(
       base,

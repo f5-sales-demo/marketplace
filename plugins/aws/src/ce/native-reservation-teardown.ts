@@ -8,11 +8,13 @@ import type { CeTeardownResource } from '../../../platform/src/ce/teardown-inven
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { retireAwsNativeBootstrapCredentials } from './native-bootstrap-retirement';
+import { withAwsNativeOperation } from './native-operation';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
 type Inventory = Awaited<ReturnType<CeRuntime['preRegistrationInventory']>>;
-type ObservedInventory = Extract<Inventory, { status: 'observed' }>;
+export type AwsNativeObservedInventory = Extract<Inventory, { status: 'observed' }>;
+type ObservedInventory = AwsNativeObservedInventory;
 export interface AwsNativeReservationTeardownPlan {
   schemaVersion: 1;
   kind: 'aws-ce-native-reservation-teardown';
@@ -63,7 +65,7 @@ function scope(base: AwsCePlan, cloud: AwsCePlan) {
     throw Error('Native reservation requires exact single-node source and empty cloud teardown plans');
   return sites[0].binding;
 }
-function inventoryShape(
+export function assertAwsNativePreRegistrationInventory(
   value: Inventory,
   binding: SiteBinding,
   fingerprints: { site: string; ingress: string },
@@ -110,7 +112,7 @@ function inventoryShape(
     uids.add(resource.uid);
   }
 }
-function fresh(value: Inventory) {
+export function assertAwsNativeInventoryFresh(value: Inventory) {
   const observed = Date.parse(value.observedAt),
     started = Date.parse(value.startedAt);
   if (
@@ -128,7 +130,7 @@ export function compileAwsNativeReservationTeardown(
   inventory: ObservedInventory,
 ): AwsNativeReservationTeardownPlan {
   const binding = scope(base, cloud);
-  inventoryShape(inventory, binding, {
+  assertAwsNativePreRegistrationInventory(inventory, binding, {
     site: inventory.siteContractFingerprint,
     ingress: inventory.ingressContractFingerprint,
   });
@@ -204,8 +206,11 @@ export async function prepareAwsNativeReservationTeardown(
     throw Error('Native reservation deployment owner differs');
   const inventory = await runtime.preRegistrationInventory([binding], ['default'], contract, signal);
   if (inventory.status !== 'observed') return undefined;
-  inventoryShape(inventory, binding, { site: runtime.contract.fingerprint, ingress: contract.fingerprint });
-  fresh(inventory);
+  assertAwsNativePreRegistrationInventory(inventory, binding, {
+    site: runtime.contract.fingerprint,
+    ingress: contract.fingerprint,
+  });
+  assertAwsNativeInventoryFresh(inventory);
   if (!text(inventory.sites[0].siteUid)) return undefined;
   // Complete registered-compatible material keeps its existing compiler and lifecycle contract.
   if (
@@ -214,8 +219,11 @@ export async function prepareAwsNativeReservationTeardown(
   )
     return undefined;
   const second = await runtime.preRegistrationInventory([binding], ['default'], contract, signal);
-  inventoryShape(second, binding, { site: runtime.contract.fingerprint, ingress: contract.fingerprint });
-  fresh(second);
+  assertAwsNativePreRegistrationInventory(second, binding, {
+    site: runtime.contract.fingerprint,
+    ingress: contract.fingerprint,
+  });
+  assertAwsNativeInventoryFresh(second);
   if (
     canonicalSha256({ sites: inventory.sites, resources: inventory.resources }) !==
     canonicalSha256({ sites: second.sites, resources: second.resources })
@@ -259,8 +267,11 @@ export async function runAwsNativeReservationTeardown(
   const observe = async () => {
     await validate();
     const current = await runtime.preRegistrationInventory([binding], ['default'], contract, signal);
-    inventoryShape(current, binding, { site: runtime.contract.fingerprint, ingress: contract.fingerprint });
-    fresh(current);
+    assertAwsNativePreRegistrationInventory(current, binding, {
+      site: runtime.contract.fingerprint,
+      ingress: contract.fingerprint,
+    });
+    assertAwsNativeInventoryFresh(current);
     const original = plan.reservationInventory.sites[0],
       site = current.sites[0];
     if (
@@ -285,63 +296,65 @@ export async function runAwsNativeReservationTeardown(
       throw Error('Native reservation owner cloud absence is unverified');
   };
   await validate();
-  const release = await acquireProcessLock(join(storage.directory, '.aws-native-teardown-lock'));
-  try {
-    await observe();
-    await cloudAbsent();
-    await observe();
-    const marker = {
-      schemaVersion: 1,
-      engine: 'native',
-      owner: binding.owner,
-      sourcePlanSha256: base.planSha256,
-      teardownPlanSha256: plan.planSha256,
-    };
-    const prior = await optional(storage, 'aws-native-lifecycle-retirement.json');
-    if (prior !== undefined && canonicalSha256(prior) !== canonicalSha256(marker))
-      throw Error('Native reservation retirement belongs to another immutable teardown');
-    if (prior === undefined) await storage.write('aws-native-lifecycle-retirement.json', marker, signal);
-    const completed = ['platform-drained', 'native-cloud-retired'];
-    for (const token of plan.retirement[0].tokens) {
-      const current = await observe();
-      const expectedToken = plan.reservationInventory.resources.find((r) => r.name === token.name);
-      if (!expectedToken) throw Error('Native reservation token UID is missing');
-      if (current.resources.some((r) => r.name === token.name))
-        await runtime.deleteBootstrapTokenExact(binding, token.node, token.name, expectedToken.uid, signal);
-      if ((await observe()).resources.some((r) => r.name === token.name))
-        throw Error('Native reservation token deletion is pending');
-      completed.push(`token:${token.name}`);
-    }
-    await observe();
-    await runtime.deleteSiteExact(binding, plan.retirement[0].siteUid, signal);
-    const after = await observe();
-    if (after.sites[0].siteUid !== null || after.sites[0].physicalSiteUid !== null || after.resources.length)
-      return {
-        status: 'pending-site-retirement' as const,
-        siteName: binding.siteName,
-        cloudInventory: 'absent' as const,
+  return withAwsNativeOperation(storage, { kind: 'retire', cloudPlanSha256: plan.cloudPlanSha256 }, async () => {
+    const release = await acquireProcessLock(join(storage.directory, '.aws-native-teardown-lock'));
+    try {
+      await observe();
+      await cloudAbsent();
+      await observe();
+      const marker = {
+        schemaVersion: 1,
+        engine: 'native',
+        owner: binding.owner,
+        sourcePlanSha256: base.planSha256,
+        teardownPlanSha256: plan.planSha256,
       };
-    completed.push(`site:${binding.siteName}`);
-    await cloudAbsent();
-    await observe();
-    const credentials = await retireAwsNativeBootstrapCredentials(base, plan, storage, signal);
-    const receipt = {
-      status: 'ce-retired-supporting-infrastructure-unverified' as const,
-      owner: binding.owner,
-      planSha256: plan.planSha256,
-      sourcePlanSha256: base.planSha256,
-      cloudPlanSha256: plan.cloudPlanSha256,
-      completed,
-      platformDrainEvidence: 'verified-empty-native-reservation' as const,
-      credentialStaging: credentials.status,
-      credentialRetirementEvidenceSha256: credentials.evidenceSha256,
-      cloudInventory: 'absent' as const,
-      observedAt: new Date().toISOString(),
-    };
-    await storage.write(`${plan.planId}-receipt.json`, receipt, signal);
-    await storage.write('aws-native-teardown-receipt.json', receipt, signal);
-    return receipt;
-  } finally {
-    await release();
-  }
+      const prior = await optional(storage, 'aws-native-lifecycle-retirement.json');
+      if (prior !== undefined && canonicalSha256(prior) !== canonicalSha256(marker))
+        throw Error('Native reservation retirement belongs to another immutable teardown');
+      if (prior === undefined) await storage.write('aws-native-lifecycle-retirement.json', marker, signal);
+      const completed = ['platform-drained', 'native-cloud-retired'];
+      for (const token of plan.retirement[0].tokens) {
+        const current = await observe();
+        const expectedToken = plan.reservationInventory.resources.find((r) => r.name === token.name);
+        if (!expectedToken) throw Error('Native reservation token UID is missing');
+        if (current.resources.some((r) => r.name === token.name))
+          await runtime.deleteBootstrapTokenExact(binding, token.node, token.name, expectedToken.uid, signal);
+        if ((await observe()).resources.some((r) => r.name === token.name))
+          throw Error('Native reservation token deletion is pending');
+        completed.push(`token:${token.name}`);
+      }
+      await observe();
+      await runtime.deleteSiteExact(binding, plan.retirement[0].siteUid, signal);
+      const after = await observe();
+      if (after.sites[0].siteUid !== null || after.sites[0].physicalSiteUid !== null || after.resources.length)
+        return {
+          status: 'pending-site-retirement' as const,
+          siteName: binding.siteName,
+          cloudInventory: 'absent' as const,
+        };
+      completed.push(`site:${binding.siteName}`);
+      await cloudAbsent();
+      await observe();
+      const credentials = await retireAwsNativeBootstrapCredentials(base, plan, storage, signal);
+      const receipt = {
+        status: 'ce-retired-supporting-infrastructure-unverified' as const,
+        owner: binding.owner,
+        planSha256: plan.planSha256,
+        sourcePlanSha256: base.planSha256,
+        cloudPlanSha256: plan.cloudPlanSha256,
+        completed,
+        platformDrainEvidence: 'verified-empty-native-reservation' as const,
+        credentialStaging: credentials.status,
+        credentialRetirementEvidenceSha256: credentials.evidenceSha256,
+        cloudInventory: 'absent' as const,
+        observedAt: new Date().toISOString(),
+      };
+      await storage.write(`${plan.planId}-receipt.json`, receipt, signal);
+      await storage.write('aws-native-teardown-receipt.json', receipt, signal);
+      return receipt;
+    } finally {
+      await release();
+    }
+  });
 }

@@ -152,3 +152,26 @@ collections, or incomplete/unauthorized/unavailable evidence block further mutat
 The collection timestamps bound API query age; they are not original CE heartbeat
 timestamps. Supporting infrastructure and full live interruption remain separately
 qualified. This contract does not replace the registered or Terraform lifecycle.
+
+### Native foundation retirement before site reservation
+
+The native workflow creates network foundations before reserving its logical site.
+`aws_ce_teardown` uses a separate foundation plan when two complete stable current
+reads prove that the expected logical/physical sites, registrations, bootstrap
+tokens, routing and ingress are absent from current inventory. It binds the
+original native source and exact reviewed cloud teardown plans, their ownership
+inventory and rollback-backed restoration. It records absence without inventing a
+site or token UID. An owned instance requires the separately qualified node/site
+lifecycle contract; foundation retirement does not authorize that transition.
+
+Native application and retirement share a process-bound operation lock. Only the
+coordinator's exact approved cloud teardown may execute inside its active lock;
+competing operations reject, and a released lock cannot be reused by a deferred
+operation. The existing bootstrap exclusion remains. Application cannot resume a
+retiring or retired deployment. Cloud deletion/recovery uses the existing ownership
+and single-non-HA guards; current platform absence is rechecked before and after
+cloud retirement. Missing, stale, unauthorized or newly published evidence remains
+unqualified. Private credential retirement now records a version2 journal and
+verifies empty launch-directory identity before removing interrupted empty staging.
+This unreleased project does not migrate older private journals. Source and
+controlled installed receipts still do not establish full live UAT acceptance.
