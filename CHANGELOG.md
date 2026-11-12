@@ -25,7 +25,7 @@ and this project adheres to
   installed callers retain Linux monotonic time, fixed budgets and original authority.
   Short-uptime fixtures exercise expiry without negative operation start times.
 
-- **`gcloud`** v1.7.46 and **`platform`** v6.3.21 package the current Site SSH
+- **`gcloud`** v1.7.48 and **`platform`** v6.3.21 package the current Site SSH
   mapping with corrected historical changelog attribution. Live acceptance remains incomplete.
 
 - **`terraform`** v2.4.80 and **`platform`** v6.3.20 bundle the current-provider

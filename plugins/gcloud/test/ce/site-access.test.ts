@@ -224,3 +224,9 @@ it('preserves legacy access fingerprints and binds an explicit current provider 
   for (const version of ['15.15.6', '15.15.8', 'latest', '15.15.7\n'])
     expect(() => gcpSiteAccessFingerprint(i, version)).toThrow('Site SSH');
 });
+
+it('rejects line terminators after a Site SSH key instead of accepting a prefix', () => {
+  for (const suffix of ['\n', '\r', '\r\n']) {
+    expect(() => validateIntent(fixture(publicKey() + suffix))).toThrow();
+  }
+});
