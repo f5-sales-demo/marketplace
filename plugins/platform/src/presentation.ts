@@ -38,15 +38,15 @@ function validConfig(value: unknown) {
 /** Domain data only. These HTTP tools have no executable CLI equivalent. */
 export function presentTool<T extends { name: string; label?: string }>(tool: T, p: PresentationAPI) {
   const scope = (input: unknown): Section[] => {
-    const labels: Record<string, string> = {
-      action: 'Operation',
-      namespace: 'Namespace',
-      siteName: 'Site',
-      nodeName: 'Node',
-      expiresInSeconds: 'Requested lifetime (seconds)',
-      expectedEtag: 'Expected ETag',
-      planSha256: 'Approved plan SHA-256',
-    };
+    const labels: Record<string, string> = Object.fromEntries([
+      ['action', 'Operation'],
+      ['namespace', 'Namespace'],
+      ['siteName', 'Site'],
+      ['nodeName', 'Node'],
+      ['expiresInSeconds', 'Requested lifetime (seconds)'],
+      ['expectedEtag', 'Expected ETag'],
+      ['planSha256', 'Approved plan SHA-256'],
+    ]);
     const values = Object.fromEntries(
       Object.entries(record(input))
         .filter(([k]) => k in labels)

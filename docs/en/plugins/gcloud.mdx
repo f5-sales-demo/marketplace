@@ -40,6 +40,19 @@ Use `gcloud_config_list` to confirm the active account, configuration, and proje
 
 If credentials expire, repeat human setup and reconfirm the active project before continuing.
 
+## Optional command groups
+
+For commands or help paths beginning with `alpha` or `beta`, the plugin checks
+the installed SDK components and automatically installs the missing group with
+noninteractive arguments. It coordinates installation across callers and verifies
+the group before executing the requested command. Child CLI prompts are disabled.
+Existing cloud write and credential guards still apply.
+
+If the component manager is disabled by the SDK's package installation, or the
+group cannot be verified after installation, the tool returns recovery guidance
+for that installation's supported package manager. It does not launch the cloud
+command after a failed preparation.
+
 ## Customer Edge readiness
 
 Use the `gcp-ce` skill for GCP Customer Edge planning and inspection.
@@ -48,12 +61,155 @@ observes F5 image/license identities and cloud prerequisites, and `gcp_ce_plan`
 validates topology and sizing with a hashed readiness plan. Native is the default;
 an explicit Terraform choice must match the intent.
 
-The plan contains no executable actions. Immutable API v12.0.10 has no GCP
-provider mapping, and shared GCP Platform/Terraform execution remains unavailable.
-Apply, upgrade, failover and teardown tools report these gaps before mutation.
+Readiness without an explicit operation contains no executable actions. Immutable API v12.1.3 includes GCP
+schema and observational mappings with both-engine single-node boot evidence.
+Explicit `operation=deploy` provides a native single-node BYOL implementation candidate;
+fresh isolated installed public review/apply, healthy status and typed teardown passed
+on the narrow disposable profile. Public Terraform deployment has a saved-plan
+candidate with the published XC v15.13.0 provider and verified provider lock.
+Fresh installed public Terraform deployment, interrupted recovery and partial disk
+cleanup passed on the narrow disposable profile. The source and bundle bindings
+are recorded in the [acceptance receipt](https://github.com/f5-sales-demo/marketplace/blob/feature/1559-gcp-ce-integration/docs/receipts/gcp-public-terraform-deployment-20261019.md).
+The parser preserves exact 64-bit subnet identities for recovery without replay. Upgrade and
+failover report unavailable before mutation.
+Public HA deployment and cleanup remain unavailable. Private three-node
+[interrupted recovery](../../receipts/gcp-ha-interrupted-recovery-20261019.md) and
+[partial cleanup](../../receipts/gcp-ha-partial-cleanup-20261019.md) campaigns passed
+without replay and independently verified all eighteen expected objects absent.
+A fresh [health qualification campaign](../../receipts/gcp-ha-health-qualification-gap-20261019.md)
+reached three ONLINE nodes and both NIC joins, but exact inventory duplicates and
+missing service coverage retained unknown HA health after thirty minutes.
+The [scoped observation preparation](../../receipts/gcp-ha-scoped-observations-20261019.md)
+adds a versioned HA result to status and diagnostics with per-node health,
+coverage counts, fixed reason codes, observation times and sanitized receipt hashes.
+The scoped collector checks original site and VM identities before and after reads;
+failed reads remain unknown. The unmatched services were `vector-agent`, `voucher`,
+`kube-proxy` and `coredns`; `voucher` appeared twice per node. No service is excluded
+without qualified owning evidence.
+Exhaustive HA health, owning immutable API qualification and fresh public
+installed acceptance remain required before enabling that profile.
 Inventory, status and diagnostics observe cloud provisioning; registration,
 physical interface identity, platform health, routing and application traffic
 remain separate unknown gates. Deployment labels alone cannot authorize deletion.
+
+For the qualified single-node `n2-standard-8` profile with SLO and SLI interfaces,
+readiness plans collect live IAM, quota, effective policy, zone and image/license
+checks. They retain sanitized source hashes and reject stale evidence or a changed
+intent. Capacity reservation and verified Marketplace acceptance remain explicit;
+passing cloud prerequisites alone does not enable deployment.
+
+For the native candidate, complete the BYOL review and request `gcp_ce_plan` with
+`operation=deploy` and the exact intent. The saved overall plan binds the immutable
+API, current policy, exact image/license and translation, server-collected preflight,
+corporate funding and original BYOL authorization. Review that plan, then call
+`gcp_ce_apply` with the same intent, operation and its `approvedPlanHash`. Reuse the
+hash when asynchronous creation remains pending. Resume rechecks current image,
+APIs, permissions, policy, zone, funding and documents, while allowing quota used by
+the deployment itself. Cloud creation remains separate from registration, NIC
+identity, platform health and traffic. The candidate supports one node, two NICs,
+external-IP egress, no ingress and no destination routes.
+See [the public native acceptance receipt](../../receipts/gcp-public-native-deployment-20261019.md).
+Immutable marketplace publication and fresh published installation remain pending.
+
+`gcp_marketplace_agreement` reviews the pinned image's product terms. For the
+qualified BYOL image, supply the versioned intent, review the exact Google
+Marketplace and F5 Platform documents, then use the saved `approvedPlanHash` to
+record authorization for access or use. The receipt binds document hashes, image,
+license, F5 context, engine and corporate funding. Changed documents or identities
+require a new review. Authorization does not acquire a software license, grant
+remote procurement consent, place an order or create cloud resources.
+
+Products with qualified procurement agreement references use server validation
+and independent active-consent checks. This path is not a universal BYOL
+prerequisite. Optional `enableMarketplaceApi=true` requests scoped API enablement;
+unsupported methods remain explicit. Required `alpha` and `beta` CLI command
+groups install automatically without prompts and are verified before execution.
+
+### Corporate funding
+
+Before billable execution, install an owner-only `0600` policy at
+`~/.config/xcsh/gcp-ce-funding.json`, or set `XCSH_GCP_FUNDING_POLICY_FILE` to an
+owner-only file. Use this schema with your explicitly confirmed corporate values:
+
+```json
+{
+  "schemaVersion": 1,
+  "project": "demo-project",
+  "expectedOrganizationDomain": "example.com",
+  "expectedAccountDomain": "example.com",
+  "expectedBillingAccountName": "billingAccounts/000000-000000-000000",
+  "fundingAuthority": "explicit-user-confirmation-in-current-session",
+  "billingChangesAuthorized": false,
+  "personalPaymentAuthorized": false
+}
+```
+
+The plugin checks the active corporate account, project organization and exact
+existing billing association through scoped reads. The user's confirmation
+establishes who funds that account; cloud visibility alone does not prove the
+payer. Native and Terraform execution bind this evidence to the reviewed plan
+and recheck it before creating or updating GCP resources. A changed association
+fails before execution. The plugin does not switch billing, create payment
+methods or buy licenses. Owned cleanup can proceed if funding visibility is lost.
+
+### Google Cloud terms prerequisite
+
+Google may require acceptance of its prerequisite Cloud terms before enabling
+the Consumer Procurement API. The tool reports `cloud_terms_not_accepted`, the
+provider code `UREQ_TOS_NOT_ACCEPTED`, an acceptance link and recovery steps.
+
+1. Open [Google Cloud terms](https://console.developers.google.com/terms/cloud).
+2. Sign in with the same Google account used by `gcloud`.
+3. Review and accept the terms shown, selecting the intended project if prompted.
+4. Retry scoped API enablement and agreement qualification to verify recovery.
+
+No supported API for this prerequisite acceptance has been qualified. These
+terms are separate from the product agreement; verify the qualified BYOL
+authorization or procurement consent afterward. Live procurement grant remains
+unqualified.
+
+For an existing disposable native single-node deployment, `gcp_ce_teardown`
+prepares an exact saved review from its persisted intent and ownership ledger.
+Supply the explicit project, region, deployment name and F5 context. After review,
+use `gcp_ce_apply` with `operation=teardown` and that plan's `approvedPlanHash`.
+The profile requires two interfaces, external IP egress, no ingress and no
+destination routes. It rechecks all six cloud identities and the owned XC
+site/token binding before deleting, preserves authorization across interruption,
+and verifies fresh absence. Fresh installed native qualification passed on a
+live disposable single-node GCP deployment: corporate funding/BYOL checks, two healthy samples with ONLINE
+registration and both physical NIC identities, exact reviewed typed teardown,
+and independent absence of six cloud and two XC objects. This qualifies only
+that narrow native teardown profile.
+
+An explicit Terraform engine uses the candidate owning-engine teardown path.
+It requires stored session inputs and original Platform identities recorded after
+the exact creation plan completed. The destroy review projects named nonsensitive
+state fields and rechecks live cloud, site and token identity. Disk/NIC projection
+selects exact identities, counts and order without exporting provider encryption
+key fields. It applies only
+the reviewed saved binary, preserves authorization across interruption and
+requires an empty current destroy plan plus independent absence. A partial lost
+apply remains pending until its outcome is independently reconciled.
+
+Installed Terraform qualification first verified Platform identity capture and
+owned XC cleanup. A later cloud campaign exposed sensitive boot-disk projection;
+the repaired adapter passed preserved-plan replay and a fresh installed live
+campaign. Two consecutive healthy samples, exact typed teardown without fallback,
+a final empty destroy plan and eight independent absence checks passed. This
+qualifies the same narrow disposable single-node Terraform teardown profile.
+See [the acceptance receipt](../../receipts/gcp-single-node-teardown-20261018.md).
+Older deployments without the required original ledgers cannot be silently adopted.
+
+For an existing ledger-owned deployment, status and diagnostics with explicit
+region and its persisted `platformContext` use shared Platform observations.
+They correlate registration and physical interfaces against exact VM identities
+and report matching-node global health. HA health, routing, application traffic
+and independent absence remain unqualified.
+
+Disposable native and shared Terraform runner qualification also observed matching
+node global health after initial software and OS convergence, followed by owned
+cleanup and independent absence checks. These campaign results do not establish
+HA, routing, application traffic, explicit upgrades or 120-second recovery.
 
 ## Check the result
 
