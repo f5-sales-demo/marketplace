@@ -6,7 +6,7 @@ import pytest
 
 from plugins.terraform.scripts import guest_pty, xcsh_creation_reader as reader
 
-pytest_plugins = ["tests.test_xcsh_creation_observer"]
+pytest_plugins = ["tests.xcsh_creation_fixtures"]
 
 
 def close_original(original):

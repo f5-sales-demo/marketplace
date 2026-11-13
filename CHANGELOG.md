@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.88 preserves original capture admission through a grouped
+  scope binding and shares cooperative Python fixtures independently of test collection.
+  CI validation and full live acceptance remain pending.
+
 - **`gcloud`** v1.7.51 prepares original campaign-only public SSH access before
   observer planning and routes version3 full or partial cleanup through the public
   dispatcher. Private keys stay in bound storage; managed live qualification is pending.

@@ -13,8 +13,9 @@ import re
 import stat
 import time
 from dataclasses import dataclass
+from operator import is_
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn, NotRequired, TypedDict, Unpack
 from uuid import uuid4
 
 from .gcp_provider_process import (
@@ -66,6 +67,11 @@ SCOPE_KEYS = {
 def reject(message: str = "Original xcsh creation evidence differs") -> NoReturn:
     """Refuse without including private receipt or process values."""
     raise ValueError(message)
+
+
+def exact_native_type(value: object, expected: type) -> bool:
+    """Match the actual JSON scalar type; bool and subclasses do not match int."""
+    return is_(type(value), expected)
 
 
 def digest(raw: bytes) -> str:
@@ -135,6 +141,22 @@ class ObservedClaim:
     data: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class PreparedXcshScope:
+    """Keep the admitted scope and its exact file/directory bindings together."""
+
+    file: Path
+    raw: bytes
+    file_identity: dict[str, str]
+    parent_identity: tuple[int, int, int, int]
+    sha256: str
+    plan_sha256: str
+    data: dict[str, Any]
+    targets: dict[str, dict[str, str]]
+    directory: Path
+    directory_identity: tuple[int, int, int, int]
+
+
 class OriginalXcshArtifactUnavailableError(ValueError):
     """Preserve the OS failure category while refusing incomplete capture."""
 
@@ -145,6 +167,21 @@ class OriginalXcshArtifactUnavailableError(ValueError):
         self.cause_type = type(error).__name__
 
 
+class CreationObserverSettings(TypedDict):
+    """Retain named caller bindings while keeping the admission interface together."""
+
+    terraform: PinnedExecutable
+    xcsh: PinnedExecutable
+    scope_file: Path
+    scope_file_sha256: str
+    plan_sha256: str
+    targets: Sequence[dict[str, str]]
+    assert_inputs: Callable[[], None]
+    original_deadline_ms: int
+    clock: NotRequired[Callable[[], int]]
+    bootstrap: NotRequired[PinnedExecutable | None]
+
+
 class OriginalXcshCreationObserver:
     """Bind the distinct xcsh family to an original executor and prepared scope."""
 
@@ -152,70 +189,139 @@ class OriginalXcshCreationObserver:
         self,
         root: Path,
         parent: ActorIdentity,
-        *,
-        terraform: PinnedExecutable,
-        xcsh: PinnedExecutable,
-        scope_file: Path,
-        scope_file_sha256: str,
-        plan_sha256: str,
-        targets: Sequence[dict[str, str]],
-        assert_inputs: Callable[[], None],
-        original_deadline_ms: int,
-        clock: Callable[[], int] = lambda: time.monotonic_ns() // 1000000,
-        bootstrap: PinnedExecutable | None = None,
+        **settings: Unpack[CreationObserverSettings],
     ) -> None:
         """Admit source-owned bindings; JSON alone cannot supply process evidence."""
+        required = {
+            "terraform",
+            "xcsh",
+            "scope_file",
+            "scope_file_sha256",
+            "plan_sha256",
+            "targets",
+            "assert_inputs",
+            "original_deadline_ms",
+        }
+        if not required <= settings.keys() or settings.keys() - required - {
+            "clock",
+            "bootstrap",
+        }:
+            message = "Original xcsh observer requires its complete named bindings"
+            raise TypeError(message)
         root.mkdir(mode=0o700)
         self.root = root
-        self.assert_inputs = assert_inputs
-        self.clock = clock
-        self.deadline = original_deadline_ms
+        self.assert_inputs = settings["assert_inputs"]
+        self.clock = settings.get("clock", lambda: time.monotonic_ns() // 1000000)
+        self.deadline = settings["original_deadline_ms"]
         self.retired = False
         self.witnesses: dict[
             int, tuple[OriginalXcshCreationWitness, tuple[ObservedClaim, ...]]
         ] = {}
         self.actors: dict[int, dict[str, Any]] = {}
         self.artifacts: dict[Path, tuple[dict[str, str], bytes]] = {}
-        self.scope_file = canonical(str(scope_file))
-        self.scope_raw = self.read_file(self.scope_file)
-        self.scope_identity = identity(self.scope_file.lstat())
-        self.scope_parent = OriginalProviderCandidates.directory_identity(
-            self.scope_file.parent
+        admitted_file = canonical(str(settings["scope_file"]))
+        scope_raw = self.read_file(admitted_file)
+        scope_identity = identity(admitted_file.lstat())
+        scope_parent = OriginalProviderCandidates.directory_identity(
+            admitted_file.parent
         )
-        self.scope_sha256 = scope_file_sha256
-        self.plan_sha256 = plan_sha256
         if (
-            digest(self.scope_raw) != scope_file_sha256
-            or re.fullmatch(r"[a-f0-9]{64}", plan_sha256) is None
+            digest(scope_raw) != settings["scope_file_sha256"]
+            or re.fullmatch(r"[a-f0-9]{64}", settings["plan_sha256"]) is None
         ):
             reject()
-        self.scope = strict_json(self.scope_raw)
-        expected = {target_key(target): dict(target) for target in targets}
-        if not 0 < len(expected) <= MAX_TARGETS or len(expected) != len(targets):
-            reject()
-        self.targets = expected
-        if (
-            set(self.scope) != SCOPE_KEYS
-            or type(self.scope["schema_version"]) is not int
-            or self.scope["schema_version"] != 1
-            or self.scope["scope_sha256"] != plan_sha256
-            or self.scope["provider_executable_sha256"] != xcsh.sha256
-            or not isinstance(self.scope["resources"], list)
-            or len(self.scope["resources"]) != len(expected)
-            or {target_key(t): t for t in self.scope["resources"]} != expected
+        scope_data = strict_json(scope_raw)
+        expected = {target_key(target): dict(target) for target in settings["targets"]}
+        if not 0 < len(expected) <= MAX_TARGETS or len(expected) != len(
+            settings["targets"]
         ):
             reject()
-        self.directory = canonical(self.scope["directory"])
-        self.directory_identity = OriginalProviderCandidates.directory_identity(
-            self.directory
+        if (
+            set(scope_data) != SCOPE_KEYS
+            or not exact_native_type(scope_data["schema_version"], int)
+            or scope_data["schema_version"] != 1
+            or scope_data["scope_sha256"] != settings["plan_sha256"]
+        ):
+            reject()
+        if (
+            scope_data["provider_executable_sha256"] != settings["xcsh"].sha256
+            or not isinstance(scope_data["resources"], list)
+            or len(scope_data["resources"]) != len(expected)
+            or {target_key(t): t for t in scope_data["resources"]} != expected
+        ):
+            reject()
+        directory = canonical(scope_data["directory"])
+        self.prepared_scope = PreparedXcshScope(
+            file=admitted_file,
+            raw=scope_raw,
+            file_identity=scope_identity,
+            parent_identity=scope_parent,
+            sha256=settings["scope_file_sha256"],
+            plan_sha256=settings["plan_sha256"],
+            data=scope_data,
+            targets=expected,
+            directory=directory,
+            directory_identity=OriginalProviderCandidates.directory_identity(directory),
         )
         self.monitor = OriginalProviderCandidates(
             root / "xcsh-processes",
             parent,
-            executables=ProviderExecutables(terraform, xcsh, bootstrap),
-            assert_inputs=assert_inputs,
+            executables=ProviderExecutables(
+                settings["terraform"], settings["xcsh"], settings.get("bootstrap")
+            ),
+            assert_inputs=settings["assert_inputs"],
         )
         self.check_inputs()
+
+    @property
+    def scope_file(self) -> Path:
+        """Expose the original admitted scope file binding."""
+        return self.prepared_scope.file
+
+    @property
+    def scope_raw(self) -> bytes:
+        """Expose the original admitted scope raw binding."""
+        return self.prepared_scope.raw
+
+    @property
+    def scope_identity(self) -> dict[str, str]:
+        """Expose the original admitted scope identity binding."""
+        return self.prepared_scope.file_identity
+
+    @property
+    def scope_parent(self) -> tuple[int, int, int, int]:
+        """Expose the original admitted scope parent binding."""
+        return self.prepared_scope.parent_identity
+
+    @property
+    def scope_sha256(self) -> str:
+        """Expose the original admitted scope sha256 binding."""
+        return self.prepared_scope.sha256
+
+    @property
+    def plan_sha256(self) -> str:
+        """Expose the original admitted plan sha256 binding."""
+        return self.prepared_scope.plan_sha256
+
+    @property
+    def scope(self) -> dict[str, Any]:
+        """Expose the original admitted scope binding."""
+        return self.prepared_scope.data
+
+    @property
+    def targets(self) -> dict[str, dict[str, str]]:
+        """Expose the original admitted targets binding."""
+        return self.prepared_scope.targets
+
+    @property
+    def directory(self) -> Path:
+        """Expose the original admitted directory binding."""
+        return self.prepared_scope.directory
+
+    @property
+    def directory_identity(self) -> tuple[int, int, int, int]:
+        """Expose the original admitted directory identity binding."""
+        return self.prepared_scope.directory_identity
 
     @staticmethod
     def read_file(path: Path) -> bytes:
@@ -266,7 +372,7 @@ class OriginalXcshCreationObserver:
         self.assert_inputs()
         self.check_artifacts()
 
-    def fail(self, error: Exception) -> NoReturn:
+    def _retain_failure(self, error: Exception) -> None:
         """Retain failures and refuse future observation from this lifetime."""
         self.retired = True
         record(
@@ -289,6 +395,10 @@ class OriginalXcshCreationObserver:
                 ),
             },
         )
+
+    def fail(self, error: Exception) -> NoReturn:
+        """Preserve explicit failure calls from original consumers."""
+        self._retain_failure(error)
         raise error
 
     def process(self, candidate: ProviderCandidate) -> dict[str, Any]:
@@ -355,8 +465,12 @@ class OriginalXcshCreationObserver:
                 or stat.S_IMODE(first.st_mode) != PRIVATE_DIRECTORY_MODE
                 or len(flags) != 1
                 or re.fullmatch(r"[0-7]+", flags[0]) is None
-                or int(flags[0], 8) & os.O_ACCMODE != os.O_RDONLY
-                or inodes != [str(first.st_ino)]
+            ):
+                reject()
+            if int(flags[0], 8) & os.O_ACCMODE != os.O_RDONLY:
+                reject()
+            if (
+                inodes != [str(first.st_ino)]
                 or (first.st_dev, first.st_ino, first.st_uid, first.st_mode)
                 != (second.st_dev, second.st_ino, second.st_uid, second.st_mode)
                 or str(path.readlink()) != str(self.directory)
@@ -371,11 +485,14 @@ class OriginalXcshCreationObserver:
         expected = CLAIM_KEYS | ({"creation_identity_sha256"} if receipt else set())
         if (
             set(data) != expected
-            or type(data["schema_version"]) is not int
+            or not exact_native_type(data["schema_version"], int)
             or data["schema_version"] != 1
             or data["scope_sha256"] != self.plan_sha256
             or data["scope_file_sha256"] != self.scope_sha256
-            or not isinstance(data["nonce"], str)
+        ):
+            reject()
+        if (
+            not isinstance(data["nonce"], str)
             or re.fullmatch(r"[a-f0-9]{32}", data["nonce"]) is None
             or not isinstance(data["process"], dict)
             or set(data["process"]) != PROCESS_KEYS
@@ -386,7 +503,7 @@ class OriginalXcshCreationObserver:
             reject()
         process = data["process"]
         for name in ("pid", "parent_pid", "executable_device", "executable_inode"):
-            if type(process[name]) is not int or process[name] <= 0:
+            if not exact_native_type(process[name], int) or process[name] <= 0:
                 reject()
         if (
             not isinstance(process["start_ticks"], str)
@@ -508,7 +625,8 @@ class OriginalXcshCreationObserver:
                 witnesses.append(token)
             return OriginalXcshCreationObservation(tuple(witnesses), tuple(incomplete))
         except Exception as error:
-            self.fail(error)
+            self._retain_failure(error)
+            raise
 
     def join(self, token: object) -> tuple[dict[str, Any], ...]:
         """Join retained original evidence after exit without re-observing a new actor."""
@@ -552,7 +670,8 @@ class OriginalXcshCreationObserver:
             self.check_inputs()
             return tuple(receipts)
         except Exception as error:
-            self.fail(error)
+            self._retain_failure(error)
+            raise
 
     def complete(self, tokens: Sequence[object]) -> tuple[dict[str, Any], ...]:
         """Require exact prepared target coverage and a closed artifact inventory."""
@@ -608,6 +727,6 @@ class OriginalXcshCreationObserver:
         except Exception as error:
             if self.retired:
                 raise
-            self.fail(error)
-        else:
-            return output
+            self._retain_failure(error)
+            raise
+        return output
