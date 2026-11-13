@@ -1038,7 +1038,7 @@ def source_field_alias(
     value: str,
     context: LineScanContext,
 ) -> bool:
-    """Recognize exact schema field names in active source object properties.
+    """Recognize schema field names and their display labels in source properties.
 
     This does not make field-name strings safe in serialized data, comments or
     strings containing source. The masked structure must retain the property
@@ -1055,7 +1055,9 @@ def source_field_alias(
         "last_name": "family_name",
         "family_name": "last_name",
     }
-    if value not in {key, aliases.get(key)}:
+    display_key = re.sub(r"[ _-]", "", value).casefold()
+    canonical_key = re.sub(r"[_-]", "", key).casefold()
+    if value not in {key, aliases.get(key)} and display_key != canonical_key:
         return False
     structure = context.source_structure
     if structure[match.start("key") : match.end("key")] != key:
@@ -1846,6 +1848,44 @@ def source_template_value_is_expression(
     return closes_template or starts_sentence
 
 
+def source_generated_identity_name(
+    line: str,
+    match: re.Match[str],
+    context: LineScanContext,
+) -> bool:
+    """Recognize executable names with a runtime value and their field's noun.
+
+    This does not apply to serialized strings, comments, or literal customer
+    fragments. Masked source must retain the assignment key, and the complete
+    template must end with its own generic field noun and a statement boundary.
+    """
+    source_key = context.source_structure[match.start("key") : match.end("key")]
+    if (
+        not context.source_code
+        or match.group("separator") != "="
+        or match.group("quote") != "`"
+        or source_key != match.group("key")
+    ):
+        return False
+    interpolation = source_template_interpolation(line, match.start("value"))
+    if interpolation is None:
+        return False
+    expression, closing = interpolation
+    if "`" in expression:
+        return False
+    for string in SOURCE_TEMPLATE_STRING_RE.finditer(expression):
+        value = string.group("value")
+        formatting = bool(re.fullmatch(r"[ \t._/:-]+", value))
+        if not formatting and not placeholder_value(value):
+            return False
+    expression_without_strings = SOURCE_TEMPLATE_STRING_RE.sub("", expression)
+    if not re.search(r"[A-Za-z_$]", expression_without_strings):
+        return False
+    noun = re.sub(r"(?:[_-]?(?:name|id))$", "", match.group("key").lower())
+    suffix = rf"^-{re.escape(noun)}`\s*(?:;|$)"
+    return bool(re.match(suffix, line[closing + 1 :]))
+
+
 def is_nonliteral_code_expression(
     line: str,
     match: re.Match[str],
@@ -2203,7 +2243,14 @@ def is_documented_identity_expression(
     fixed_query = normalized_value(value).startswith("system") and re.search(
         r"/api/web/namespaces/system/quota/usage\?namespace=system(?:[\"'\s]|$)", line
     )
-    return bool(positional or lookup or fixed_query)
+    supported_namespace = (
+        not context.source_code
+        and match.group("key").casefold() == "namespace"
+        and match.group("separator") == ":"
+        and re.search(r"\bSupported\s*$", line[: match.start()], re.IGNORECASE)
+        and re.fullmatch(r"system/shared(?:</p>)?", normalized_value(value))
+    )
+    return bool(positional or lookup or fixed_query or supported_namespace)
 
 
 def scan_structured_identity(
@@ -2224,6 +2271,7 @@ def scan_structured_identity(
             is_documented_identity_expression(line, match, value, context)
             or numeric_enum_member(match, value, context)
             or source_field_alias(match, value, context)
+            or source_generated_identity_name(line, match, context)
         ):
             continue
         in_jq_span = match_is_in_spans(match, context.jq_spans)
