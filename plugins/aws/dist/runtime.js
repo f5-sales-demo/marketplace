@@ -10458,7 +10458,7 @@ async function assertAwsActionOwnership(plan, action, api, resolved = {}) {
     const collect = (value) => {
       if (typeof value === 'string') {
         for (const match of value.matchAll(
-          /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:i|eni|sg|vpc|subnet|rtb|igw|tgw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
+          /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:vol|i|eni|sg|vpc|subnet|rtb|igw|tgw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
         ))
           rollbackTargets.add(match[0]);
       } else if (Array.isArray(value)) {
@@ -10474,6 +10474,8 @@ async function assertAwsActionOwnership(plan, action, api, resolved = {}) {
   if (action.resourceId && !action.resourceId.startsWith('aws://') && !action.resourceId.includes('__'))
     ids.add(action.resourceId);
   const targetFlags = new Set([
+    '--volume-id',
+    '--volume-ids',
     '--instance-id',
     '--instance-ids',
     '--network-interface-id',
@@ -10506,7 +10508,7 @@ async function assertAwsActionOwnership(plan, action, api, resolved = {}) {
         value = value.replaceAll(placeholder, replacement);
       if (/__[A-Z0-9_]+__/.test(value)) throw new Error('AWS ownership target is unresolved');
       for (const match of value.matchAll(
-        /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:i|eni|sg|vpc|subnet|rtb|igw|tgw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
+        /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:vol|i|eni|sg|vpc|subnet|rtb|igw|tgw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
       ))
         ids.add(match[0]);
     }
@@ -10526,7 +10528,17 @@ async function assertAwsActionOwnership(plan, action, api, resolved = {}) {
     ],
   });
   for (const resource of observed) {
-    if (!resource.exists) throw new Error('AWS mutation target no longer exists');
+    if (!resource.exists) {
+      if (
+        plan.intent.operation === 'teardown' &&
+        action.kind === 'resource-delete' &&
+        hasDeleteRecovery(action) &&
+        resource.id === action.resourceId &&
+        plan.ownershipInventory.some((row) => row.resourceId === resource.id && row.owned && row.action === 'delete')
+      )
+        continue;
+      throw new Error('AWS mutation target no longer exists');
+    }
     const brownfield =
       rollbackTargets.has(resource.id) ||
       plan.ownershipInventory.some(
