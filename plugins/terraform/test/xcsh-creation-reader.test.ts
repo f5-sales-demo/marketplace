@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdir, mkdtemp, open, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { safePythonRegressionDiagnostics } from './python-regression-diagnostics';
 
 test.skipIf(process.platform !== 'linux')(
   'xcsh reader request, source and startup Python regressions',
@@ -45,6 +46,7 @@ test.skipIf(process.platform !== 'linux')(
             ].map((match) => `${match[1]}::${match[2]}`),
           ),
         ];
+        console.error(`Safe Python failure diagnostics: ${JSON.stringify(safePythonRegressionDiagnostics(raw))}`);
         console.error(
           `Creation observer regressions failed (exit ${code}); cases: ${cases.join(', ') || 'unavailable'}; private diagnostics: ${root}`,
         );

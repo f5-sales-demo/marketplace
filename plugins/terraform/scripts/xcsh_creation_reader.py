@@ -16,6 +16,7 @@ import stat
 import sys
 import time
 from importlib.machinery import SourceFileLoader
+from operator import is_
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -55,6 +56,11 @@ def reject() -> NoReturn:
     """Refuse without exposing request, source or credential values."""
     message = "Original xcsh reader admission or evidence differs"
     raise ValueError(message)
+
+
+def exact_native_type(value: object, expected: type) -> bool:
+    """Require exact scalar types; bool and integer subclasses never become int."""
+    return is_(type(value), expected)
 
 
 def strict_object(raw: bytes) -> dict[str, Any]:
@@ -137,14 +143,16 @@ def validate_bindings(rows: object) -> dict[str, dict[str, Any]]:
         reject()
     paths: dict[str, dict[str, Any]] = {}
     for key, row in rows.items():
+        if not isinstance(key, str) or not isinstance(row, dict):
+            reject()
         if (
-            not isinstance(key, str)
-            or not isinstance(row, dict)
-            or set(row)
-            != {"path", "sha256", "expectedIdentity", "expectedParentIdentity"}
+            set(row) != {"path", "sha256", "expectedIdentity", "expectedParentIdentity"}
             or not isinstance(row["path"], str)
             or not row["path"].startswith("/")
-            or not isinstance(row["sha256"], str)
+        ):
+            reject()
+        if (
+            not isinstance(row["sha256"], str)
             or re.fullmatch(r"[a-f0-9]{64}", row["sha256"]) is None
         ):
             reject()
@@ -169,6 +177,27 @@ def validate_bindings(rows: object) -> dict[str, dict[str, Any]]:
     return copy.deepcopy(rows)
 
 
+def validate_executor(actor: object) -> None:
+    """Require the exact original group/session identity and strict scalar types."""
+    if not isinstance(actor, dict) or set(actor) != {"pid", "group", "start", "boot"}:
+        reject()
+    if (
+        not exact_native_type(actor["pid"], int)
+        or actor["pid"] <= 0
+        or not exact_native_type(actor["group"], int)
+        or actor["group"] != actor["pid"]
+    ):
+        reject()
+    if (
+        not isinstance(actor["start"], str)
+        or re.fullmatch(r"[1-9][0-9]*", actor["start"]) is None
+        or not isinstance(actor["boot"], str)
+        or re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}", actor["boot"])
+        is None
+    ):
+        reject()
+
+
 def validate_request(data: dict[str, Any], now: int) -> int:
     """Keep the exact original two-hour operation and a bounded 45-second read."""
     if set(data) != {
@@ -185,7 +214,7 @@ def validate_request(data: dict[str, Any], now: int) -> int:
     }:
         reject()
     if (
-        type(data["schemaVersion"]) is not int
+        not exact_native_type(data["schemaVersion"], int)
         or data["schemaVersion"] != 1
         or data["kind"] != "original-xcsh-creation-window"
     ):
@@ -196,30 +225,18 @@ def validate_request(data: dict[str, Any], now: int) -> int:
         data["windowMs"],
     )
     if (
-        any(type(v) is not int for v in (start, deadline, window, now))
+        any(not exact_native_type(v, int) for v in (start, deadline, window, now))
         or deadline - start != ORIGINAL_BUDGET_MS
         or window != WINDOW_MS
         or not start <= now < deadline
     ):
         reject()
     startup = data["startupDeadlineMs"]
-    if type(startup) is not int or not now < startup <= min(deadline, now + STARTUP_MS):
-        reject()
-    actor = data["executor"]
-    if (
-        not isinstance(actor, dict)
-        or set(actor) != {"pid", "group", "start", "boot"}
-        or type(actor["pid"]) is not int
-        or actor["pid"] <= 0
-        or type(actor["group"]) is not int
-        or actor["group"] != actor["pid"]
-        or not isinstance(actor["start"], str)
-        or re.fullmatch(r"[1-9][0-9]*", actor["start"]) is None
-        or not isinstance(actor["boot"], str)
-        or re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}", actor["boot"])
-        is None
+    if not exact_native_type(startup, int) or not now < startup <= min(
+        deadline, now + STARTUP_MS
     ):
         reject()
+    validate_executor(data["executor"])
     inputs = validate_bindings(data["inputs"])
     executables = data["executables"]
     if not isinstance(executables, dict) or set(executables) != set(PINS):
@@ -242,11 +259,15 @@ def validate_request(data: dict[str, Any], now: int) -> int:
         or set(scope) != {"path", "sha256", "planSha256", "targets"}
         or not isinstance(scope["planSha256"], str)
         or re.fullmatch(r"[a-f0-9]{64}", scope["planSha256"]) is None
-        or not any(
-            scope["path"] == row["path"] and scope["sha256"] == row["sha256"]
-            for row in inputs.values()
-        )
-        or not isinstance(scope["targets"], list)
+    ):
+        reject()
+    if not any(
+        scope["path"] == row["path"] and scope["sha256"] == row["sha256"]
+        for row in inputs.values()
+    ):
+        reject()
+    if (
+        not isinstance(scope["targets"], list)
         or not 0 < len(scope["targets"]) <= MAX_TARGETS
     ):
         reject()
@@ -396,8 +417,10 @@ def ready_creation_receipts(
     return observer.complete(tuple(witnesses.values()))
 
 
-def main() -> None:
-    """Start before apply release, retain partial evidence and exit without signals."""
+def admit_reader_request() -> tuple[
+    Path, dict[str, Any], int, int, OriginalCreationInputs
+]:
+    """Admit exact request, interpreter and source inputs before reader startup."""
     os.umask(0o077)
     if (
         len(sys.argv) != ARGUMENT_COUNT
@@ -435,6 +458,17 @@ def main() -> None:
     }
     guard = OriginalCreationInputs({**data["inputs"], "original-reader-request": row})
     guard.verify()
+    return root, data, start, deadline, guard
+
+
+def prepare_creation_reader(
+    root: Path,
+    data: dict[str, Any],
+    guard: OriginalCreationInputs,
+    start: int,
+    deadline: int,
+) -> tuple[Any, Any, dict[str, Any]]:
+    """Prepare the original observer and persist its unchanged ready receipt."""
     module, transport = load_modules(guard)
     if os.getsid(0) != os.getpid():
         if os.getpgrp() == os.getpid():
@@ -478,6 +512,19 @@ def main() -> None:
         root / "xcsh-ready.private.json",
         {**base, "kind": "original-xcsh-creation-ready"},
     )
+    return observer, transport, base
+
+
+def capture_creation_window(
+    root: Path,
+    data: dict[str, Any],
+    guard: OriginalCreationInputs,
+    observer: Any,
+    transport: Any,
+    base: dict[str, Any],
+    deadline: int,
+) -> None:
+    """Retain bounded original observations and require complete target coverage."""
     witnesses: dict[int, Any] = {}
     incomplete: set[int] = set()
     receipts: tuple[dict[str, Any], ...] = ()
@@ -539,7 +586,17 @@ def main() -> None:
                 "complete": False,
             },
         )
-        reject()
+        message = "Original xcsh reader admission or evidence differs"
+        raise ValueError(message) from error
+
+
+def main() -> None:
+    """Start before apply release, retain partial evidence and exit without signals."""
+    root, data, start, deadline, guard = admit_reader_request()
+    observer, transport, base = prepare_creation_reader(
+        root, data, guard, start, deadline
+    )
+    capture_creation_window(root, data, guard, observer, transport, base, deadline)
 
 
 if __name__ == "__main__":
