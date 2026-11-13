@@ -5,8 +5,32 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
+import type { qualifyAzureNativeNetworkReplacementHistory } from './native-network-replacement';
+import {
+  azureNativeNetworkReplacementNics,
+  captureAzureNativeNetworkReplacementNics,
+  validateAzureNativeNetworkReplacementMetadata,
+} from './native-network-replacement-execution';
+import {
+  qualifyAzureNativeReplacementOriginalSource,
+  verifyAzureNativeReplacementOriginalSource,
+} from './native-replacement-source';
+import type { AzureNetworkUpdateInventory } from './network-update';
 import { collectAzurePlatformHealth } from './platform-health';
-import { type AzureRouteServerOwnership, captureAzureRouteServerOwnership } from './route-server-health';
+import {
+  type AzureRelayRetainedNic,
+  captureAzureRelayRetainedNics,
+  captureAzureRetainedNicsForSource,
+  validAzureRelayRetainedNics,
+  validAzureRetainedNicsForSource,
+} from './relay-replacement-identity';
+import {
+  azureRelayReplacementRetainedOwner,
+  captureAzureReplacementRouteServerOwnership,
+  validAzureReplacementRouteServerOwnership,
+} from './relay-replacement-plan';
+import { requireAzureCeRoutingContract } from './relay-routing-dispatch';
+import type { AzureRouteServerOwnership } from './route-server-health';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCeAction, AzureCePlan } from './types';
 
@@ -28,6 +52,11 @@ export interface NativeWorkflowCheckpoint {
     status: 'prepared' | 'registered';
     newVmId?: string;
     routeServer?: AzureRouteServerOwnership;
+    retainedNics?: Record<string, AzureRelayRetainedNic>;
+    originalSourcePlan?: AzureCePlan;
+    networkSourcePlan?: AzureCePlan;
+    networkInventory?: AzureNetworkUpdateInventory;
+    networkHistorySha256?: string;
   };
 }
 
@@ -52,6 +81,12 @@ async function readCheckpoint(
     };
     await storage.write(checkpointName(plan), checkpoint);
   }
+  validateAzureNativeAdmissionCheckpoint(plan, checkpoint);
+  return checkpoint;
+}
+
+/** Offline validation; does not create or rewrite a checkpoint during retirement. */
+export function validateAzureNativeAdmissionCheckpoint(plan: AzureCePlan, checkpoint: NativeWorkflowCheckpoint): void {
   const bootstrappedNodes = Object.keys(checkpoint.bootstrapByNode);
   const launchedNodes = Object.keys(checkpoint.launchedAtByNode);
   if (
@@ -84,57 +119,75 @@ async function readCheckpoint(
     throw new Error('Azure native admission checkpoint differs from the owning plan');
   const replacement = checkpoint.replacement;
   if (replacement !== undefined) {
-    const keys = Object.keys(replacement).sort().join(',');
-    const expectedKeys = [
-      ...(replacement.newVmId ? ['newVmId'] : []),
-      'node',
-      'oldVmIds',
-      'ownerPlanSha256ByNode',
-      ...(replacement.routeServer ? ['routeServer'] : []),
-      'siteConfigurationSha256',
-      'siteUid',
-      'status',
-    ]
-      .sort()
-      .join(',');
-    const nodes = Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`);
-    if (
-      plan.intent.operation !== 'replace-node' ||
-      keys !== expectedKeys ||
-      replacement.node !== plan.intent.replacementNode ||
-      !replacement.siteUid ||
-      !/^[a-f0-9]{64}$/.test(replacement.siteConfigurationSha256) ||
-      !['prepared', 'registered'].includes(replacement.status) ||
-      Object.keys(replacement.oldVmIds).sort().join(',') !== nodes.sort().join(',') ||
-      Object.keys(replacement.ownerPlanSha256ByNode).sort().join(',') !== nodes.sort().join(',') ||
-      Object.values(replacement.oldVmIds).some((id) => !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) ||
-      new Set(Object.values(replacement.oldVmIds).map((id) => id.toLowerCase())).size !== nodes.length ||
-      Object.values(replacement.ownerPlanSha256ByNode).some((digest) => !/^[a-f0-9]{64}$/.test(digest)) ||
-      (plan.routing.mode === 'route-server') !== Boolean(replacement.routeServer) ||
-      (replacement.routeServer !== undefined &&
-        (lower(replacement.routeServer.routeServerId) !==
-          lower(
-            `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualHubs/${plan.deploymentName}-rs`,
-          ) ||
-          !/^[a-f0-9]{64}$/.test(replacement.routeServer.ownerPlanSha256) ||
-          Object.keys(replacement.routeServer.peerIds).sort().join(',') !==
-            Array.from({ length: plan.topology.nodeCount }, (_, index) => String(index + 1)).join(',') ||
-          Object.entries(replacement.routeServer.peerIds).some(
-            ([node, id]) =>
-              lower(id) !==
-              lower(`${replacement.routeServer?.routeServerId}/bgpConnections/${plan.deploymentName}-${node}`),
-          ))) ||
-      (replacement.status === 'registered') !== Boolean(replacement.newVmId) ||
-      (replacement.newVmId !== undefined &&
-        (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(replacement.newVmId) ||
-          replacement.newVmId.toLowerCase() ===
-            replacement.oldVmIds[`${plan.deploymentName}-${replacement.node}`]?.toLowerCase()))
-    )
-      throw new Error('Azure native replacement checkpoint differs from the owning plan');
+    validateAzureNativeReplacementState(plan, replacement);
   } else if (plan.intent.operation === 'replace-node' && (bootstrappedNodes.length || launchedNodes.length)) {
     throw new Error('Azure native replacement evidence is missing before bootstrap');
   }
-  return checkpoint;
+}
+
+/** Shared metadata validation; bootstrap material is validated separately. */
+export function validateAzureNativeReplacementState(
+  plan: AzureCePlan,
+  replacement: NonNullable<NativeWorkflowCheckpoint['replacement']>,
+): void {
+  if (plan.networkReplacementProfile) validateAzureNativeNetworkReplacementMetadata(plan, replacement);
+  if (!plan.relayProfile && !plan.networkReplacementProfile && replacement.originalSourcePlan)
+    verifyAzureNativeReplacementOriginalSource(plan, replacement.originalSourcePlan);
+  const keys = Object.keys(replacement).sort().join(',');
+  const expectedKeys = [
+    ...(replacement.newVmId ? ['newVmId'] : []),
+    'node',
+    'oldVmIds',
+    'ownerPlanSha256ByNode',
+    ...(replacement.routeServer ? ['routeServer'] : []),
+    ...(replacement.retainedNics ? ['retainedNics'] : []),
+    ...(replacement.originalSourcePlan ? ['originalSourcePlan'] : []),
+    ...(plan.networkReplacementProfile ? ['networkSourcePlan', 'networkInventory', 'networkHistorySha256'] : []),
+    'siteConfigurationSha256',
+    'siteUid',
+    'status',
+  ]
+    .sort()
+    .join(',');
+  const nodes = Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`);
+  if (
+    plan.intent.operation !== 'replace-node' ||
+    keys !== expectedKeys ||
+    replacement.node !== plan.intent.replacementNode ||
+    !replacement.siteUid ||
+    !/^[a-f0-9]{64}$/.test(replacement.siteConfigurationSha256) ||
+    !['prepared', 'registered'].includes(replacement.status) ||
+    Object.keys(replacement.oldVmIds).sort().join(',') !== nodes.sort().join(',') ||
+    Object.keys(replacement.ownerPlanSha256ByNode).sort().join(',') !== nodes.sort().join(',') ||
+    Object.values(replacement.oldVmIds).some((id) => !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) ||
+    new Set(Object.values(replacement.oldVmIds).map((id) => id.toLowerCase())).size !== nodes.length ||
+    Object.entries(replacement.ownerPlanSha256ByNode).some(
+      ([node, digest]) =>
+        !/^[a-f0-9]{64}$/.test(digest) ||
+        (plan.relayProfile?.schemaVersion === 2 &&
+          digest !==
+            azureRelayReplacementRetainedOwner(
+              plan,
+              `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${node}`,
+            )),
+    ) ||
+    !replacement.retainedNics ||
+    (plan.relayProfile
+      ? plan.relayProfile.schemaVersion !== 2 ||
+        replacement.originalSourcePlan !== undefined ||
+        !validAzureRelayRetainedNics(plan, replacement.retainedNics)
+      : !replacement.originalSourcePlan ||
+        (!plan.networkReplacementProfile &&
+          !validAzureRetainedNicsForSource(replacement.originalSourcePlan, replacement.retainedNics))) ||
+    (plan.routing.mode === 'route-server') !== Boolean(replacement.routeServer) ||
+    (replacement.routeServer !== undefined &&
+      !validAzureReplacementRouteServerOwnership(plan, replacement.routeServer)) ||
+    (replacement.status === 'registered') !== Boolean(replacement.newVmId) ||
+    (replacement.newVmId !== undefined &&
+      (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(replacement.newVmId) ||
+        Object.values(replacement.oldVmIds).some((id) => id.toLowerCase() === replacement.newVmId?.toLowerCase())))
+  )
+    throw new Error('Azure native replacement checkpoint differs from the owning plan');
 }
 
 const waitUntil = async (notBefore: number, signal?: AbortSignal) => {
@@ -156,14 +209,21 @@ const waitUntil = async (notBefore: number, signal?: AbortSignal) => {
 
 export async function prepareAzureNativeAdmission(
   plan: AzureCePlan,
-  runtime: Pick<CeRuntime, 'engine' | 'requireBootstrapContract' | 'requireRoutingContract' | 'reserveSite'>,
+  runtime: Pick<
+    CeRuntime,
+    | 'engine'
+    | 'requireBootstrapContract'
+    | 'requireRoutingContract'
+    | 'requireAzureRelayRoutingContract'
+    | 'reserveSite'
+  >,
   storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
   signal?: AbortSignal,
 ) {
   if (plan.engine !== 'native' || runtime.engine !== 'native')
     throw new Error('Azure native workflow requires native ownership');
   if (plan.actions.some((action) => action.requiresBootstrap)) runtime.requireBootstrapContract('azure');
-  if (plan.routing.mode === 'route-server') runtime.requireRoutingContract('azure');
+  requireAzureCeRoutingContract(plan, runtime);
   await storage.verify();
   const checkpoint = await readCheckpoint(plan, storage);
   if (plan.intent.operation === 'deploy') {
@@ -185,8 +245,9 @@ export async function prepareAzureNativeReplacement(
   checkpoint: NativeWorkflowCheckpoint,
   api: AzExecApi,
   runtime: Pick<CeRuntime, 'observeOwnedSite' | 'ownedSiteConfiguration'>,
-  storage: Pick<CeDeploymentStore, 'write' | 'verify'>,
+  storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
   signal?: AbortSignal,
+  networkSource?: Awaited<ReturnType<typeof qualifyAzureNativeNetworkReplacementHistory>>,
 ): Promise<void> {
   if (plan.intent.operation !== 'replace-node' || !plan.intent.replacementNode)
     throw new Error('Azure native replacement requires an exact selected node');
@@ -197,12 +258,84 @@ export async function prepareAzureNativeReplacement(
   const siteUid = typeof metadata?.uid === 'string' ? metadata.uid : '';
   if (!siteUid) throw new Error('Azure native replacement site identity is unavailable');
   const siteConfigurationSha256 = canonicalSha256(runtime.ownedSiteConfiguration(binding, site));
+  if (plan.networkReplacementProfile) {
+    if (
+      !networkSource ||
+      networkSource.source.siteUid !== siteUid ||
+      networkSource.source.siteConfigurationSha256 !== siteConfigurationSha256
+    )
+      throw Error('Azure native network replacement qualified site binding differs');
+    const routeServer =
+      plan.routing.mode === 'route-server'
+        ? await captureAzureReplacementRouteServerOwnership(plan, api, signal)
+        : undefined;
+    if (routeServer && routeServer.ownerPlanSha256 !== networkSource.original.planSha256)
+      throw Error('Azure native network replacement original Route Server owner differs');
+    if (checkpoint.replacement) {
+      validateAzureNativeAdmissionCheckpoint(plan, checkpoint);
+      if (
+        checkpoint.replacement.siteUid !== siteUid ||
+        checkpoint.replacement.siteConfigurationSha256 !== siteConfigurationSha256 ||
+        canonicalSha256(checkpoint.replacement.routeServer ?? null) !== canonicalSha256(routeServer ?? null)
+      )
+        throw Error('Azure native network replacement retained site or Route Server changed');
+      return;
+    }
+    checkpoint.replacement = {
+      node: plan.intent.replacementNode,
+      oldVmIds: Object.fromEntries(
+        Object.entries(networkSource.networkInventory.nodes).map(([index, vm]) => [
+          `${plan.deploymentName}-${index}`,
+          vm.vmId,
+        ]),
+      ),
+      ownerPlanSha256ByNode: Object.fromEntries(
+        Object.entries(networkSource.networkInventory.nodes).map(([index, vm]) => [
+          `${plan.deploymentName}-${index}`,
+          vm.ownerPlanSha256,
+        ]),
+      ),
+      siteUid,
+      siteConfigurationSha256,
+      status: 'prepared',
+      originalSourcePlan: networkSource.original,
+      networkSourcePlan: networkSource.networkSource,
+      networkInventory: networkSource.networkInventory,
+      networkHistorySha256: networkSource.historySha256,
+      retainedNics: azureNativeNetworkReplacementNics(networkSource.networkInventory),
+      ...(routeServer ? { routeServer } : {}),
+    };
+    validateAzureNativeAdmissionCheckpoint(plan, checkpoint);
+    await storage.write(checkpointName(plan), checkpoint);
+    return;
+  }
   if (checkpoint.replacement) {
     if (
       checkpoint.replacement.siteUid !== siteUid ||
       checkpoint.replacement.siteConfigurationSha256 !== siteConfigurationSha256
     )
       throw new Error('Azure native replacement site identity or configuration changed');
+    if (!plan.relayProfile) {
+      const { original } = await qualifyAzureNativeReplacementOriginalSource(
+        plan,
+        checkpoint.replacement.oldVmIds,
+        checkpoint.replacement.ownerPlanSha256ByNode,
+        siteUid,
+        storage,
+      );
+      if (
+        canonicalSha256(original) !== canonicalSha256(checkpoint.replacement.originalSourcePlan) ||
+        canonicalSha256(await captureAzureRetainedNicsForSource(original, api, signal)) !==
+          canonicalSha256(checkpoint.replacement.retainedNics)
+      )
+        throw Error('Azure native replacement retained source or interfaces changed');
+    }
+    if (
+      plan.relayProfile &&
+      canonicalSha256(await captureAzureReplacementRouteServerOwnership(plan, api, signal)) !==
+        canonicalSha256(checkpoint.replacement.routeServer)
+    )
+      throw Error('Azure native replacement retained relay ownership changed');
     return;
   }
   const rows = await listAzureNativeVms(plan, api);
@@ -226,7 +359,9 @@ export async function prepareAzureNativeReplacement(
       tags?.['xcsh-deployment-id'] !== plan.deploymentName ||
       tags?.['xcsh-execution-engine'] !== 'native' ||
       typeof ownerPlanSha256 !== 'string' ||
-      !/^[a-f0-9]{64}$/.test(ownerPlanSha256)
+      !/^[a-f0-9]{64}$/.test(ownerPlanSha256) ||
+      (plan.relayProfile?.schemaVersion === 2 &&
+        ownerPlanSha256 !== azureRelayReplacementRetainedOwner(plan, resourceId))
     )
       throw new Error('Azure native replacement VM identity or ownership is unavailable');
     oldVmIds[node] = vmId;
@@ -244,7 +379,23 @@ export async function prepareAzureNativeReplacement(
   )
     throw new Error('Azure native replacement delete boundary differs from the observed VM');
   const routeServer =
-    plan.routing.mode === 'route-server' ? await captureAzureRouteServerOwnership(plan, api, signal) : undefined;
+    plan.routing.mode === 'route-server'
+      ? await captureAzureReplacementRouteServerOwnership(plan, api, signal)
+      : undefined;
+  const retainedSource = !plan.relayProfile
+    ? await qualifyAzureNativeReplacementOriginalSource(plan, oldVmIds, ownerPlanSha256ByNode, siteUid, storage)
+    : undefined;
+  const originalSourcePlan = retainedSource?.original;
+  const retainedNics =
+    plan.relayProfile?.schemaVersion === 2
+      ? await captureAzureRelayRetainedNics(plan, api, signal)
+      : originalSourcePlan
+        ? await captureAzureRetainedNicsForSource(originalSourcePlan, api, signal)
+        : undefined;
+  if (retainedSource?.retainedNics && canonicalSha256(retainedSource.retainedNics) !== canonicalSha256(retainedNics))
+    throw Error('Azure native replacement prior retained interface identities changed');
+  if (originalSourcePlan && routeServer && routeServer.ownerPlanSha256 !== originalSourcePlan.planSha256)
+    throw Error('Azure native replacement original Route Server owner differs');
   checkpoint.replacement = {
     node: plan.intent.replacementNode,
     oldVmIds,
@@ -253,7 +404,10 @@ export async function prepareAzureNativeReplacement(
     siteConfigurationSha256,
     status: 'prepared',
     ...(routeServer ? { routeServer } : {}),
+    ...(retainedNics ? { retainedNics } : {}),
+    ...(originalSourcePlan ? { originalSourcePlan } : {}),
   };
+  validateAzureNativeAdmissionCheckpoint(plan, checkpoint);
   await storage.write(checkpointName(plan), checkpoint);
 }
 
@@ -458,6 +612,9 @@ export async function collectAzureNativeAdmissionHealth(
       return [node, vmId];
     }),
   );
+  if (new Set(Object.values(instances).map((id) => id.toLowerCase())).size !== admittedNodes.length)
+    throw Error('Azure admitted VM UUIDs are duplicated');
+  if (nativeCheckpoint) validateAzureNativeAdmissionCheckpoint(plan, nativeCheckpoint);
   const replacement = plan.intent.operation === 'replace-node' ? nativeCheckpoint?.replacement : undefined;
   if (plan.intent.operation === 'replace-node') {
     const target = `${plan.deploymentName}-${plan.intent.replacementNode}`;
@@ -534,7 +691,8 @@ export async function collectAzureNativeAdmissionHealth(
         tags?.['xcsh-deployment-id'] !== plan.deploymentName ||
         tags?.['xcsh-execution-engine'] !== plan.engine ||
         tags?.['xcsh-plan-sha256'] !==
-          (replacement?.ownerPlanSha256ByNode[node] ??
+          (replacement?.retainedNics?.[`${binding.nodes.indexOf(node) + 1}:${nic.index}`]?.ownerPlanSha256 ??
+            replacement?.ownerPlanSha256ByNode[node] ??
             (() => {
               const owners = new Set(
                 plan.actions
@@ -553,7 +711,39 @@ export async function collectAzureNativeAdmissionHealth(
         throw new Error('Azure NIC ownership or MAC binding is unavailable');
       expectedInterfaces.push({ node, role: nic.role as 'slo' | 'data' | 'sli', mac: rawMac });
     }
+  if (
+    replacement?.retainedNics &&
+    canonicalSha256(
+      plan.relayProfile
+        ? await captureAzureRelayRetainedNics(plan, api, signal)
+        : plan.networkReplacementProfile
+          ? await captureAzureNativeNetworkReplacementNics(
+              plan,
+              replacement.networkInventory as AzureNetworkUpdateInventory,
+              api,
+              signal,
+            )
+          : await captureAzureRetainedNicsForSource(replacement.originalSourcePlan as AzureCePlan, api, signal),
+    ) !== canonicalSha256(replacement.retainedNics)
+  )
+    throw Error('Azure native replacement retained interface identity changed');
   const configuration = await runtime.observeRegisteredConfiguration(binding, instances, expectedInterfaces, signal);
+  let siteSnapshot:
+    | { siteUid: string; siteConfiguration: Record<string, unknown>; siteConfigurationSha256: string }
+    | undefined;
+  if (
+    health.status === 'healthy' &&
+    configuration.status === 'configured' &&
+    runtime.observeOwnedSite &&
+    runtime.ownedSiteConfiguration
+  ) {
+    const site = await runtime.observeOwnedSite(binding, signal),
+      siteUid = (site.system_metadata as Record<string, unknown> | undefined)?.uid,
+      siteConfiguration = runtime.ownedSiteConfiguration(binding, site);
+    if (typeof siteUid !== 'string' || !siteUid.trim() || configuration.siteUid !== siteUid)
+      throw Error('Azure native registered configuration differs from the owned logical site');
+    siteSnapshot = { siteUid, siteConfiguration, siteConfigurationSha256: canonicalSha256(siteConfiguration) };
+  }
   if (replacement && health.status === 'healthy' && configuration.status === 'configured') {
     if (!runtime.observeOwnedSite || !runtime.ownedSiteConfiguration)
       throw new Error('Azure native replacement platform identity observer is unavailable');
@@ -572,6 +762,7 @@ export async function collectAzureNativeAdmissionHealth(
   return {
     ...health,
     configuration,
+    ...siteSnapshot,
     status: health.status === 'healthy' && configuration.status === 'configured' ? 'healthy' : 'unknown',
   };
 }

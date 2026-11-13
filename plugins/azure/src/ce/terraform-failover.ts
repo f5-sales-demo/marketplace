@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { renderTerraformConfigurationJson } from '../../../terraform/src/configuration-json';
 import type { Deployment, PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import { canonicalSha256 } from './canonical';
-import { type AzureCeFailoverPlan, verifyAzureCeFailoverPlan } from './failover';
+import { type AzureCeFailoverPlan, azureFailoverOwner, verifyAzureCeFailoverPlan } from './failover';
 import { AZURE_CE_TERRAFORM_VERSION } from './terraform-foundation';
 import { AZURE_CE_AZAPI_PROVIDER_VERSION } from './terraform-lifecycle';
 import type { AzureCePlan } from './types';
@@ -36,7 +37,7 @@ function configuration(base: AzureCePlan, failover: AzureCeFailoverPlan, phase: 
             },
           },
         };
-  return JSON.stringify({
+  return renderTerraformConfigurationJson({
     terraform: {
       required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
       required_providers: {
@@ -74,6 +75,41 @@ export async function azureTerraformFailoverDeployment(
 function validateReceipt(deployment: Deployment, stage: Stage, receipt: PlanReceipt, final = false) {
   const allowed = stage.phase === 'release' ? ['delete', 'no-op'] : ['create', 'update', 'no-op'];
   if (
+    !receipt ||
+    typeof receipt !== 'object' ||
+    Array.isArray(receipt) ||
+    Object.keys(receipt).some(
+      (key) =>
+        ![
+          'schemaVersion',
+          'deploymentId',
+          'engine',
+          'backendIdentity',
+          'configurationSha256',
+          'providerLockSha256',
+          'planSha256',
+          'changes',
+          'noChanges',
+          'actionInvocations',
+          'imports',
+          'relinquishments',
+        ].includes(key),
+    ) ||
+    receipt.schemaVersion !== 1 ||
+    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
+    typeof receipt.noChanges !== 'boolean' ||
+    !Array.isArray(receipt.changes) ||
+    [receipt.actionInvocations, receipt.imports, receipt.relinquishments].some(
+      (value) => value !== undefined && (!Array.isArray(value) || value.length > 0),
+    ) ||
+    receipt.changes.some(
+      (value) =>
+        !value ||
+        Object.keys(value).sort().join(',') !== 'actions,address,type' ||
+        !Array.isArray(value.actions) ||
+        value.actions.length !== 1,
+    ) ||
+    receipt.noChanges !== receipt.changes.every((value) => value.actions[0] === 'no-op') ||
     receipt.engine !== 'terraform' ||
     receipt.deploymentId !== deployment.deploymentId ||
     receipt.backendIdentity !== deployment.backendIdentity ||
@@ -94,6 +130,32 @@ function validateReceipt(deployment: Deployment, stage: Stage, receipt: PlanRece
     throw new Error(
       `Azure Terraform failover ${final ? 'final' : stage.phase} plan differs from the exact power action`,
     );
+}
+
+/** Recompile exact phase ownership for historical plan receipts; this does not prove application or cloud state. */
+export async function validateAzureTerraformFailoverPlan(
+  base: AzureCePlan,
+  failover: AzureCeFailoverPlan,
+  phase: Phase,
+  input: unknown,
+  final = false,
+) {
+  if (!['stop', 'start', 'release'].includes(phase) || (final && phase !== 'release'))
+    throw Error('Azure Terraform failover plan phase differs');
+  const deployment = await azureTerraformFailoverDeployment(base, failover, phase);
+  const receipt = structuredClone(input) as PlanReceipt;
+  validateReceipt(
+    deployment,
+    {
+      phase,
+      configuration: deployment.configuration,
+      configurationSha256: digest(deployment.configuration),
+      address: 'azapi_resource_action.ce_failover',
+    },
+    receipt,
+    final,
+  );
+  return receipt;
 }
 
 async function optional<T>(storage: Pick<CeDeploymentStore, 'read'>, name: string): Promise<T | undefined> {
@@ -187,4 +249,75 @@ export async function createAzureTerraformFailoverController(
     await storage.write(`${failover.planId}-final-plan.json`, final);
   };
   return { mutate: apply, release };
+}
+
+/** Exact historical terminal journal. The owning runner separately verifies empty state and independent cleanup. */
+export async function validateAzureTerraformFailoverRetirement(
+  base: AzureCePlan,
+  failover: AzureCeFailoverPlan,
+  input: unknown,
+  evidenceSha256?: string,
+) {
+  const deployment = await azureTerraformFailoverDeployment(base, failover, 'release');
+  const value = input as Record<string, unknown>;
+  const required = [
+    'schemaVersion',
+    'status',
+    'owner',
+    'sourcePlanSha256',
+    'failoverPlanSha256',
+    'deploymentSha256',
+    'evidenceSha256',
+  ];
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    required.some((key) => !(key in value)) ||
+    Object.keys(value).some((key) => ![...required, 'receipt', 'receiptSha256', 'result'].includes(key)) ||
+    value.schemaVersion !== 1 ||
+    !['preparing', 'retiring', 'retired'].includes(String(value.status)) ||
+    canonicalSha256(value.owner) !== canonicalSha256(azureFailoverOwner(base)) ||
+    value.sourcePlanSha256 !== base.planSha256 ||
+    value.failoverPlanSha256 !== failover.planSha256 ||
+    value.deploymentSha256 !== canonicalSha256(deployment) ||
+    typeof value.evidenceSha256 !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(value.evidenceSha256) ||
+    (evidenceSha256 !== undefined && value.evidenceSha256 !== evidenceSha256)
+  )
+    throw Error('Failover stage retirement checkpoint differs');
+  if (value.status === 'preparing') {
+    if (value.receipt !== undefined || value.receiptSha256 !== undefined || value.result !== undefined)
+      throw Error('Preparing failover retirement has terminal evidence');
+  } else {
+    await validateAzureTerraformFailoverPlan(base, failover, 'release', value.receipt, true);
+    if (value.receiptSha256 !== canonicalSha256(value.receipt)) throw Error('Failover retirement final digest differs');
+    if (value.status === 'retiring' && value.result !== undefined)
+      throw Error('Uncommitted failover retirement result');
+    if (value.status === 'retired') {
+      const result = value.result as Record<string, unknown>;
+      const { configuration, providerLock, ...identity } = deployment;
+      if (
+        !result ||
+        Object.keys(result).sort().join(',') !==
+          'evidenceSha256,finalPlanSha256,independentCleanupSha256,inventorySha256,manifestSha256,retiredArtifacts,status' ||
+        result.status !== 'runner-artifacts-retired' ||
+        result.evidenceSha256 !== value.evidenceSha256 ||
+        result.finalPlanSha256 !== (value.receipt as PlanReceipt).planSha256 ||
+        result.manifestSha256 !==
+          canonicalSha256({
+            ...identity,
+            configurationSha256: digest(configuration),
+            providerLockSha256: digest(providerLock),
+          }) ||
+        ![result.inventorySha256, result.independentCleanupSha256].every(
+          (sha) => typeof sha === 'string' && /^[a-f0-9]{64}$/.test(sha),
+        ) ||
+        !Number.isSafeInteger(result.retiredArtifacts) ||
+        Number(result.retiredArtifacts) < 0
+      )
+        throw Error('Failover runner retirement result differs');
+    }
+  }
+  return structuredClone(value);
 }

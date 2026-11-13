@@ -3,7 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../src/ce/deployment-store';
-import { CeIngressLifecycle } from '../../src/ce/ingress-lifecycle';
+import { CeIngressLifecycle, hashCeIngressPlan, validateCeIngressHistoricalPlan } from '../../src/ce/ingress-lifecycle';
+import type { ExpectedCeInterface } from '../../src/ce/interface-evidence';
 import { CeApiError, type CeOwner, type SiteBinding } from '../../src/ce/runtime';
 import { buildInsideHttpListener, projectInsideHttpListener } from '../../src/ce/wire-ingress';
 import { buildSiteLocalHttpOrigin, projectSiteLocalHttpOrigin } from '../../src/ce/wire-origin';
@@ -74,8 +75,8 @@ async function setup(storeOwner: CeOwner = owner) {
     async observeOwnedSite(binding: SiteBinding) {
       return { system_metadata: { uid: `${state.siteUid}-${binding.siteName}` } };
     },
-    async observeAwsInterfaces(binding: SiteBinding) {
-      return observeInterfaces(binding);
+    async observeAwsInterfaces(binding: SiteBinding, expected?: ExpectedCeInterface[]) {
+      return observeInterfaces(binding, expected);
     },
     async observeAzureInterfaces(binding: SiteBinding) {
       return observeInterfaces(binding);
@@ -106,8 +107,8 @@ async function setup(storeOwner: CeOwner = owner) {
       return structuredClone(state.listener);
     },
   };
-  function observeInterfaces(binding: SiteBinding) {
-    const i = Number(binding.siteName.slice(-1));
+  function observeInterfaces(binding: SiteBinding, expected?: ExpectedCeInterface[]) {
+    const i = Number((expected?.[0]?.node ?? binding.siteName).slice(-1));
     return {
       status: 'observed' as const,
       observedAt: new Date().toISOString(),
@@ -119,7 +120,7 @@ async function setup(storeOwner: CeOwner = owner) {
           device: 'ens6',
           interfaceName: `interface-${i}`,
           mtu: 1500,
-          linkUp: true as const,
+          linkUp: true,
           ipv4: { address: i === 1 ? state.address : `10.20.${i}.10`, prefixLength: 24 },
         },
       ],
@@ -127,6 +128,96 @@ async function setup(storeOwner: CeOwner = owner) {
   }
   return { store, state, lifecycle: new CeIngressLifecycle(port, contract, store), port };
 }
+
+const primaryIntent = { ...intent, usePrimaryInterfaceAddress: true as const };
+const haSelections = selections.map((selected) => ({
+  ...selected,
+  binding: { owner, siteName: 'ce-ha-site', nodes: ['node-1', 'node-2', 'node-3'] },
+}));
+
+for (const failure of ['stale', 'down', 'duplicate-ip', 'foreign-mac', 'site-replaced'] as const)
+  test(`primary-interface HA discovery rejects ${failure} evidence from one node`, async () => {
+    const f = await setup();
+    const observe = f.port.observeAwsInterfaces;
+    f.port.observeAwsInterfaces = async (binding, expected) => {
+      const result = await observe(binding, expected);
+      if (expected?.[0]?.node === 'node-2') {
+        if (failure === 'stale') result.observedAt = '2000-01-01T00:00:00Z';
+        if (failure === 'down') result.interfaces[0].linkUp = false;
+        if (failure === 'duplicate-ip') result.interfaces[0].ipv4.address = '10.20.1.10';
+        if (failure === 'foreign-mac') result.interfaces[0].mac = '02:00:00:ff:00:02';
+        if (failure === 'site-replaced') f.state.siteUid = 'replacement';
+      }
+      return result;
+    };
+    await expect(f.lifecycle.planAws(primaryIntent, haSelections)).rejects.toThrow();
+    expect(f.state.posts).toBe(0);
+    expect(f.state.originPosts).toBe(0);
+  });
+
+test('historical primary-interface plans reject rehashed partial, foreign and changed-VIP material', async () => {
+  const f = await setup();
+  const plan = await f.lifecycle.planAws(primaryIntent, haSelections);
+  expect(validateCeIngressHistoricalPlan(plan, owner, contract, f.port.siteFingerprint).id).toBe(plan.id);
+  for (const failure of ['partial', 'site-uid', 'interface-mac', 'explicit-vip'] as const) {
+    const forged = structuredClone(plan);
+    if (failure === 'partial') {
+      forged.material.selections.pop();
+      forged.material.placements.pop();
+    }
+    if (failure === 'site-uid') forged.material.placements[1].siteUid = 'foreign-site';
+    if (failure === 'interface-mac') forged.material.placements[1].interface.mac = '02:00:00:ff:00:02';
+    if (failure === 'explicit-vip') {
+      forged.request.spec.advertise_custom.advertise_where[0].site.ip = '10.20.1.20';
+      forged.material.request = structuredClone(forged.request);
+    }
+    const { id: _id, sha256: _sha, request: _request, ...draft } = forged;
+    forged.sha256 = hashCeIngressPlan(draft);
+    forged.id = forged.sha256.slice(0, 24);
+    expect(() => validateCeIngressHistoricalPlan(forged, owner, contract, f.port.siteFingerprint)).toThrow();
+  }
+});
+
+test('plans all three owned SLI identities for one HA primary-interface advertisement', async () => {
+  const f = await setup();
+  const plan = await f.lifecycle.planAws(primaryIntent, haSelections);
+  expect(plan.material.placements.map((row) => row.interface.node)).toEqual(['node-1', 'node-2', 'node-3']);
+  expect(plan.material.placements.map((row) => row.insideAddress)).toEqual(['10.20.1.10', '10.20.2.10', '10.20.3.10']);
+  expect(plan.request.spec.advertise_custom.advertise_where).toEqual([
+    {
+      site: { site: { name: 'ce-ha-site', namespace: 'system' }, network: 'SITE_NETWORK_INSIDE' },
+      use_default_port: {},
+    },
+  ]);
+  expect(plan.material.originRequest.spec.origin_servers).toHaveLength(1);
+  f.state.lost = true;
+  const receipt = await f.lifecycle.apply(plan.id);
+  expect(receipt.traffic).toBe('unknown');
+  await new CeIngressLifecycle(f.port, contract, f.store).apply(plan.id);
+  expect(f.state.posts).toBe(1);
+  expect(f.state.originPosts).toBe(1);
+  f.state.address = '10.20.1.11';
+  await expect(f.lifecycle.apply(plan.id)).rejects.toThrow();
+  expect(f.state.posts).toBe(1);
+});
+
+test('rejects incomplete or conflicting primary-interface HA bindings before mutation', async () => {
+  for (const selected of [
+    haSelections.slice(0, 2),
+    [haSelections[0], haSelections[1], haSelections[1]],
+    haSelections.map((row, i) => (i === 2 ? { ...row, mac: haSelections[1].mac } : row)),
+    haSelections.map((row, i) => (i === 2 ? { ...row, binding: { ...row.binding, nodes: ['node-3'] } } : row)),
+    haSelections.map((row, i) => (i === 2 ? { ...row, insideAddress: '10.20.3.20' } : row)),
+    haSelections.map((row, i) =>
+      i === 2 ? { ...row, binding: { ...row.binding, owner: { ...owner, account: 'example-corp' } } } : row,
+    ),
+  ]) {
+    const f = await setup();
+    await expect(f.lifecycle.planAws(primaryIntent, selected)).rejects.toThrow();
+    expect(f.state.posts).toBe(0);
+    expect(f.state.originPosts).toBe(0);
+  }
+});
 
 test('persists observed placements and resumes a lost create response without duplicate creation', async () => {
   const f = await setup();

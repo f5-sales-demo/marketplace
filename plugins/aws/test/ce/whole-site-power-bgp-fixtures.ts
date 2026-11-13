@@ -39,7 +39,7 @@ export function bgpPowerFixture(engine: 'native' | 'terraform' = 'native') {
     owner: {
       deploymentId: f.base.deploymentName,
       engine: f.base.engine,
-      provider: 'aws',
+      provider: 'aws' as const,
       account: f.base.accountId,
       region: f.base.region,
     },

@@ -381,6 +381,8 @@ describe('Azure CE apply protections', () => {
   });
 
   it('normalizes quota consumed by the exact plan-owned Terraform workload fixture VM', () => {
+    const baseline = structuredClone(observation);
+    baseline.regions[0].quotaAvailable = 9;
     const fixturePlan = compileAzureCePlan(
       {
         ...intent,
@@ -392,15 +394,16 @@ describe('Azure CE apply protections', () => {
           peerAsn: 64512,
         },
         workloadFixture: {
+          imageVersion: '22.04.202610010',
           subnetName: 'workload',
           cidr: '10.30.0.0/24',
           privateIp: '10.30.0.4',
           port: 8080,
         },
       },
-      observation,
+      baseline,
     );
-    const current = structuredClone(observation);
+    const current = structuredClone(baseline);
     current.regions[0].quotaAvailable--;
     current.resources.push({
       id: `/subscriptions/${fixturePlan.subscription.id}/resourceGroups/${fixturePlan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${fixturePlan.deploymentName}-workload`,
@@ -491,6 +494,21 @@ describe('Azure CE apply protections', () => {
       policyAllowed: true,
       vmSizes: [],
     });
+    lifecycleObservation.resources = [
+      {
+        id: `/subscriptions/${intent.subscriptionId}/resourceGroups/${intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${intent.deploymentName}-1`,
+        location: intent.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': intent.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': 'a'.repeat(64),
+        },
+      },
+    ];
     for (const operation of ['reconcile', 'teardown'] as const) {
       const lifecycle = compileAzureCePlan({ ...intent, operation }, lifecycleObservation);
       const current = structuredClone(lifecycleObservation);
@@ -599,14 +617,14 @@ it('preserves explicit Terraform intent and forbids native execution of that pla
   ).not.toThrow();
 });
 
-it('fails closed instead of routing unsupported Terraform operations through initial admission', () => {
+it('admits executable Terraform lifecycle operations and keeps teardown on its separate public path', () => {
   for (const operation of ['reconcile', 'repair', 'update-network', 'teardown'] as const) {
     const selected = structuredClone(intent);
     selected.engine = 'terraform';
     selected.operation = operation;
     if (operation === 'teardown') selected.image = { ...selected.image };
     const observed = structuredClone(observation);
-    if (operation === 'update-network') {
+    if (operation !== 'teardown') {
       const owner = 'a'.repeat(64);
       observed.resources = [
         {
@@ -638,7 +656,8 @@ it('fails closed instead of routing unsupported Terraform operations through ini
       ];
     }
     const lifecycle = compileAzureCePlan(selected, observed);
-    expect(() => assertAzureTerraformApplyOperation(lifecycle)).toThrow(/not executable through Azure CE apply/);
+    if (operation !== 'teardown') expect(() => assertAzureTerraformApplyOperation(lifecycle)).not.toThrow();
+    else expect(() => assertAzureTerraformApplyOperation(lifecycle)).toThrow(/not executable through Azure CE apply/);
   }
 });
 
@@ -731,7 +750,7 @@ it('does not promote apply authorization into an ad hoc Marketplace terms action
     actions: [
       {
         id: 'terms',
-        phase: 'preflight' as const,
+        phase: 'terms' as const,
         kind: 'marketplace-terms-accept' as const,
         description: 'terms',
         mutates: true,

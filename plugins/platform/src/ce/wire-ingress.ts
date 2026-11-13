@@ -64,7 +64,10 @@ export interface InsideHttpListener {
   domain: string;
   port: number;
   originPool: { name: string; namespace: string };
-  sites: Array<{ name: string; insideAddress: string }>;
+  sites: Array<
+    | { name: string; insideAddress: string; usePrimaryInterfaceAddress?: never }
+    | { name: string; usePrimaryInterfaceAddress: true; insideAddress?: never }
+  >;
 }
 
 /** Serialization only. Callers must independently establish ownership, addresses and runtime health. */
@@ -95,20 +98,23 @@ export function buildInsideHttpListener(input: InsideHttpListener, validate: (sp
       !site ||
       typeof site.name !== 'string' ||
       !name.test(site.name) ||
-      typeof site.insideAddress !== 'string' ||
-      isIP(site.insideAddress) !== 4 ||
       names.has(site.name) ||
-      addresses.has(site.insideAddress)
+      (site.usePrimaryInterfaceAddress === true
+        ? site.insideAddress !== undefined
+        : site.usePrimaryInterfaceAddress !== undefined ||
+          typeof site.insideAddress !== 'string' ||
+          isIP(site.insideAddress) !== 4 ||
+          addresses.has(site.insideAddress))
     )
       throw new Error('Invalid or ambiguous inside HTTP listener placement');
     names.add(site.name);
-    addresses.add(site.insideAddress);
+    if (site.insideAddress !== undefined) addresses.add(site.insideAddress);
     return {
       site: {
         site: { name: site.name, namespace: 'system' },
-        // Bind the same observed SLI identity that the owning cloud plan uses
-        // as its NLB target and advertised service route.
-        ip: site.insideAddress,
+        // F5 documents an omitted IP as the primary interface VIP in this network.
+        // Ownership and the corresponding cloud target identities remain caller obligations.
+        ...(site.usePrimaryInterfaceAddress === true ? {} : { ip: site.insideAddress }),
         network: 'SITE_NETWORK_INSIDE',
       },
       use_default_port: {},

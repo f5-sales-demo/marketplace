@@ -21,6 +21,8 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
       version: '2026.08.15',
       urn: 'f5-networks:f5xc-customer-edge:f5xc-ce:2026.08.15',
       termsAccepted: true,
+      architecture: 'x64',
+      hyperVGeneration: 'V1',
     },
     regions: [
       {
@@ -33,7 +35,16 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
         quotaAvailable: 24,
         policyAllowed: true,
         vmSizes: [
-          { name: 'Standard_D8s_v5', maxNics: 8, vCpus: 8, memoryGb: 32, zones: ['1', '2', '3'], restricted: false },
+          {
+            architecture: 'x64',
+            hyperVGenerations: ['V1', 'V2'],
+            name: 'Standard_D8s_v5',
+            maxNics: 8,
+            vCpus: 8,
+            memoryGb: 32,
+            zones: ['1', '2', '3'],
+            restricted: false,
+          },
         ],
       },
     ],
@@ -367,7 +378,18 @@ describe('compileAzureCePlan', () => {
           routeServerSupported: true,
           quotaAvailable: 24,
           policyAllowed: true,
-          vmSizes: [{ name: 'Standard_D8s_v5', maxNics: 8, vCpus: 8, memoryGb: 32, zones: [], restricted: false }],
+          vmSizes: [
+            {
+              architecture: 'x64',
+              hyperVGenerations: ['V1', 'V2'],
+              name: 'Standard_D8s_v5',
+              maxNics: 8,
+              vCpus: 8,
+              memoryGb: 32,
+              zones: [],
+              restricted: false,
+            },
+          ],
         },
       ],
     });
@@ -439,7 +461,16 @@ describe('compileAzureCePlan', () => {
               quotaAvailable: 24,
               policyAllowed: true,
               vmSizes: [
-                { name: 'Standard_D8s_v5', maxNics: 1, vCpus: 8, memoryGb: 32, zones: ['1'], restricted: false },
+                {
+                  architecture: 'x64',
+                  hyperVGenerations: ['V1', 'V2'],
+                  name: 'Standard_D8s_v5',
+                  maxNics: 1,
+                  vCpus: 8,
+                  memoryGb: 32,
+                  zones: ['1'],
+                  restricted: false,
+                },
               ],
             },
           ],

@@ -1,13 +1,9 @@
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation, safeHexEqual } from './canonical';
 import { validateAzureNativePendingAction } from './native-action-recovery';
-import type {
-  AzureCeCheckpoint,
-  AzureCeLegacyCheckpoint,
-  AzureCeObservation,
-  AzureCePlan,
-  AzureCeStoredCheckpoint,
-} from './types';
+import { validateAzureNativeNetworkUpdateCheckpoint } from './network-update';
+import { azureRelayPlanForDeployment } from './relay-deployment-plan';
+import type { AzureCeCheckpoint, AzureCeObservation, AzureCePlan } from './types';
 import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from './types';
 import { AZURE_CE_WORKLOAD_FIXTURE_VCPUS } from './workload-fixture';
 
@@ -33,14 +29,12 @@ const CHECKPOINT_KEYS = new Set([
   'planSha256',
   'completedActionIds',
   'pendingAction',
+  'networkUpdate',
   'failedActionId',
   'observationFingerprint',
   'observationSnapshot',
   'state',
 ]);
-const LEGACY_CHECKPOINT_KEYS = new Set(
-  [...CHECKPOINT_KEYS].filter((key) => key !== 'observationSnapshot' && key !== 'pendingAction'),
-);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -135,8 +129,8 @@ function assertObservationShape(value: unknown): asserts value is AzureCeObserva
 }
 
 /** Remove only the capacity consumed by VMs created by this exact immutable deploy plan. */
-export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureCeObservation): string {
-  if (plan.intent.operation !== 'deploy') return fingerprintObservation(current, plan.intent.brownfield.resourceIds);
+export function normalizeAzureDeploymentCapacity(plan: AzureCePlan, current: AzureCeObservation): AzureCeObservation {
+  if (plan.intent.operation !== 'deploy') return structuredClone(current);
   const normalized = structuredClone(current);
   const vmScope =
     `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${plan.deploymentName}-`.toLowerCase();
@@ -172,11 +166,30 @@ export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureC
       resource.tags['xcsh-execution-engine'] === plan.engine &&
       resource.tags['xcsh-plan-sha256'] === plan.planSha256,
   );
-  if (ownedVmCount > 0 || ownedWorkloadVm) {
+  let ownedRelayVcpus = 0;
+  if (plan.relayProfile) {
+    const relayPlan = azureRelayPlanForDeployment(plan);
+    const ownedRelayCount = relayPlan.relays.filter((relay) => {
+      const matches = normalized.resources.filter((resource) => resource.id.toLowerCase() === relay.vmId.toLowerCase());
+      return (
+        matches.length === 1 &&
+        matches[0].exists &&
+        matches[0].owned &&
+        matches[0].tags['xcsh-managed-by'] === 'azure-ce' &&
+        matches[0].tags['xcsh-deployment-id'] === plan.deploymentName &&
+        matches[0].tags['xcsh-execution-engine'] === plan.engine &&
+        matches[0].tags['xcsh-plan-sha256'] === plan.planSha256 &&
+        matches[0].tags['xcsh-relay-plan-sha256'] === relayPlan.planSha256
+      );
+    }).length;
+    ownedRelayVcpus = ownedRelayCount * relayPlan.catalog.vmSizes[0].vCpus;
+  }
+  if (ownedVmCount > 0 || ownedWorkloadVm || ownedRelayVcpus > 0) {
     const region = normalized.regions.find((candidate) => candidate.name.toLowerCase() === plan.region.toLowerCase());
     const size = region?.vmSizes.find((candidate) => candidate.name.toLowerCase() === plan.vm.size.toLowerCase());
     if (region && size && Number.isFinite(size.vCpus) && size.vCpus > 0) {
-      region.quotaAvailable += ownedVmCount * size.vCpus + (ownedWorkloadVm ? AZURE_CE_WORKLOAD_FIXTURE_VCPUS : 0);
+      region.quotaAvailable +=
+        ownedVmCount * size.vCpus + (ownedWorkloadVm ? AZURE_CE_WORKLOAD_FIXTURE_VCPUS : 0) + ownedRelayVcpus;
       if (region.quotaAvailable >= size.vCpus * plan.topology.nodeCount) {
         region.reasons = region.reasons.filter((reason) => reason !== 'quota');
         region.eligible = !region.reasons.some((reason) => QUOTA_BLOCKERS.has(reason));
@@ -193,7 +206,17 @@ export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureC
       });
     }
   }
-  return fingerprintDeploymentObservation(normalized, plan.intent.brownfield.resourceIds, plan.region, plan.vm.size);
+  return normalized;
+}
+
+export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureCeObservation): string {
+  if (plan.intent.operation !== 'deploy') return fingerprintObservation(current, plan.intent.brownfield.resourceIds);
+  return fingerprintDeploymentObservation(
+    normalizeAzureDeploymentCapacity(plan, current),
+    plan.intent.brownfield.resourceIds,
+    plan.region,
+    plan.vm.size,
+  );
 }
 
 export function fingerprintCheckpointObservation(observation: AzureCeObservation): string {
@@ -274,14 +297,13 @@ function assertCheckpointProgress(
   }
 }
 
-export function validateAzureCeCheckpoint(value: unknown, plan: AzureCePlan): AzureCeStoredCheckpoint {
+export function validateAzureCeCheckpoint(value: unknown, plan: AzureCePlan): AzureCeCheckpoint {
   if (!isRecord(value)) throw new Error('Persisted Azure CE checkpoint is malformed');
   const version = value.schemaVersion;
-  const allowedKeys = version === AZURE_CE_SCHEMA_VERSION ? LEGACY_CHECKPOINT_KEYS : CHECKPOINT_KEYS;
-  if (!hasOnlyKeys(value, allowedKeys)) throw new Error('Persisted Azure CE checkpoint has unexpected fields');
-  if (version !== AZURE_CE_SCHEMA_VERSION && version !== AZURE_CE_CHECKPOINT_SCHEMA_VERSION) {
+  if (version !== AZURE_CE_CHECKPOINT_SCHEMA_VERSION) {
     throw new Error('Persisted Azure CE checkpoint uses an unsupported schema version');
   }
+  if (!hasOnlyKeys(value, CHECKPOINT_KEYS)) throw new Error('Persisted Azure CE checkpoint has unexpected fields');
   assertCheckpointProgress(value, plan);
   const fingerprint = value.observationFingerprint;
   if (fingerprint !== undefined && (typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(fingerprint))) {
@@ -295,12 +317,6 @@ export function validateAzureCeCheckpoint(value: unknown, plan: AzureCePlan): Az
     (authorization?.apply !== true || (plan.intent.operation === 'teardown' && authorization.destroy !== true))
   ) {
     throw new Error('Persisted Azure CE checkpoint execution has invalid authorization');
-  }
-  if (version === AZURE_CE_SCHEMA_VERSION) {
-    if (value.completedActionIds.length > 0 && fingerprint === undefined) {
-      throw new Error('Persisted legacy Azure CE checkpoint has no observation fingerprint');
-    }
-    return value as unknown as AzureCeLegacyCheckpoint;
   }
   const snapshot = value.observationSnapshot;
   const isEmptySeed =
@@ -332,31 +348,14 @@ export function validateAzureCeCheckpoint(value: unknown, plan: AzureCePlan): Az
       throw new Error('Persisted Azure CE checkpoint observation differs from its fingerprint');
     }
   }
-  return value as unknown as AzureCeCheckpoint;
-}
-
-export function upgradeAzureCeCheckpoint(
-  plan: AzureCePlan,
-  checkpoint: AzureCeLegacyCheckpoint,
-  current: AzureCeObservation,
-): AzureCeCheckpoint {
-  const currentFingerprint = fingerprintCurrentObservation(plan, current);
-  if (
-    checkpoint.completedActionIds.length > 0 &&
-    (!checkpoint.observationFingerprint || !safeHexEqual(checkpoint.observationFingerprint, currentFingerprint))
-  ) {
-    throw new Error(
-      plan.intent.operation === 'teardown'
-        ? 'Stale incomplete legacy Azure teardown checkpoint cannot be recovered safely'
-        : 'Legacy Azure CE checkpoint observation is stale',
+  if (value.networkUpdate !== undefined)
+    validateAzureNativeNetworkUpdateCheckpoint(
+      plan,
+      value.networkUpdate,
+      value.completedActionIds as string[],
+      (value.pendingAction as { actionId?: string } | undefined)?.actionId,
     );
-  }
-  return {
-    ...checkpoint,
-    schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
-    observationFingerprint: fingerprintCheckpointObservation(current),
-    observationSnapshot: structuredClone(current),
-  };
+  return value as unknown as AzureCeCheckpoint;
 }
 
 interface DeleteTarget {

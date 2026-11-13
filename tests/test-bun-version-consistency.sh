@@ -2,9 +2,9 @@
 set -euo pipefail
 
 source_root=$(cd "$(dirname "$0")/.." && pwd)
-expected_bun_version="1.4.2"
+expected_bun_version="1.4.4"
 expected_lockfile_version="2"
-expected_bun_types_range="^1.4.2"
+expected_bun_types_range="^1.4.4"
 
 pass() {
   printf 'PASS: %s\n' "$1"
@@ -36,10 +36,12 @@ for manifest in "$source_root"/plugins/*/package.json; do
   if ! declared=$(jq -er '.devDependencies["bun-types"] // empty' "$manifest"); then
     continue
   fi
+  types_version="$expected_bun_version"
+  expected_bun_types_range="^$types_version"
   [ "$declared" = "$expected_bun_types_range" ] ||
     fail "${manifest#"$source_root"/} must declare bun-types $expected_bun_types_range, got $declared"
   lockfile="${manifest%/package.json}/bun.lock"
-  grep -Fq "\"bun-types@$expected_bun_version\"" "$lockfile" ||
-    fail "${lockfile#"$source_root"/} must resolve bun-types $expected_bun_version"
+  grep -Fq "\"bun-types@$types_version\"" "$lockfile" ||
+    fail "${lockfile#"$source_root"/} must resolve bun-types $types_version"
 done
-pass "every Bun-typed plugin declares and resolves bun-types $expected_bun_version"
+pass "every Bun-typed plugin declares and resolves its qualified Bun types"

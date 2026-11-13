@@ -1301,3 +1301,149 @@ test('executor rejects a changed exact binary before launching any command', asy
   );
   await expect(readFile(join(root, 'invoked'))).rejects.toThrow();
 });
+
+async function nicPathFixture(changeOverrides: Record<string, unknown> = {}) {
+  return fixture({
+    resource_changes: [
+      {
+        address: 'azurerm_network_interface.ce',
+        mode: 'managed',
+        type: 'azurerm_network_interface',
+        change: {
+          actions: ['update'],
+          before: {
+            id: '/synthetic/nic',
+            ip_configuration: [{ name: 'internal', subnet_id: '/synthetic/before', private_ip_address: '10.20.1.5' }],
+          },
+          after: { id: '/synthetic/nic', ip_configuration: [{ name: 'internal', subnet_id: '/synthetic/target' }] },
+          after_unknown: { ip_configuration: [{ private_ip_address: true }] },
+          ...changeOverrides,
+        },
+      },
+    ],
+  });
+}
+
+test('private runner paths bind resolved NIC subnet leaves while whole-field projection still rejects unknown results', async () => {
+  const { runner, calls } = await nicPathFixture();
+  const receipt = await runner.plan({});
+  const paths = { 'azurerm_network_interface.ce': ['id', 'ip_configuration.0.name', 'ip_configuration.0.subnet_id'] };
+  expect(await runner.readPlannedResourcePaths(receipt, paths, {})).toEqual({
+    'azurerm_network_interface.ce': {
+      id: '/synthetic/nic',
+      'ip_configuration.0.name': 'internal',
+      'ip_configuration.0.subnet_id': '/synthetic/before',
+    },
+  });
+  expect(await runner.readProposedResourcePaths(receipt, paths, {})).toEqual({
+    'azurerm_network_interface.ce': {
+      id: '/synthetic/nic',
+      'ip_configuration.0.name': 'internal',
+      'ip_configuration.0.subnet_id': '/synthetic/target',
+    },
+  });
+  await expect(
+    runner.readProposedResourceFields(receipt, { 'azurerm_network_interface.ce': ['ip_configuration'] }, {}),
+  ).rejects.toThrow('resolved');
+  await expect(runner.readProposedResourceFields(receipt, paths, {})).rejects.toThrow('top-level');
+  expect(calls.some((call) => call.args[0] === 'apply')).toBe(false);
+});
+
+for (const mode of [
+  'sensitive-parent',
+  'unknown-parent',
+  'unknown-leaf',
+  'missing-side',
+  'unknown-absent-side',
+] as const)
+  test(`private saved-runner path rejects ${mode} before applying`, async () => {
+    const overrides: Record<string, unknown> = {};
+    if (mode === 'sensitive-parent') overrides.after_sensitive = { ip_configuration: true };
+    if (mode === 'unknown-parent') overrides.after_unknown = { ip_configuration: true };
+    if (mode === 'unknown-leaf') overrides.after_unknown = { ip_configuration: [{ subnet_id: true }] };
+    if (mode === 'missing-side' || mode === 'unknown-absent-side') {
+      overrides.after = mode === 'unknown-absent-side' ? null : undefined;
+      if (mode === 'unknown-absent-side') overrides.after_unknown = true;
+    }
+    const { runner, calls } = await nicPathFixture(overrides);
+    const receipt = await runner.plan({});
+
+    await expect(
+      runner.readProposedResourcePaths(
+        receipt,
+        { 'azurerm_network_interface.ce': ['ip_configuration.0.subnet_id'] },
+        {},
+      ),
+    ).rejects.toThrow();
+    expect(calls.some((call) => call.args[0] === 'apply')).toBe(false);
+  });
+
+test('private runner path inspection requires exact unsubmitted saved plan and rejects replay after apply', async () => {
+  const { runner } = await nicPathFixture();
+  const receipt = await runner.plan({});
+  const paths = { 'azurerm_network_interface.ce': ['ip_configuration.0.subnet_id'] };
+  await expect(runner.readProposedResourcePaths({ ...receipt, planSha256: '0'.repeat(64) }, paths, {})).rejects.toThrow(
+    'saved plan',
+  );
+  await expect(
+    runner.readProposedResourcePaths(receipt, { 'azurerm_network_interface.ce': ['id', 'id'] }, {}),
+  ).rejects.toThrow();
+  await runner.apply(receipt, {});
+  await expect(runner.readProposedResourcePaths(receipt, paths, {})).rejects.toThrow('saved plan');
+});
+
+for (const phase of ['create', 'delete'] as const)
+  test(`private saved-runner paths retain known ${phase} absence separately from unknown evidence`, async () => {
+    const { runner } = await nicPathFixture(
+      phase === 'create'
+        ? { actions: ['create'], before: null }
+        : { actions: ['delete'], after: null, after_unknown: false },
+    );
+    const receipt = await runner.plan({});
+    const paths = { 'azurerm_network_interface.ce': ['ip_configuration.0.subnet_id'] };
+    expect(
+      await (phase === 'create'
+        ? runner.readPlannedResourcePaths(receipt, paths, {})
+        : runner.readProposedResourcePaths(receipt, paths, {})),
+    ).toEqual({ 'azurerm_network_interface.ce': null });
+  });
+
+test('private runner paths reject a changed saved binary before reading selected fields', async () => {
+  const { runner, calls } = await nicPathFixture();
+  const receipt = await runner.plan({});
+  const planned = calls.find((call) => call.args[0] === 'plan');
+  if (!planned) throw Error('Fixture plan invocation missing');
+  await writeFile(join(planned.cwd, 'saved.tfplan'), 'changed-binary-plan', { mode: 0o600 });
+  await expect(
+    runner.readProposedResourcePaths(receipt, { 'azurerm_network_interface.ce': ['ip_configuration.0.subnet_id'] }, {}),
+  ).rejects.toThrow('saved plan');
+  expect(calls.some((call) => call.args[0] === 'apply')).toBe(false);
+});
+
+const invalidNicFieldSelections: Array<Record<string, string[]>> = [
+  { 'module.foreign.azurerm_network_interface.ce': ['id'] },
+  { 'azurerm_network_interface.ce': ['ip_configuration.*.subnet_id'] },
+  { 'azurerm_network_interface.ce': [] },
+];
+for (const paths of invalidNicFieldSelections)
+  test('private runner paths reject unresolved or non-root selection syntax', async () => {
+    const { runner, calls } = await nicPathFixture();
+    const receipt = await runner.plan({});
+    await expect(runner.readProposedResourcePaths(receipt, paths, {})).rejects.toThrow('Explicit root resource');
+    expect(calls.some((call) => call.args[0] === 'apply')).toBe(false);
+  });
+
+test('private runner path cardinality distinguishes a second planned IP configuration from unknown address contents', async () => {
+  const { runner } = await nicPathFixture({
+    after: { id: '/synthetic/nic', ip_configuration: [{ name: 'first' }, { name: 'second' }] },
+    after_unknown: { ip_configuration: [{ private_ip_address: true }, { private_ip_address: true }] },
+  });
+  const receipt = await runner.plan({});
+  expect(
+    await runner.readProposedResourcePaths(
+      receipt,
+      { 'azurerm_network_interface.ce': ['ip_configuration.length'] },
+      {},
+    ),
+  ).toEqual({ 'azurerm_network_interface.ce': { 'ip_configuration.length': 2 } });
+});

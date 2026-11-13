@@ -17,6 +17,54 @@ const input = {
   sites: [1, 2, 3].map((i) => ({ name: `ce-site-${i}`, insideAddress: `10.20.${i}.10` })),
 };
 
+test('uses the documented primary inside interface VIP when explicitly selected', () => {
+  const sites = [{ name: 'ce-ha-site', usePrimaryInterfaceAddress: true as const }];
+  const before = structuredClone(sites);
+  const result = buildInsideHttpListener({ ...input, sites }, validate);
+  expect(sites).toEqual(before);
+  expect(result.spec.advertise_custom.advertise_where).toEqual([
+    {
+      site: { site: { name: 'ce-ha-site', namespace: 'system' }, network: 'SITE_NETWORK_INSIDE' },
+      use_default_port: {},
+    },
+  ]);
+  expect(result.spec.advertise_custom.advertise_where[0].site).not.toHaveProperty('ip');
+  expect(result.evidence).toEqual({ listener: 'unknown', routes: 'unknown', traffic: 'unknown' });
+  validate(result.spec);
+});
+
+test('projects a primary-interface listener without inventing an explicit VIP', () => {
+  const result = buildInsideHttpListener(
+    { ...input, sites: [{ name: 'ce-ha-site', usePrimaryInterfaceAddress: true as const }] },
+    validate,
+  );
+  const projected = projectInsideHttpListener(result.spec, fixture.schemas, validate);
+  expect(projected.advertise_custom).toEqual(result.spec.advertise_custom);
+  expect(JSON.stringify(projected.advertise_custom)).not.toContain('"ip"');
+});
+
+test('requires an unambiguous explicit address mode and distinct site identities', () => {
+  for (const sites of [
+    [{ name: 'ce-ha-site' }],
+    [{ name: 'ce-ha-site', usePrimaryInterfaceAddress: false }],
+    [{ name: 'ce-ha-site', usePrimaryInterfaceAddress: 'true' }],
+    [{ name: 'ce-ha-site', usePrimaryInterfaceAddress: true, insideAddress: '10.20.1.10' }],
+    [{ name: 'ce-ha-site', usePrimaryInterfaceAddress: true, insideAddress: '' }],
+    [{ name: 'ce-ha-site', usePrimaryInterfaceAddress: false, insideAddress: '10.20.1.10' }],
+    [
+      { name: 'ce-ha-site', usePrimaryInterfaceAddress: true },
+      { name: 'ce-ha-site', insideAddress: '10.20.1.10' },
+    ],
+  ]) {
+    expect(() =>
+      buildInsideHttpListener(
+        { ...input, sites } as unknown as Parameters<typeof buildInsideHttpListener>[0],
+        validate,
+      ),
+    ).toThrow();
+  }
+});
+
 test('projects the current API response without treating runtime state or documented defaults as drift', () => {
   const projected = projectInsideHttpListener(observed.spec, fixture.schemas, validate);
   expect(projected).not.toHaveProperty('state');

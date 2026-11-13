@@ -4,6 +4,8 @@ export interface ExpectedCeInterface {
   node: string;
   role: 'slo' | 'data' | 'sli';
   mac: string;
+  /** Optional planned or previously bound device; the observed MAC must resolve to it. */
+  device?: string;
   /** Desired configuration only; this does not establish operational link or freshness. */
   staticIp?: { ip_address: string; default_gw?: string; dns_server?: string };
 }
@@ -13,6 +15,16 @@ export interface ObservedCeInterface extends ExpectedCeInterface {
   mtu: number;
   linkUp: boolean;
   ipv4: { address: string; prefixLength: number } | null;
+}
+/** Reported link values are distinct from permission to use them at a mutation boundary.
+ * Missing qualification is unqualified. Collection time is never original CE sample time.
+ */
+export interface CeInterfaceObservation {
+  status: 'observed' | 'down' | 'unknown';
+  interfaces: ObservedCeInterface[];
+  observedAt: string;
+  freshness?: 'verified' | 'unqualified';
+  canSatisfyInterfaceMutationGate?: boolean;
 }
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => {
@@ -89,7 +101,7 @@ export function correlateCeInterfaces(
         if (
           slo === sli ||
           !Number.isInteger(iface.mtu) ||
-          (Number(iface.mtu) !== 0 && (Number(iface.mtu) < 576 || Number(iface.mtu) > 9000))
+          (Number(iface.mtu) !== 0 && (Number(iface.mtu) < 576 || Number(iface.mtu) > 8000))
         )
           throw new Error('Ambiguous interface role or MTU');
         return {
@@ -113,6 +125,8 @@ export function correlateCeInterfaces(
     const candidates = configured.filter((item) => item.node === binding.node && item.mac === normalized);
     if (candidates.length !== 1 || candidates[0].outside !== (binding.role === 'slo'))
       throw new Error('Configured MAC binding differs');
+    if (binding.device !== undefined && binding.device !== candidates[0].device)
+      throw new Error('Planned guest device differs from configured MAC identity');
     const { outside: _outside, ...configuredInterface } = candidates[0];
     const iface = { ...configuredInterface, role: binding.role };
     const matches = realized.filter((item) => {
@@ -140,18 +154,15 @@ export function correlateCeInterfaces(
         publisher.creator_class === 'ver' &&
         publisher.publish === 'STATUS_PUBLISH' &&
         publisher.vtrp_stale === false &&
-        (matchesNode(iface.node, publisher.creator_id) ||
-          // Current SMSv2 publications use the site as publisher. Require both
-          // observed node identifiers and the exact physical-site reference.
-          (publisher.creator_id === metadata.name &&
-            publisher.status_id === `${iface.node}_SiteStatusMgr` &&
-            object(item.ver_status).ver_instance_name === `${iface.node}-${metadata.name}` &&
-            typeof object(physical.system_metadata ?? {}).uid === 'string' &&
-            object(physical.system_metadata).uid !== '' &&
-            array(item.object_refs).filter((ref) => {
-              const value = object(ref);
-              return value.kind === 'ves.io.vega.cfg.site.Object' && value.uid === object(physical.system_metadata).uid;
-            }).length === 1))
+        (matchesNode(iface.node, publisher.creator_id) || publisher.creator_id === metadata.name) &&
+        publisher.status_id === `${iface.node}_SiteStatusMgr` &&
+        object(item.ver_status).ver_instance_name === `${iface.node}-${metadata.name}` &&
+        typeof object(physical.system_metadata ?? {}).uid === 'string' &&
+        object(physical.system_metadata).uid !== '' &&
+        array(item.object_refs).filter((ref) => {
+          const value = object(ref);
+          return value.kind === 'ves.io.vega.cfg.site.Object' && value.uid === object(physical.system_metadata).uid;
+        }).length === 1
       );
     });
     if (publications.length !== 1) throw new Error('Physical interface publication is missing, stale or duplicated');

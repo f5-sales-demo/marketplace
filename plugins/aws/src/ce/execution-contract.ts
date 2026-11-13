@@ -1,4 +1,6 @@
-export const AWS_CE_TERRAFORM_VERSION = '1.16.5';
+import { CE_TERRAFORM_VERSION } from '../../../terraform/src/ce-execution-contract';
+
+export const AWS_CE_TERRAFORM_VERSION = CE_TERRAFORM_VERSION;
 export const AWS_CE_TERRAFORM_PROVIDER_VERSION = '6.63.0';
 export const AWS_CE_PROVIDER_LOCK_SHA256 = 'b97165003c421c83098216c89f00ecbd10a7fb59cd6954c8abf74af0262ed843';
 

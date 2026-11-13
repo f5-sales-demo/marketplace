@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
+import { renderTerraformConfigurationJson } from '../../../terraform/src/configuration-json';
 import type { Deployment, PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
@@ -30,8 +31,9 @@ interface LifecycleCheckpoint {
 }
 
 function lifecycleOperation(plan: AzureCePlan): LifecycleOperation {
+  if (plan.intent.operation === 'reconcile' || plan.intent.operation === 'repair') return 'start';
   if (!['start', 'stop', 'resize'].includes(plan.intent.operation))
-    throw new Error('Azure Terraform lifecycle supports start, stop, or resize plans');
+    throw new Error('Azure Terraform lifecycle supports start, stop, resize, reconcile, or repair plans');
   return plan.intent.operation as LifecycleOperation;
 }
 
@@ -68,7 +70,7 @@ function configuration(plan: AzureCePlan, node: number, includeMutation: boolean
           when: 'apply',
           locks: [action.resourceId],
         };
-  return JSON.stringify({
+  return renderTerraformConfigurationJson({
     terraform: {
       required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
       required_providers: {

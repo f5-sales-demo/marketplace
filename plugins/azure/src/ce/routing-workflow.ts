@@ -1,4 +1,5 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { requireQualifiedUpInterfaceEvidence } from '../../../platform/src/ce/interface-admission';
 import type { ExpectedCeInterface } from '../../../platform/src/ce/interface-evidence';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
@@ -27,6 +28,7 @@ export async function configureAzureRouteServerRouting(
   await storage.verify();
   const observed = await runtime.observeAzureInterfaces(binding, expectedInterfaces, signal);
   if (observed.status !== 'observed') throw new Error('Authoritative Azure platform interface evidence is unavailable');
+  requireQualifiedUpInterfaceEvidence(observed, expectedInterfaces);
   const slo = observed.interfaces.filter((item) => item.role === 'slo');
   if (
     slo.length !== binding.nodes.length ||

@@ -26,6 +26,27 @@ assert module.safe_email("xorgctl-session@console.service")
 assert not module.safe_email("person@console.service")
 assert not module.safe_email("person@company.invalid")
 print("[OK] software unit identifiers remain distinct from contact addresses")
+for path, line in [
+    ("fixture.md", "Supported Namespace: system/shared"),
+    ("fixture.html", '<p class="mui-style-example">Supported Namespace: system/shared</p>'),
+]:
+    findings = set()
+    module.scan_text(path, line, findings)
+    assert not findings, (path, findings)
+for line in [
+    "Supported Namespace: system/private-namespace",
+    "Supported Namespace: system/shared-private-namespace",
+    "Supported Tenant: system/shared",
+    "Namespace: system/shared",
+    "Supported Namespace: system/shared, tenant: private-namespace",
+]:
+    findings = set()
+    module.scan_text("fixture.md", line, findings)
+    assert len(findings) == 1 and next(iter(findings)).category == "customer-identifier", findings
+findings = set()
+module.scan_text("fixture.md", "Supported Namespace: system/shared, email: person@company.invalid", findings)
+assert len(findings) == 1 and next(iter(findings)).category == "email", findings
+print("[OK] fixed supported-namespace prose preserves literal-identity enforcement")
 PYTEST
 
 FAIL=0
@@ -2380,6 +2401,33 @@ EOF
 git -C "$repo" add fixture.ts
 git -C "$repo" commit -qm source-template-and-signature-expressions
 assert_clean "source template expressions and signatures are not YAML data" "$repo" --scope head --mode enforce
+
+repo=$(new_repo source-generated-identity-name)
+cat >"${repo}/fixture.ts" <<'EOF'
+const subscriptionName = `${serviceName}-subscription`;
+const subscriptionId = `${addonServiceName.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}-subscription`;
+EOF
+git -C "$repo" add fixture.ts
+git -C "$repo" commit -qm generated-identity-name
+assert_clean "runtime templates with field-noun labels are generated names" "$repo" --scope head --mode enforce
+
+index=0
+while IFS= read -r expression; do
+  index=$((index + 1))
+  repo=$(new_repo "source-generated-identity-literal-${index}")
+  printf '%s\n' "$expression" >"${repo}/fixture.ts"
+  git -C "$repo" add fixture.ts
+  git -C "$repo" commit -qm generated-identity-literal
+  assert_customer_identifier "generated-name syntax retains literal identity case ${index}" "$repo" --scope head --mode enforce
+done <<'EOF'
+const subscriptionName = `${"private-customer"}-subscription`;
+const subscriptionName = `${serviceName}-private-customer`;
+const subscriptionName = `${serviceName}-subscription` + "private-customer";
+const subscriptionName = "${serviceName}-subscription";
+// subscriptionName = `${serviceName}-subscription`;
+const subscriptionName = `${serviceName}-subscription;
+const subscriptionName = `${`private-customer`}-subscription`;
+EOF
 
 repo=$(new_repo source-template-literal-composition)
 cat >"${repo}/fixture.ts" <<'EOF'

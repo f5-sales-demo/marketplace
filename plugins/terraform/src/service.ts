@@ -14,6 +14,12 @@ import {
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
+  /** Authenticated permanent-barrier custody; absent/retiring never qualify retirement. */
+  readArtifactRetirement?(
+    receipt: PlanReceipt,
+    evidenceSha256: string,
+    signal?: AbortSignal,
+  ): Promise<Awaited<ReturnType<TerraformRunner['readArtifactRetirement']>>>;
   /** Terminal runner-only cleanup after separate cloud/F5 absence qualification. */
   retireArtifacts?(
     receipt: PlanReceipt,
@@ -26,8 +32,30 @@ export interface TerraformSession {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<Array<{ address: string; type: string; id: string; name?: string; namespace?: string; labels?: unknown }>>;
+  /** Exact private cancellation provenance; pending records never authorize retirement. */
+  readUnsubmittedPlanCancellation?(
+    receipt: PlanReceipt | undefined,
+    expectedSha256: string,
+    nextSha256: string,
+    evidenceSha256: string,
+    signal?: AbortSignal,
+  ): Promise<Awaited<ReturnType<TerraformRunner['readUnsubmittedPlanCancellation']>>>;
   /** Current private configuration identity, used to reconcile an interrupted revision. */
   readConfigurationSha256?(): Promise<string>;
+  /** Private journal/byte observation; plan semantics and cloud outcomes remain separate. */
+  readCurrentPlanJournal?(
+    expectedConfigurationSha256: string,
+    signal?: AbortSignal,
+  ): Promise<Awaited<ReturnType<TerraformRunner['readCurrentPlanJournal']>>>;
+  /** Exact private journal history; original cloud outcome/retirement remain separate. */
+  readPlanApplicationHistory?(
+    receipt: PlanReceipt,
+    signal?: AbortSignal,
+  ): Promise<Awaited<ReturnType<TerraformRunner['readPlanApplicationHistory']>>>;
+  /** Exhaustive read-only native journals; partial/unknown never qualify admission. */
+  readPlanJournalInventory?(
+    signal?: AbortSignal,
+  ): Promise<Awaited<ReturnType<TerraformRunner['readPlanJournalInventory']>>>;
   /** Sensitive internal snapshot, bound to the caller's expected revision. */
   readConfiguration(expectedSha256: string): Promise<string>;
   /** Restricted ownership projection; selected fields must be nonsensitive. */
@@ -39,6 +67,19 @@ export interface TerraformSession {
   ): Promise<Record<string, Record<string, unknown> | null>>;
   /** Resolved nonsensitive proposed fields, separately from prior-state ownership projection. */
   readProposedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>>;
+  /** Private selective identity projection; the owning runtime exposes both paths methods together. */
+  readPlannedResourcePaths?(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>>;
+  readProposedResourcePaths?(
     receipt: PlanReceipt,
     selections: Record<string, string[]>,
     env: Record<string, string | undefined>,
@@ -64,6 +105,15 @@ export interface TerraformSession {
     configuration: string,
     evidenceSha256: string,
   ): Promise<string>;
+  /** Original local cancellation and exact current continuation custody; no outcome/retirement claim. */
+  readCancelledPlanContinuation?(
+    receipt: PlanReceipt,
+    expectedSha256: string,
+    nextSha256: string,
+    evidenceSha256: string,
+    continuationReceipt: PlanReceipt,
+    signal?: AbortSignal,
+  ): Promise<Awaited<ReturnType<TerraformRunner['readCancelledPlanContinuation']>>>;
   /** Resolve an interrupted apply only after the cloud adapter persists exact outcome evidence. */
   reconcileApplyFromEvidence(receipt: PlanReceipt, evidenceSha256: string): Promise<void>;
   planDestroy(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
@@ -82,7 +132,11 @@ export interface TerraformSession {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<PlanReceipt>;
-  plan(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
+  plan(
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+    refreshOriginSha256?: string,
+  ): Promise<PlanReceipt>;
   readPlanApplicationState(receipt: PlanReceipt): Promise<'planned' | 'applying' | 'applied'>;
   readAppliedResourceFields(
     receipt: PlanReceipt,
@@ -101,7 +155,11 @@ export interface CeTerraformService {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<ArtifactRetirementReceipt>;
-  open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;
+  open(
+    owner: CeOwner,
+    deployment: Deployment,
+    resume: boolean | 'current' | 'recover-initialization',
+  ): Promise<TerraformSession>;
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
@@ -123,18 +181,32 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
       )
         throw new Error('Terraform deployment and cloud ownership differ');
       const shared = await platform();
-      const store = await shared.storage(owner);
+      const store = await shared.storage(owner, { readOnly: Boolean(resume) });
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const runner = new TerraformRunner(
         deployment.stage ? join(store.directory, 'terraform-stages', deployment.stage) : store.directory,
       );
-      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
+      if (resume === 'recover-initialization') {
+        try {
+          await runner.resume(deployment.deploymentId, deployment, 'current');
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          await runner.recoverPreparation(deployment);
+        }
+      } else if (resume)
+        await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
-        await shared.storage(owner);
+        await shared.storage(owner, { readOnly: true });
       };
       return {
+        async readArtifactRetirement(receipt, evidenceSha256, signal) {
+          await checkOwner();
+          const observed = await runner.readArtifactRetirement(receipt, evidenceSha256, signal);
+          await checkOwner();
+          return observed;
+        },
         async retireArtifacts(receipt, evidenceSha256, env, signal) {
           await checkOwner();
           return runner.retireArtifacts(receipt, evidenceSha256, env, signal);
@@ -151,6 +223,18 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
           await checkOwner();
           return runner.readConfigurationSha256();
         },
+        async readCurrentPlanJournal(expectedConfigurationSha256, signal) {
+          await checkOwner();
+          return runner.readCurrentPlanJournal(expectedConfigurationSha256, signal);
+        },
+        async readPlanJournalInventory(signal) {
+          await checkOwner();
+          return runner.readPlanJournalInventory(signal);
+        },
+        async readPlanApplicationHistory(receipt, signal) {
+          await checkOwner();
+          return runner.readPlanApplicationHistory(receipt, signal);
+        },
         async readPlannedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readPlannedResourceFields(receipt, selections, env, signal);
@@ -158,6 +242,14 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async readProposedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readProposedResourceFields(receipt, selections, env, signal);
+        },
+        async readPlannedResourcePaths(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readPlannedResourcePaths(receipt, selections, env, signal);
+        },
+        async readProposedResourcePaths(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readProposedResourcePaths(receipt, selections, env, signal);
         },
         async readPlannedResourceIds(receipt, addresses, env, signal) {
           await checkOwner();
@@ -174,6 +266,28 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async reviseConfiguration(expectedSha256, configuration) {
           await checkOwner();
           return runner.reviseConfiguration(expectedSha256, configuration);
+        },
+        async readUnsubmittedPlanCancellation(receipt, expectedSha256, nextSha256, evidenceSha256, signal) {
+          await checkOwner();
+          return runner.readUnsubmittedPlanCancellation(receipt, expectedSha256, nextSha256, evidenceSha256, signal);
+        },
+        async readCancelledPlanContinuation(
+          receipt,
+          expectedSha256,
+          nextSha256,
+          evidenceSha256,
+          continuationReceipt,
+          signal,
+        ) {
+          await checkOwner();
+          return runner.readCancelledPlanContinuation(
+            receipt,
+            expectedSha256,
+            nextSha256,
+            evidenceSha256,
+            continuationReceipt,
+            signal,
+          );
         },
         async cancelUnsubmittedPlan(receipt, expectedSha256, configuration, evidenceSha256) {
           await checkOwner();
@@ -199,9 +313,9 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
           await checkOwner();
           return runner.planRelinquishments(intents, env, signal);
         },
-        async plan(env, signal) {
+        async plan(env, signal, refreshOriginSha256) {
           await checkOwner();
-          return runner.plan(env, signal);
+          return runner.plan(env, signal, refreshOriginSha256);
         },
         async readPlanApplicationState(receipt) {
           await checkOwner();

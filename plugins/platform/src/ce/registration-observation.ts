@@ -69,6 +69,7 @@ export function parseRegistrationObservation(
     return {
       node,
       registration: item.name,
+      registrationUid: object(object(item.object).system_metadata ?? {}).uid,
       instanceId: infra.instance_id,
       state,
       status: state === 'ONLINE' ? 'healthy' : 'degraded',

@@ -4,6 +4,7 @@ import type { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../platform/src/ce/service';
+import { CE_TERRAFORM_VERSION } from './ce-execution-contract';
 import { loadXcshProviderLock, XCSH_PROVIDER_VERSION } from './provider-lock';
 import type { PlanReceipt } from './runner';
 import type { CeTerraformService } from './service';
@@ -40,10 +41,10 @@ export async function f5StageDeployment(owner: CeOwner) {
     stage: 'f5-resources',
     engine: 'terraform' as const,
     scope: { cloud: owner.provider, account: owner.account, region: owner.region },
-    terraformVersion: '1.16.5',
+    terraformVersion: CE_TERRAFORM_VERSION,
     configuration: JSON.stringify({
       terraform: {
-        required_version: '= 1.16.5',
+        required_version: `= ${CE_TERRAFORM_VERSION}`,
         required_providers: { xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${XCSH_PROVIDER_VERSION}` } },
       },
       provider: { xcsh: {} },

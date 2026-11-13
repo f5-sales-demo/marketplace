@@ -6,11 +6,35 @@ export async function resolveInterfaceAddress(
   api: AzExecApi,
   plan: AzureCePlan,
   node: number,
-  role: 'slo' | 'sli',
+  role: 'slo' | 'sli' | 'data',
   ownerPlanSha256 = plan.planSha256,
+  signal?: AbortSignal,
 ): Promise<string> {
   const interfaces = plan.nics.filter((nic) => nic.role === role);
   if (interfaces.length !== 1) throw new Error('CE interface role is missing or ambiguous');
+  return resolveAzureNicAddress(api, plan, node, interfaces[0].index, ownerPlanSha256, signal);
+}
+
+/** Resolve only an exact planned physical NIC; no SLI/data role substitution. */
+export async function resolveAzureNicAddress(
+  api: AzExecApi,
+  plan: AzureCePlan,
+  node: number,
+  nicIndex: number,
+  ownerPlanSha256 = plan.planSha256,
+  signal?: AbortSignal,
+): Promise<string> {
+  signal?.throwIfAborted();
+  plan = structuredClone(plan);
+  const interfaces = plan.nics.filter((nic) => nic.index === nicIndex);
+  if (
+    !Number.isInteger(node) ||
+    node < 1 ||
+    node > plan.topology.nodeCount ||
+    !Number.isInteger(nicIndex) ||
+    interfaces.length !== 1
+  )
+    throw Error('Exact planned CE node/NIC identity is missing or ambiguous');
   const iface = interfaces[0];
   const nics = plan.actions.filter(
     (action) => (action.kind === 'nic-create' || action.kind === 'nic-update') && action.node === node,
@@ -28,17 +52,39 @@ export async function resolveInterfaceAddress(
   const scope = `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/`.toLowerCase();
   for (const id of [nic.resourceId, vmId])
     if (!id.toLowerCase().startsWith(scope)) throw new Error('Planned interface is outside deployment scope');
+  const deadline = AbortSignal.any([AbortSignal.timeout(30000), ...(signal ? [signal] : [])]);
+  const execute = api.exec;
   const read = async (kind: 'nic' | 'vm', id: string) => {
-    const result = await api.exec('az', [
-      ...(kind === 'nic' ? ['network', 'nic'] : ['vm']),
-      'show',
-      '--ids',
-      id,
-      '--subscription',
-      plan.subscription.id,
-      '--output',
-      'json',
-    ]);
+    deadline.throwIfAborted();
+    if (api.exec !== execute) throw Error('CE interface executor changed');
+    const abort = Promise.withResolvers<never>(),
+      onAbort = () => abort.reject(deadline.reason);
+    deadline.addEventListener('abort', onAbort, { once: true });
+    let result: Awaited<ReturnType<AzExecApi['exec']>>;
+    try {
+      result = await Promise.race([
+        execute.call(
+          api,
+          'az',
+          [
+            ...(kind === 'nic' ? ['network', 'nic'] : ['vm']),
+            'show',
+            '--ids',
+            id,
+            '--subscription',
+            plan.subscription.id,
+            '--output',
+            'json',
+          ],
+          { signal: deadline },
+        ),
+        abort.promise,
+      ]);
+      deadline.throwIfAborted();
+      if (api.exec !== execute) throw Error('CE interface executor changed');
+    } finally {
+      deadline.removeEventListener('abort', onAbort);
+    }
     if (result.exitCode !== 0) throw new Error('CE interface observation unavailable');
     let value: {
       id?: string;
@@ -101,7 +147,12 @@ export async function resolveInterfaceAddress(
     isIP(primary[0].privateIPAddress ?? '') !== 4
   )
     throw new Error('CE primary IPv4 address is missing or ambiguous');
-  if (iface.subnet.resourceId && primary[0].subnet?.id?.toLowerCase() !== iface.subnet.resourceId.toLowerCase())
+  const expectedSubnet =
+    iface.subnet.resourceId ??
+    (iface.subnet.mode === 'greenfield' && iface.subnet.name
+      ? `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualNetworks/${plan.deploymentName}-vnet/subnets/${iface.subnet.name}`
+      : undefined);
+  if (expectedSubnet && primary[0].subnet?.id?.toLowerCase() !== expectedSubnet.toLowerCase())
     throw new Error('CE subnet identity does not match');
   return primary[0].privateIPAddress ?? '';
 }

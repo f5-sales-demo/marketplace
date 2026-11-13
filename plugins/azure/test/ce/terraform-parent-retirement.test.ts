@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
@@ -8,7 +8,11 @@ import { storeBootstrapToken } from '../../../platform/src/ce/token-store';
 import { independentRetirementFixture } from '../../../terraform/test/fixtures/independent-retirement';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
-import { azureTerraformCurrentDeployment } from '../../src/ce/terraform-foundation';
+import { azureTerraformCurrentDeployment, azureTerraformFoundationDeployment } from '../../src/ce/terraform-foundation';
+import {
+  publishAzureTerraformOriginalReceipt,
+  readAzureTerraformOriginalReceiptInventory,
+} from '../../src/ce/terraform-original-receipt-inventory';
 import { retireAzureTerraformParentArtifacts } from '../../src/ce/terraform-parent-retirement';
 import { beginAzureTerraformRetirement } from '../../src/ce/terraform-retirement';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
@@ -19,7 +23,24 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 for (const fault of [
+  'missing-terminal-payload',
+  'changed-terminal-payload',
+  'rehashed-terminal-payload',
+  'interrupted-terminal-payload',
+  'terminal-changed-after-read',
   'none',
+  'original-metadata',
+  'original-metadata-interrupted',
+  'original-metadata-partial',
+  'original-metadata-foreign',
+  'original-metadata-inode',
+  'original-metadata-late',
+  'original-metadata-digest',
+  'original-metadata-bootstrap',
+  'original-metadata-owner',
+  'original-metadata-fragments',
+  'original-metadata-fragment-foreign',
+  'original-metadata-fragment-unknown',
   'missing-independent',
   'unknown',
   'public-update',
@@ -29,6 +50,7 @@ for (const fault of [
   'foreign-public-update-plan',
   'foreign-runner',
   'changed-artifact',
+  'identical-byte-artifact',
   'interrupted',
   'reconciliation',
   'foreign-reconciliation',
@@ -61,7 +83,8 @@ for (const fault of [
       mutations: true,
     });
     await beginAzureTerraformRetirement(base, teardown, store);
-    const evidence = 'b'.repeat(64),
+    const retirementEvidence = { platform: { status: 'absent', owner: binding.owner }, cloud: { status: 'absent' } };
+    const evidence = canonicalSha256(retirementEvidence),
       finalPlan = 'c'.repeat(64),
       deployment = await azureTerraformCurrentDeployment(base);
     const { configuration, providerLock, ...rest } = deployment,
@@ -95,20 +118,31 @@ for (const fault of [
       phase: 'retired',
       sourcePlanSha256: base.planSha256,
       teardownPlanSha256: teardown.planSha256,
+      retirementEvidence,
       retirementEvidenceSha256: evidence,
       final: { planSha256: finalPlan },
       artifacts: { ...marker, retiredArtifacts: 0 },
     });
-    await store.write('terraform-workflow.json', { bootstrapByNode: { [binding.nodes[0]]: 'fixture-secret' } });
+    await store.write('terraform-workflow.json', {
+      bootstrapByNode: {
+        [binding.nodes[0]]: [{}, { sub: 'fixture' }, 'signature']
+          .map((value) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url'))
+          .join('.'),
+      },
+    });
     await store.write('token-one.json', {
       tokenName: 'token-one',
       siteName: base.siteName,
       node: binding.nodes[0],
-      jwt: 'fixture-secret',
+      jwt: [{}, { sub: 'fixture' }, 'signature']
+        .map((value) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url'))
+        .join('.'),
     });
     await storeBootstrapToken({
       sessionId: 'session-one',
-      token: 'fixture-secret',
+      token: [{}, { sub: 'fixture' }, 'signature']
+        .map((value) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url'))
+        .join('.'),
       expiresInSeconds: 60,
       root: join(root, 'checkout'),
       onPrepared: async (checkout) => {
@@ -148,9 +182,110 @@ for (const fault of [
       });
     }
     if (fault === 'unknown') await store.write('foreign.json', { jwt: 'unowned' });
+    if (['missing-terminal-payload', 'changed-terminal-payload', 'rehashed-terminal-payload'].includes(fault)) {
+      const terminal = (await store.read('azure-terraform-terminal-cleanup.json')) as Record<string, unknown>;
+      if (fault === 'missing-terminal-payload') delete terminal.retirementEvidence;
+      else terminal.retirementEvidence = { cloud: { status: 'present' } };
+      if (fault === 'rehashed-terminal-payload')
+        terminal.retirementEvidenceSha256 = canonicalSha256(terminal.retirementEvidence);
+      await store.write('azure-terraform-terminal-cleanup.json', terminal);
+    }
+    if (fault === 'terminal-changed-after-read') {
+      const read = store.read.bind(store);
+      let changed = false;
+      store.read = async (name) => {
+        const value = await read(name);
+        if (name === 'azure-terraform-terminal-cleanup.json' && !changed) {
+          changed = true;
+          await store.write(name, { ...(value as object), retirementEvidence: { cloud: { status: 'present' } } });
+        }
+        return value;
+      };
+    }
+    const originalDirectory = join(store.directory, 'terraform-original-deployment-receipts');
+    const fragmentsDirectory = join(store.directory, 'terraform-original-deployment-publication-fragments');
+    let fragmentName: string | undefined, fragmentBytes: Buffer<ArrayBuffer> | undefined;
+    let originalFiles: string[] = [],
+      originalBytes: Buffer<ArrayBuffer>[] = [];
+    if (fault.startsWith('original-metadata')) {
+      const bootstrapByNode = {
+        '1': '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: unit-enrollment-body\n',
+      };
+      for (const [stage, prefix] of [
+        [{ kind: 'foundation' as const }, {}],
+        [{ kind: 'node-admission' as const, node: 1 }, bootstrapByNode],
+      ] as const) {
+        const deployment = await azureTerraformFoundationDeployment(base, prefix);
+        await publishAzureTerraformOriginalReceipt(
+          {
+            plan: base,
+            bootstrapByNode: prefix,
+            stage,
+            receipt: {
+              schemaVersion: 1,
+              engine: 'terraform',
+              deploymentId: deployment.deploymentId,
+              backendIdentity: deployment.backendIdentity,
+              configurationSha256: hash(deployment.configuration),
+              providerLockSha256: hash(deployment.providerLock),
+              planSha256: stage.kind === 'foundation' ? 'd'.repeat(64) : 'e'.repeat(64),
+              changes: [],
+              noChanges: true,
+            },
+          },
+          store,
+        );
+      }
+      const inventory = await readAzureTerraformOriginalReceiptInventory(base, bootstrapByNode, store);
+      await store.write('terraform-workflow.json', {
+        schemaVersion: 1,
+        engine: 'terraform',
+        planSha256: base.planSha256,
+        stage: 'registered',
+        bootstrapByNode,
+        originalReceiptInventorySha256: canonicalSha256(inventory),
+      });
+      if (['original-metadata-digest', 'original-metadata-bootstrap', 'original-metadata-owner'].includes(fault)) {
+        const workflow = (await store.read('terraform-workflow.json')) as Record<string, unknown>;
+        if (fault === 'original-metadata-digest') workflow.originalReceiptInventorySha256 = 'f'.repeat(64);
+        if (fault === 'original-metadata-bootstrap')
+          workflow.bootstrapByNode = {
+            '1': bootstrapByNode['1'].replace('unit-enrollment-body', 'foreign-enrollment-body'),
+          };
+        if (fault === 'original-metadata-owner') workflow.planSha256 = 'f'.repeat(64);
+        await store.write('terraform-workflow.json', workflow);
+      }
+      originalFiles = (await readdir(originalDirectory)).sort();
+      originalBytes = await Promise.all(originalFiles.map((name) => readFile(join(originalDirectory, name))));
+      if (fault.includes('fragment')) {
+        await mkdir(fragmentsDirectory, { mode: 0o700 });
+        fragmentBytes =
+          fault === 'original-metadata-fragment-foreign'
+            ? Buffer.from('foreign-fragment')
+            : originalBytes[0].subarray(0, 80);
+        fragmentName = `${originalFiles[0].slice(0, 64)}-00000000-0000-4000-8000-000000000001.pending.${hash(fragmentBytes.toString())}.fragment`;
+        if (fault === 'original-metadata-fragment-unknown') fragmentName = 'unclassified.fragment';
+        await writeFile(join(fragmentsDirectory, fragmentName), fragmentBytes, { mode: 0o600 });
+      }
+      if (fault === 'original-metadata-partial')
+        await writeFile(join(originalDirectory, 'unfinished.pending'), '{', { mode: 0o600 });
+      if (fault === 'original-metadata-foreign')
+        await writeFile(join(originalDirectory, originalFiles[0]), '{}', { mode: 0o600 });
+    }
     const run = (signal?: AbortSignal) => retireAzureTerraformParentArtifacts(base, teardown, evidence, store, signal);
     if (
       [
+        'original-metadata-digest',
+        'original-metadata-bootstrap',
+        'original-metadata-owner',
+        'original-metadata-fragment-foreign',
+        'original-metadata-fragment-unknown',
+        'original-metadata-partial',
+        'original-metadata-foreign',
+        'missing-terminal-payload',
+        'changed-terminal-payload',
+        'rehashed-terminal-payload',
+        'terminal-changed-after-read',
         'unknown',
         'missing-independent',
         'foreign-public-update',
@@ -162,11 +297,21 @@ for (const fault of [
         'foreign-owned-reconciliation',
       ].includes(fault)
     ) {
-      await expect(run()).rejects.toThrow();
+      await expect(run()).rejects.toThrow(
+        fault.startsWith('original-metadata') ? /original receipt|metadata/ : undefined,
+      );
       expect(await store.read('terraform-workflow.json')).toBeDefined();
       return;
     }
-    if (fault === 'interrupted' || fault === 'changed-artifact') {
+    if (
+      fault === 'original-metadata-interrupted' ||
+      fault === 'original-metadata-inode' ||
+      fault === 'original-metadata-late' ||
+      fault === 'interrupted' ||
+      fault === 'changed-artifact' ||
+      fault === 'identical-byte-artifact' ||
+      fault === 'interrupted-terminal-payload'
+    ) {
       const controller = new AbortController();
       const write = store.write.bind(store);
       store.write = async (name, value) => {
@@ -175,6 +320,40 @@ for (const fault of [
       };
       await expect(run(controller.signal)).rejects.toThrow();
       store.write = write;
+      if (fault === 'interrupted-terminal-payload') {
+        const terminal = (await store.read('azure-terraform-terminal-cleanup.json')) as Record<string, unknown>;
+        delete terminal.retirementEvidence;
+        await store.write('azure-terraform-terminal-cleanup.json', terminal);
+        await expect(run()).rejects.toThrow('terminal evidence');
+        expect(await store.read('terraform-workflow.json')).toBeDefined();
+        expect(await store.read('token-one.json')).toBeDefined();
+        return;
+      }
+      if (fault === 'original-metadata-inode') {
+        const path = join(originalDirectory, originalFiles[0]);
+        await rename(path, join(root, 'original-receipt-backup.json'));
+        await writeFile(path, originalBytes[0], { mode: 0o600 });
+        await expect(run()).rejects.toThrow('changed');
+        expect(await store.read('token-one.json')).toBeDefined();
+        return;
+      }
+      if (fault === 'original-metadata-late') {
+        await writeFile(join(originalDirectory, 'late.pending'), '{', { mode: 0o600 });
+        await expect(run()).rejects.toThrow(/metadata|changed/);
+        expect(await store.read('token-one.json')).toBeDefined();
+        return;
+      }
+      if (fault === 'identical-byte-artifact') {
+        const path = join(store.directory, 'terraform-workflow.json'),
+          bytes = await readFile(path);
+        const backupRoot = await mkdtemp(join(tmpdir(), 'azure-parent-original-inode-'));
+        roots.push(backupRoot);
+        await rename(path, join(backupRoot, 'original.json'));
+        await writeFile(path, bytes, { mode: 0o600 });
+        await expect(run()).rejects.toThrow('changed');
+        expect(await store.read('token-one.json')).toBeDefined();
+        return;
+      }
       if (fault === 'changed-artifact') {
         await store.write('terraform-workflow.json', { changed: true });
         await expect(run()).rejects.toThrow('changed');
@@ -188,5 +367,16 @@ for (const fault of [
     expect(await readdir(store.directory)).not.toContain('token-one.json');
     expect(await readdir(store.directory)).not.toContain('azure-terraform-cloud-destroy-reconciliation.json');
     expect(await run()).toEqual(receipt);
+    if (fragmentName && fragmentBytes) {
+      expect(await readdir(fragmentsDirectory)).toEqual([fragmentName]);
+      expect((await readFile(join(fragmentsDirectory, fragmentName))).equals(fragmentBytes)).toBe(true);
+    }
+    if (originalFiles.length) {
+      expect((await readdir(originalDirectory)).sort()).toEqual(originalFiles);
+      expect(await Promise.all(originalFiles.map((name) => readFile(join(originalDirectory, name))))).toEqual(
+        originalBytes,
+      );
+      expect(Buffer.concat(originalBytes).toString()).not.toContain('unit-enrollment-body');
+    }
   });
 }

@@ -4,6 +4,7 @@ import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-c
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { ensureAzurePlatformIngress } from '../../src/ce/platform-ingress';
+import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
 import { intent as baseIntent, observation as baseObservation, subscriptionId } from './fixtures';
 
 function fixture() {
@@ -44,6 +45,7 @@ function fixture() {
   const values = new Map<string, unknown>();
   const calls = { plans: 0, applies: 0 };
   const storage = {
+    owner: azureUpgradeBinding(plan).owner,
     async verify() {},
     async read(name: string) {
       if (!values.has(name)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
@@ -59,7 +61,7 @@ function fixture() {
         async planAzure(receivedIntent: unknown, selections: Array<Record<string, unknown>>) {
           calls.plans++;
           expect(receivedIntent).toEqual({
-            ...intent.ingress?.listener,
+            ...(intent.ingress?.mode === 'platform-http' ? intent.ingress.listener : {}),
             port: 8080,
             originAddress: '10.30.0.4',
           });
@@ -142,7 +144,7 @@ function fixture() {
     plan,
     storage,
     runtime,
-    contract: { fingerprint: 'sha256:ingress' } as VerifiedIngressContract,
+    contract: { fingerprint: 'sha256:ingress' } as unknown as VerifiedIngressContract,
     api,
     calls,
     values,
@@ -156,7 +158,7 @@ test('persists and resumes one Azure platform ingress plan with exact source and
   expect(first).toEqual(second);
   expect(f.calls).toEqual({ plans: 1, applies: 2 });
   expect(f.values.get('azure-platform-ingress.json')).toMatchObject({
-    schemaVersion: 1,
+    schemaVersion: 2,
     engine: 'native',
     ingressPlanId: 'a'.repeat(24),
     contractFingerprint: 'sha256:ingress',
@@ -166,7 +168,7 @@ test('persists and resumes one Azure platform ingress plan with exact source and
 test('rejects a foreign marker before planning or applying ingress', async () => {
   const f = fixture();
   f.values.set('azure-platform-ingress.json', {
-    schemaVersion: 1,
+    schemaVersion: 2,
     engine: 'terraform',
     configurationSha256: 'f'.repeat(64),
     ingressPlanId: 'a'.repeat(24),
@@ -176,4 +178,47 @@ test('rejects a foreign marker before planning or applying ingress', async () =>
     /checkpoint differs/i,
   );
   expect(f.calls).toEqual({ plans: 0, applies: 0 });
+});
+
+test('retains sanitized source and cloud-interface joins before lifecycle planning', async () => {
+  const f = fixture();
+  const ingress = f.runtime.ingress.bind(f.runtime);
+  f.runtime.ingress = (...args) => {
+    const lifecycle = ingress(...args);
+    const planAzure = lifecycle.planAzure.bind(lifecycle);
+    lifecycle.planAzure = async (...params) => {
+      const source = f.values.get(`azure-ingress-source-${f.plan.planSha256}.json`) as Record<string, unknown>;
+      expect(source).toBeDefined();
+      expect(source.sourcePlanSha256).toBe(f.plan.planSha256);
+      expect(source.plan).toEqual(f.plan);
+      expect(source.sourceIdentity).toBeDefined();
+      expect(source.selectedIdentity).toBeDefined();
+      return planAzure(...params);
+    };
+    return lifecycle;
+  };
+  await ensureAzurePlatformIngress(f.plan, f.runtime, f.storage, f.contract, f.api);
+  expect(f.values.get('azure-platform-ingress.json')).toMatchObject({
+    schemaVersion: 2,
+    sourcePlanSha256: f.plan.planSha256,
+  });
+});
+
+test('public ingress resume rejects extra marker fields and changed retained source identity', async () => {
+  const f = fixture();
+  await ensureAzurePlatformIngress(f.plan, f.runtime, f.storage, f.contract, f.api);
+  const marker = f.values.get('azure-platform-ingress.json') as Record<string, unknown>;
+  f.values.set('azure-platform-ingress.json', { ...marker, unknownRuntimeIdentifier: 'unresolved' });
+  await expect(ensureAzurePlatformIngress(f.plan, f.runtime, f.storage, f.contract, f.api)).rejects.toThrow(
+    /checkpoint differs/,
+  );
+  expect(f.calls.applies).toBe(1);
+  f.values.set('azure-platform-ingress.json', marker);
+  const source = f.values.get(`azure-ingress-source-${f.plan.planSha256}.json`) as Record<string, unknown>;
+  const selected = source.selectedIdentity as { nic: Record<string, unknown> };
+  selected.nic.macAddress = '02:00:00:00:00:99';
+  await expect(ensureAzurePlatformIngress(f.plan, f.runtime, f.storage, f.contract, f.api)).rejects.toThrow(
+    /attachment changed/,
+  );
+  expect(f.calls.applies).toBe(1);
 });

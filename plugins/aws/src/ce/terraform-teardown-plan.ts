@@ -344,6 +344,7 @@ export async function prepareAwsTerraformTeardown(
   contract: VerifiedIngressContract,
   storage: CeDeploymentStore,
   signal?: AbortSignal,
+  initialInstanceReader?: (signal?: AbortSignal) => Promise<Record<string, string>>,
 ) {
   if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
   const existing = await retiringPlan(input, runtime, contract, storage, signal);
@@ -357,7 +358,7 @@ export async function prepareAwsTerraformTeardown(
     f5State !== undefined &&
     ['network-pending', 'registration-pending'].includes(String(object(workflow).stage))
   )
-    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
+    return prepareAwsPendingTeardown(input, runtime, contract, storage, signal, initialInstanceReader);
   if (
     workflow !== undefined &&
     admission === undefined &&
@@ -377,8 +378,11 @@ export async function prepareAwsTerraformTeardown(
     Array.isArray(object(admission).admittedSites)
   ) {
     if ((object(admission).admittedSites as unknown[]).length === 0)
-      return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
-    if (!(await readdir(storage.directory)).some((file) => file.startsWith('terraform-registration-'))) {
+      return prepareAwsPendingTeardown(input, runtime, contract, storage, signal, initialInstanceReader);
+    if (
+      initialInstanceReader ||
+      !(await readdir(storage.directory)).some((file) => file.startsWith('terraform-registration-'))
+    ) {
       // Launch does not establish registration, and registration can also occur
       // without an approval journal. Qualify the existing registered contract first.
       try {
@@ -388,7 +392,7 @@ export async function prepareAwsTerraformTeardown(
           throw error;
         // An unavailable registered inventory grants no deletion authority. The
         // separate pending contract must prove every current pre-registration identity.
-        return prepareAwsPendingTeardown(input, runtime, contract, storage, signal);
+        return prepareAwsPendingTeardown(input, runtime, contract, storage, signal, initialInstanceReader);
       }
     }
   }

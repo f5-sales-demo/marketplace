@@ -122,3 +122,120 @@ test('validates actual AWS and Azure request schemas while rejecting wire errors
     expect(() => validate(spec)).toThrow();
   }
 });
+
+test('preserves published site and generated-interface MTU ranges independently', () => {
+  const publishedMtu = {
+    securemesh_site_v2Interface: {
+      type: 'integer',
+      description:
+        'Maximum packet size (Maximum Transfer Unit) of the interface\nWhen configured, MTU must be between 512 and 8000.',
+      title: 'Maximum Packet Size (MTU)',
+      format: 'int64',
+      'x-displayname': 'Maximum Packet Size (MTU)',
+      'x-ves-example': '1450',
+      'x-ves-validation-rules': { 'ves.io.schema.rules.uint32.ranges': '0,512-8000' },
+      'x-f5xc-example': '1450',
+      'x-validation-rules': { 'ves.io.schema.rules.uint32.ranges': '0,512-8000' },
+      'x-f5xc-description-short':
+        'Maximum packet size (Maximum Transfer Unit) of the interface When configured, MTU must be between 512 and 8000.',
+      'x-f5xc-description-medium':
+        'Maximum packet size (Maximum Transfer Unit) of the interface When configured, MTU must be between 512 and 8000.',
+      'x-f5xc-constraints': {
+        constraintType: 'number',
+        category: 'discovery',
+        maximum: 8000,
+        deterministic: true,
+        metadata: { source: 'api-probed', confidence: 0.99, validatedAt: '2026-10-22T11:01:39+00:00' },
+      },
+      'x-f5xc-required-for': { minimum_config: false, create: false, update: false, read: false },
+    },
+    network_interfaceEthernetInterfaceType: {
+      type: 'integer',
+      description:
+        'Maximum packet size (Maximum Transfer Unit) of the interface\nWhen configured, MTU must be between 512 and 9000.',
+      title: 'Maximum Packet Size (MTU)',
+      format: 'int64',
+      'x-displayname': 'Maximum Packet Size (MTU)',
+      'x-ves-example': '1450',
+      'x-ves-validation-rules': { 'ves.io.schema.rules.uint32.ranges': '0,512-9000' },
+      'x-f5xc-example': '1450',
+      'x-validation-rules': { 'ves.io.schema.rules.uint32.ranges': '0,512-9000' },
+      'x-f5xc-description-short':
+        'Maximum packet size (Maximum Transfer Unit) of the interface When configured, MTU must be between 512 and 9000.',
+      'x-f5xc-description-medium':
+        'Maximum packet size (Maximum Transfer Unit) of the interface When configured, MTU must be between 512 and 9000.',
+      'x-f5xc-constraints': {
+        constraintType: 'number',
+        category: 'discovery',
+        maximum: 9000,
+        deterministic: true,
+        metadata: { source: 'api-probed', confidence: 0.99, validatedAt: '2026-10-22T11:01:39+00:00' },
+      },
+      'x-f5xc-required-for': { minimum_config: false, create: false, update: false, read: false },
+    },
+  };
+  const validate = (name: keyof typeof publishedMtu) => createWireValidator({ root: publishedMtu[name] }, 'root');
+  const site = validate('securemesh_site_v2Interface');
+  const generated = validate('network_interfaceEthernetInterfaceType');
+  for (const mtu of [0, 512, 576, 1500, 8000]) {
+    site(mtu);
+    generated(mtu);
+  }
+  for (const mtu of [-1, 1, 511, 8001, 9000, 9001, 1500.5]) expect(() => site(mtu)).toThrow('verified schema');
+  generated(8001);
+  generated(9000);
+  for (const mtu of [-1, 1, 511, 9001, 1500.5]) expect(() => generated(mtu)).toThrow('verified schema');
+});
+
+test('rejects malformed or conflicting vendor integer range annotations', () => {
+  for (const ranges of ['', '0,', '8000-512', 'NaN', '512--8000', '0;512-8000', '9007199254740992'])
+    expect(() =>
+      createWireValidator(
+        { root: { type: 'integer', 'x-ves-validation-rules': { 'ves.io.schema.rules.uint32.ranges': ranges } } },
+        'root',
+      ),
+    ).toThrow('range');
+  expect(() =>
+    createWireValidator(
+      {
+        root: {
+          type: 'integer',
+          'x-ves-validation-rules': { 'ves.io.schema.rules.uint32.ranges': '0,512-8000' },
+          'x-validation-rules': { 'ves.io.schema.rules.uint32.ranges': '0,512-9000' },
+        },
+      },
+      'root',
+    ),
+  ).toThrow('range');
+  const validate = createWireValidator(
+    {
+      root: {
+        type: 'integer',
+        maximum: 7000,
+        'x-validation-rules': { 'ves.io.schema.rules.uint32.ranges': '0,512-8000' },
+      },
+    },
+    'root',
+  );
+  validate(7000);
+  expect(() => validate(7001)).toThrow();
+  expect(() => validate(1)).toThrow();
+});
+
+test('retains disjoint ASN ranges, unsigned bounds and annotated integer type', () => {
+  const rule = (ranges: string) => ({ 'ves.io.schema.rules.uint32.ranges': ranges });
+  const validate = createWireValidator(
+    { root: { type: 'integer', 'x-ves-validation-rules': rule('64512-65534, 4200000000-4294967294') } },
+    'root',
+  );
+  for (const value of [64512, 65534, 4200000000, 4294967294]) validate(value);
+  for (const value of [0, 64511, 65535, 4199999999, 4294967295, 64512.5, '64512'])
+    expect(() => validate(value)).toThrow();
+  for (const ranges of ['-1', '4294967296'])
+    expect(() =>
+      createWireValidator({ root: { type: 'integer', 'x-validation-rules': rule(ranges) } }, 'root'),
+    ).toThrow('range');
+  expect(() =>
+    createWireValidator({ root: { type: 'number', 'x-validation-rules': rule('0,512-8000') } }, 'root'),
+  ).toThrow('range');
+});

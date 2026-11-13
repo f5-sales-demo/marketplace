@@ -131,6 +131,9 @@ export async function admitAwsTerraformSites(
     }
   };
 
+  const explicitDevices = plan.intent.interfaces.flatMap((item) => (item.guestDevice ? [item.guestDevice] : []));
+  if (new Set(explicitDevices).size !== explicitDevices.length)
+    throw new Error('Explicit planned guest devices must be distinct');
   const observations: Array<Record<string, unknown>> = [];
   for (const { site, binding } of siteBindings(plan)) {
     signal?.throwIfAborted();
@@ -138,7 +141,11 @@ export async function admitAwsTerraformSites(
     const outputs = await readOutputs();
     const discoveredBeforeLaunch = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
     if (!checkpoint.admittedSites.includes(site.name)) {
-      if (site.nodeIndexes.length === 3 || plan.intent.interfaces.some((item) => item.addressing.mode === 'static'))
+      if (
+        site.nodeIndexes.length === 3 ||
+        plan.intent.interfaces.some((item) => item.addressing.mode === 'static') ||
+        plan.intent.interfaces.every((item) => item.guestDevice !== undefined)
+      )
         await runtime.ensureSite(
           binding,
           {
@@ -248,6 +255,7 @@ export async function admitAwsTerraformSites(
           node: `${plan.deploymentName}-${node}`,
           role: item.role as 'slo' | 'sli',
           mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+          ...(item.guestDevice ? { device: item.guestDevice } : {}),
           ...(awsCeStaticIp(plan.intent, node, item.index)
             ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
             : {}),
@@ -264,6 +272,7 @@ export async function admitAwsTerraformSites(
             node: `${plan.deploymentName}-${node}`,
             role: item.role as 'slo' | 'sli',
             mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+            ...(item.guestDevice ? { device: item.guestDevice } : {}),
             ...(awsCeStaticIp(plan.intent, node, item.index)
               ? { staticIp: awsCeStaticIp(plan.intent, node, item.index) }
               : {}),

@@ -91,7 +91,7 @@ test.each(['native', 'terraform'] as const)(
     const storage = await CeDeploymentStore.open(root, azureFailoverOwner(plan));
     const platform = {
       storage: async () => storage,
-      runtime: async () => ({ requireRoutingContract() {} }),
+      runtime: async () => ({ engine, requireRoutingContract() {} }),
     } as unknown as CePlatformService;
     const commands: string[][] = [];
     const api = {
@@ -177,7 +177,7 @@ test('Azure failover rejects stale or forged VM ownership evidence', async () =>
     platform: async () =>
       ({
         storage: async () => storage,
-        runtime: async () => ({ requireRoutingContract() {} }),
+        runtime: async () => ({ engine: plan.engine, requireRoutingContract() {} }),
       }) as unknown as CePlatformService,
     terraform: async () => ({}) as never,
     makeApi: () => ({

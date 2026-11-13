@@ -250,6 +250,11 @@ test('public Terraform apply persists sanitized pending version provenance befor
   const ctx = {
     cwd: '/tmp',
     hasUI: false,
+    ui: {
+      confirm: async () => {
+        throw new Error('Headless pending outcome must not ask for UI approval');
+      },
+    },
     sessionManager: {
       getSessionId: () => 'pending-version-fixture',
       getArtifactsDir: () => null,
@@ -277,10 +282,14 @@ test('public Terraform apply persists sanitized pending version provenance befor
     );
     expect(result).toMatchObject({
       status: 'pending-replacement-versions',
+      planId: f.plan.planId,
+      planSha256: f.plan.planSha256,
+      engine: 'terraform',
       artifactId: 'receipt',
       versionEvidence: { status: 'unknown', reason: 'authorization', failedStage: 'physical-site' },
     });
     const checkpoint = JSON.parse(artifacts.at(-1) ?? 'null');
+    expect(checkpoint).toMatchObject({ planId: f.plan.planId, planSha256: f.plan.planSha256, engine: 'terraform' });
     expect(checkpoint.versionEvidence).toEqual(result.versionEvidence);
     expect(JSON.stringify(result)).not.toContain('private-response-marker');
     expect(artifacts.at(-1)).not.toContain('private-token-marker');

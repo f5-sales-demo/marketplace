@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { CeDeploymentStore } from './deployment-store';
+import { CeDeploymentStore, type CeStorageOptions } from './deployment-store';
 import type { ExpectedCeInterface } from './interface-evidence';
+import { retireRegistrationApprovalReservations } from './registration-approval-retirement';
 import type { Smsv2KvmImageResolution } from './release-contract';
 import { type CeOwner, type CeResourceMutation, CeRuntime, type SiteBinding } from './runtime';
 import { type AzureRouteServerEbgpMultihopCapability, VerifiedCeContract } from './verified-contract';
@@ -40,7 +42,7 @@ export interface CeStoredSiteBinding {
 }
 export interface CePlatformService {
   providerEnvironment?(contextName?: string): Promise<Record<string, string>>;
-  storage(owner: CeOwner): Promise<CeDeploymentStore>;
+  storage(owner: CeOwner, options?: CeStorageOptions): Promise<CeDeploymentStore>;
   siteBinding?(siteName: string, contextName?: string): Promise<CeStoredSiteBinding>;
   capabilities(contextName?: string): Promise<CeCapabilityEvidence>;
   runtime(engine: 'native' | 'terraform', contextName?: string): Promise<CeRuntime>;
@@ -100,7 +102,7 @@ export function createCePlatformService(
   const root = () =>
     environment().XCSH_CE_DEPLOYMENTS_DIR ??
     join(environment().XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments');
-  const storage = (owner: CeOwner) => CeDeploymentStore.open(root(), owner);
+  const storage = (owner: CeOwner, options?: CeStorageOptions) => CeDeploymentStore.open(root(), owner, options);
   return {
     async providerEnvironment(contextName) {
       const credentials = await context(environment(), contextName);
@@ -114,7 +116,7 @@ export function createCePlatformService(
       for (const item of await readdir(root(), { withFileTypes: true })) {
         if (!item.isDirectory() || !/^[a-f0-9]{64}$/.test(item.name)) continue;
         const manifest = JSON.parse(await readFile(join(root(), item.name, 'owner.json'), 'utf8'));
-        const store = await storage(manifest.owner);
+        const store = await storage(manifest.owner, { readOnly: true });
         if (store.directory !== join(root(), item.name)) throw new Error('Stored owner directory differs');
         let record: CeStoredSiteBinding;
         try {
@@ -201,6 +203,27 @@ export function createCePlatformService(
             binding: structuredClone(binding),
             expectedInterfaces: structuredClone(expected ?? retained),
           } satisfies CeStoredSiteBinding);
+        },
+        async (binding, identity) => {
+          const store = await storage(binding.owner);
+          const reservation = {
+            schemaVersion: 1,
+            owner: structuredClone(binding.owner),
+            tenantOrigin: new URL(credentials.url).origin,
+            contractFingerprint: artifact.fingerprint,
+            identity: structuredClone(identity),
+          };
+          const key = createHash('sha256').update(String(identity.registration)).digest('hex');
+          return store.reserve(`registration-approval-${key}.json`, reservation);
+        },
+        async (binding, verifyAbsent, signal) => {
+          await retireRegistrationApprovalReservations(
+            await storage(binding.owner),
+            binding,
+            { tenantOrigin: new URL(credentials.url).origin, contractFingerprint: artifact.fingerprint },
+            verifyAbsent,
+            signal,
+          );
         },
       );
     },
