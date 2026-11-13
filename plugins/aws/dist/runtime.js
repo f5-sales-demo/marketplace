@@ -1765,6 +1765,110 @@ var init_ebs_retirement = __esm(() => {
   DEVICE = /^\/dev\/[a-zA-Z0-9._-]{1,32}$/;
 });
 
+// plugins/aws/src/ce/eip-association-discovery.ts
+function row(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed EIP relationship evidence');
+  return value;
+}
+function address(resource) {
+  if (['NextToken', 'NextMarker', 'nextToken'].some((key) => Object.hasOwn(resource.state, key)))
+    throw Error('Incomplete EIP relationship evidence');
+  const values = resource.state.Addresses;
+  if (!resource.exists || !resource.owned || !Array.isArray(values) || values.length !== 1)
+    throw Error('EIP relationship is missing or foreign');
+  const value = row(values[0]);
+  if (
+    value.Domain !== 'vpc' ||
+    typeof value.AllocationId !== 'string' ||
+    !ALLOCATION.test(value.AllocationId) ||
+    (resource.id.startsWith('eipalloc-') ? value.AllocationId : value.AssociationId) !== resource.id
+  )
+    throw Error('EIP allocation/association identity is inconsistent');
+  return value;
+}
+async function observeOwnedAwsEipAssociations(initial, accountId, observe) {
+  const resources = new Map(initial.map((resource) => [resource.id, resource]));
+  if (resources.size !== initial.length) throw Error('Duplicate EIP discovery resource identity');
+  const ensure = async (ids) => {
+    const missing = [...new Set(ids)].filter((id) => !resources.has(id)).sort();
+    if (!missing.length) return;
+    const observed = await observe(missing);
+    if (
+      observed.length !== missing.length ||
+      new Set(observed.map((r) => r.id)).size !== missing.length ||
+      observed.some((r) => !missing.includes(r.id))
+    )
+      throw Error('Incomplete or ambiguous EIP relationship discovery');
+    for (const resource of observed) resources.set(resource.id, resource);
+  };
+  const originalAliases = initial.filter((r) => r.exists && r.owned && r.id.startsWith('eipassoc-'));
+  await ensure(originalAliases.map((r) => String(address(r).AllocationId)));
+  const relationships = [];
+  const seen = new Set();
+  for (const allocation of [...resources.values()].filter((r) => r.exists && r.owned && r.id.startsWith('eipalloc-'))) {
+    const value = address(allocation);
+    if (value.AssociationId === undefined) {
+      if (value.NetworkInterfaceId !== undefined || value.InstanceId !== undefined)
+        throw Error('Incomplete EIP association evidence');
+      continue;
+    }
+    if (
+      typeof value.AssociationId !== 'string' ||
+      !ASSOCIATION.test(value.AssociationId) ||
+      seen.has(value.AssociationId) ||
+      typeof value.NetworkInterfaceId !== 'string' ||
+      !ENI.test(value.NetworkInterfaceId)
+    )
+      throw Error('Malformed or duplicate EIP association identity');
+    seen.add(value.AssociationId);
+    relationships.push({ allocation, associationId: value.AssociationId, eniId: value.NetworkInterfaceId });
+  }
+  await ensure(relationships.flatMap((r) => [r.associationId, r.eniId]));
+  for (const relationship of relationships) {
+    const { allocation, associationId, eniId } = relationship;
+    const alias = resources.get(associationId);
+    const network = resources.get(eniId);
+    if (
+      !alias ||
+      !network?.exists ||
+      !network.owned ||
+      alias.region !== allocation.region ||
+      network.region !== allocation.region
+    )
+      throw Error('EIP association network owner is missing or foreign');
+    const value = address(alias);
+    const parent = address(allocation);
+    const networks = network.state.NetworkInterfaces;
+    if (
+      (value.NetworkInterfaceOwnerId !== undefined && value.NetworkInterfaceOwnerId !== accountId) ||
+      (parent.NetworkInterfaceOwnerId !== undefined && parent.NetworkInterfaceOwnerId !== accountId) ||
+      value.AllocationId !== allocation.id ||
+      value.AssociationId !== associationId ||
+      value.NetworkInterfaceId !== eniId ||
+      canonicalSha256(alias.tags) !== canonicalSha256(allocation.tags) ||
+      !Array.isArray(networks) ||
+      networks.length !== 1 ||
+      row(networks[0]).NetworkInterfaceId !== eniId ||
+      row(networks[0]).OwnerId !== accountId ||
+      network.tags['xcsh-execution-engine'] !== allocation.tags['xcsh-execution-engine'] ||
+      network.tags['xcsh-deployment-id'] !== allocation.tags['xcsh-deployment-id'] ||
+      network.tags['xcsh-node-index'] !== allocation.tags['xcsh-node-index'] ||
+      !/^[1-3]$/.test(allocation.tags['xcsh-node-index'] ?? '')
+    )
+      throw Error('EIP allocation/association/network ownership joins differ');
+  }
+  if (originalAliases.some((r) => !relationships.some((v) => v.associationId === r.id)))
+    throw Error('EIP association changed during discovery');
+  return [...resources.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+var ALLOCATION, ASSOCIATION, ENI;
+var init_eip_association_discovery = __esm(() => {
+  init_canonical();
+  ALLOCATION = /^eipalloc-[0-9a-f]{8}(?:[0-9a-f]{9})?$/;
+  ASSOCIATION = /^eipassoc-[0-9a-f]{8}(?:[0-9a-f]{9})?$/;
+  ENI = /^eni-[0-9a-f]{8}(?:[0-9a-f]{9})?$/;
+});
+
 // plugins/aws/src/ce/discovery.ts
 async function json(api, args) {
   const result = await api.exec('aws', [...args, '--output', 'json']);
@@ -2590,11 +2694,17 @@ async function discoverAwsCompute(input, api, fetcher = fetch) {
   const bootstrapKeyPairs = input.bootstrapKeyPairNames
     ? await observeAwsBootstrapKeyPairs(api, selectedRegion, input.bootstrapKeyPairNames)
     : undefined;
-  const resources = await observeAwsResources(
+  let resources = await observeAwsResources(
     api,
     [...input.brownfieldResourceIds, ...(input.observedOwnedResourceIds ?? [])],
     selectedRegion,
     { deploymentName: input.deploymentName, planSha256s: [...new Set(input.ownedPlanSha256s ?? [])].sort() },
+  );
+  resources = await observeOwnedAwsEipAssociations(resources, input.accountId, (ids) =>
+    observeAwsResources(api, ids, selectedRegion, {
+      deploymentName: input.deploymentName,
+      planSha256s: [...new Set(input.ownedPlanSha256s ?? [])].sort(),
+    }),
   );
   researchReceipt.commands = [
     'aws sts get-caller-identity',
@@ -2638,6 +2748,7 @@ var init_discovery = __esm(() => {
   init_canonical();
   init_capacity();
   init_ebs_retirement();
+  init_eip_association_discovery();
   init_types2();
   AWS_SOURCES = [
     'https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-regions.html',
@@ -3936,11 +4047,11 @@ function network(cidr) {
   const value = parts[0].split('.').reduce((value, part) => value * 256 + Number(part), 0);
   return { base: Math.floor(value / size) * size, prefix, size };
 }
-function address(value) {
+function address2(value) {
   return [24, 16, 8, 0].map((shift) => Math.floor(value / 2 ** shift) % 256).join('.');
 }
 function awsSubnetHost(cidr, offset) {
-  return address(network(cidr).base + offset);
+  return address2(network(cidr).base + offset);
 }
 function awsCeStaticIp(intent, node, index) {
   const item = intent.interfaces.find((item) => item.index === index);
@@ -3972,7 +4083,7 @@ function awsCeStaticIp(intent, node, index) {
     throw new Error('Static address must match its subnet prefix and exclude AWS reserved addresses');
   if (item.role === 'slo') {
     if (!intent.vpc.cidr) throw new Error('Static SLO requires the exact VPC CIDR for AWS DNS');
-    return { ip_address: cidr, default_gw: address(expected.base + 1), dns_server: awsSubnetHost(intent.vpc.cidr, 2) };
+    return { ip_address: cidr, default_gw: address2(expected.base + 1), dns_server: awsSubnetHost(intent.vpc.cidr, 2) };
   }
   return { ip_address: cidr };
 }

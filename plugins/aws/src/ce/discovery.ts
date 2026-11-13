@@ -3,6 +3,7 @@ import { normalizeAwsBootstrapKeyPairName, observeAwsBootstrapKeyPairs } from '.
 import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './canonical';
 import { observeStandardVcpuCapacity, observeTaggedResourceCapacity } from './capacity';
 import { awsEbsVolume } from './ebs-retirement';
+import { observeOwnedAwsEipAssociations } from './eip-association-discovery';
 import { scopedAwsApi } from './scoped-exec';
 import type {
   AwsCeEgressMode,
@@ -937,11 +938,17 @@ export async function discoverAwsCompute(
   const bootstrapKeyPairs = input.bootstrapKeyPairNames
     ? await observeAwsBootstrapKeyPairs(api, selectedRegion, input.bootstrapKeyPairNames)
     : undefined;
-  const resources = await observeAwsResources(
+  let resources = await observeAwsResources(
     api,
     [...input.brownfieldResourceIds, ...(input.observedOwnedResourceIds ?? [])],
     selectedRegion,
     { deploymentName: input.deploymentName, planSha256s: [...new Set(input.ownedPlanSha256s ?? [])].sort() },
+  );
+  resources = await observeOwnedAwsEipAssociations(resources, input.accountId, (ids) =>
+    observeAwsResources(api, ids, selectedRegion, {
+      deploymentName: input.deploymentName,
+      planSha256s: [...new Set(input.ownedPlanSha256s ?? [])].sort(),
+    }),
   );
   researchReceipt.commands = [
     'aws sts get-caller-identity',

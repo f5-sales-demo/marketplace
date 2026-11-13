@@ -1534,3 +1534,30 @@ it('refuses EBS attached through a different execution engine despite matching p
   f.disk.tags = { ...f.disk.tags, 'xcsh-execution-engine': 'terraform' };
   expect(f.compile).toThrow();
 });
+
+it('disassociates the discovered owned EIP alias before releasing its allocation', () => {
+  const allocation = 'eipalloc-12345678',
+    association = 'eipassoc-12345678';
+  const tags = {
+    'xcsh-managed-by': 'aws-ce',
+    'xcsh-execution-engine': 'native',
+    'xcsh-deployment-id': 'ce-demo',
+    'xcsh-plan-sha256': ownerPlanSha256,
+  };
+  const state = { Addresses: [{ AllocationId: allocation, AssociationId: association }] };
+  const resources = [allocation, association].map((id) => ({
+    id,
+    region: 'us-east-1',
+    exists: true,
+    owned: true,
+    tags,
+    state,
+  }));
+  const plan = compileAwsCePlan(
+    intent({ operation: 'teardown' }),
+    observation({ resources, ownershipPlanSha256s: [ownerPlanSha256] }),
+  );
+  expect(plan.actions.map((a) => a.args?.[1])).toEqual(['disassociate-address', 'release-address']);
+  expect(plan.actions[0].resourceId).toBe(association);
+  verifyAwsCePlan(plan);
+});
