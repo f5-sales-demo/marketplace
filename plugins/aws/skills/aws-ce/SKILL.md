@@ -213,3 +213,5 @@ snapshot, missing/duplicate observation or unrelated route/attachment change
 rejects rather than granting broader deletion authority. The original failed
 installed UAT256 recovery remains preserved until the changed candidate passes
 actual public installed execution and independent cleanup verification.
+
+Native teardown observes EBS volumes by exact ID and checks attached instance/device mappings and DeleteOnTermination. It retires the owned instance before disk cleanup, rechecks availability before deleting a retained disk, and independently observes auto-deleted disk absence. Missing or foreign disk ownership blocks instance termination; attached disks are never forcibly detached.

@@ -1,6 +1,7 @@
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256, fingerprintOwnedResources } from './canonical';
 import { observeAwsResources } from './discovery';
+import { assertAwsEbsTeardown, assertAwsEbsVolumeAvailable, awsEbsInstanceVolumeIds } from './ebs-retirement';
 import { collectAwsNativeEmptyCloudInventory } from './native-empty-inventory';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCePlan } from './types';
 
@@ -122,6 +123,17 @@ export async function executeRecoverableDelete(
     if (!before.exists) return { exitCode: 0, stdout: '{}', stderr: '' };
     if (!before.owned || before.tags['xcsh-execution-engine'] !== plan.engine)
       throw Error('AWS deletion original target ownership differs');
+    if (action.resourceId.startsWith('i-')) {
+      const ids = awsEbsInstanceVolumeIds(before);
+      if (ids.length) {
+        const disks = await observeAwsResources(api, ids, plan.region, {
+          deploymentName: plan.deploymentName,
+          planSha256s: ownershipPlanSha256s,
+        });
+        assertAwsEbsTeardown({ accountId: plan.accountId }, { resources: [before, ...disks] });
+      }
+    }
+    if (action.resourceId.startsWith('vol-')) assertAwsEbsVolumeAvailable(before);
     checkpoint.pendingDelete = {
       actionId: action.id,
       resourceId: action.resourceId,
@@ -160,7 +172,8 @@ export async function executeRecoverableDelete(
       mutationConverged(action, observation.state)
     )
       return { exitCode: 0, stdout: '{}', stderr: '' };
-    if (!observation.owned) throw new Error('AWS deletion target ownership changed during reconciliation');
+    if (!observation.owned || observation.tags['xcsh-execution-engine'] !== plan.engine)
+      throw new Error('AWS deletion target ownership changed during reconciliation');
     if (rejectedResult && provenRequestRejection(rejectedResult)) {
       const before = assertAwsPendingDeleteBinding(plan, action, args, checkpoint, ownershipPlanSha256s);
       if (fingerprintOwnedResources([before]) !== fingerprintOwnedResources([observation]))

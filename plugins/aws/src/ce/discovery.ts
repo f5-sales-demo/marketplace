@@ -2,6 +2,7 @@ import type { AwsExecApi } from '../aws/exec';
 import { normalizeAwsBootstrapKeyPairName, observeAwsBootstrapKeyPairs } from './bootstrap-key-pair';
 import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './canonical';
 import { observeStandardVcpuCapacity, observeTaggedResourceCapacity } from './capacity';
+import { awsEbsVolume } from './ebs-retirement';
 import { scopedAwsApi } from './scoped-exec';
 import type {
   AwsCeEgressMode,
@@ -51,7 +52,7 @@ const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 const INSTANCE_TYPE = /^[a-z0-9][a-z0-9.-]{1,40}$/;
 const REGION = /^[a-z]{2}(?:-gov)?-[a-z]+-\d$/;
 const RESOURCE_ID =
-  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:vol-[0-9a-f]{8}(?:[0-9a-f]{9})?|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21}))$/;
 // F5 documents m5.2xlarge as the minimum AWS CE size, but AWS exposes only
 // four ENIs on the 2xlarge variants. Include the corresponding 4xlarge sizes
 // so default discovery can satisfy the documented eight-interface CE shape.
@@ -620,6 +621,7 @@ async function observeRegion(
 }
 
 function resourceResponseField(id: string): string {
+  if (id.startsWith('vol-')) return 'Volumes';
   if (id.startsWith('i-')) return 'Reservations';
   if (id.startsWith('eni-')) return 'NetworkInterfaces';
   if (id.startsWith('subnet-')) return 'Subnets';
@@ -640,6 +642,7 @@ function resourceResponseField(id: string): string {
 function exactResourceNotFound(id: string, stderr: string): boolean {
   const field = resourceResponseField(id);
   const code: Record<string, string> = {
+    Volumes: 'InvalidVolume.NotFound',
     Reservations: 'InvalidInstanceID.NotFound',
     NetworkInterfaces: 'InvalidNetworkInterfaceID.NotFound',
     Subnets: 'InvalidSubnetID.NotFound',
@@ -669,7 +672,8 @@ async function observeResource(
   ownedPlanSha256s: string[],
 ): Promise<AwsCeResourceObservation> {
   let args: string[];
-  if (id.startsWith('i-')) args = ['ec2', 'describe-instances', '--instance-ids', id];
+  if (id.startsWith('vol-')) args = ['ec2', 'describe-volumes', '--volume-ids', id];
+  else if (id.startsWith('i-')) args = ['ec2', 'describe-instances', '--instance-ids', id];
   else if (id.startsWith('eni-')) args = ['ec2', 'describe-network-interfaces', '--network-interface-ids', id];
   else if (id.startsWith('sg-')) args = ['ec2', 'describe-security-groups', '--group-ids', id];
   else if (id.startsWith('eipalloc-')) args = ['ec2', 'describe-addresses', '--allocation-ids', id];
@@ -796,6 +800,7 @@ async function observeResource(
       for (const item of Object.values(object)) visit(item);
     }
   };
+  if (id.startsWith('vol-')) awsEbsVolume(raw, id);
   visit(raw);
   if (!matches.length && (raw[resourceResponseField(id)] as unknown[]).length)
     throw Error('AWS resource response contains a different identity');
@@ -812,6 +817,7 @@ async function observeResource(
     tags[Key] = Value;
   }
   const terminalDeleted = (() => {
+    if (id.startsWith('vol-')) return awsEbsVolume(raw, id)?.state === 'deleted';
     const rows = id.startsWith('tgw-connect-peer-')
       ? raw.TransitGatewayConnectPeers
       : id.startsWith('tgw-attach-')

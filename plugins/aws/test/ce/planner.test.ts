@@ -1430,3 +1430,107 @@ for (const engine of ['native', 'terraform'] as const) {
     }
   });
 }
+
+function ebsTeardownFixture(deleteOnTermination: boolean) {
+  const instanceId = 'i-0123456789abcdef0';
+  const volumeId = 'vol-0000000c';
+  const tags = {
+    'xcsh-managed-by': 'aws-ce',
+    'xcsh-execution-engine': 'native',
+    'xcsh-deployment-id': 'ce-demo',
+    'xcsh-plan-sha256': ownerPlanSha256,
+    'xcsh-node-index': '1',
+  };
+  const vm = {
+    id: instanceId,
+    region: 'us-east-1',
+    exists: true,
+    owned: true,
+    tags,
+    state: {
+      Reservations: [
+        {
+          OwnerId: '123456789012',
+          Instances: [
+            {
+              InstanceId: instanceId,
+              BlockDeviceMappings: [
+                {
+                  DeviceName: '/dev/sda1',
+                  Ebs: { VolumeId: volumeId, Status: 'attached', DeleteOnTermination: deleteOnTermination },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const disk = {
+    id: volumeId,
+    region: 'us-east-1',
+    exists: true,
+    owned: true,
+    tags,
+    state: {
+      Volumes: [
+        {
+          VolumeId: volumeId,
+          State: 'in-use',
+          Attachments: [{ VolumeId: volumeId, InstanceId: instanceId, Device: '/dev/sda1', State: 'attached' }],
+        },
+      ],
+    },
+  };
+  return {
+    vm,
+    disk,
+    compile: () =>
+      compileAwsCePlan(
+        intent({ operation: 'teardown' }),
+        observation({ resources: [disk, vm], ownershipPlanSha256s: [ownerPlanSha256] }),
+      ),
+  };
+}
+
+it('retires the owning instance before either auto-deleted or retained EBS volume', () => {
+  for (const autoDelete of [true, false]) {
+    const f = ebsTeardownFixture(autoDelete);
+    const plan = f.compile();
+    const stop = plan.actions.findIndex((a) => a.kind === 'instance-termination-gate');
+    const disk = plan.actions.findIndex((a) => a.args?.includes('delete-volume'));
+    expect(stop).toBeGreaterThan(-1);
+    expect(disk).toBeGreaterThan(stop);
+    expect(plan.actions[disk].args).toEqual([
+      'ec2',
+      'delete-volume',
+      '--volume-id',
+      f.disk.id,
+      '--region',
+      'us-east-1',
+    ]);
+    expect(plan.actions.some((a) => a.args?.includes('detach-volume'))).toBe(false);
+    verifyAwsCePlan(plan);
+  }
+});
+
+it('refuses foreign or ambiguous EBS attachment and instance mapping joins', () => {
+  const f = ebsTeardownFixture(true);
+  f.disk.state.Volumes[0].Attachments[0].InstanceId = 'i-11111111';
+  expect(f.compile).toThrow(/volume|EBS/);
+  const g = ebsTeardownFixture(true);
+  g.vm.owned = false;
+  expect(g.compile).toThrow(/volume|EBS/);
+  const h = ebsTeardownFixture(true);
+  h.vm.state.Reservations[0].Instances[0].BlockDeviceMappings[0].DeviceName = '/dev/sdz';
+  expect(h.compile).toThrow(/volume|EBS/);
+  const j = ebsTeardownFixture(true);
+  j.disk.owned = false;
+  expect(j.compile).toThrow(/volume|EBS/);
+});
+
+it('refuses EBS attached through a different execution engine despite matching plan tags', () => {
+  const f = ebsTeardownFixture(true);
+  f.disk.tags = { ...f.disk.tags, 'xcsh-execution-engine': 'terraform' };
+  expect(f.compile).toThrow();
+});

@@ -4,6 +4,7 @@ import { XCSH_PROVIDER_LOCK_SHA256, XCSH_PROVIDER_VERSION } from '../../../terra
 import { normalizeAwsBootstrapKeyPairName, selectAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { canonicalSha256, fingerprintObservation } from './canonical';
 import { prepareRecoverableAction } from './create-recovery';
+import { assertAwsEbsTeardown } from './ebs-retirement';
 import {
   AWS_CE_PROVIDER_LOCK_SHA256,
   AWS_CE_TERRAFORM_PROVIDER_VERSION,
@@ -37,7 +38,7 @@ const CIDR = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F:]+)\/\d{1,3}$/;
 const AMI = /^ami-[0-9a-f]{8,17}$/;
 const DEVICE_NAME = /^\/dev\/[a-zA-Z0-9._-]{1,32}$/;
 const AWS_ID =
-  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:vol-[0-9a-f]{8}(?:[0-9a-f]{9})?|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21}))$/;
 
 function fail(message: string): never {
   throw new Error(`AWS CE plan validation failed: ${message}`);
@@ -665,6 +666,7 @@ function ownedNodeEnis(
 
 function resourceDeleteArgs(resource: AwsCeObservation['resources'][number], base: string[]): string[] {
   const id = resource.id;
+  if (/^vol-/.test(id)) return ['ec2', 'delete-volume', '--volume-id', id, ...base];
   if (/^i-/.test(id)) return ['ec2', 'terminate-instances', '--instance-ids', id, ...base];
   if (/^eni-/.test(id)) return ['ec2', 'delete-network-interface', '--network-interface-id', id, ...base];
   if (/^subnet-/.test(id)) return ['ec2', 'delete-subnet', '--subnet-id', id, ...base];
@@ -704,6 +706,7 @@ function deletionPriority(resource: AwsCeObservation['resources'][number]): numb
   if (id.startsWith('eipassoc-')) return 50;
   if (id.startsWith('eipalloc-')) return 60;
   if (id.startsWith('eni-')) return 70;
+  if (id.startsWith('vol-')) return 75;
   if (id.startsWith('sg-')) return 80;
   if (id.startsWith('rtb-')) return 85;
   if (id.startsWith('subnet-')) return 90;
@@ -770,6 +773,7 @@ function compileActions(
   const rootDeviceName = observation.regions.find((item) => item.name === intent.region)?.ami?.rootDeviceName ?? '';
   if (!DEVICE_NAME.test(rootDeviceName)) fail('observed AMI root device name is invalid');
   if (intent.operation === 'teardown') {
+    assertAwsEbsTeardown(intent, observation);
     for (const route of intent.routes) {
       const state = restorationById.get(route.routeTableId);
       if (!state) fail(`teardown requires persisted pre-change restoration state for ${route.routeTableId}`);
