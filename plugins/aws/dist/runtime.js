@@ -1643,6 +1643,29 @@ var init_capacity = __esm(() => {
   init_inventory();
 });
 
+// plugins/aws/src/ce/terminated-instance.ts
+function isAwsTerminatedOwnedInstance(resource, accountId) {
+  if (!resource.exists || !resource.owned || !resource.id.startsWith('i-')) return false;
+  const reservations = resource.state.Reservations;
+  if (!Array.isArray(reservations) || reservations.length !== 1) return false;
+  const reservation = reservations[0];
+  if (
+    !reservation ||
+    typeof reservation !== 'object' ||
+    reservation.OwnerId !== accountId ||
+    !Array.isArray(reservation.Instances) ||
+    reservation.Instances.length !== 1
+  )
+    return false;
+  const instance = reservation.Instances[0];
+  return Boolean(
+    instance &&
+      typeof instance === 'object' &&
+      instance.InstanceId === resource.id &&
+      instance.State?.Name === 'terminated',
+  );
+}
+
 // plugins/aws/src/ce/ebs-retirement.ts
 function object2(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Malformed AWS EBS volume evidence');
@@ -1688,7 +1711,9 @@ function assertAwsEbsVolumeAvailable(resource) {
     throw Error('AWS EBS volume must be available and unattached before deletion; resume with the same plan');
 }
 function assertAwsEbsTeardown(intent, observation) {
-  const ownedInstances = observation.resources.filter((r) => r.owned && r.exists && r.id.startsWith('i-'));
+  const ownedInstances = observation.resources.filter(
+    (r) => r.owned && r.exists && r.id.startsWith('i-') && !isAwsTerminatedOwnedInstance(r, intent.accountId),
+  );
   const instances = ownedInstances.flatMap((resource) => {
     const reservations = resource.state.Reservations;
     if (!Array.isArray(reservations)) return [];
@@ -5145,7 +5170,9 @@ function compileActions(intent, observation, restorationById) {
       }
     }
     for (const resource of observation.resources
-      .filter((item) => item.owned)
+      .filter(
+        (item) => item.owned && !(intent.engine === 'native' && isAwsTerminatedOwnedInstance(item, intent.accountId)),
+      )
       .sort((a, b) => deletionPriority(a) - deletionPriority(b) || a.id.localeCompare(b.id))) {
       if (resource.id.startsWith('rtb-')) {
         const tables = resource.state.RouteTables;
@@ -6672,7 +6699,11 @@ function compileAwsCePlan(input, observation, restorationState = []) {
       .map((resource) => ({
         resourceId: resource.id,
         owned: true,
-        action: intent.operation === 'teardown' ? 'delete' : 'reference',
+        action:
+          intent.operation === 'teardown' &&
+          !(intent.engine === 'native' && isAwsTerminatedOwnedInstance(resource, intent.accountId))
+            ? 'delete'
+            : 'reference',
       })),
   ].sort((left, right) => left.resourceId.localeCompare(right.resourceId));
   const warnings =

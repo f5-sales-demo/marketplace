@@ -1561,3 +1561,48 @@ it('disassociates the discovered owned EIP alias before releasing its allocation
   expect(plan.actions[0].resourceId).toBe(association);
   verifyAwsCePlan(plan);
 });
+
+it('native final no-change plan retains a verified terminated instance reference without demanding its deleted root disk', () => {
+  const f = ebsTeardownFixture(true);
+  Object.assign(f.vm.state.Reservations[0].Instances[0], { State: { Name: 'terminated' } });
+  f.disk.exists = false;
+  f.disk.owned = false;
+  f.disk.state.Volumes = [];
+  const plan = f.compile();
+  expect(plan.actions).toHaveLength(0);
+  expect(plan.ownershipInventory.find((r) => r.resourceId === f.vm.id)).toMatchObject({
+    owned: true,
+    action: 'reference',
+  });
+  verifyAwsCePlan(plan);
+});
+
+it('terminal authority refuses foreign account, instance, active state and missing state evidence', () => {
+  for (const boundary of ['account', 'instance', 'active', 'missing'] as const) {
+    const f = ebsTeardownFixture(true);
+    f.disk.exists = false;
+    f.disk.owned = false;
+    f.disk.state.Volumes = [];
+    Object.assign(f.vm.state.Reservations[0].Instances[0], { State: { Name: 'terminated' } });
+    if (boundary === 'account') f.vm.state.Reservations[0].OwnerId = '999999999999';
+    if (boundary === 'instance') f.vm.state.Reservations[0].Instances[0].InstanceId = 'i-11111111';
+    if (boundary === 'active') Object.assign(f.vm.state.Reservations[0].Instances[0], { State: { Name: 'running' } });
+    if (boundary === 'missing') Object.assign(f.vm.state.Reservations[0].Instances[0], { State: {} });
+    expect(f.compile).toThrow();
+  }
+});
+
+it('Terraform state teardown still schedules its verified terminal instance lifecycle', () => {
+  const f = ebsTeardownFixture(true);
+  Object.assign(f.vm.state.Reservations[0].Instances[0], { State: { Name: 'terminated' } });
+  f.disk.exists = false;
+  f.disk.owned = false;
+  f.disk.state.Volumes = [];
+  f.vm.tags = { ...f.vm.tags, 'xcsh-execution-engine': 'terraform' };
+  const plan = compileAwsCePlan(
+    intent({ operation: 'teardown', engine: 'terraform' }),
+    observation({ resources: [f.vm, f.disk], ownershipPlanSha256s: [ownerPlanSha256] }),
+  );
+  expect(plan.actions.some((a) => a.args?.includes('terminate-instances'))).toBe(true);
+  verifyAwsCePlan(plan);
+});

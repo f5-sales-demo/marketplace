@@ -17,6 +17,7 @@ import { awsCeStaticIp, validateAwsCeAddressing } from './interface-addressing';
 import { interfaceSecurityGroups } from './interface-security';
 import { validateAwsCeNetworkCidrs } from './network-cidrs';
 import { routeNode, staticAzRoutes } from './static-routing';
+import { isAwsTerminatedOwnedInstance } from './terminated-instance';
 import { siteForNode, siteTopology } from './topology';
 import { observedConnectCidrs } from './transport-routes';
 import type { AwsCeAction, AwsCeIntent, AwsCeObservation, AwsCePlan, AwsCePlanDraft } from './types';
@@ -890,7 +891,9 @@ function compileActions(
       }
     }
     for (const resource of observation.resources
-      .filter((item) => item.owned)
+      .filter(
+        (item) => item.owned && !(intent.engine === 'native' && isAwsTerminatedOwnedInstance(item, intent.accountId)),
+      )
       .sort((a, b) => deletionPriority(a) - deletionPriority(b) || a.id.localeCompare(b.id))) {
       if (resource.id.startsWith('rtb-')) {
         const tables = resource.state.RouteTables as
@@ -2430,7 +2433,11 @@ export function compileAwsCePlan(
       .map((resource) => ({
         resourceId: resource.id,
         owned: true as const,
-        action: intent.operation === 'teardown' ? ('delete' as const) : ('reference' as const),
+        action:
+          intent.operation === 'teardown' &&
+          !(intent.engine === 'native' && isAwsTerminatedOwnedInstance(resource, intent.accountId))
+            ? ('delete' as const)
+            : ('reference' as const),
       })),
   ].sort((left, right) => left.resourceId.localeCompare(right.resourceId));
   const warnings =

@@ -1,3 +1,4 @@
+import { isAwsTerminatedOwnedInstance } from './terminated-instance';
 import type { AwsCeIntent, AwsCeObservation, AwsCeResourceObservation } from './types';
 
 const INSTANCE = /^i-[0-9a-f]{8}(?:[0-9a-f]{9})?$/;
@@ -54,7 +55,9 @@ export function assertAwsEbsTeardown(
   intent: Pick<AwsCeIntent, 'accountId'>,
   observation: Pick<AwsCeObservation, 'resources'>,
 ) {
-  const ownedInstances = observation.resources.filter((r) => r.owned && r.exists && r.id.startsWith('i-'));
+  const ownedInstances = observation.resources.filter(
+    (r) => r.owned && r.exists && r.id.startsWith('i-') && !isAwsTerminatedOwnedInstance(r, intent.accountId),
+  );
   const instances = ownedInstances.flatMap((resource) => {
     const reservations = resource.state.Reservations;
     if (!Array.isArray(reservations)) return [];
