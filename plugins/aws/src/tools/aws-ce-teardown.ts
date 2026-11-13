@@ -7,7 +7,9 @@ import { executeAwsCeApply } from '../ce/apply';
 import { type AwsCeToolContext, loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from '../ce/artifacts';
 import { safeHexEqual } from '../ce/canonical';
 import { collectAwsNativeCloudRetirement } from '../ce/delete-recovery';
+import { readAwsNativeInitialCreation } from '../ce/native-creation-reader';
 import type { AwsNativeFoundationTeardownPlan } from '../ce/native-foundation-teardown';
+import type { AwsNativePendingTeardownPlan } from '../ce/native-pending-teardown';
 import type { AwsNativeReservationTeardownPlan } from '../ce/native-reservation-teardown';
 import { type AwsNativeTeardownPlan, prepareAwsNativeTeardown, runAwsNativeTeardown } from '../ce/native-teardown';
 import { awsPlatformService } from '../ce/platform';
@@ -142,7 +144,15 @@ export function createAwsCeTeardownTool(
                     readSignal,
                   );
                 })
-              : await dependencies.prepareNative(plan, cloud as never, runtime, contract, storage, signal);
+              : await dependencies.prepareNative(
+                  plan,
+                  cloud as never,
+                  runtime,
+                  contract,
+                  storage,
+                  signal,
+                  (readSignal) => readAwsNativeInitialCreation(plan, ctx.sessionManager, makeApi(ctx.cwd), readSignal),
+                );
           const artifactId = await ctx.sessionManager.saveArtifact(
             JSON.stringify({
               kind: teardown.kind,
@@ -183,7 +193,8 @@ export function createAwsCeTeardownTool(
           | AwsPendingTeardownPlan
           | AwsNativeTeardownPlan
           | AwsNativeReservationTeardownPlan
-          | AwsNativeFoundationTeardownPlan;
+          | AwsNativeFoundationTeardownPlan
+          | AwsNativePendingTeardownPlan;
         if (
           teardown.planId !== params.teardownPlanId ||
           !safeHexEqual(teardown.planSha256, params.teardownPlanSha256) ||
@@ -254,7 +265,11 @@ export function createAwsCeTeardownTool(
                     (teardown as AwsNativeTeardownPlan).cloudPlanSha256,
                   )
                 ).plan,
-                teardown as AwsNativeTeardownPlan | AwsNativeReservationTeardownPlan | AwsNativeFoundationTeardownPlan,
+                teardown as
+                  | AwsNativeTeardownPlan
+                  | AwsNativeReservationTeardownPlan
+                  | AwsNativeFoundationTeardownPlan
+                  | AwsNativePendingTeardownPlan,
                 params.teardownPlanSha256,
                 runtime,
                 contract,

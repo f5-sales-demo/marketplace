@@ -94,6 +94,21 @@ For headless execution use only `XCSH_CE_HEADLESS_MUTATIONS=1` and
 `XCSH_CE_ALLOW_DESTROY=1` for their respective operations. AWS Marketplace initial legal
 acceptance is console-only and always requires rediscovery and replanning.
 
+### Interrupted native initial registration
+
+For a single native node whose registration is still `PENDING`, `aws_ce_teardown`
+uses a separate initial-registration contract. Preparation reads the original native
+creation checkpoint and current owned instance/image/interface/MAC identities,
+then requires complete, stable logical/physical-site, token and registration UID
+observations. Missing or conflicting original creation evidence stays unknown.
+
+Apply retains the exact retirement intent, revokes owned tokens and retires the
+reviewed cloud node before deleting its initial registration. It verifies the exact
+registration object is absent before deleting the original logical site. Repeat
+execution observes recorded identities and retires private staging without blindly
+replaying mutations. Advanced admission uses the registered retirement contract;
+HA requires its separately qualified lifecycle contracts.
+
 ### Interrupted Terraform admission retirement
 
 `aws_ce_teardown` selects a separate pending-admission contract when the owning

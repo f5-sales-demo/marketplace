@@ -14,6 +14,12 @@ import {
 } from './native-foundation-teardown';
 import { withAwsNativeOperation } from './native-operation';
 import {
+  type AwsNativePendingTeardownPlan,
+  type NativeCreationReader,
+  prepareAwsNativePendingTeardown,
+  runAwsNativePendingTeardown,
+} from './native-pending-teardown';
+import {
   type AwsNativeReservationTeardownPlan,
   prepareAwsNativeReservationTeardown,
   runAwsNativeReservationTeardown,
@@ -176,6 +182,7 @@ export async function prepareAwsNativeTeardown(
   contract: VerifiedIngressContract,
   storage: CeDeploymentStore,
   signal?: AbortSignal,
+  readCreation?: NativeCreationReader,
 ) {
   if (base.engine !== 'native' || cloud.engine !== 'native')
     throw new Error('Native teardown preparation requires native ownership');
@@ -183,6 +190,8 @@ export async function prepareAwsNativeTeardown(
   if (foundation) return foundation;
   const reservation = await prepareAwsNativeReservationTeardown(base, cloud, runtime, contract, storage, signal);
   if (reservation) return reservation;
+  const pending = await prepareAwsNativePendingTeardown(base, cloud, runtime, contract, storage, signal, readCreation);
+  if (pending) return pending;
   const materialName = 'aws-native-teardown-material.json';
   const persisted =
     (await optional(storage, materialName)) ?? (await optional(storage, 'aws-native-teardown-source.json'));
@@ -365,7 +374,11 @@ export async function coordinateAwsNativeTeardown(
 export async function runAwsNativeTeardown(
   base: AwsCePlan,
   cloud: AwsCePlan,
-  plan: AwsNativeTeardownPlan | AwsNativeReservationTeardownPlan | AwsNativeFoundationTeardownPlan,
+  plan:
+    | AwsNativeTeardownPlan
+    | AwsNativeReservationTeardownPlan
+    | AwsNativeFoundationTeardownPlan
+    | AwsNativePendingTeardownPlan,
   authorizedPlanSha256: string,
   runtime: CeRuntime,
   contract: VerifiedIngressContract,
@@ -373,6 +386,18 @@ export async function runAwsNativeTeardown(
   retireCloud: NativeTeardownDriver['retireCloud'],
   signal?: AbortSignal,
 ) {
+  if (plan.kind === 'aws-ce-native-pending-teardown')
+    return runAwsNativePendingTeardown(
+      base,
+      cloud,
+      plan,
+      authorizedPlanSha256,
+      runtime,
+      contract,
+      storage,
+      retireCloud,
+      signal,
+    );
   if (plan.kind === 'aws-ce-native-foundation-teardown')
     return runAwsNativeFoundationTeardown(
       base,
