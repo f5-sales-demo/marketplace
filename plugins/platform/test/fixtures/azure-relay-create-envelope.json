@@ -1,0 +1,55 @@
+{
+  "provenance": {
+    "repository": "f5-sales-demo/api-specs-enriched",
+    "tag": "v12.3.0",
+    "commit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+    "asset": "openapi.json",
+    "assetSha256": "91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5",
+    "schema": "bgpCreateRequest"
+  },
+  "schema": {
+    "type": "object",
+    "description": "This is the input message of the 'Create' RPC.",
+    "title": "CreateRequest is used to create an instance of bgp",
+    "x-displayname": "Create Request.",
+    "x-ves-proto-message": "ves.io.schema.bgp.CreateRequest",
+    "properties": {
+      "metadata": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/schemaObjectCreateMetaType"
+          }
+        ],
+        "x-f5xc-example": "{\"key\": \"value\"}",
+        "x-f5xc-required-for": {
+          "minimum_config": false,
+          "create": false,
+          "update": false,
+          "read": false
+        }
+      },
+      "spec": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/bgpCreateSpecType"
+          }
+        ],
+        "x-f5xc-example": "{\"key\": \"value\"}",
+        "x-f5xc-required-for": {
+          "minimum_config": false,
+          "create": false,
+          "update": false,
+          "read": false
+        }
+      }
+    },
+    "x-f5xc-minimum-configuration": {
+      "description": "Minimum configuration for bgpCreateRequest",
+      "required_fields": [],
+      "mutually_exclusive_groups": [],
+      "example_json": "{}",
+      "example_yaml": "{}"
+    },
+    "x-f5xc-cli-domain": "network"
+  }
+}
