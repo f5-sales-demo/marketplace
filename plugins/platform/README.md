@@ -6,14 +6,44 @@ Provides Azure SSO authentication, deterministic console
 navigation, API token management, and a foundation for
 workflow automation across both interfaces.
 
-Platform 6.x provides provider-neutral Secure Mesh Site v2 Customer Edge tools
-for capability evidence, typed canonical site changes, one-use bootstrap
-checkout, and allowlisted status. Legacy Azure VNet Site, AWS VPC/TGW Site,
+Platform 7 UAT candidates provide provider-neutral Secure Mesh Site v2 Customer Edge tools
+for capability evidence, tenant-bound canonical site changes, API bootstrap checkout, and identity-bound interface status. Legacy Azure VNet Site, AWS VPC/TGW Site,
 Fleet, and shared registration-token workflows are removed.
 KVM image resolution joins exactly one owned Site UID to its named configuration,
 queries `/api/maurice/software_os_version`, checks the exact UID mapping and
 empty error status, verifies the HTTPS image and MD5, then rechecks ownership.
 The retired external maurice prerequisite is not part of this capability.
+
+The internal upgrade gate evaluates fresh runtime observations against a plan's
+logical and physical site identities, contract fingerprints, and effective versions.
+It distinguishes readiness, convergence, version completion, failure, and unknown
+evidence. Create-time version settings remain separate. Version completion alone
+does not establish node, routing, or traffic health; cloud lifecycle adapters must
+verify those before advancing a serial upgrade.
+
+`stableCeSiteVersions` captures completed runtime software and OS versions with the
+same identity and freshness checks. This supports replacement planning without
+changing the original create-time settings, which can retain an older baseline
+after an upgrade. A replacement coordinator must freeze these values into its plan,
+revalidate them before the first destructive boundary, and verify the replacement
+after registration. The version gate alone does not implement that lifecycle.
+
+`captureCeReplacementVersions` records the selected logical site, physical site,
+contract identities, and stable runtime versions. `verifyCeReplacementVersions`
+collects a new observation and rejects identity or version drift before an intact
+site's first destructive operation. Partial shutdown recovery must reconcile the
+cloud's actual state and its recorded admission before using these functions;
+an offline site cannot pass the stable-version gate. The AWS v2 replacement coordinator now
+uses this admission workflow and verifies the new physical identity and installed versions
+after registration. `prepareAwsSiteReplacement` collects owned configuration and registered
+hardware evidence for an explicit replacement, including a site whose MTUs already match.
+Live replacement acceptance is tracked separately from these runtime checks.
+
+The verified HTTP ingress contract also maps site-local HTTP origins. It binds
+each outside-network endpoint to an explicit CE site and uses `LOCAL_PREFERRED`
+selection. The API's site-bound `private_ip` variant can carry a public address.
+Cloud adapters must verify site ownership and origin reachability before using
+this mapping; schema validation does not establish traffic health.
 
 ## Prerequisites
 
@@ -60,13 +90,32 @@ The retired external maurice prerequisite is not part of this capability.
 | `f5xc_ce_v2_capabilities` | Return non-secret SMSv2 provider, bootstrap, network-profile, and AWS TGW Connect schema evidence |
 | `f5xc_ce_v2_site` | Plan, read, create, update, or delete CE v2 site and BGP/network configuration |
 | `f5xc_ce_v2_bootstrap` | Check out one short-lived token and return only an opaque session reference |
-| `f5xc_ce_v2_status` | Return allowlisted registration, provisioning, health, interface, route, and BGP evidence |
+| `f5xc_ce_v2_status` | Observe explicit up/down interfaces from trusted deployment bindings; missing or ambiguous evidence is unknown |
 
-Bootstrap material is written to a session-owned `0700` temporary directory in
-`0600` files and consumed once by the Azure plugin. The token never appears in a
-plan, tool result, command line, tag, log, or artifact. AWS and Azure consume
-the same opaque format. Headless checkout fails
-closed when only interactive console automation is available.
+Site operations require an explicit owning deployment binding. Creation and update use a
+`WireSiteIntent` containing resolved node hostnames, MAC/device identities, ordered network
+roles, addressing, and settings. Plans bind the active tenant, owning engine, site UID, and
+resource version. Interface changes that require cloud replacement use the owning cloud
+lifecycle rather than changing a primary NIC through the site tool.
+
+Bootstrap uses the verified site-bound JWT and cloud-init API in interactive and headless
+execution. Headless issuance requires `XCSH_CE_HEADLESS_MUTATIONS=1`. The tool returns a
+short-lived, one-use local reference in a session-owned `0700` directory with `0600` files.
+The upstream JWT is privately checkpointed for coordinated revocation; local one-use
+consumption does not imply that the vendor JWT itself can be used only once.
+
+The service persists tenant-bound deployment and MAC bindings after verified site and
+interface reads. Rebuilt site UIDs or changed contract pins invalidate prior bindings.
+Status distinguishes complete explicit down observations from missing, malformed, stale,
+partial, duplicated, unauthorized, or unavailable evidence. `fetchedAt` is API retrieval
+time; it is not an original CE heartbeat. CE sample-age semantics remain unqualified under
+api-specs-enriched #1930, and this public read cannot satisfy a mutation or traffic gate.
+
+The 288-row ledger in `benchmarks/ce-uat-ledger.json` records the required AWS/Azure,
+native/Terraform, and topology matrix. `bun scripts/check-ce-uat-readiness.ts` rejects
+release until every required feature and acceptance gate has current evidence. These
+candidates remain unreleasable while the SLI transition, freshness, API/schema identity
+mapping, recovery threshold, Azure live matrix, and installed qualification are incomplete.
 
 ## Agents
 
