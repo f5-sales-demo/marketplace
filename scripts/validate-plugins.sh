@@ -17,9 +17,7 @@ info() {
   echo "INFO: $1"
 }
 
-is_valid_semver() {
-  [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-}
+source "$REPO_ROOT/scripts/semver.sh"
 
 # ── 1. marketplace.json existence ────────────────────────────
 if [[ ! -f "$MARKETPLACE" ]]; then

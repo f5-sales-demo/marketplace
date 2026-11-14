@@ -1,27 +1,28 @@
 {
   "name": "@f5-sales-demo/xcsh-azure",
-  "version": "4.6.2",
+  "version": "5.0.0-uat.257",
   "description": "Azure CLI tools and deterministic F5 Customer Edge administration for xcsh",
-  "main": "src/index.ts",
+  "main": "dist/runtime.js",
   "scripts": {
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "eval:ce-prompt": "bash scripts/evals/run-ce-prompt-eval.sh"
+    "eval:ce-prompt": "bash scripts/evals/run-ce-prompt-eval.sh",
+    "build:runtime": "bun ../../scripts/build-ce-runtime.ts azure"
   },
   "xcsh": {
     "name": "Azure",
-    "version": "4.6.2",
+    "version": "5.0.0-uat.257",
     "extensions": [
-      "src/index.ts"
+      "dist/runtime.js"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=23.8.0"
+    "@f5-sales-demo/xcsh": ">=23.10.7"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "bun-types": "^1.4.4",
-    "@f5-sales-demo/xcsh": "23.9.3"
+    "@f5-sales-demo/xcsh": "23.10.7"
   },
   "license": "Apache-2.0"
 }

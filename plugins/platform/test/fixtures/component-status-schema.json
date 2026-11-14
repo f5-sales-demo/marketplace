@@ -1,0 +1,406 @@
+{
+  "provenance": {
+    "tag": "v12.3.0",
+    "commit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+    "fingerprint": "sha256:91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5"
+  },
+  "paths": {
+    "/api/operate/namespaces/{namespace}/sites/{site}/vpm/debug/global/{vesnamespace}/status": {
+      "get": {
+        "summary": "Status",
+        "description": "GET Status of F5XC components.",
+        "operationId": "ves.io.schema.operate.debug.CustomPublicAPI.Status",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/debugStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returned when operation is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Returned when there is no permission to access resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returned when resource is not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Returned when operation on resource is conflicting with current value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Returned when operation has been rejected as it is happening too frequently.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returned when server encountered an error in processing API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Returned when service is unavailable temporarily.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Returned when server timed out processing request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/runtimeError__ves_io_schema_ai_assistant"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "description": "Namespace\nNamespace for which the request is sent (system)",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Namespace",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "value"
+          },
+          {
+            "name": "site",
+            "description": "Site Name\nName of the site.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Site Name",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "value"
+          },
+          {
+            "name": "vesnamespace",
+            "description": "F5XC Namespace\nName of the site's namespace. Default's to VES-system.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "F5XC Namespace.",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "ves-system"
+          },
+          {
+            "name": "cached",
+            "description": "Use cached results in Status API.",
+            "in": "query",
+            "required": false,
+            "x-displayname": "Cached",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "externalDocs": {
+          "description": "Examples of this operation.",
+          "url": "https://docs.cloud.f5.com/docs-v2/platform/reference/api-ref/ves-io-schema-operate-debug-custompublicapi-status"
+        },
+        "x-ves-proto-rpc": "ves.io.schema.operate.debug.CustomPublicAPI.Status",
+        "tags": ["operate"],
+        "x-f5xc-operation-metadata": {
+          "purpose": "Resource retrieval operation",
+          "required_fields": ["path.namespace", "path.site", "path.vesnamespace"],
+          "optional_fields": [],
+          "field_docs": {},
+          "conditions": {
+            "prerequisites": ["Active namespace"],
+            "postconditions": []
+          },
+          "side_effects": {},
+          "danger_level": "low",
+          "confirmation_required": false,
+          "common_errors": [
+            {
+              "code": 401,
+              "message": "Authentication required",
+              "solution": "Provide valid API credentials"
+            },
+            {
+              "code": 403,
+              "message": "Permission denied",
+              "solution": "Check access permissions for this operation"
+            },
+            {
+              "code": 404,
+              "message": "Resource not found",
+              "solution": "Verify resource name, namespace, and path"
+            },
+            {
+              "code": 409,
+              "message": "Resource already exists",
+              "solution": "Use different name or update existing resource"
+            },
+            {
+              "code": 429,
+              "message": "Rate limit exceeded",
+              "solution": "Wait before retrying the operation"
+            },
+            {
+              "code": 500,
+              "message": "Server error",
+              "solution": "Retry operation or contact support"
+            }
+          ],
+          "performance_impact": {
+            "latency": "moderate",
+            "resource_usage": "moderate"
+          }
+        },
+        "x-f5xc-required-fields": ["path.namespace", "path.site", "path.vesnamespace"],
+        "x-f5xc-danger-level": "low",
+        "x-f5xc-discovered-response-time": {
+          "p50_ms": 200,
+          "p95_ms": 800,
+          "p99_ms": 2000,
+          "sample_count": 0,
+          "source": "estimate"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "debugStatus": {
+        "type": "object",
+        "description": "Status of the service.",
+        "title": "Status",
+        "x-displayname": "Status",
+        "x-ves-proto-message": "ves.io.schema.operate.debug.Status",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human readable reason of the Status.",
+            "title": "Message",
+            "x-displayname": "Message",
+            "x-ves-example": "Containers with unready status: [wingman opera]",
+            "x-f5xc-example": "containers with unready status[wingman opera]",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the service.",
+            "title": "Name",
+            "x-displayname": "Name",
+            "x-ves-example": "Ver",
+            "x-f5xc-example": "ver",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-22T11:01:39+00:00"
+          },
+          "node": {
+            "type": "string",
+            "description": "Node where service runs.",
+            "title": "Node",
+            "x-displayname": "Node",
+            "x-ves-example": "Master-0",
+            "x-f5xc-example": "master-0",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the service.",
+            "title": "Status",
+            "x-displayname": "Status",
+            "x-ves-example": "Ready",
+            "x-f5xc-example": "Ready",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-22T11:01:39+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for debugStatus",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "debugStatusResponse": {
+        "type": "object",
+        "description": "Status response.",
+        "title": "Status Response",
+        "x-displayname": "Status Response.",
+        "x-ves-proto-message": "ves.io.schema.operate.debug.StatusResponse",
+        "properties": {
+          "status": {
+            "type": "array",
+            "description": "List of status from site.",
+            "title": "Status",
+            "items": {
+              "$ref": "#/components/schemas/debugStatus"
+            },
+            "x-displayname": "Status",
+            "x-f5xc-example": "active",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-22T11:01:39+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for debugStatusResponse",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      }
+    }
+  }
+}
