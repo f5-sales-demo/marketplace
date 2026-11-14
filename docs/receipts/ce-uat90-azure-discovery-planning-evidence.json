@@ -1,0 +1,15 @@
+{
+  "candidateRevision": 90,
+  "regions": 63,
+  "eligible": 49,
+  "termsAccepted": true,
+  "cloudMutation": false,
+  "fullCeAcceptance": false,
+  "sourceCommit": "455bb429737bd0d70bea9c3a52696abdfd80375d",
+  "cliVersion": "23.9.3",
+  "publicTools": ["azure_compute_discover", "azure_ce_plan"],
+  "planSha256": "2169353edc6b8c1b43c15266bd312378e5d40181371259a3905d1a66af6eb252",
+  "planningPassed": true,
+  "profile": "single-site",
+  "engine": "terraform"
+}

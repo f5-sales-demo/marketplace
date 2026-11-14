@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 107,
+  "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "cliVersion": "23.9.3",
+  "scope": "Fresh owned Azure Terraform campaign; registered is not full provisioning or operational health",
+  "campaign": {
+    "startedAt": 1792682009.0638256,
+    "installationDeadlineAt": 1792684409.0638256,
+    "qualificationDeadlineAt": 1792685009.0638256,
+    "cleanupDeadlineAt": 1792686809.0638256,
+    "cloudDeploymentStarted": true,
+    "cleanupCompleted": true,
+    "fullCeAcceptance": false,
+    "steps": [
+      {
+        "mode": "apply",
+        "exitCode": 124,
+        "completedAt": "2026-10-22T15:33:29.197738+00:00",
+        "log": "supervisor-apply-1792682009063931810.private.log"
+      },
+      {
+        "mode": "apply",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:38:28.871225+00:00",
+        "log": "supervisor-apply-1792683209198030678.private.log"
+      },
+      {
+        "mode": "cleanup-baseline",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:38:33.897592+00:00",
+        "log": "supervisor-cleanup-baseline-1792683508871561460.private.log"
+      },
+      {
+        "mode": "status",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:39:11.094374+00:00",
+        "log": "supervisor-status-1792683513897810689.private.log"
+      },
+      {
+        "mode": "site-read",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:39:25.880608+00:00",
+        "log": "supervisor-site-read-1792683551094616146.private.log"
+      },
+      {
+        "mode": "interfaces",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:39:40.976706+00:00",
+        "log": "supervisor-interfaces-1792683565880903931.private.log"
+      },
+      {
+        "mode": "site-update",
+        "exitCode": 1,
+        "completedAt": "2026-10-22T15:39:56.041524+00:00",
+        "log": "supervisor-site-update-1792683580976933680.private.log"
+      },
+      {
+        "mode": "producer1221-readonly",
+        "exitCode": 1,
+        "completedAt": "2026-10-22T15:39:57.224989+00:00",
+        "log": "supervisor-producer1221-readonly-1792683596041747769.private.log"
+      },
+      {
+        "mode": "diagnose",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:41:16.341837+00:00",
+        "log": "supervisor-diagnose-1792683597225222585.private.log"
+      },
+      {
+        "mode": "teardown-prepare",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:41:44.938742+00:00",
+        "log": "supervisor-teardown-prepare-1792683676342164018.private.log"
+      },
+      {
+        "mode": "teardown-apply",
+        "exitCode": 0,
+        "completedAt": "2026-10-22T15:47:24.907235+00:00",
+        "log": "supervisor-teardown-apply-1792683704939005094.private.log"
+      }
+    ],
+    "currentMode": "teardown-apply",
+    "publicApplyExitCode": 0,
+    "cleanupStartedAt": "2026-10-22T15:41:16.341998+00:00",
+    "endedAt": "2026-10-22T15:47:24.907422+00:00",
+    "independentCleanupAcceptance": false
+  },
+  "applyResume": {
+    "candidateRevision": 107,
+    "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+    "cliVersion": "23.9.3",
+    "installedRuntimeDigests": [
+      {
+        "plugin": "platform",
+        "sha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356"
+      },
+      {
+        "plugin": "aws",
+        "sha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef"
+      },
+      {
+        "plugin": "azure",
+        "sha256": "87c8620edcf64e665c0e03cdafeee3b20010a049a00500552fccac3a568e0115"
+      },
+      {
+        "plugin": "terraform",
+        "sha256": "4229913baceb7337c75339a75a56e0247b759a6a71eb90264a2cbf62ca8cf1d6"
+      }
+    ],
+    "trace": [
+      {
+        "tool": "azure_ce_apply",
+        "startedAt": "2026-10-22T15:33:31.886Z",
+        "completedAt": "2026-10-22T15:38:28.818Z",
+        "isError": false,
+        "status": "registered"
+      }
+    ],
+    "cloudMutationRequested": true,
+    "fullCeAcceptance": false
+  },
+  "failedSiteUpdate": {
+    "candidateRevision": 107,
+    "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+    "cliVersion": "23.9.3",
+    "installedRuntimeDigests": [
+      {
+        "plugin": "platform",
+        "sha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356"
+      },
+      {
+        "plugin": "aws",
+        "sha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef"
+      },
+      {
+        "plugin": "azure",
+        "sha256": "87c8620edcf64e665c0e03cdafeee3b20010a049a00500552fccac3a568e0115"
+      },
+      {
+        "plugin": "terraform",
+        "sha256": "4229913baceb7337c75339a75a56e0247b759a6a71eb90264a2cbf62ca8cf1d6"
+      }
+    ],
+    "trace": [
+      {
+        "tool": "f5xc_ce_v2_site",
+        "startedAt": "2026-10-22T15:39:43.609Z",
+        "completedAt": "2026-10-22T15:39:55.816Z",
+        "isError": false
+      },
+      {
+        "tool": "f5xc_ce_v2_site",
+        "startedAt": "2026-10-22T15:39:56.003Z",
+        "completedAt": "2026-10-22T15:39:56.007Z",
+        "isError": true
+      }
+    ],
+    "cloudMutationRequested": true,
+    "fullCeAcceptance": false
+  },
+  "writableInputProjectionReplay": {
+    "candidateRevision": 107,
+    "rawReadInputRejected": true,
+    "archivedHelperLoaded": true,
+    "projectedWritableIntentValid": true,
+    "distinctMacs": 3,
+    "retainedNodeIdentity": true,
+    "settingsExcludedServerState": true,
+    "originalResponseUnchanged": true,
+    "liveUpdateQualified": false,
+    "fullCeAcceptance": false
+  },
+  "producerReadFailure": {
+    "release": "v12.2.1",
+    "originalValidationErrors": 28,
+    "qualifiedOptionalNullPaths": 14,
+    "implementationIssue": 1975,
+    "freshPublishedQualification": false
+  },
+  "independentCleanup": {
+    "candidateRevision": 107,
+    "fixtureCreationRevision": 107,
+    "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+    "observedAt": "2026-10-22T15:47:58.502404+00:00",
+    "sanitized": true,
+    "installedPublicTeardownPassed": true,
+    "exactCloudIdsAbsent": 13,
+    "resourceGroupAbsent": true,
+    "ownedAzureTagInventoryEmpty": true,
+    "logicalPhysicalSitesAbsent": true,
+    "registrationsEmpty": true,
+    "exactTokensAbsent": true,
+    "tokensRoutingIngressEmpty": true,
+    "matchingInterfaceObjectsAbsent": true,
+    "terraformStateEmptyVerifiedByOwningRunner": true,
+    "independentPreRetirementStateWitness": true,
+    "owningFinalDestroyNoChanges": true,
+    "preservedOrdinaryRefreshPlanProvenanceVerified": true,
+    "emptyStateIndependentlyObservedBeforeRetirement": true,
+    "newPostRetirementPlanRun": false,
+    "finalPlanSha256": "6d8e8f970119150738acec65f17d54913c1123271857b64957860d379d22f20b",
+    "independentlyVerifiedOwningOrdinaryRefreshPlanProvenance": true,
+    "runnerArtifactsRetired": true,
+    "parentSensitiveArtifactsRetired": true,
+    "separateBootstrapCheckoutCreated": false,
+    "fullCleanupAcceptance": false,
+    "remainingCleanupEvidence": [
+      "Retire external private bootstrap, raw state and diagnostic staging after independent inventory verification"
+    ],
+    "fullCeAcceptance": false
+  },
+  "externalSensitiveRetirement": {
+    "observedAt": "2026-10-22T15:47:59.312013+00:00",
+    "candidateRevision": 107,
+    "independentCleanupPassed": true,
+    "sensitiveFilesRetired": 0,
+    "sensitiveBytesRetired": 0,
+    "retired": [],
+    "remainingJwtPrivateKeyOrContextCredentialMatches": 0,
+    "sharedContextPreserved": true,
+    "installedArchivesPreserved": true,
+    "fullCleanupAcceptance": true,
+    "fullCeAcceptance": false
+  },
+  "fullCleanupAcceptance": true,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
