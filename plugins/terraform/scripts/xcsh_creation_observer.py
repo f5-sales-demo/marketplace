@@ -629,7 +629,13 @@ class OriginalXcshCreationObserver:
             raise
 
     def join(self, token: object) -> tuple[dict[str, Any], ...]:
-        """Join retained original evidence after exit without re-observing a new actor."""
+        """Join every retained claim without re-observing a new actor."""
+        return self._join(token, allow_pending=False)
+
+    def _join(
+        self, token: object, *, allow_pending: bool
+    ) -> tuple[dict[str, Any], ...]:
+        """Validate original claims and only permit never-observed pending receipts."""
         issued = self.witnesses.get(id(token))
         if issued is None or issued[0] is not token:
             reject("An originally issued xcsh creation witness is required")
@@ -647,6 +653,14 @@ class OriginalXcshCreationObserver:
                 ):
                     reject()
                 path = self.directory / ("receipt-" + claim.data["nonce"] + ".json")
+                if allow_pending:
+                    try:
+                        path.lstat()
+                    except FileNotFoundError:
+                        if path in self.artifacts:
+                            reject("Original xcsh observed receipt disappeared")
+                        self.check_inputs()
+                        continue
                 raw = self.read_artifact(path)
                 data = strict_json(raw)
                 self.validate(data, receipt=True)
@@ -672,6 +686,49 @@ class OriginalXcshCreationObserver:
         except Exception as error:
             self._retain_failure(error)
             raise
+
+    def available(self, tokens: Sequence[object]) -> tuple[dict[str, Any], ...]:
+        """Retain per-target joins without asserting full coverage or authority."""
+        try:
+            self.check_inputs()
+            results: dict[str, dict[str, Any]] = {}
+            for token in tokens:
+                for receipt in self._join(token, allow_pending=True):
+                    key = target_key(receipt["target"])
+                    if key in results and results[key] != receipt:
+                        reject("Original xcsh duplicate target evidence differs")
+                    results[key] = receipt
+            identities = {row["creation_identity_sha256"] for row in results.values()}
+            nonces = {row["nonce"] for row in results.values()}
+            if len(identities) != len(results) or len(nonces) != len(results):
+                reject("Original xcsh identity reservations are ambiguous")
+            self.check_inputs()
+            output = tuple(results[key] for key in sorted(results))
+            if output:
+                record(
+                    self.root / ("available-" + uuid4().hex + ".private.json"),
+                    {
+                        "schemaVersion": 1,
+                        "kind": "original-xcsh-available-creation-evidence",
+                        "scopeSha256": self.plan_sha256,
+                        "scopeFileSha256": self.scope_sha256,
+                        "targetCount": len(output),
+                        "expectedTargetCount": len(self.targets),
+                        "receiptSha256": [
+                            digest(json.dumps(row, sort_keys=True).encode())
+                            for row in output
+                        ],
+                        "complete": False,
+                        "signalsSent": False,
+                        "executionAuthorized": False,
+                    },
+                )
+        except Exception as error:
+            if self.retired:
+                raise
+            self._retain_failure(error)
+            raise
+        return output
 
     def complete(self, tokens: Sequence[object]) -> tuple[dict[str, Any], ...]:
         """Require exact prepared target coverage and a closed artifact inventory."""

@@ -392,6 +392,63 @@ def load_modules(guard: OriginalCreationInputs) -> tuple[Any, Any]:
     ]
 
 
+def available_creation_receipts(
+    observer: Any, witnesses: dict[int, Any]
+) -> tuple[dict[str, Any], ...]:
+    """Expose only original per-target joins while full scope is still pending."""
+    return observer.available(tuple(witnesses.values()))
+
+
+def retain_available_creation_receipts(
+    root: Path,
+    base: dict[str, Any],
+    observer: Any,
+    witnesses: dict[int, Any],
+    transport: Any,
+    retained: dict[str, tuple[str, dict[str, str], bytes]],
+) -> None:
+    """Publish each original target once and corroborate retained bytes on reuse."""
+    for receipt in available_creation_receipts(observer, witnesses):
+        key = hashlib.sha256(
+            json.dumps(receipt["target"], sort_keys=True).encode()
+        ).hexdigest()
+        receipt_hash = hashlib.sha256(
+            json.dumps(receipt, sort_keys=True).encode()
+        ).hexdigest()
+        path = root / ("xcsh-target-" + key + ".private.json")
+        if key in retained:
+            expected_hash, expected_identity, expected_raw = retained[key]
+            if (
+                expected_hash != receipt_hash
+                or identity(path.lstat()) != expected_identity
+            ):
+                reject()
+            if read_original(path, LIMIT) != expected_raw:
+                reject()
+            if identity(path.lstat()) != expected_identity:
+                reject()
+            continue
+        value = {
+            **base,
+            "kind": "original-xcsh-target-creation-evidence",
+            "receipt": receipt,
+            "complete": False,
+            "executionAuthorized": False,
+            "signalsSent": False,
+            "cloudSubmissions": 0,
+        }
+        expected_raw = json.dumps(value, sort_keys=True).encode()
+        transport.record(path, value)
+        before = identity(path.lstat())
+        if (
+            read_original(path, LIMIT) != expected_raw
+            or identity(path.lstat()) != before
+        ):
+            reject()
+        retained[key] = (receipt_hash, before, expected_raw)
+    observer.check_inputs()
+
+
 def ready_creation_receipts(
     observer: Any, witnesses: dict[int, Any]
 ) -> tuple[dict[str, Any], ...] | None:
@@ -528,6 +585,7 @@ def capture_creation_window(
     witnesses: dict[int, Any] = {}
     incomplete: set[int] = set()
     receipts: tuple[dict[str, Any], ...] = ()
+    retained: dict[str, tuple[str, dict[str, str], bytes]] = {}
     try:
         lifecycle = sys.modules["xcsh_original_creation.gcp_provider_reader"]
         while time.monotonic_ns() // 1000000 < deadline:
@@ -536,6 +594,9 @@ def capture_creation_window(
                 data["executor"]
             ):
                 reject()
+            retain_available_creation_receipts(
+                root, base, observer, witnesses, transport, retained
+            )
             ready = ready_creation_receipts(observer, witnesses)
             if ready is not None:
                 receipts = ready
@@ -553,6 +614,9 @@ def capture_creation_window(
             for token in observed.witnesses:
                 witnesses[token.pid] = token
                 incomplete.discard(token.pid)
+            retain_available_creation_receipts(
+                root, base, observer, witnesses, transport, retained
+            )
             ready = ready_creation_receipts(observer, witnesses)
             if ready is not None:
                 receipts = ready

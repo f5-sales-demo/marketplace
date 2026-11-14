@@ -682,8 +682,8 @@ var gcp_capture_source_pins_default = {
     'guest_entrypoint.py': 'f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151',
     'gcp_provider_process.py': '2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00',
     'gcp_provider_reader.py': '19532859fd9390ded4a3321fade653f1ca5ccb0d22afd04f2c37dcc816391ceb',
-    'xcsh_creation_observer.py': '988bdf1d393aef539ef62bbe19aea7622c9b796f39c54d8673e6c2c761a5c86d',
-    'xcsh_creation_reader.py': '1ee9327729b38dacb8ac9b4d8afb44ec34922ce7c2935c2759cb2ffd395d568a',
+    'xcsh_creation_observer.py': '63158a527b0a178b96b1918333a44c087837f78a6490ab9d7ad989f758dd6d28',
+    'xcsh_creation_reader.py': '39e491fafa0885e735652c63743a86167253ef9a5c8a8fe522c014df28e557b2',
   },
 };
 
