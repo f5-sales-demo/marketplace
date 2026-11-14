@@ -10,9 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.90 bounds capture polling with admitted identity checks
-  while preserving full release and final digests. Unavailable actor failures retain
-  private kernel evidence; builtin and live capture qualification remain open.
+- **`terraform`** v2.4.91 adds atomic publication of complete bootstrap grants
+  without replacing existing evidence. It retains failed publication artifacts
+  and bounds capture polling with admitted identity checks. Builtin and live
+  capture qualification remain open.
 
 - **`terraform`** v2.4.89 separates original reader admission, preparation and
   capture while preserving strict identities and deadlines. Python regression failures
