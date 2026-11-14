@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 116,
+  "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+  "verificationScope": "exact immutable archives, installed public loading/rejections/producer downloads, separate local Terraform cleanup execution",
+  "receipts": {
+    "archive-evidence.json": {
+      "schemaVersion": 1,
+      "candidateRevision": 116,
+      "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+      "observedAt": "2026-10-23T14:26:46.280384+00:00",
+      "archives": [
+        {
+          "plugin": "platform",
+          "version": "7.0.0-uat.116",
+          "archive": "platform-7.0.0-uat.116.tar.gz",
+          "archiveSha256": "bba3c27174889192f3f3587efe0709af965160683daaf67ad543d7b0f9057905",
+          "runtimeSha256": "6cc4db2f5987db747e313b2df390696e5df357e60bee4700557f4480fa003aa2",
+          "committedFiles": 272,
+          "fileManifestSha256": "0e7aa92e057b2657d504c6bb9cb026ff2aafca5873ac7bddfb106ac7b9a96915"
+        },
+        {
+          "plugin": "aws",
+          "version": "3.0.0-uat.116",
+          "archive": "aws-3.0.0-uat.116.tar.gz",
+          "archiveSha256": "6f038f3982c7262adea43e9357e2d5590d43eac3207dc1d7d6e18c2dbd45984a",
+          "runtimeSha256": "a30162e1146bdf6dc6cc7e11b972670c2ff87d1a41a26f3e8847c2dc369d463b",
+          "committedFiles": 296,
+          "fileManifestSha256": "c43b22e88529ea240c9c962697cb2d3502eb163690672a5b3abbc0a2bc2f7085"
+        },
+        {
+          "plugin": "azure",
+          "version": "5.0.0-uat.116",
+          "archive": "azure-5.0.0-uat.116.tar.gz",
+          "archiveSha256": "da8814c22b6e365ce9b1185eb51203fb35fe109ebb0dd538666ed65c0dbd0dea",
+          "runtimeSha256": "ce778d39c0ba070dd034a9a8e66ad150a8f07e95de3b5a656de96ef225154e27",
+          "committedFiles": 181,
+          "fileManifestSha256": "b9123c94a37a2dc4823d2eadfc1de24258adc831affd52c71040d72faeec4da3"
+        },
+        {
+          "plugin": "terraform",
+          "version": "3.0.0-uat.116",
+          "archive": "terraform-3.0.0-uat.116.tar.gz",
+          "archiveSha256": "2425bd0652df810af3fcf6f9ec8a18a9c40c563b941c58b21e9091440cb4a8b8",
+          "runtimeSha256": "34fd1609bc9c73d42d084851e403188767335a62f3276cf7f370ca8062167f6e",
+          "committedFiles": 41,
+          "fileManifestSha256": "8de2af89d30067c826e1f50a3963f52f7c68ca21ce02d847ef13b98a32241014"
+        }
+      ],
+      "allCommittedFilesCompared": 790,
+      "installedExtractedFilesVerified": true,
+      "producerApiPin": "v12.3.0",
+      "sourceCiQualified": false,
+      "liveLifecycleQualified": false,
+      "fullCeAcceptance": false,
+      "releaseReady": false
+    },
+    "installed-public-smoke116-safe.json": {
+      "schemaVersion": 1,
+      "candidateRevision": 116,
+      "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+      "cliVersion": "23.9.3",
+      "extensionCount": 4,
+      "registeredTools": [
+        "aws_ce_apply",
+        "aws_ce_diagnose",
+        "aws_ce_failover",
+        "aws_ce_inventory",
+        "aws_ce_plan",
+        "aws_ce_power",
+        "aws_ce_status",
+        "aws_ce_teardown",
+        "aws_ce_upgrade",
+        "aws_cloud_init_analyze",
+        "aws_compute_discover",
+        "aws_ec2_describe_instances",
+        "aws_exec",
+        "aws_help",
+        "aws_s3_ls",
+        "aws_sts_whoami",
+        "az_account_show",
+        "az_activity_log_list",
+        "az_exec",
+        "az_group_list",
+        "az_help",
+        "az_resource_graph_query",
+        "az_resource_list",
+        "az_vm_list",
+        "azure_ce_apply",
+        "azure_ce_diagnose",
+        "azure_ce_failover",
+        "azure_ce_inventory",
+        "azure_ce_plan",
+        "azure_ce_status",
+        "azure_ce_teardown",
+        "azure_ce_upgrade",
+        "azure_cloud_init_analyze",
+        "azure_compute_discover",
+        "f5xc_ce_v2_bootstrap",
+        "f5xc_ce_v2_capabilities",
+        "f5xc_ce_v2_site",
+        "f5xc_ce_v2_status"
+      ],
+      "resolvedPathsVerified": true,
+      "outcomes": [
+        {
+          "tool": "aws_ce_power",
+          "rejected": true
+        },
+        {
+          "tool": "aws_ce_apply",
+          "rejected": true
+        },
+        {
+          "tool": "azure_ce_apply",
+          "rejected": true
+        },
+        {
+          "tool": "f5xc_ce_v2_site",
+          "rejected": true
+        },
+        {
+          "tool": "f5xc_ce_v2_status",
+          "missingBindingUnknown": true,
+          "mutationGate": false
+        }
+      ],
+      "installedPublicExecution": true,
+      "cloudMutationPerformed": false,
+      "liveLifecycleQualified": false,
+      "fullCeAcceptance": false
+    },
+    "installed-public-smoke116-minimum-safe.json": {
+      "schemaVersion": 1,
+      "candidateRevision": 116,
+      "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+      "cliVersion": "23.8.0",
+      "extensionCount": 4,
+      "registeredTools": [
+        "aws_ce_apply",
+        "aws_ce_diagnose",
+        "aws_ce_failover",
+        "aws_ce_inventory",
+        "aws_ce_plan",
+        "aws_ce_power",
+        "aws_ce_status",
+        "aws_ce_teardown",
+        "aws_ce_upgrade",
+        "aws_cloud_init_analyze",
+        "aws_compute_discover",
+        "aws_ec2_describe_instances",
+        "aws_exec",
+        "aws_help",
+        "aws_s3_ls",
+        "aws_sts_whoami",
+        "az_account_show",
+        "az_activity_log_list",
+        "az_exec",
+        "az_group_list",
+        "az_help",
+        "az_resource_graph_query",
+        "az_resource_list",
+        "az_vm_list",
+        "azure_ce_apply",
+        "azure_ce_diagnose",
+        "azure_ce_failover",
+        "azure_ce_inventory",
+        "azure_ce_plan",
+        "azure_ce_status",
+        "azure_ce_teardown",
+        "azure_ce_upgrade",
+        "azure_cloud_init_analyze",
+        "azure_compute_discover",
+        "f5xc_ce_v2_bootstrap",
+        "f5xc_ce_v2_capabilities",
+        "f5xc_ce_v2_site",
+        "f5xc_ce_v2_status"
+      ],
+      "resolvedPathsVerified": true,
+      "outcomes": [
+        {
+          "tool": "aws_ce_power",
+          "rejected": true
+        },
+        {
+          "tool": "aws_ce_apply",
+          "rejected": true
+        },
+        {
+          "tool": "azure_ce_apply",
+          "rejected": true
+        },
+        {
+          "tool": "f5xc_ce_v2_site",
+          "rejected": true
+        },
+        {
+          "tool": "f5xc_ce_v2_status",
+          "missingBindingUnknown": true,
+          "mutationGate": false
+        }
+      ],
+      "installedPublicExecution": true,
+      "cloudMutationPerformed": false,
+      "liveLifecycleQualified": false,
+      "fullCeAcceptance": false
+    },
+    "installed-producer123-consumption-safe.json": {
+      "observedAt": "2026-10-23T14:27:01.808Z",
+      "candidateRevision": 116,
+      "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+      "cliVersion": "23.9.3",
+      "publicTool": "f5xc_ce_v2_capabilities",
+      "contractIdentity": "f5xc-smsv2-api/v1@12.3.0",
+      "contractCommit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+      "contractFingerprint": "sha256:ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af",
+      "downloads": [
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/openapi.json",
+          "sha256": "91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5",
+          "bytes": 37162410
+        },
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-contract.json",
+          "sha256": "050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08",
+          "bytes": 34144
+        },
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-evidence-receipt.json",
+          "sha256": "887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932",
+          "bytes": 4770
+        },
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-contract-manifest.json",
+          "sha256": "ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af",
+          "bytes": 372
+        }
+      ],
+      "installedPublicConsumption": true,
+      "sourcePluginImported": false,
+      "tenantMutationPerformed": false,
+      "interfaceMapping1930Qualified": false,
+      "originalSampleFreshnessQualified": false,
+      "liveAcceptance": "not-established",
+      "fullCeAcceptance": false
+    },
+    "installed-producer123-consumption-minimum-safe.json": {
+      "observedAt": "2026-10-23T14:27:02.069Z",
+      "candidateRevision": 116,
+      "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+      "cliVersion": "23.8.0",
+      "publicTool": "f5xc_ce_v2_capabilities",
+      "contractIdentity": "f5xc-smsv2-api/v1@12.3.0",
+      "contractCommit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+      "contractFingerprint": "sha256:ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af",
+      "downloads": [
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/openapi.json",
+          "sha256": "91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5",
+          "bytes": 37162410
+        },
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-contract.json",
+          "sha256": "050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08",
+          "bytes": 34144
+        },
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-contract-manifest.json",
+          "sha256": "ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af",
+          "bytes": 372
+        },
+        {
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v12.3.0/smsv2-evidence-receipt.json",
+          "sha256": "887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932",
+          "bytes": 4770
+        }
+      ],
+      "installedPublicConsumption": true,
+      "sourcePluginImported": false,
+      "tenantMutationPerformed": false,
+      "interfaceMapping1930Qualified": false,
+      "originalSampleFreshnessQualified": false,
+      "liveAcceptance": "not-established",
+      "fullCeAcceptance": false
+    },
+    "installed-local-cleanup116-safe.json": {
+      "candidateRevision": 116,
+      "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+      "cliVersion": "23.9.3",
+      "installedRuntimePathsVerified": true,
+      "sourcePluginImported": false,
+      "rows": [
+        {
+          "scenario": "installed-empty-cleanup",
+          "status": "runner-artifacts-retired",
+          "independentCleanupSha256": "f15b9fafd0f918f1185d556650dcb8bbb321c720c06e8613fb000ddbf534cb50",
+          "workerSha256": "2d67afc2cf0ce8e4ca0a643e51f516820ed26fc5af3f4717e9bb0a9450990c23",
+          "terraformVersion": "1.16.5",
+          "separateExecutor": true,
+          "originalInputsPresentBeforeRetirement": true,
+          "sensitiveStagingAbsentAfterRetirement": true
+        },
+        {
+          "scenario": "installed-applied-cleanup",
+          "status": "runner-artifacts-retired",
+          "independentCleanupSha256": "b3513d175472a9642fd0591f5dbbcafe930a1472a0613b0630d13c7c02993035",
+          "workerSha256": "2d67afc2cf0ce8e4ca0a643e51f516820ed26fc5af3f4717e9bb0a9450990c23",
+          "terraformVersion": "1.16.5",
+          "separateExecutor": true,
+          "originalInputsPresentBeforeRetirement": true,
+          "sensitiveStagingAbsentAfterRetirement": true
+        }
+      ],
+      "installedLocalExecution": true,
+      "publicCloudTeardownQualified": false,
+      "independentLiveAbsenceQualified": false,
+      "fullCeAcceptance": false
+    },
+    "installed-local-cleanup116-minimum-safe.json": {
+      "candidateRevision": 116,
+      "sourceCommit": "f4978d889845274bca59172762d1d486fe7718a2",
+      "cliVersion": "23.8.0",
+      "installedRuntimePathsVerified": true,
+      "sourcePluginImported": false,
+      "rows": [
+        {
+          "scenario": "installed-empty-cleanup",
+          "status": "runner-artifacts-retired",
+          "independentCleanupSha256": "5c42949385198f5e4f9fec4f291d29339898399c558d97ec03f47d856fda5ed4",
+          "workerSha256": "2d67afc2cf0ce8e4ca0a643e51f516820ed26fc5af3f4717e9bb0a9450990c23",
+          "terraformVersion": "1.16.5",
+          "separateExecutor": true,
+          "originalInputsPresentBeforeRetirement": true,
+          "sensitiveStagingAbsentAfterRetirement": true
+        },
+        {
+          "scenario": "installed-applied-cleanup",
+          "status": "runner-artifacts-retired",
+          "independentCleanupSha256": "f9bc96c4bdc224ecf581ff4b4148431821f891a070d8c116d5d3b28a3214c1cf",
+          "workerSha256": "2d67afc2cf0ce8e4ca0a643e51f516820ed26fc5af3f4717e9bb0a9450990c23",
+          "terraformVersion": "1.16.5",
+          "separateExecutor": true,
+          "originalInputsPresentBeforeRetirement": true,
+          "sensitiveStagingAbsentAfterRetirement": true
+        }
+      ],
+      "installedLocalExecution": true,
+      "publicCloudTeardownQualified": false,
+      "independentLiveAbsenceQualified": false,
+      "fullCeAcceptance": false
+    }
+  },
+  "sourceValidation": {
+    "ceTestsPassed": 2334,
+    "cliPresenceSkipped": 2,
+    "assertions": 13515,
+    "fourTypesAndBuilds": "PASS",
+    "ledgerTests": 14,
+    "ledgerAssertions": 59,
+    "piiEnforceAndAudit": "PASS",
+    "duplicationPercent": 9.94,
+    "thresholdPercent": 10,
+    "precommit": "PASS"
+  },
+  "liveCloudTeardownQualified": false,
+  "independentLiveCleanupQualified": false,
+  "externalWatchdogArmed": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
