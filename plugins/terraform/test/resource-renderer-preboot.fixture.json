@@ -1,0 +1,481 @@
+{
+  "block": {
+    "attributes": {
+      "name": {
+        "type": "string",
+        "required": true
+      },
+      "namespace": {
+        "type": "string",
+        "optional": true,
+        "computed": true
+      },
+      "labels": {
+        "type": ["map", "string"],
+        "optional": true
+      }
+    },
+    "block_types": {
+      "aws": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "not_managed": {
+              "nesting_mode": "single",
+              "block": {
+                "block_types": {
+                  "node_list": {
+                    "nesting_mode": "list",
+                    "block": {
+                      "attributes": {
+                        "hostname": {
+                          "type": "string",
+                          "optional": true
+                        },
+                        "public_ip": {
+                          "type": "string",
+                          "optional": true
+                        },
+                        "type": {
+                          "type": "string",
+                          "optional": true
+                        }
+                      },
+                      "block_types": {
+                        "interface_list": {
+                          "nesting_mode": "list",
+                          "block": {
+                            "attributes": {
+                              "description_spec": {
+                                "type": "string",
+                                "optional": true
+                              },
+                              "dhcp_client": {
+                                "type": ["object", {}],
+                                "optional": true
+                              },
+                              "is_management": {
+                                "type": "bool",
+                                "computed": true
+                              },
+                              "is_primary": {
+                                "type": "bool",
+                                "computed": true
+                              },
+                              "labels": {
+                                "type": ["map", "string"],
+                                "optional": true
+                              },
+                              "monitor": {
+                                "type": ["object", {}],
+                                "optional": true
+                              },
+                              "monitor_disabled": {
+                                "type": ["object", {}],
+                                "optional": true
+                              },
+                              "mtu": {
+                                "type": "number",
+                                "optional": true
+                              },
+                              "name": {
+                                "type": "string",
+                                "optional": true
+                              },
+                              "no_ipv4_address": {
+                                "type": ["object", {}],
+                                "optional": true
+                              },
+                              "no_ipv6_address": {
+                                "type": ["object", {}],
+                                "optional": true
+                              },
+                              "priority": {
+                                "type": "number",
+                                "optional": true
+                              },
+                              "site_to_site_connectivity_interface_disabled": {
+                                "type": ["object", {}],
+                                "optional": true
+                              },
+                              "site_to_site_connectivity_interface_enabled": {
+                                "type": ["object", {}],
+                                "optional": true
+                              }
+                            },
+                            "block_types": {
+                              "bond_interface": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "attributes": {
+                                    "active_backup": {
+                                      "type": ["object", {}],
+                                      "optional": true
+                                    },
+                                    "devices": {
+                                      "type": ["list", "string"],
+                                      "optional": true
+                                    },
+                                    "link_polling_interval": {
+                                      "type": "number",
+                                      "optional": true
+                                    },
+                                    "link_up_delay": {
+                                      "type": "number",
+                                      "optional": true
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "optional": true
+                                    }
+                                  },
+                                  "block_types": {
+                                    "lacp": {
+                                      "nesting_mode": "single",
+                                      "block": {
+                                        "attributes": {
+                                          "rate": {
+                                            "type": "number",
+                                            "optional": true
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "dhcp_server": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "attributes": {
+                                    "automatic_from_end": {
+                                      "type": ["object", {}],
+                                      "optional": true
+                                    },
+                                    "automatic_from_start": {
+                                      "type": ["object", {}],
+                                      "optional": true
+                                    },
+                                    "dhcp_option82_tag": {
+                                      "type": "string",
+                                      "optional": true
+                                    },
+                                    "fixed_ip_map": {
+                                      "type": ["map", "string"],
+                                      "optional": true
+                                    }
+                                  },
+                                  "block_types": {
+                                    "dhcp_networks": {
+                                      "nesting_mode": "list",
+                                      "block": {
+                                        "attributes": {
+                                          "dgw_address": {
+                                            "type": "string",
+                                            "optional": true
+                                          },
+                                          "dns_address": {
+                                            "type": "string",
+                                            "optional": true
+                                          },
+                                          "first_address": {
+                                            "type": ["object", {}],
+                                            "optional": true
+                                          },
+                                          "last_address": {
+                                            "type": ["object", {}],
+                                            "optional": true
+                                          },
+                                          "network_prefix": {
+                                            "type": "string",
+                                            "optional": true
+                                          },
+                                          "pool_settings": {
+                                            "type": "string",
+                                            "optional": true
+                                          },
+                                          "same_as_dgw": {
+                                            "type": ["object", {}],
+                                            "optional": true
+                                          }
+                                        },
+                                        "block_types": {
+                                          "pools": {
+                                            "nesting_mode": "list",
+                                            "block": {
+                                              "attributes": {
+                                                "end_ip": {
+                                                  "type": "string",
+                                                  "optional": true
+                                                },
+                                                "exclude": {
+                                                  "type": "bool",
+                                                  "optional": true
+                                                },
+                                                "start_ip": {
+                                                  "type": "string",
+                                                  "optional": true
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "interface_ip_map": {
+                                      "nesting_mode": "single",
+                                      "block": {
+                                        "attributes": {
+                                          "interface_ip_map": {
+                                            "type": ["map", "string"],
+                                            "optional": true
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "ethernet_interface": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "attributes": {
+                                    "device": {
+                                      "type": "string",
+                                      "optional": true
+                                    },
+                                    "mac": {
+                                      "type": "string",
+                                      "optional": true
+                                    }
+                                  }
+                                }
+                              },
+                              "ipv6_auto_config": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "attributes": {
+                                    "host": {
+                                      "type": ["object", {}],
+                                      "optional": true
+                                    }
+                                  },
+                                  "block_types": {
+                                    "router": {
+                                      "nesting_mode": "single",
+                                      "block": {
+                                        "attributes": {
+                                          "network_prefix": {
+                                            "type": "string",
+                                            "optional": true
+                                          }
+                                        },
+                                        "block_types": {
+                                          "dns_config": {
+                                            "nesting_mode": "single",
+                                            "block": {
+                                              "block_types": {
+                                                "configured_list": {
+                                                  "nesting_mode": "single",
+                                                  "block": {
+                                                    "attributes": {
+                                                      "dns_list": {
+                                                        "type": ["list", "string"],
+                                                        "optional": true
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "local_dns": {
+                                                  "nesting_mode": "single",
+                                                  "block": {
+                                                    "attributes": {
+                                                      "configured_address": {
+                                                        "type": "string",
+                                                        "optional": true
+                                                      },
+                                                      "first_address": {
+                                                        "type": ["object", {}],
+                                                        "optional": true
+                                                      },
+                                                      "last_address": {
+                                                        "type": ["object", {}],
+                                                        "optional": true
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "stateful": {
+                                            "nesting_mode": "single",
+                                            "block": {
+                                              "attributes": {
+                                                "automatic_from_end": {
+                                                  "type": ["object", {}],
+                                                  "optional": true
+                                                },
+                                                "automatic_from_start": {
+                                                  "type": ["object", {}],
+                                                  "optional": true
+                                                },
+                                                "fixed_ip_map": {
+                                                  "type": ["map", "string"],
+                                                  "optional": true
+                                                }
+                                              },
+                                              "block_types": {
+                                                "dhcp_networks": {
+                                                  "nesting_mode": "list",
+                                                  "block": {
+                                                    "attributes": {
+                                                      "network_prefix": {
+                                                        "type": "string",
+                                                        "optional": true
+                                                      },
+                                                      "pool_settings": {
+                                                        "type": "string",
+                                                        "optional": true
+                                                      }
+                                                    },
+                                                    "block_types": {
+                                                      "pools": {
+                                                        "nesting_mode": "list",
+                                                        "block": {
+                                                          "attributes": {
+                                                            "end_ip": {
+                                                              "type": "string",
+                                                              "optional": true
+                                                            },
+                                                            "start_ip": {
+                                                              "type": "string",
+                                                              "optional": true
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "interface_ip_map": {
+                                                  "nesting_mode": "single",
+                                                  "block": {
+                                                    "attributes": {
+                                                      "interface_ip_map": {
+                                                        "type": ["map", "string"],
+                                                        "optional": true
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "network_option": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "attributes": {
+                                    "site_local_inside_network": {
+                                      "type": ["object", {}],
+                                      "optional": true
+                                    },
+                                    "site_local_network": {
+                                      "type": ["object", {}],
+                                      "optional": true
+                                    }
+                                  }
+                                }
+                              },
+                              "static_ip": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "attributes": {
+                                    "default_gw": {
+                                      "type": "string",
+                                      "optional": true
+                                    },
+                                    "dns_server": {
+                                      "type": "string",
+                                      "optional": true
+                                    },
+                                    "ip_address": {
+                                      "type": "string",
+                                      "optional": true
+                                    }
+                                  }
+                                }
+                              },
+                              "static_ipv6_address": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "block_types": {
+                                    "cluster_static_ip": {
+                                      "nesting_mode": "single",
+                                      "block": {
+                                        "attributes": {
+                                          "interface_ip_map": {
+                                            "type": ["map", "string"],
+                                            "optional": true
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "node_static_ip": {
+                                      "nesting_mode": "single",
+                                      "block": {
+                                        "attributes": {
+                                          "default_gw": {
+                                            "type": "string",
+                                            "optional": true
+                                          },
+                                          "dns_server": {
+                                            "type": "string",
+                                            "optional": true
+                                          },
+                                          "ip_address": {
+                                            "type": "string",
+                                            "optional": true
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "vlan_interface": {
+                                "nesting_mode": "single",
+                                "block": {
+                                  "attributes": {
+                                    "device": {
+                                      "type": "string",
+                                      "optional": true
+                                    },
+                                    "vlan_id": {
+                                      "type": "number",
+                                      "optional": true
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

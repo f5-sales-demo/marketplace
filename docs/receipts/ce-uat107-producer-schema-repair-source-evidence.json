@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "sanitized": true,
+  "candidateRevision": 107,
+  "consumerArchiveSourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "consumerPinChanged": false,
+  "producer": {
+    "implementationIssue": 1984,
+    "pullRequest": 1985,
+    "qualifiedHead": "b1db71191a7f83094f1f632417804df98a326fd3",
+    "mergeCommit": "dee4bfe96ef23eb632bb4558f14b15fe19ac8b98",
+    "reportedGreenEntries": 22,
+    "updatedFullTestsPassed": 3134,
+    "focusedTestsPassed": 25,
+    "requiredGenerationSpectralPrecommitPassed": true,
+    "requestAndSharedSchemasPreserved": true,
+    "networkAllowlistPreserved": true,
+    "retainedReplays": [
+      {
+        "kind": "api_groups",
+        "beforeErrors": 1784,
+        "afterErrors": 0
+      },
+      {
+        "kind": "api_group_elements",
+        "beforeErrors": 22312,
+        "afterErrors": 0
+      },
+      {
+        "kind": "roles",
+        "beforeErrors": 848,
+        "afterErrors": 0
+      },
+      {
+        "kind": "expanded-groups",
+        "beforeErrors": 1788,
+        "afterErrors": 0
+      },
+      {
+        "kind": "expanded-elements",
+        "beforeErrors": 26358,
+        "afterErrors": 0
+      },
+      {
+        "kind": "health",
+        "beforeErrors": 2,
+        "afterErrors": 0,
+        "retainedState": "PROVISIONING"
+      }
+    ],
+    "sourceWorktreeCleanupPassed": true
+  },
+  "publication": {
+    "owningRun": 39865142345,
+    "workflow": "sync-and-enrich.yml",
+    "requestedBump": "minor",
+    "downstreamDispatchDisabled": true,
+    "status": "running-unqualified",
+    "downloadedAssetsQualified": false
+  },
+  "acceptance": {
+    "parent1930VerifiedOpen": true,
+    "parent1326VerifiedOpen": true,
+    "draft1327Preserved": true,
+    "currentConsumerDraftPreserved": true,
+    "leastPrivilegeAndEffectivePrincipalQualified": false,
+    "supportedSliControlAndSampleFreshnessQualified": false,
+    "awsRestorationMs": 212977,
+    "awsRestorationThresholdMs": 45000,
+    "awsRestorationStatus": "failed",
+    "freshPublishedQualificationRequiredBeforeRepin": true,
+    "fullCeAcceptance": false
+  }
+}

@@ -1,8 +1,8 @@
 import type { AwsExecApi } from '../aws/exec';
 import type { PluginInterface } from '../aws/types';
 import type { AwsCeToolContext } from '../ce/artifacts';
-import { sha256Hex } from '../ce/canonical';
 import { analyzeAwsCloudInit } from '../ce/cloud-init';
+import { summarizeAwsConsoleOutput } from '../ce/console-evidence';
 import { makeExecApi } from './shared';
 
 export function createAwsCloudInitAnalyzeTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
@@ -51,14 +51,7 @@ export function createAwsCloudInitAnalyzeTool(pi: PluginInterface, makeApi: (cwd
             '--output',
             'json',
           ]);
-          const raw = `${result.stdout}\n${result.stderr}`;
-          bootEvidence = {
-            ok: result.exitCode === 0,
-            bytes: Buffer.byteLength(raw),
-            digest: sha256Hex(raw),
-            cloudInitFinished: /cloud-init.*finish|finished at/i.test(raw),
-            errorsDetected: /cloud-init.*(?:error|fail)/i.test(raw),
-          };
+          bootEvidence = summarizeAwsConsoleOutput(result, instanceId);
         }
         if (!analysis && !bootEvidence)
           throw new Error('Provide cloud-init source, a session artifact ID, or complete EC2 coordinates');

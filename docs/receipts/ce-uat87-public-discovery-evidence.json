@@ -1,0 +1,31 @@
+{
+  "candidateRevision": 87,
+  "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+  "cliVersion": "23.9.3",
+  "installedAssetDigestsVerified": true,
+  "engineSelection": "shared-read-only-or-active-context",
+  "nodeCount": 1,
+  "aws": {
+    "tool": "aws_compute_discover",
+    "regions": 34,
+    "eligibleRegions": 8,
+    "marketplaceAgreementActive": true,
+    "requiredEnis": 2,
+    "completedAt": "2026-10-21T19:44:17.518Z"
+  },
+  "azure": {
+    "tool": "azure_compute_discover",
+    "regions": 63,
+    "eligibleRegions": 48,
+    "existingImageTermsAccepted": true,
+    "requiredNics": 3,
+    "completedAt": "2026-10-21T19:45:15.533Z"
+  },
+  "automated": {
+    "tests": 24,
+    "assertions": 82,
+    "passed": true
+  },
+  "liveMutation": false,
+  "fullCeAcceptance": false
+}

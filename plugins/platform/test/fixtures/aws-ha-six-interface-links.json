@@ -1,0 +1,644 @@
+{
+  "sanitized": true,
+  "sourceIssue": "f5-sales-demo/api-specs-enriched#1930",
+  "identityValuesReplaced": true,
+  "observations": [
+    {
+      "nodeAlias": "ce-1",
+      "role": "slo",
+      "device": "ens5",
+      "link_state": true,
+      "active_state": "STATE_ACTIVE",
+      "publisherVerified": true,
+      "resourceAndMacVerified": true
+    },
+    {
+      "nodeAlias": "ce-1",
+      "role": "sli",
+      "device": "ens6",
+      "link_state": true,
+      "active_state": "STATE_ACTIVE",
+      "publisherVerified": true,
+      "resourceAndMacVerified": true
+    },
+    {
+      "nodeAlias": "ce-2",
+      "role": "slo",
+      "device": "ens5",
+      "link_state": true,
+      "active_state": "STATE_ACTIVE",
+      "publisherVerified": true,
+      "resourceAndMacVerified": true
+    },
+    {
+      "nodeAlias": "ce-2",
+      "role": "sli",
+      "device": "ens6",
+      "link_state": true,
+      "active_state": "STATE_ACTIVE",
+      "publisherVerified": true,
+      "resourceAndMacVerified": true
+    },
+    {
+      "nodeAlias": "ce-3",
+      "role": "slo",
+      "device": "ens5",
+      "link_state": true,
+      "active_state": "STATE_ACTIVE",
+      "publisherVerified": true,
+      "resourceAndMacVerified": true
+    },
+    {
+      "nodeAlias": "ce-3",
+      "role": "sli",
+      "device": "ens6",
+      "link_state": true,
+      "active_state": "STATE_ACTIVE",
+      "publisherVerified": true,
+      "resourceAndMacVerified": true
+    }
+  ],
+  "rawPhysicalResponseSha256": "344c8fac1e3c6ff65252412a020fef84afd18f2f1a73bad7db77d646ba5db7c1",
+  "configuration": {
+    "metadata": {
+      "name": "fixture-site",
+      "namespace": "system"
+    },
+    "system_metadata": {
+      "uid": "11111111-1111-4111-8111-111111111111"
+    },
+    "spec": {
+      "aws": {
+        "not_managed": {
+          "node_list": [
+            {
+              "hostname": "fixture-ce-1",
+              "interface_list": [
+                {
+                  "name": "slo",
+                  "mtu": 1500,
+                  "ethernet_interface": {
+                    "device": "ens5",
+                    "mac": "02:00:00:00:01:01"
+                  },
+                  "network_option": {
+                    "site_local_network": {}
+                  },
+                  "dhcp_client": {}
+                },
+                {
+                  "name": "sli",
+                  "mtu": 1500,
+                  "ethernet_interface": {
+                    "device": "ens6",
+                    "mac": "02:00:00:00:01:02"
+                  },
+                  "network_option": {
+                    "site_local_inside_network": {}
+                  },
+                  "dhcp_client": {}
+                }
+              ]
+            },
+            {
+              "hostname": "fixture-ce-2",
+              "interface_list": [
+                {
+                  "name": "slo",
+                  "mtu": 1500,
+                  "ethernet_interface": {
+                    "device": "ens5",
+                    "mac": "02:00:00:00:02:01"
+                  },
+                  "network_option": {
+                    "site_local_network": {}
+                  },
+                  "dhcp_client": {}
+                },
+                {
+                  "name": "sli",
+                  "mtu": 1500,
+                  "ethernet_interface": {
+                    "device": "ens6",
+                    "mac": "02:00:00:00:02:02"
+                  },
+                  "network_option": {
+                    "site_local_inside_network": {}
+                  },
+                  "dhcp_client": {}
+                }
+              ]
+            },
+            {
+              "hostname": "fixture-ce-3",
+              "interface_list": [
+                {
+                  "name": "slo",
+                  "mtu": 1500,
+                  "ethernet_interface": {
+                    "device": "ens5",
+                    "mac": "02:00:00:00:03:01"
+                  },
+                  "network_option": {
+                    "site_local_network": {}
+                  },
+                  "dhcp_client": {}
+                },
+                {
+                  "name": "sli",
+                  "mtu": 1500,
+                  "ethernet_interface": {
+                    "device": "ens6",
+                    "mac": "02:00:00:00:03:02"
+                  },
+                  "network_option": {
+                    "site_local_inside_network": {}
+                  },
+                  "dhcp_client": {}
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "objects": {
+    "items": [
+      {
+        "name": "generated-interface-1",
+        "namespace": "system",
+        "uid": "33333333-3333-4333-8333-000000000001",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "name": "fixture-site",
+          "namespace": "system",
+          "uid": "11111111-1111-4111-8111-111111111111"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "node": "fixture-ce-1",
+            "device": "ens5",
+            "mtu": 1500,
+            "site_local_network": {}
+          }
+        }
+      },
+      {
+        "name": "generated-interface-2",
+        "namespace": "system",
+        "uid": "33333333-3333-4333-8333-000000000002",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "name": "fixture-site",
+          "namespace": "system",
+          "uid": "11111111-1111-4111-8111-111111111111"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "node": "fixture-ce-1",
+            "device": "ens6",
+            "mtu": 1500,
+            "site_local_inside_network": {}
+          }
+        }
+      },
+      {
+        "name": "generated-interface-3",
+        "namespace": "system",
+        "uid": "33333333-3333-4333-8333-000000000003",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "name": "fixture-site",
+          "namespace": "system",
+          "uid": "11111111-1111-4111-8111-111111111111"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "node": "fixture-ce-2",
+            "device": "ens5",
+            "mtu": 1500,
+            "site_local_network": {}
+          }
+        }
+      },
+      {
+        "name": "generated-interface-4",
+        "namespace": "system",
+        "uid": "33333333-3333-4333-8333-000000000004",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "name": "fixture-site",
+          "namespace": "system",
+          "uid": "11111111-1111-4111-8111-111111111111"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "node": "fixture-ce-2",
+            "device": "ens6",
+            "mtu": 1500,
+            "site_local_inside_network": {}
+          }
+        }
+      },
+      {
+        "name": "generated-interface-5",
+        "namespace": "system",
+        "uid": "33333333-3333-4333-8333-000000000005",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "name": "fixture-site",
+          "namespace": "system",
+          "uid": "11111111-1111-4111-8111-111111111111"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "node": "fixture-ce-3",
+            "device": "ens5",
+            "mtu": 1500,
+            "site_local_network": {}
+          }
+        }
+      },
+      {
+        "name": "generated-interface-6",
+        "namespace": "system",
+        "uid": "33333333-3333-4333-8333-000000000006",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "name": "fixture-site",
+          "namespace": "system",
+          "uid": "11111111-1111-4111-8111-111111111111"
+        },
+        "get_spec": {
+          "ethernet_interface": {
+            "node": "fixture-ce-3",
+            "device": "ens6",
+            "mtu": 1500,
+            "site_local_inside_network": {}
+          }
+        }
+      }
+    ],
+    "errors": []
+  },
+  "physical": {
+    "metadata": {
+      "name": "fixture-site",
+      "namespace": "system"
+    },
+    "system_metadata": {
+      "uid": "22222222-2222-4222-8222-222222222222"
+    },
+    "spec": {
+      "site_state": "ONLINE"
+    },
+    "status": [
+      {
+        "metadata": {
+          "uid": "44444444-4444-4444-8444-000000000001",
+          "creator_class": "ver",
+          "creator_id": "fixture-site",
+          "status_id": "fixture-ce-1_SiteStatusMgr",
+          "publish": "STATUS_PUBLISH",
+          "vtrp_stale": false,
+          "creation_timestamp": "2026-10-17T18:04:13.831458054Z"
+        },
+        "object_refs": [
+          {
+            "kind": "ves.io.vega.cfg.site.Object",
+            "uid": "22222222-2222-4222-8222-222222222222"
+          }
+        ],
+        "ver_status": {
+          "ver_instance_name": "fixture-ce-1-fixture-site",
+          "intf_status": [
+            {
+              "name": "ens5",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL",
+              "ip_mode": "STATIC",
+              "dhcp_server": false,
+              "link_state": true,
+              "active_state": "STATE_ACTIVE",
+              "link_quality": "QUALITY_POOR",
+              "link_type": "LINK_TYPE_ETHERNET",
+              "bond_members": [],
+              "ipv6": null,
+              "mac": "02:00:00:00:01:01",
+              "network_name": "fixture-network-slo",
+              "ip": {
+                "ipv4": {
+                  "prefix": "192.0.2.11",
+                  "plen": 24
+                }
+              }
+            },
+            {
+              "name": "ens6",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE",
+              "ip_mode": "DHCP",
+              "dhcp_server": false,
+              "link_state": true,
+              "active_state": "STATE_ACTIVE",
+              "link_quality": "QUALITY_GOOD",
+              "link_type": "LINK_TYPE_ETHERNET",
+              "bond_members": [],
+              "ipv6": null,
+              "mac": "02:00:00:00:01:02",
+              "network_name": "fixture-network-sli",
+              "ip": {
+                "ipv4": {
+                  "prefix": "192.0.2.12",
+                  "plen": 24
+                }
+              }
+            }
+          ],
+          "running_state_status": {
+            "state": "OPERATIONAL_READY",
+            "description": ""
+          }
+        }
+      },
+      {
+        "metadata": {
+          "uid": "44444444-4444-4444-8444-000000000002",
+          "creator_class": "ver",
+          "creator_id": "fixture-site",
+          "status_id": "fixture-ce-2_SiteStatusMgr",
+          "publish": "STATUS_PUBLISH",
+          "vtrp_stale": false,
+          "creation_timestamp": "2026-10-17T18:04:13.767536093Z"
+        },
+        "object_refs": [
+          {
+            "kind": "ves.io.vega.cfg.site.Object",
+            "uid": "22222222-2222-4222-8222-222222222222"
+          }
+        ],
+        "ver_status": {
+          "ver_instance_name": "fixture-ce-2-fixture-site",
+          "intf_status": [
+            {
+              "name": "ens5",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL",
+              "ip_mode": "STATIC",
+              "dhcp_server": false,
+              "link_state": true,
+              "active_state": "STATE_ACTIVE",
+              "link_quality": "QUALITY_POOR",
+              "link_type": "LINK_TYPE_ETHERNET",
+              "bond_members": [],
+              "ipv6": null,
+              "mac": "02:00:00:00:02:01",
+              "network_name": "fixture-network-slo",
+              "ip": {
+                "ipv4": {
+                  "prefix": "192.0.2.21",
+                  "plen": 24
+                }
+              }
+            },
+            {
+              "name": "ens6",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE",
+              "ip_mode": "DHCP",
+              "dhcp_server": false,
+              "link_state": true,
+              "active_state": "STATE_ACTIVE",
+              "link_quality": "QUALITY_GOOD",
+              "link_type": "LINK_TYPE_ETHERNET",
+              "bond_members": [],
+              "ipv6": null,
+              "mac": "02:00:00:00:02:02",
+              "network_name": "fixture-network-sli",
+              "ip": {
+                "ipv4": {
+                  "prefix": "192.0.2.22",
+                  "plen": 24
+                }
+              }
+            }
+          ],
+          "running_state_status": {
+            "state": "OPERATIONAL_READY",
+            "description": ""
+          }
+        }
+      },
+      {
+        "metadata": {
+          "uid": "44444444-4444-4444-8444-000000000003",
+          "creator_class": "ver",
+          "creator_id": "fixture-site",
+          "status_id": "fixture-ce-3_SiteStatusMgr",
+          "publish": "STATUS_PUBLISH",
+          "vtrp_stale": false,
+          "creation_timestamp": "2026-10-17T18:04:09.644132276Z"
+        },
+        "object_refs": [
+          {
+            "kind": "ves.io.vega.cfg.site.Object",
+            "uid": "22222222-2222-4222-8222-222222222222"
+          }
+        ],
+        "ver_status": {
+          "ver_instance_name": "fixture-ce-3-fixture-site",
+          "intf_status": [
+            {
+              "name": "ens5",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL",
+              "ip_mode": "STATIC",
+              "dhcp_server": false,
+              "link_state": true,
+              "active_state": "STATE_ACTIVE",
+              "link_quality": "QUALITY_POOR",
+              "link_type": "LINK_TYPE_ETHERNET",
+              "bond_members": [],
+              "ipv6": null,
+              "mac": "02:00:00:00:03:01",
+              "network_name": "fixture-network-slo",
+              "ip": {
+                "ipv4": {
+                  "prefix": "192.0.2.31",
+                  "plen": 24
+                }
+              }
+            },
+            {
+              "name": "ens6",
+              "network_type": "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE",
+              "ip_mode": "DHCP",
+              "dhcp_server": false,
+              "link_state": true,
+              "active_state": "STATE_ACTIVE",
+              "link_quality": "QUALITY_GOOD",
+              "link_type": "LINK_TYPE_ETHERNET",
+              "bond_members": [],
+              "ipv6": null,
+              "mac": "02:00:00:00:03:02",
+              "network_name": "fixture-network-sli",
+              "ip": {
+                "ipv4": {
+                  "prefix": "192.0.2.32",
+                  "plen": 24
+                }
+              }
+            }
+          ],
+          "running_state_status": {
+            "state": "OPERATIONAL_READY",
+            "description": ""
+          }
+        }
+      }
+    ]
+  },
+  "expected": [
+    {
+      "node": "fixture-ce-1",
+      "role": "slo",
+      "mac": "02:00:00:00:01:01"
+    },
+    {
+      "node": "fixture-ce-1",
+      "role": "sli",
+      "mac": "02:00:00:00:01:02"
+    },
+    {
+      "node": "fixture-ce-2",
+      "role": "slo",
+      "mac": "02:00:00:00:02:01"
+    },
+    {
+      "node": "fixture-ce-2",
+      "role": "sli",
+      "mac": "02:00:00:00:02:02"
+    },
+    {
+      "node": "fixture-ce-3",
+      "role": "slo",
+      "mac": "02:00:00:00:03:01"
+    },
+    {
+      "node": "fixture-ce-3",
+      "role": "sli",
+      "mac": "02:00:00:00:03:02"
+    }
+  ],
+  "transitionMeasured": false,
+  "periodicSampleFreshnessQualified": false,
+  "cleanup": {
+    "observedAt": "2026-10-17T18:40:29.840485+00:00",
+    "identityVerified": true,
+    "tagScopedCounts": {
+      "retainedTerminatedInstances": 3,
+      "Reservations": 0,
+      "NetworkInterfaces": 0,
+      "Addresses": 0,
+      "Subnets": 0,
+      "RouteTables": 0,
+      "SecurityGroups": 0,
+      "Vpcs": 0
+    },
+    "exactIdChecks": {
+      "aws_instance": {
+        "recorded": 3,
+        "remaining": 0
+      },
+      "aws_network_interface": {
+        "recorded": 6,
+        "remaining": 0
+      },
+      "aws_eip": {
+        "recorded": 3,
+        "remaining": 0
+      },
+      "aws_subnet": {
+        "recorded": 6,
+        "remaining": 0
+      },
+      "aws_route_table": {
+        "recorded": 2,
+        "remaining": 0
+      },
+      "aws_security_group": {
+        "recorded": 1,
+        "remaining": 0
+      },
+      "aws_vpc": {
+        "recorded": 1,
+        "remaining": 0
+      }
+    },
+    "logicalHttpStatus": 404,
+    "physicalHttpStatus": 404,
+    "remainingOwnedInterfaces": 0,
+    "terraformStateEmpty": true,
+    "bootstrapTokensChecked": 6,
+    "bootstrapTokensAbsent": true,
+    "independentCleanupVerified": true
+  },
+  "physicalDiscovery": {
+    "items": [
+      {
+        "name": "fixture-site",
+        "namespace": "system",
+        "uid": "22222222-2222-4222-8222-222222222222",
+        "owner_view": {
+          "kind": "securemesh_site_v2",
+          "name": "fixture-site",
+          "namespace": "system",
+          "uid": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    ],
+    "errors": []
+  },
+  "responseShape": {
+    "physicalEnvelopeKeys": [
+      "replace_form",
+      "resource_version",
+      "metadata",
+      "system_metadata",
+      "spec",
+      "status",
+      "referring_objects",
+      "deleted_referred_objects",
+      "disabled_referred_objects"
+    ],
+    "cePublicationKeys": [
+      "metadata",
+      "object_refs",
+      "conditions",
+      "ver_status",
+      "ver_master_status",
+      "volterra_software_status",
+      "hostname",
+      "hw_info",
+      "node_info",
+      "scaling_status",
+      "operating_system_status",
+      "certified_hardware",
+      "fleet_status",
+      "direct_connect_status",
+      "vnet_peering_status",
+      "express_route_status",
+      "offline_survivability_status",
+      "site_mesh_group_status",
+      "dc_cluster_group_status",
+      "internet_VIP_status",
+      "deployment",
+      "site_reachability_scan_status_list",
+      "site_state_status",
+      "managed_site_orchestration_status",
+      "site_errors"
+    ]
+  },
+  "projected": true,
+  "unrelatedPublicationsOmitted": true,
+  "software": {
+    "installed": "crt-20260801-0209",
+    "osDeploymentVersion": "9.2026.20"
+  }
+}

@@ -1,0 +1,883 @@
+{
+  "release": {
+    "tag": "v12.3.0",
+    "commit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+    "fingerprint": "sha256:91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5"
+  },
+  "paths": {
+    "/api/operate/namespaces/{namespace}/sites/{site}/ver/simplified_routes": {
+      "post": {
+        "summary": "Show Simplified Routes.",
+        "description": "Show user-friendly VER routes matching the request.",
+        "operationId": "ves.io.schema.operate.route.CustomPublicAPI.ShowSimplifiedRoutes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/routeSimplifiedRouteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returned when operation is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Returned when there is no permission to access resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returned when resource is not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Returned when operation on resource is conflicting with current value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Returned when operation has been rejected as it is happening too frequently.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returned when server encountered an error in processing API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Returned when service is unavailable temporarily.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Returned when server timed out processing request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/runtimeError__ves_io_schema_ai_assistant"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "description": "Namespace\nNamespace for which the request is sent (system)",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Namespace",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "system"
+          },
+          {
+            "name": "site",
+            "description": "Site Name\nName of the site for which request is sent.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Site Name",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "value"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/routeSimplifiedRouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "externalDocs": {
+          "description": "Examples of this operation.",
+          "url": "https://docs.cloud.f5.com/docs-v2/platform/reference/api-ref/ves-io-schema-operate-route-custompublicapi-showsimplifiedroutes"
+        },
+        "x-ves-proto-rpc": "ves.io.schema.operate.route.CustomPublicAPI.ShowSimplifiedRoutes",
+        "tags": ["operate"],
+        "x-f5xc-operation-metadata": {
+          "purpose": "Traffic routing configuration",
+          "required_fields": ["metadata.name", "metadata.namespace", "path.namespace", "path.site"],
+          "optional_fields": [],
+          "field_docs": {},
+          "conditions": {
+            "prerequisites": ["Active namespace"],
+            "postconditions": ["Simplified-route resource created", "Resource assigned unique identifier"]
+          },
+          "side_effects": {
+            "creates": ["simplified-route"]
+          },
+          "danger_level": "medium",
+          "confirmation_required": false,
+          "common_errors": [
+            {
+              "code": 401,
+              "message": "Authentication required",
+              "solution": "Provide valid API credentials"
+            },
+            {
+              "code": 403,
+              "message": "Permission denied",
+              "solution": "Check access permissions for this operation"
+            },
+            {
+              "code": 404,
+              "message": "Resource not found",
+              "solution": "Verify resource name, namespace, and path"
+            },
+            {
+              "code": 409,
+              "message": "Resource already exists",
+              "solution": "Use different name or update existing resource"
+            },
+            {
+              "code": 429,
+              "message": "Rate limit exceeded",
+              "solution": "Wait before retrying the operation"
+            },
+            {
+              "code": 500,
+              "message": "Server error",
+              "solution": "Retry operation or contact support"
+            }
+          ],
+          "performance_impact": {
+            "latency": "low",
+            "resource_usage": "low"
+          }
+        },
+        "x-f5xc-required-fields": ["metadata.name", "metadata.namespace", "path.namespace", "path.site"],
+        "x-f5xc-danger-level": "medium",
+        "x-f5xc-side-effects": {
+          "creates": ["simplified-route"]
+        },
+        "x-f5xc-discovered-response-time": {
+          "p50_ms": 1000,
+          "p95_ms": 3000,
+          "p99_ms": 8000,
+          "sample_count": 0,
+          "source": "estimate"
+        }
+      },
+      "x-displayname": "Route Info.",
+      "x-ves-proto-service": "ves.io.schema.operate.route.CustomPublicAPI",
+      "x-ves-proto-service-type": "CUSTOM_PUBLIC"
+    }
+  },
+  "components": {
+    "schemas": {
+      "routeSimplifiedRouteRequest": {
+        "type": "object",
+        "description": "Request to GET list of VER routes matching the request.",
+        "title": "SimplifiedRoute Request",
+        "x-displayname": "Simplified Route Request.",
+        "x-ves-oneof-field-cluster_node_choice": "[\"all_nodes\",\"node\"]",
+        "x-ves-oneof-field-network_choice": "[\"global_network\",\"segment\",\"sli\",\"slo\"]",
+        "x-ves-proto-message": "ves.io.schema.operate.route.SimplifiedRouteRequest",
+        "properties": {
+          "all_nodes": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "family": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/routeRouteFamily"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "global_network": {
+            "type": "string",
+            "description": "Exclusive with [segment sli slo]\nName of the Global Network for which routes are required.",
+            "title": "Global Network Name",
+            "x-displayname": "Global Network Name.",
+            "x-ves-example": "Mcn-global-network.",
+            "x-f5xc-example": "mcn-global-network",
+            "x-f5xc-description-short": "Exclusive with [segment sli slo] Name of the Global Network for which routes are required.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Namespace for which the request is sent (system)",
+            "title": "Namespace",
+            "x-displayname": "Namespace",
+            "x-ves-example": "System",
+            "x-f5xc-example": "system",
+            "x-f5xc-description-short": "Namespace for which the request is sent (system).",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-22T11:01:39+00:00"
+          },
+          "node": {
+            "type": "string",
+            "description": "Exclusive with [all_nodes]\nFetch routes from this node.",
+            "title": "Node Name",
+            "minLength": 1,
+            "maxLength": 64,
+            "x-displayname": "Node Name",
+            "x-ves-example": "Master-0",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_len": "64",
+              "ves.io.schema.rules.string.min_len": "1"
+            },
+            "x-f5xc-example": "master-0",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_len": "64",
+              "ves.io.schema.rules.string.min_len": "1"
+            },
+            "x-f5xc-description-short": "Exclusive with [all_nodes] Fetch routes from this node.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "minLength": 1,
+              "maxLength": 64,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "prefix": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaPrefixListType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "segment": {
+            "type": "string",
+            "description": "Exclusive with [global_network sli slo]\nName of Segment for which routes are required.",
+            "title": "Segment name",
+            "x-displayname": "Segment Name.",
+            "x-ves-example": "Test-segment.",
+            "x-f5xc-example": "test-segment",
+            "x-f5xc-description-short": "Exclusive with [global_network sli slo] Name of Segment for which routes are required.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "site": {
+            "type": "string",
+            "description": "Name of the site for which request is sent.",
+            "title": "Site Name",
+            "x-displayname": "Site Name",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Name of the site for which request is sent.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "sli": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "slo": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "Request to GET list of VER routes matching the request.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeSimplifiedRouteRequest",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeSimplifiedRouteResponse": {
+        "type": "object",
+        "description": "List of routes from ver instances in the site.",
+        "title": "Route Response",
+        "x-displayname": "Route Response.",
+        "x-ves-displayorder": "1",
+        "x-ves-proto-message": "ves.io.schema.operate.route.SimplifiedRouteResponse",
+        "properties": {
+          "ver_routes": {
+            "type": "array",
+            "description": "Routes from ver instance.",
+            "title": "Ver Routes",
+            "items": {
+              "$ref": "#/components/schemas/routeSimplifiedRoutes"
+            },
+            "x-displayname": "Ver Routes.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "List of routes from ver instances in the site.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeSimplifiedRouteResponse",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeSimplifiedRoutes": {
+        "type": "object",
+        "description": "Matching routes from VER.",
+        "title": "Simplified Routes",
+        "x-displayname": "Simplified Routes.",
+        "x-ves-displayorder": "2,1",
+        "x-ves-proto-message": "ves.io.schema.operate.route.SimplifiedRoutes",
+        "properties": {
+          "node": {
+            "type": "string",
+            "description": "Host name of VER instance.",
+            "title": "Ver Hostname",
+            "x-displayname": "Ver Hostname.",
+            "x-ves-example": "Master-0",
+            "x-f5xc-example": "master-0",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "route": {
+            "type": "array",
+            "description": "Route information.",
+            "title": "Route Info",
+            "items": {
+              "$ref": "#/components/schemas/routeSimplifiedRouteInfo"
+            },
+            "x-displayname": "Route Info.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeSimplifiedRoutes",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeSimplifiedRouteInfo": {
+        "type": "object",
+        "description": "Simplified Route information.",
+        "title": "Simplified Route Information",
+        "x-displayname": "Simplified Route Information.",
+        "x-ves-displayorder": "1,5,3,4",
+        "x-ves-oneof-field-nh_type": "[\"ecmp\",\"nexthop\"]",
+        "x-ves-proto-message": "ves.io.schema.operate.route.SimplifiedRouteInfo",
+        "properties": {
+          "ecmp": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/routeSimplifiedEcmpNH"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "flags": {
+            "type": "array",
+            "description": "Route Flags.",
+            "title": "Flags",
+            "items": {
+              "type": "string"
+            },
+            "x-displayname": "Flags",
+            "x-ves-example": "Proxy ARP",
+            "x-f5xc-example": "Proxy ARP",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "nexthop": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/routeSimplifiedNexthopType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "prefix": {
+            "type": "string",
+            "description": "Route prefix.",
+            "title": "Prefix",
+            "x-displayname": "Prefix",
+            "x-ves-example": "192.0.2.0/24.",
+            "x-f5xc-example": "192.0.2.0/24",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "route_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/operateRouteRouteType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeSimplifiedRouteInfo",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeSimplifiedNexthopType": {
+        "type": "object",
+        "description": "Information about the nexthop based on type.",
+        "title": "NexthopType",
+        "x-displayname": "Nexthop Type.",
+        "x-ves-oneof-field-nh": "[\"drop\",\"local\",\"subnet\",\"tunnel\"]",
+        "x-ves-proto-message": "ves.io.schema.operate.route.SimplifiedNexthopType",
+        "properties": {
+          "drop": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/routeDropNH"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "local": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/routeLocalNH"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "subnet": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/routeSubnetNH"
+              }
+            ],
+            "x-f5xc-example": "192.0.2.0/24",
+            "x-f5xc-description-short": "Subnet specification for network segmentation.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "tunnel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/routeTunnelNH"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "Information about the nexthop based on type.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeSimplifiedNexthopType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeSimplifiedEcmpNH": {
+        "type": "object",
+        "description": "ECMP type nexthop contains multiple member nexthops.",
+        "title": "Simplified ECMP Type NH",
+        "x-displayname": "ECMP Nexthop Type.",
+        "x-ves-proto-message": "ves.io.schema.operate.route.SimplifiedEcmpNH",
+        "properties": {
+          "members": {
+            "type": "array",
+            "description": "Member nexthops of the ECMP type nexthop.",
+            "title": "Nexthop Members",
+            "items": {
+              "$ref": "#/components/schemas/routeSimplifiedNexthopType"
+            },
+            "x-displayname": "ECMP Members.",
+            "x-f5xc-description-short": "Member nexthops of the ECMP type nexthop.",
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "identity",
+              "minItems": 0,
+              "maxItems": 200,
+              "uniqueItems": true,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.75,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "ECMP type nexthop contains multiple member nexthops.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeSimplifiedEcmpNH",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeLocalNH": {
+        "type": "object",
+        "description": "X-dsiplayName: \"Local Nexthop Type\"\nNexthop type for packets destined to the local site.",
+        "title": "Local Nexthop",
+        "x-ves-proto-message": "ves.io.schema.operate.route.LocalNH",
+        "properties": {
+          "interface": {
+            "type": "string",
+            "description": "X-dsiplayName: \"Interface Name\"\nInterface on which the packet goes out on, or interface which created the nexthop.",
+            "title": "Interface",
+            "x-f5xc-description-short": "X-dsiplayName: \"Interface Name\" Interface on which the packet goes out on, or interface which created the nexthop.",
+            "x-f5xc-description-medium": "X-dsiplayName: \"Interface Name\" Interface on which the packet goes out on, or interface which created the nexthop.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "X-dsiplayName: \"Local Nexthop Type\" Nexthop type for packets destined to the local site.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeLocalNH",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeSubnetNH": {
+        "type": "object",
+        "description": "Nexthop type for packets coming to a subnet.",
+        "title": "Subnet Nexthop",
+        "x-displayname": "Subnet Nexthop Type.",
+        "x-ves-proto-message": "ves.io.schema.operate.route.SubnetNH",
+        "properties": {
+          "intf_name": {
+            "type": "string",
+            "description": "Resolve on this interface.",
+            "title": "Interface name",
+            "x-displayname": "Interface Name.",
+            "x-f5xc-example": "example-resource",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-22T11:01:39+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "Nexthop type for packets coming to a subnet.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeSubnetNH",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network"
+      },
+      "routeRouteFamily": {
+        "type": "string",
+        "description": "Address family for which routes are requested\n\nIPv4 Routes\nIPv6 Routes.",
+        "title": "RouteFamily",
+        "enum": ["INET4", "INET6"],
+        "default": "INET4",
+        "x-displayname": "Route Family.",
+        "x-ves-proto-enum": "ves.io.schema.operate.route.RouteFamily",
+        "x-f5xc-description-short": "Address family for which routes are requested IPv4 Routes IPv6 Routes.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for routeRouteFamily",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "\"INET4\"",
+          "example_yaml": "INET4\n..."
+        },
+        "x-f5xc-cli-domain": "network"
+      }
+    }
+  }
+}
