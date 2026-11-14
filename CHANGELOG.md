@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** bumped to v4.6.3
+
+- **`aws`** bumped to v2.3.4
+
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
 - **`herdr`** v1.3.4 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 
