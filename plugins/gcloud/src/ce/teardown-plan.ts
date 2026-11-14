@@ -15,6 +15,7 @@ export function planGcpOwnedTeardown(
   resources: GcpResourceIdentity[],
   scope: { project: string; deploymentName: string; engine: 'native' | 'terraform'; region: string },
 ) {
+  if (!/^[a-z]+(?:-[a-z]+)+\d$/.test(scope.region)) throw new Error('Explicit teardown region required');
   if (!resources.length) throw new Error('Independent absence verification required for empty teardown inventory');
   const identities = new Set<string>();
   for (const r of resources) {
@@ -31,6 +32,12 @@ export function planGcpOwnedTeardown(
     const prefix = `https://www.googleapis.com/compute/v1/projects/${scope.project}/`;
     if (!r.selfLink.startsWith(prefix) || !Number.isInteger(ORDER[r.kind]))
       throw new Error('Teardown inventory identity is invalid');
+    const segments = r.selfLink.slice(prefix.length).split('/');
+    if (
+      (segments[0] === 'regions' && segments[1] !== scope.region) ||
+      (segments[0] === 'zones' && !new RegExp(`^${scope.region}-[a-z]$`).test(segments[1]))
+    )
+      throw new Error('Teardown resource region differs');
   }
   const ordered = [...resources].sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.selfLink.localeCompare(b.selfLink));
   return {

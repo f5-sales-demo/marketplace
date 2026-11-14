@@ -2,11 +2,17 @@
   "compilerOptions": {
     "target": "ES2024",
     "module": "ESNext",
+    "lib": ["ES2024", "DOM.AsyncIterable"],
     "moduleResolution": "bundler",
+    "moduleDetection": "force",
     "strict": true,
     "noEmit": true,
-    "types": ["bun-types"],
-    "skipLibCheck": true
+    "types": ["bun"],
+    "skipLibCheck": true,
+    "allowArbitraryExtensions": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

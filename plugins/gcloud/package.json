@@ -1,7 +1,7 @@
 {
   "name": "@f5-sales-demo/xcsh-gcloud",
-  "version": "1.6.2",
-  "description": "Google Cloud authentication, CLI tools and gated Customer Edge readiness for xcsh",
+  "version": "1.7.51",
+  "description": "Google Cloud authentication, CLI tools and gated Customer Edge lifecycle for xcsh",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
@@ -9,18 +9,21 @@
   },
   "xcsh": {
     "name": "GCloud",
-    "version": "1.6.2",
+    "version": "1.7.51",
     "extensions": [
-      "src/index.ts"
+      "runtime/index.js"
     ]
   },
   "peerDependencies": {
     "@f5-sales-demo/xcsh": ">=23.8.0"
   },
   "devDependencies": {
+    "@f5-sales-demo/xcsh": "23.10.13",
     "@sinclair/typebox": "^0.34.52",
-    "bun-types": "^1.4.4",
-    "@f5-sales-demo/xcsh": "23.9.3"
+    "@tobilu/qmd": "2.8.3",
+    "@types/bun": "1.4.4",
+    "@types/tar-stream": "3.1.4",
+    "bun-types": "^1.4.4"
   },
   "license": "Apache-2.0"
 }

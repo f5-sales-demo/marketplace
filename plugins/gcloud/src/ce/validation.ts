@@ -1,4 +1,6 @@
 import { PROJECT_ID_PATTERN } from '../gcloud/types';
+import { assertGcpTerraformObserverScope, gcpTerraformObserverIdentity } from './observer-scope';
+import { validateGcpSiteAccess } from './site-access';
 import { GCP_CE_IMAGE_PROJECT, GCP_CE_OPERATIONS, type GcpCeImage, type GcpCeIntent } from './types';
 
 const NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
@@ -47,7 +49,12 @@ function keys(value: object, allowed: string[]) {
   if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
 }
 export function validateIntent(intent: GcpCeIntent) {
-  if (intent?.schemaVersion !== 1) throw new Error('Unsupported GCP CE intent version');
+  if (intent?.schemaVersion !== 1 && intent?.schemaVersion !== 2) throw new Error('Unsupported GCP CE intent version');
+  if (
+    (intent.schemaVersion === 1 && Object.hasOwn(intent, 'observer')) ||
+    (intent.schemaVersion === 2 && !intent.observer)
+  )
+    throw new Error('Observer scope requires its complete version2 intent');
   keys(intent, [
     'schemaVersion',
     'project',
@@ -61,6 +68,9 @@ export function validateIntent(intent: GcpCeIntent) {
     'diskGiB',
     'image',
     'ipForwarding',
+    'initialVersions',
+    'initialAccess',
+    ...(intent.schemaVersion === 2 ? ['observer'] : []),
     'egress',
     'ingress',
     'routing',
@@ -78,6 +88,15 @@ export function validateIntent(intent: GcpCeIntent) {
   if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
   if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
   validateImage(intent.image);
+  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
+  if (intent.initialVersions) {
+    keys(intent.initialVersions, ['software', 'os']);
+    if (
+      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
+      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
+    )
+      throw new Error('Explicit initial software/OS version pair required');
+  }
   if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
     throw new Error('Unsupported egress');
   if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
@@ -123,10 +142,18 @@ export function validateIntent(intent: GcpCeIntent) {
           throw new Error('NIC subnets must not overlap');
         ranges.push(range);
       }
-      const current = JSON.stringify(node.interfaces);
+      const current = JSON.stringify(
+        node.interfaces.map(({ index, role, vrf, network, subnet, cidr }) => [index, role, vrf, network, subnet, cidr]),
+      );
       if (shape !== undefined && shape !== current)
         throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
       shape = current;
     }
+  }
+  if (intent.schemaVersion === 2) {
+    const observer = intent.observer;
+    if (!observer) throw new Error('Versioned observer scope required');
+    assertGcpTerraformObserverScope(observer, intent);
+    gcpTerraformObserverIdentity(intent);
   }
 }

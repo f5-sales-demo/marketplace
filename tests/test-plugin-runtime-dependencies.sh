@@ -37,10 +37,10 @@ fi
 
 LATEST="$WORK/latest-development"
 copy_runtime_state "$LATEST"
-jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.3"' \
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.10.8"' \
   "$LATEST/plugins/aws/package.json" >"$LATEST/package.tmp"
 mv "$LATEST/package.tmp" "$LATEST/plugins/aws/package.json"
-sed 's/@f5-sales-demo\/xcsh@23\.5\.1/@f5-sales-demo\/xcsh@23.9.3/g; s/@f5-sales-demo\/pi-utils@23\.5\.1/@f5-sales-demo\/pi-utils@23.9.3/g' \
+sed 's/@f5-sales-demo\/xcsh@23\.9\.3/@f5-sales-demo\/xcsh@23.10.8/g; s/@f5-sales-demo\/pi-utils@23\.9\.3/@f5-sales-demo\/pi-utils@23.10.8/g' \
   "$LATEST/plugins/aws/bun.lock" >"$LATEST/lock.tmp"
 mv "$LATEST/lock.tmp" "$LATEST/plugins/aws/bun.lock"
 if REPO_ROOT="$LATEST" bash "$CHECK" >/dev/null; then
@@ -48,6 +48,35 @@ if REPO_ROOT="$LATEST" bash "$CHECK" >/dev/null; then
 else
   fail "latest development pin must pass with original minimum peer"
 fi
+
+# The GCP lane was qualified independently; it must not admit other plugins or future pins.
+UNQUALIFIED_GCP="$WORK/unqualified-gcp-development"
+copy_runtime_state "$UNQUALIFIED_GCP"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.10.14"' \
+  "$UNQUALIFIED_GCP/plugins/gcloud/package.json" >"$UNQUALIFIED_GCP/package.tmp"
+mv "$UNQUALIFIED_GCP/package.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/package.json"
+sed 's/@f5-sales-demo\/xcsh@23\.10\.13/@f5-sales-demo\/xcsh@23.10.14/g; s/@f5-sales-demo\/pi-utils@23\.10\.13/@f5-sales-demo\/pi-utils@23.10.14/g' \
+  "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock" >"$UNQUALIFIED_GCP/lock.tmp"
+mv "$UNQUALIFIED_GCP/lock.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock"
+if REPO_ROOT="$UNQUALIFIED_GCP" bash "$CHECK" >"$UNQUALIFIED_GCP/check.log" 2>&1; then
+  fail "an unqualified future GCP SDK pin must fail"
+fi
+grep -q 'gcloud development runtime must' "$UNQUALIFIED_GCP/check.log" || fail "future GCP pin must refuse at qualification"
+pass "future GCP SDK pin refuses without altering retained profiles"
+
+FOREIGN_GCP="$WORK/foreign-gcp-development"
+copy_runtime_state "$FOREIGN_GCP"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.10.13"' \
+  "$FOREIGN_GCP/plugins/aws/package.json" >"$FOREIGN_GCP/package.tmp"
+mv "$FOREIGN_GCP/package.tmp" "$FOREIGN_GCP/plugins/aws/package.json"
+sed 's/@f5-sales-demo\/xcsh@23\.9\.3/@f5-sales-demo\/xcsh@23.10.13/g; s/@f5-sales-demo\/pi-utils@23\.9\.3/@f5-sales-demo\/pi-utils@23.10.13/g' \
+  "$FOREIGN_GCP/plugins/aws/bun.lock" >"$FOREIGN_GCP/lock.tmp"
+mv "$FOREIGN_GCP/lock.tmp" "$FOREIGN_GCP/plugins/aws/bun.lock"
+if REPO_ROOT="$FOREIGN_GCP" bash "$CHECK" >"$FOREIGN_GCP/check.log" 2>&1; then
+  fail "the qualified GCP SDK lane must not migrate an unrelated plugin"
+fi
+grep -q 'aws development runtime must' "$FOREIGN_GCP/check.log" || fail "foreign GCP pin must refuse at qualification"
+pass "qualified GCP SDK pin does not admit unrelated plugins"
 
 STALE="$WORK/stale-development"
 copy_runtime_state "$STALE"

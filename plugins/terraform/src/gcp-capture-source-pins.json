@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "kind": "gcp-original-capture-sources",
+  "files": {
+    "__init__.py": "e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb",
+    "guest_pty.py": "274de216c148e2a6e267b4082cce552ca04a17adf78a8c8a6dda5ed9579829e3",
+    "gcp_guest_session.py": "babe7881afd16133cad8ce25c2872c6067fe154ba7c03f72c47de58e20f6e786",
+    "guest_control.py": "1c04972ed1a4576f450cc71d6e01539e20a9ab3c72d82242f55fcb4e115ed032",
+    "guest_worker.py": "8cccbddd35d02ffb64d9c91adbf15c016f6f9ecaf817f9b71c0088257d43a392",
+    "guest_entrypoint.py": "f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151",
+    "gcp_provider_process.py": "2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00",
+    "gcp_provider_reader.py": "19532859fd9390ded4a3321fade653f1ca5ccb0d22afd04f2c37dcc816391ceb",
+    "xcsh_creation_observer.py": "988bdf1d393aef539ef62bbe19aea7622c9b796f39c54d8673e6c2c761a5c86d",
+    "xcsh_creation_reader.py": "1ee9327729b38dacb8ac9b4d8afb44ec34922ce7c2935c2759cb2ffd395d568a"
+  }
+}

@@ -1,4 +1,9 @@
+export { inspectOriginalGcpBootstrap, readOriginalGcpBootstrapJwt } from './ce/gcp-bootstrap-evidence';
+export { createGcpLifecycleHttpPort } from './ce/gcp-http';
+export { assertOriginalGcpPlatformHttpBody, openGcpLifecycleHttpCapture } from './ce/gcp-http-capture';
+
 import { HttpCeV2Driver } from './ce/driver';
+import { type CeEventBus, createCePlatformService, registerCePlatformService } from './ce/service';
 import { presentTool as enrichTool } from './presentation';
 import type { PlatformToolApi, PlatformToolContext } from './types';
 
@@ -8,6 +13,7 @@ interface PlatformExtensionApi extends PlatformToolApi {
   registerTool(tool: unknown): void;
   integrations: { register<_T>(definition: unknown): unknown };
   settings?: { get(key: string): unknown };
+  events?: CeEventBus;
   on?: (event: 'session_start' | 'context', handler: (event: unknown, context: PlatformToolContext) => void) => void;
 }
 
@@ -36,6 +42,29 @@ const factory: ExtensionFactory = async (pi) => {
   };
   pi.on?.('session_start', observeSession);
   pi.on?.('context', observeSession);
+  if (pi.events) {
+    const service = () => createCePlatformService(activeContextEnvironment(pi, sessionSettings));
+    registerCePlatformService(pi.events, {
+      gcpBootstrapSource: () => {
+        const active = service();
+        if (!active.gcpBootstrapSource) throw new Error('Verified Platform bootstrap source unavailable');
+        return active.gcpBootstrapSource();
+      },
+      storage: (owner) => service().storage(owner),
+      capabilities: (contextName) => service().capabilities(contextName),
+      runtime: (engine, contextName) => service().runtime(engine, contextName),
+      gcpObservations: (owner, contextName, signal) => {
+        const active = service();
+        if (!active.gcpObservations) throw new Error('GCP observations unavailable');
+        return active.gcpObservations(owner, contextName, signal);
+      },
+      gcpLifecycle: (owner, contextName, signal) => {
+        const active = service();
+        if (!active.gcpLifecycle) throw new Error('GCP lifecycle unavailable');
+        return active.gcpLifecycle(owner, contextName, signal);
+      },
+    });
+  }
   const makeDriver = (context?: PlatformToolContext) => {
     if (context?.settings) sessionSettings = context.settings;
     return new HttpCeV2Driver(activeContextEnvironment(pi, context?.settings ?? sessionSettings));

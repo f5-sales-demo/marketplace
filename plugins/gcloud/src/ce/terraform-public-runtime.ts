@@ -1,0 +1,120 @@
+import type { CePlatformService } from '../../../platform/src/ce/service';
+import type { CeTerraformService } from '../../../terraform/src/service';
+import { withTerraformSession } from '../../../terraform/src/session-lifetime';
+import type { GcloudExecApi } from '../gcloud/exec';
+import { fingerprint } from './discovery';
+import { createGcpTerraformRequestReason } from './request-reason';
+import { assertGcpSiteAccessProfile } from './site-access';
+import { publicTerraformContextHash } from './terraform-context';
+import { googleTerraformEnvironment } from './terraform-google-environment';
+import {
+  GCP_OBSERVER_TERRAFORM_ARTIFACTS,
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  resolveGcpTerraformArtifacts,
+} from './terraform-public-artifacts';
+import { type GcpTerraformInputs, openGcpTerraformSession, resumeGcpTerraformSession } from './terraform-session';
+import type { GcpCeIntent } from './types';
+import { validateIntent } from './validation';
+
+/** Credentials, configuration and locks are server-owned implementation details. */
+export async function openPublicTerraformRuntime(
+  platform: CePlatformService,
+  api: GcloudExecApi,
+  intent: GcpCeIntent,
+  signal?: AbortSignal,
+  installedService?: CeTerraformService,
+) {
+  intent = structuredClone(intent);
+  validateIntent(intent);
+  const currentArtifacts =
+    intent.schemaVersion === 2 ? GCP_OBSERVER_TERRAFORM_ARTIFACTS : GCP_PUBLIC_TERRAFORM_ARTIFACTS;
+  assertGcpSiteAccessProfile(intent);
+  if (
+    intent.engine !== 'terraform' ||
+    !currentArtifacts ||
+    currentArtifacts.configurationVersion !== (intent.schemaVersion === 2 ? 3 : 2)
+  )
+    throw new Error('Published creation identity provider qualification unavailable');
+  const owner = {
+    deploymentId: intent.deploymentName,
+    provider: 'gcp' as const,
+    engine: 'terraform' as const,
+    account: intent.project,
+    region: intent.region,
+  };
+  if (intent.schemaVersion === 2) {
+    if (!installedService?.bindGcpCaptureAccess || !intent.initialAccess || !intent.observer)
+      throw new Error('Installed original campaign access required for observer deployment');
+    await installedService.bindGcpCaptureAccess(owner, {
+      schemaVersion: 1,
+      platformContext: intent.platformContext,
+      sshSourceCidr: intent.observer.sshSourceCidr,
+      cePublicKey: intent.initialAccess.publicKey,
+      observerPublicKey: intent.observer.publicKey,
+      intentSha256: fingerprint(intent).slice(7),
+    });
+  }
+  const store = await platform.storage(owner);
+  let inputs: unknown;
+  try {
+    inputs = await store.read('gcp-terraform-session-inputs.json');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  const artifacts = inputs ? resolveGcpTerraformArtifacts((inputs as { inputs?: unknown }).inputs) : currentArtifacts;
+  const requestReason = inputs
+    ? (inputs as { inputs?: GcpTerraformInputs }).inputs?.requestReason
+    : createGcpTerraformRequestReason(intent);
+  const expected = {
+    schemaVersion: 1,
+    inputs: { ...artifacts, intent, ...(requestReason !== undefined ? { requestReason } : {}) },
+  };
+  if (inputs && fingerprint(inputs) !== fingerprint(expected))
+    throw new Error('Public Terraform original packaged inputs differ');
+  const session = inputs
+    ? await resumeGcpTerraformSession(platform, intent, installedService)
+    : await openGcpTerraformSession(platform, expected.inputs, false, installedService);
+  try {
+    if (!platform.gcpObservations) throw new Error('Scoped Terraform observations unavailable');
+    const observations = await platform.gcpObservations(owner, intent.platformContext, signal);
+    if (!observations.teardown || !observations.terraformEnvironment)
+      throw new Error('Qualified Terraform runtime channels unavailable');
+    const credentials = await observations.terraformEnvironment();
+    const context = { schemaVersion: 1, contextHash: publicTerraformContextHash(intent, credentials.XCSH_API_URL) };
+    let originalContext: unknown;
+    try {
+      originalContext = await store.read('gcp-tf-public-platform-context.json');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      // A crash before the initial context receipt can resume only before authorization.
+      try {
+        await store.read('gcp-tf-deploy-original-authorization.json');
+        throw new Error('Original authorized public Terraform context receipt unavailable');
+      } catch (authorizationError) {
+        if ((authorizationError as NodeJS.ErrnoException).code !== 'ENOENT') throw authorizationError;
+      }
+      await store.write('gcp-tf-public-platform-context.json', context);
+      originalContext = context;
+    }
+    if (fingerprint(originalContext) !== fingerprint(context))
+      throw new Error('Original public Terraform context endpoint changed');
+    const environment = await googleTerraformEnvironment(
+      session,
+      api,
+      intent,
+      { ...process.env, ...credentials },
+      signal,
+    );
+    return {
+      store,
+      session,
+      api,
+      observePlatform: observations.teardown,
+      environment,
+    };
+  } catch (error) {
+    return withTerraformSession(session, async () => {
+      throw error;
+    });
+  }
+}

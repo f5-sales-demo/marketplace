@@ -1,0 +1,921 @@
+"""Independent provider stderr FIFO ownership; cooperative fixtures only."""
+
+import hashlib
+import importlib.util
+import json
+import os
+import py_compile
+import select
+import subprocess
+import sys
+from pathlib import Path
+from typing import IO, cast
+
+import pytest
+
+from plugins.terraform.scripts import (
+    gcp_provider_process as module,
+    gcp_provider_reader as reader,
+    guest_pty as pty,
+)
+
+BODY = r"""import json,os,subprocess,sys
+children=[]
+duplicates=[]
+def spawn():
+ body="import os,sys\nfor command in sys.stdin:\n if command.strip()=='redirect':\n  fd=os.open(os.devnull,os.O_WRONLY);os.dup2(fd,2);os.close(fd)\n print('done',flush=True)\n"
+ child=subprocess.Popen([sys.executable,'-I','-B','-c',body],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+ children.append(child)
+ print(json.dumps({'parent':os.getpid(),'child':child.pid}),flush=True)
+spawn()
+for line in sys.stdin:
+ command=line.strip()
+ if command=='redirect':
+  children[0].stdin.write(b'redirect\n');children[0].stdin.flush();children[0].stdout.readline()
+ elif command=='duplicate':duplicates.append(os.dup(children[0].stderr.fileno()))
+ elif command=='close-reader':children[0].stderr.close()
+ elif command=='replace':
+  children[0].stdin.close();children[0].wait();children[0].stdout.close();children[0].stderr.close();children.pop(0);spawn();continue
+ print(json.dumps({'parent':os.getpid(),'child':children[0].pid}),flush=True)
+for child in children:
+ child.stdin.close();child.wait();child.stdout.close();child.stderr.close()
+for fd in duplicates:os.close(fd)
+"""
+
+
+def pipe(value: IO[bytes] | None) -> IO[bytes]:
+    """Require an explicitly owned fixture pipe."""
+    assert value is not None
+    return value
+
+
+@pytest.fixture
+def original(tmp_path: Path):
+    """Own one executor and child; close them through cooperative EOF."""
+    executable = Path(sys.executable).resolve()
+    digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    pty.pinned(executable, digest)
+    with subprocess.Popen(  # noqa: S603 - pinned executable and constant fixture only.
+        [str(executable), "-I", "-B", "-c", BODY],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    ) as parent:
+        try:
+            assert select.select([pipe(parent.stdout)], [], [], 15)[0]
+            row = json.loads(pipe(parent.stdout).readline())
+            identity = pty.process_identity(row["parent"])
+            monitor = module.OriginalProviderCandidates(
+                tmp_path / "evidence",
+                identity,
+                executables=module.ProviderExecutables(
+                    module.PinnedExecutable(executable, digest),
+                    module.PinnedExecutable(executable, digest),
+                ),
+                assert_inputs=lambda: None,
+            )
+
+            def command(value: str):
+                pipe(parent.stdin).write((value + "\n").encode())
+                pipe(parent.stdin).flush()
+                assert select.select([pipe(parent.stdout)], [], [], 15)[0]
+                return json.loads(pipe(parent.stdout).readline())
+
+            yield monitor, command, row, tmp_path / "evidence"
+        finally:
+            pipe(parent.stdin).close()
+            assert parent.wait(timeout=15) == 0
+            pipe(parent.stdout).close()
+            pipe(parent.stderr).close()
+
+
+def test_original_stderr_fifo_has_exact_provider_writer_and_parent_reader(original):
+    """Kernel FIFO identity binds both ends to the admitted original actors."""
+    monitor, _, row, root = original
+    candidate = monitor.discover()[0]
+    witness = monitor.capture_stderr(candidate)
+    assert witness.provider is candidate
+    assert witness.provider.pid == row["child"]
+    assert witness.parent_fd >= 3
+    assert witness.inode > 0
+    monitor.require_stderr(witness)
+    receipts = list(root.glob("stderr-pipe-*.private.json"))
+    assert receipts
+    receipt = json.loads(receipts[0].read_text())
+    assert receipt["provider"]["pid"] == candidate.pid
+    assert receipt["executor"]["pid"] == row["parent"]
+    assert receipt["providerFd"] == 2
+    assert receipt["pipeIdentity"]["ino"] == str(witness.inode)
+    assert not receipt["applyPhaseQualified"]
+    assert not receipt["signalsSent"]
+
+
+def test_duplicated_parent_read_descriptors_are_ambiguous(original):
+    """Do not choose the first of two equally matching read ends."""
+    monitor, command, _, _ = original
+    candidate = monitor.discover()[0]
+    command("duplicate")
+    with pytest.raises(ValueError, match="ambiguous"):
+        monitor.capture_stderr(candidate)
+
+
+def test_provider_stderr_redirection_retires_original_witness(original):
+    """An unchanged PID cannot hide replacement of its stderr descriptor."""
+    monitor, command, _, root = original
+    witness = monitor.capture_stderr(monitor.discover()[0])
+    command("redirect")
+    with pytest.raises(ValueError, match="stderr"):
+        monitor.require_stderr(witness)
+    assert list(root.glob("failure-*.private.json"))
+    with pytest.raises(ValueError, match="retired"):
+        monitor.capture_stderr(witness.provider)
+
+
+def test_missing_parent_reader_cannot_be_accepted_as_closed_provider(original):
+    """Descriptor loss is a failure while the original provider remains live."""
+    monitor, command, _, _ = original
+    witness = monitor.capture_stderr(monitor.discover()[0])
+    command("close-reader")
+    with pytest.raises(ValueError, match="stderr"):
+        monitor.require_stderr(witness)
+
+
+def test_replacement_and_cloned_witness_cannot_receive_original_authority(original):
+    """Only a source-issued capability can be reinspected, with its original PID."""
+    monitor, command, _, _ = original
+    witness = monitor.capture_stderr(monitor.discover()[0])
+    clone = module.ProviderStderrPipe(
+        witness.provider,
+        witness.parent_fd,
+        witness.device,
+        witness.inode,
+        witness.provider_flags,
+        witness.parent_flags,
+    )
+    with pytest.raises(ValueError, match="admitted"):
+        monitor.require_stderr(clone)
+    command("replace")
+    with pytest.raises(ValueError, match="Original provider"):
+        monitor.require_stderr(witness)
+
+
+def test_changed_inputs_during_pipe_capture_remain_failed(original):
+    """Never excuse changed original inputs with matching pipe metadata."""
+    monitor, _, _, root = original
+    candidate = monitor.discover()[0]
+    monitor.assert_inputs = lambda: (_ for _ in ()).throw(
+        ValueError("original input changed")
+    )
+    with pytest.raises(ValueError, match="input changed"):
+        monitor.capture_stderr(candidate)
+    assert list(root.glob("failure-*.private.json"))
+
+
+def test_bounded_window_retains_original_fifo_and_ready_before_sampling(original):
+    """A ready observer must retain exact source-issued pipe candidates."""
+    monitor, _, row, _ = original
+    events: list[dict[str, object]] = []
+    tick = [1000]
+    result = reader.capture_stderr_window(
+        monitor,
+        deadline=46000,
+        verify=lambda: None,
+        emit=events.append,
+        clock=lambda: tick[0],
+        pause=lambda: tick.__setitem__(0, 46000),
+    )
+    assert events[0]["kind"] == "ready"
+    assert events[0]["windowStartedMs"] == 1000
+    assert events[0]["windowDeadlineMs"] == 46000
+    assert result["samplingWindowComplete"]
+    assert result["executorAvailable"]
+    assert not result["executorGroupClosed"]
+    assert len(result["observations"]) == 1
+    observation = result["observations"][0]
+    assert observation["candidate"]["pid"] == row["child"]
+    assert observation["stderr"]["providerFd"] == 2
+    assert observation["stderr"]["parentFd"] >= 3
+    assert observation["firstObservedMs"] == 1000
+    assert observation["lastObservedMs"] == 1000
+    assert observation["presentAtLastSample"]
+
+
+def test_window_keeps_both_original_providers_without_latest_pid_selection(original):
+    """Natural replacement is another observation, never adoption as original RPC."""
+    monitor, command, row, _ = original
+    tick = [1000]
+    calls = [0]
+    replacement = []
+
+    def pause():
+        calls[0] += 1
+        if calls[0] == 1:
+            replacement.append(command("replace")["child"])
+            tick[0] = 1100
+        else:
+            tick[0] = 46000
+
+    result = reader.capture_stderr_window(
+        monitor,
+        deadline=46000,
+        verify=lambda: None,
+        emit=lambda _value: None,
+        clock=lambda: tick[0],
+        pause=pause,
+    )
+    assert {item["candidate"]["pid"] for item in result["observations"]} == {
+        row["child"],
+        replacement[0],
+    }
+    assert not result["observations"][0]["presentAtLastSample"]
+    assert result["observations"][1]["presentAtLastSample"]
+
+
+def test_window_input_change_retains_partial_capture_without_ready_replay(original):
+    """Failure retains the completed first observation and cannot become success."""
+    monitor, _, _, _ = original
+    events: list[dict[str, object]] = []
+
+    def emit(value):
+        events.append(value)
+        if value["kind"] == "sample":
+            message = "source callback changed"
+            raise ValueError(message)
+
+    with pytest.raises(ValueError, match="callback changed"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=46000,
+            verify=lambda: None,
+            emit=emit,
+            clock=lambda: 1000,
+            pause=lambda: None,
+        )
+    assert [value["kind"] for value in events] == ["ready", "sample", "failed"]
+    assert (
+        len(cast("list[reader.ProviderWindowObservation]", events[-1]["observations"]))
+        == 1
+    )
+    assert not events[-1]["samplingWindowComplete"]
+
+
+def test_window_refuses_duplicate_reader_after_original_sample(original):
+    """A later duplicate read end cannot inherit the original pipe witness."""
+    monitor, command, _, _ = original
+    tick = [1000]
+    events: list[dict[str, object]] = []
+
+    def pause():
+        command("duplicate")
+        tick[0] = 1100
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=46000,
+            verify=lambda: None,
+            emit=events.append,
+            clock=lambda: tick[0],
+            pause=pause,
+        )
+    assert events[-1]["kind"] == "failed"
+    assert not events[-1]["samplingWindowComplete"]
+
+
+def test_window_deadline_exhaustion_cannot_reset_observation_budget(original):
+    """No ready event can be emitted after the original deadline."""
+    monitor, _, _, _ = original
+    events: list[dict[str, object]] = []
+    with pytest.raises(ValueError, match="budget"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=1000,
+            verify=lambda: None,
+            emit=events.append,
+            clock=lambda: 1000,
+            pause=lambda: None,
+        )
+    assert not events
+
+
+def test_window_profile_requires_fixed_versioned_bounds():
+    """Legacy requests retain their shape; window requests cannot extend commands."""
+    assert reader.provider_request_profile({"schemaVersion": 1}) == "cohort"
+    assert (
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 2,
+                "kind": "original-provider-stderr-window",
+                "windowMs": 45000,
+            }
+        )
+        == "stderr-window"
+    )
+    invalid: list[dict[str, object]] = [
+        {"schemaVersion": True},
+        {"schemaVersion": 1, "windowMs": 45000},
+        {
+            "schemaVersion": 2,
+            "kind": "original-provider-stderr-window",
+            "windowMs": 60001,
+        },
+        {"schemaVersion": 2, "kind": "foreign", "windowMs": 45000},
+        {
+            "schemaVersion": 2,
+            "kind": "original-provider-stderr-window",
+            "windowMs": True,
+        },
+    ]
+    for value in invalid:
+        with pytest.raises(ValueError, match="Original provider"):
+            reader.provider_request_profile(value)
+
+
+def test_verified_reader_does_not_execute_unadmitted_cached_bytecode(tmp_path: Path):
+    """Timestamp-matching cached code cannot replace the admitted source bytes."""
+    scripts = tmp_path / "source"
+    scripts.mkdir(mode=0o700)
+    for name in ["__init__.py", "guest_pty.py", "gcp_provider_process.py"]:
+        path = scripts / name
+        path.write_text("source_witness = False\n")
+        cached = Path(importlib.util.cache_from_source(str(path)))
+        cached.parent.mkdir(mode=0o700, exist_ok=True)
+        stamp = path.stat()
+        py_compile.compile(
+            str(path),
+            cfile=str(cached),
+            doraise=True,
+            invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP,
+        )
+        path.write_text("source_witness = True \n")
+        os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    legacy = importlib.util.spec_from_file_location(
+        "cached_source_example", scripts / "gcp_provider_process.py"
+    )
+    assert legacy is not None
+    assert legacy.loader is not None
+    cached_module = importlib.util.module_from_spec(legacy)
+    legacy.loader.exec_module(cached_module)
+    assert not cached_module.source_witness
+    monitor, transport = reader.load_reader_modules(scripts)
+    assert monitor.source_witness
+    assert transport.source_witness
+
+
+def test_coherent_acquisition_publishes_only_joint_process_and_fifo(original):
+    """No candidate is admitted while its prospective FIFO is being inspected."""
+    monitor, _, row, root = original
+    inspect = monitor.inspect_prospective_stderr
+
+    def guarded(candidate):
+        assert not monitor.admitted
+        return inspect(candidate)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", guarded)
+        acquisition = monitor.acquire_stderr()
+    assert not acquisition.incomplete_pids
+    assert len(acquisition.witnesses) == 1
+    witness = acquisition.witnesses[0]
+    assert witness.provider.pid == row["child"]
+    monitor.require_stderr(witness)
+    receipts = [
+        json.loads(path.read_text()) for path in root.glob("acquisition-*.private.json")
+    ]
+    assert receipts[0]["schemaVersion"] == 2
+    assert receipts[0]["samplingComplete"]
+    assert not receipts[0]["applyPhaseQualified"]
+
+
+def test_prospective_exit_retains_incomplete_without_issuing_capability(original):
+    """A cooperative exit before joint acquisition is evidence, not authority."""
+    monitor, command, row, root = original
+    inspect = monitor.inspect_prospective_stderr
+    replaced = []
+
+    def departed(candidate):
+        if candidate.pid == row["child"]:
+            replaced.append(command("replace")["child"])
+        return inspect(candidate)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", departed)
+        acquisition = monitor.acquire_stderr()
+    assert acquisition.incomplete_pids == (row["child"],)
+    assert not acquisition.witnesses
+    assert not monitor.admitted
+    assert not monitor.retired
+    receipts = [
+        json.loads(path.read_text()) for path in root.glob("acquisition-*.private.json")
+    ]
+    assert not receipts[0]["samplingComplete"]
+    assert receipts[0]["prospectivePid"] == row["child"]
+    assert receipts[0]["outcome"] == "departed-before-issuance"
+    assert not receipts[0]["applyPhaseQualified"]
+    assert replaced[0] != row["child"]
+
+
+def test_unrelated_missing_input_during_acquisition_cannot_be_excused(original):
+    """A live prospective actor cannot hide missing evidence or source bytes."""
+    monitor, _, _, root = original
+
+    def missing(_candidate):
+        message = "unrelated evidence missing"
+        raise FileNotFoundError(message)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", missing)
+        with pytest.raises(FileNotFoundError, match="unrelated evidence"):
+            monitor.acquire_stderr()
+    assert monitor.retired
+    assert not monitor.admitted
+    assert list(root.glob("failure-*.private.json"))
+
+
+def test_issued_capability_loss_is_not_a_prospective_exit(original):
+    """Coherent issuance preserves strict original-incarnation reinspections."""
+    monitor, command, _, _ = original
+    witness = monitor.acquire_stderr().witnesses[0]
+    command("replace")
+    with pytest.raises(ValueError, match="Original provider"):
+        monitor.require_stderr(witness)
+    assert monitor.retired
+
+
+def test_ambiguous_prospective_fifo_retires_without_issuance(original):
+    """Ambiguity remains failed before or after capability publication."""
+    monitor, command, _, _ = original
+    command("duplicate")
+    with pytest.raises(ValueError, match="ambiguous"):
+        monitor.acquire_stderr()
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_failed_acquisition_persistence_never_issues_capability(original):
+    """Publication follows durable evidence and retains both persistence errors."""
+    monitor, _, _, _ = original
+
+    def failed(_path, _value):
+        message = "fixture persistence unavailable"
+        raise OSError(message)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(module, "record", failed)
+        with pytest.raises(ExceptionGroup, match="capture and persistence"):
+            monitor.acquire_stderr()
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_coherent_window_profile_has_distinct_version_without_rewriting_legacy():
+    """Changed acquisition evidence cannot masquerade as the old window schema."""
+    assert (
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 3,
+                "kind": "original-provider-stderr-coherent-window",
+                "windowMs": 45000,
+            }
+        )
+        == "stderr-coherent-window"
+    )
+    with pytest.raises(ValueError, match="Original provider"):
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 2,
+                "kind": "original-provider-stderr-coherent-window",
+                "windowMs": 45000,
+            }
+        )
+
+
+def test_coherent_window_does_not_rediscover_then_issue_a_fifo(original):
+    """A fresh joint acquisition is used directly rather than recaptured."""
+    monitor, _, row, _ = original
+    tick = [1000]
+
+    def obsolete():
+        message = "legacy discovery must not be used"
+        raise AssertionError(message)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "discover", obsolete)
+        result = reader.capture_stderr_window(
+            monitor,
+            deadline=46000,
+            verify=lambda: None,
+            emit=lambda _value: None,
+            coherent=True,
+            clock=lambda: tick[0],
+            pause=lambda: tick.__setitem__(0, 46000),
+        )
+    assert result["observations"][0]["candidate"]["pid"] == row["child"]
+    assert result["samplingWindowComplete"]
+
+
+def test_coherent_window_prospective_gap_is_explicitly_incomplete(original):
+    """A missing prospective sample remains failed, even if another PID runs."""
+    monitor, command, _, _ = original
+    inspect = monitor.inspect_prospective_stderr
+    events: list[dict[str, object]] = []
+
+    def departed(candidate):
+        command("replace")
+        return inspect(candidate)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(monitor, "inspect_prospective_stderr", departed)
+        with pytest.raises(ValueError, match="acquisition incomplete"):
+            reader.capture_stderr_window(
+                monitor,
+                deadline=46000,
+                verify=lambda: None,
+                emit=events.append,
+                coherent=True,
+                clock=lambda: 1000,
+                pause=lambda: None,
+            )
+    assert events[-1]["kind"] == "failed"
+    assert not events[-1]["samplingWindowComplete"]
+
+
+def test_prospective_kernel_stat_cannot_be_joined_to_a_different_start(original):
+    """Independent SDK agreement cannot excuse reuse since the first stat read."""
+    monitor, _, row, _ = original
+    identify = module.process_identity
+
+    def changed(pid):
+        value = identify(pid)
+        if pid == row["child"]:
+            return {**value, "start": str(int(value["start"]) + 1)}
+        return value
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(module, "process_identity", changed)
+        with pytest.raises(ValueError, match="identity changed"):
+            monitor.inspect_candidate(row["child"])
+
+
+def test_unavailable_actor_retains_exact_failed_kernel_read_without_authority(original):
+    """Synthetic stopped-state bytes do not send a signal to the real fixture."""
+    _, _, row, _ = original
+    path = Path("/proc") / str(row["child"]) / "stat"
+    actual = path.read_text()
+    split = actual.rfind(")") + 2
+    stopped = actual[:split] + "T" + actual[split + 1 :]
+    read = Path.read_text
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(
+            Path,
+            "read_text",
+            lambda current, *args, **kwargs: (
+                stopped if current == path else read(current, *args, **kwargs)
+            ),
+        )
+        with pytest.raises(pty.ActorIdentityUnavailableError) as captured:
+            pty.process_identity(row["child"])
+    snapshot = captured.value.snapshot
+    assert snapshot["pid"] == row["child"]
+    assert snapshot["kernelStat"] == stopped
+    assert snapshot["state"] == "T"
+    assert snapshot["uid"] == os.getuid()
+    assert not snapshot["identityQualified"]
+
+
+def test_prospective_identity_failure_retains_pid_state_and_original_error(original):
+    """Failure diagnostics never issue an unavailable process or pipe witness."""
+    monitor, _, row, root = original
+    path = Path("/proc") / str(row["child"]) / "stat"
+    actual = path.read_text()
+    split = actual.rfind(")") + 2
+    stopped = actual[:split] + "T" + actual[split + 1 :]
+    read = Path.read_text
+    count = 0
+
+    def changed(current, *args, **kwargs):
+        nonlocal count
+        if current == path:
+            count += 1
+            if count >= 3:
+                return stopped
+        return read(current, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "read_text", changed)
+        with pytest.raises(ValueError, match="unavailable or stopped"):
+            monitor.acquire_stderr()
+    receipts = [
+        json.loads(p.read_text()) for p in root.glob("acquisition-*.private.json")
+    ]
+    assert receipts
+    failed = receipts[-1]
+    assert failed["outcome"] == "identity-unavailable-before-issuance"
+    assert failed["identityFailure"]["kernelStat"] == stopped
+    assert failed["identityFailure"]["pid"] == row["child"]
+    assert failed["identityFailure"]["state"] == "T"
+    assert not failed["samplingComplete"]
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_prospective_identity_and_persistence_failures_both_survive(original):
+    """Diagnostic persistence cannot replace the failed original identity."""
+    monitor, _, row, _ = original
+    raw = (Path("/proc") / str(row["child"]) / "stat").read_text()
+    failure = pty.ActorIdentityUnavailableError(row["child"], raw, os.getuid())
+    inspect = module.process_identity
+    persist = module.record
+
+    def unavailable(pid):
+        if pid == row["child"]:
+            raise failure
+        return inspect(pid)
+
+    def reject_diagnostic(path, value):
+        if (
+            isinstance(value, dict)
+            and value.get("outcome") == "identity-unavailable-before-issuance"
+        ):
+            message = "private diagnostic persistence failed"
+            raise OSError(message)
+        return persist(path, value)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(module, "process_identity", unavailable)
+        patches.setattr(module, "record", reject_diagnostic)
+        with pytest.raises(ExceptionGroup) as captured:
+            monitor.acquire_stderr()
+    assert failure in captured.value.exceptions
+    assert any(isinstance(error, OSError) for error in captured.value.exceptions)
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_verified_window_commits_only_completed_observations_and_preserves_late_attempt(
+    original,
+):
+    """A 45-second boundary never admits a partially verified last sample."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    stage = [0]
+    final_checks = [0]
+    events = []
+
+    def verify():
+        if stage[0] == 1:
+            tick[0] = 1200
+        elif stage[0] == 2:
+            final_checks[0] += 1
+            if final_checks[0] >= 3:
+                tick[0] = 46010
+
+    def pause():
+        tick[0] = 45900
+        stage[0] = 2
+
+    def emit(value):
+        events.append(value)
+        if value["kind"] == "ready":
+            stage[0] = 1
+
+    result = reader.capture_stderr_window(
+        monitor,
+        deadline=100000,
+        verify=verify,
+        emit=emit,
+        clock=lambda: tick[0],
+        pause=pause,
+        coherent=reader.WindowSamplingPolicy(True, True),
+    )
+    assert result["windowDeadlineMs"] == 46000
+    assert result["observations"][0]["firstObservedMs"] == 1200
+    assert result["observations"][0]["lastObservedMs"] == 1200
+    assert result["boundaryAttempts"] == 1
+    assert result["verificationPolicy"] == "completed-before-window-end"
+    boundary = next(value for value in events if value["kind"] == "boundary-attempt")
+    assert not boundary["samplingWindowComplete"]
+    assert boundary["verifiedAtMs"] == 46010
+
+
+def test_verified_window_never_completes_without_an_admitted_observation(original):
+    """A slow first sample cannot become an empty successful window."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    ready = [False]
+
+    def emit(value):
+        if value["kind"] == "ready":
+            ready[0] = True
+
+    def verify():
+        if ready[0]:
+            tick[0] = 46010
+
+    with pytest.raises(ValueError, match="observation"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=verify,
+            emit=emit,
+            clock=lambda: tick[0],
+            pause=lambda: None,
+            coherent=reader.WindowSamplingPolicy(True, True),
+        )
+
+
+def test_legacy_window_keeps_its_strict_late_verification_refusal(original):
+    """Version3 meaning is unchanged by the new completed-observation policy."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    ready = [False]
+    count = [0]
+
+    def emit(value):
+        if value["kind"] == "ready":
+            ready[0] = True
+
+    def verify():
+        if ready[0]:
+            count[0] += 1
+            if count[0] >= 3:
+                tick[0] = 46010
+
+    with pytest.raises(ValueError, match="budget"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=verify,
+            emit=emit,
+            clock=lambda: tick[0],
+            pause=lambda: None,
+        )
+
+
+def test_verified_window_profile_has_distinct_fixed_version_and_duration():
+    assert (
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 4,
+                "kind": "original-provider-stderr-verified-window",
+                "windowMs": 45000,
+            }
+        )
+        == "stderr-verified-window"
+    )
+    with pytest.raises(ValueError, match="profile"):
+        reader.provider_request_profile(
+            {
+                "schemaVersion": 4,
+                "kind": "original-provider-stderr-verified-window",
+                "windowMs": 45001,
+            }
+        )
+
+
+def test_verified_window_fixed_command_budget_and_changed_inputs_still_refuse(original):
+    """Boundary finalisation cannot renew the command or excuse source mutation."""
+    monitor, _, _, _ = original
+    tick = [1000]
+    late = [False]
+    count = [0]
+
+    def verify():
+        if late[0]:
+            count[0] += 1
+            if count[0] >= 3:
+                tick[0] = 61010
+
+    def pause():
+        late[0] = True
+        tick[0] = 45900
+
+    with pytest.raises(ValueError, match="budget"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=verify,
+            emit=lambda _v: None,
+            clock=lambda: tick[0],
+            pause=pause,
+            coherent=reader.WindowSamplingPolicy(True, True),
+        )
+    tick[0] = 1000
+    late[0] = False
+
+    def changed():
+        if late[0]:
+            message = "original input changed at boundary"
+            raise ValueError(message)
+
+    with pytest.raises(ValueError, match="input changed"):
+        reader.capture_stderr_window(
+            monitor,
+            deadline=100000,
+            verify=changed,
+            emit=lambda _v: None,
+            clock=lambda: tick[0],
+            pause=pause,
+            coherent=reader.WindowSamplingPolicy(True, True),
+        )
+
+
+def test_denied_descriptor_preserves_original_error_and_unqualified_later_snapshot(
+    original,
+):
+    """A later readable stat cannot qualify the denied descriptor or actor."""
+    monitor, _, row, root = original
+    denied = Path("/proc") / str(row["child"]) / "fd" / "2"
+    actual = Path.stat
+    failure = PermissionError(13, "fixture descriptor denied", str(denied))
+    attempts = []
+
+    def reject(path, *args, **kwargs):
+        if path == denied:
+            attempts.append(path)
+            raise failure
+        return actual(path, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "stat", reject)
+        with pytest.raises(PermissionError) as captured:
+            monitor.acquire_stderr()
+    assert captured.value.__cause__ is failure
+    assert attempts == [denied]
+    receipts = [json.loads(p.read_text()) for p in root.glob("failure-*.private.json")]
+    snapshot = receipts[-1]["descriptorAccessFailure"]
+    assert snapshot["pid"] == row["child"]
+    assert snapshot["descriptor"] == 2
+    assert snapshot["errno"] == 13
+    assert snapshot["filename"] == str(denied)
+    assert snapshot["stateAtDenial"] == "unknown"
+    assert snapshot["actorStatAfterFailure"].startswith(str(row["child"]) + " ")
+    assert snapshot["readStartedMs"] <= snapshot["deniedObservedMs"]
+    assert snapshot["deniedObservedMs"] <= snapshot["diagnosticsCompletedMs"]
+    assert not snapshot["identityQualified"]
+    assert not receipts[-1]["applyPhaseQualified"]
+    assert monitor.retired
+    assert not monitor.admitted
+
+
+def test_denied_descriptor_never_adopts_replacement_during_diagnostics(original):
+    """An original PID lost after denial remains unavailable in later evidence."""
+    monitor, command, row, root = original
+    denied = Path("/proc") / str(row["child"]) / "fd" / "2"
+    actual = Path.stat
+    failure = PermissionError(13, "fixture descriptor denied", str(denied))
+    replacement = []
+
+    def reject(path, *args, **kwargs):
+        if path == denied:
+            replacement.append(command("replace")["child"])
+            raise failure
+        return actual(path, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "stat", reject)
+        with pytest.raises(PermissionError):
+            monitor.acquire_stderr()
+    receipts = [json.loads(p.read_text()) for p in root.glob("failure-*.private.json")]
+    snapshot = receipts[-1]["descriptorAccessFailure"]
+    assert snapshot["pid"] == row["child"]
+    assert replacement[0] != snapshot["pid"]
+    assert snapshot["actorStatAfterFailure"] is None
+    assert snapshot["actorStatAfterFailureErrorType"] == "FileNotFoundError"
+    assert snapshot["stateAtDenial"] == "unknown"
+    assert not monitor.admitted
+
+
+def test_denied_descriptor_and_persistence_errors_both_survive(original):
+    """Failure to save diagnostics cannot replace the original denied read."""
+    monitor, _, row, _ = original
+    denied = Path("/proc") / str(row["child"]) / "fd" / "2"
+    actual = Path.stat
+    failure = PermissionError(13, "fixture descriptor denied", str(denied))
+    persistence = OSError("fixture diagnostic persistence failed")
+
+    def reject(path, *args, **kwargs):
+        if path == denied:
+            raise failure
+        return actual(path, *args, **kwargs)
+
+    def unavailable(_path, value):
+        if value.get("descriptorAccessFailure"):
+            raise persistence
+
+    persist = module.record
+
+    def guarded(path, value):
+        unavailable(path, value)
+        return persist(path, value)
+
+    with pytest.MonkeyPatch.context() as patches:
+        patches.setattr(Path, "stat", reject)
+        patches.setattr(module, "record", guarded)
+        with pytest.raises(ExceptionGroup) as captured:
+            monitor.acquire_stderr()
+    assert any(error.__cause__ is failure for error in captured.value.exceptions)
+    assert persistence in captured.value.exceptions
+    assert monitor.retired
+    assert not monitor.admitted
