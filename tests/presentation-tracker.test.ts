@@ -127,3 +127,33 @@ test('retired appendix roundtrips all historical cells and stays out of active t
   expect(parseTasks(text)).toHaveLength(1);
   expect(parseRetiredTasks(text)).toEqual(retired);
 });
+
+test('repeated invalidation coalesces only its warning and preserves every fingerprint and receipt', () => {
+  const previous = seedTasks(inventory, links);
+  const notice = 'Evidence invalidated by source/runtime/scope change; next action: requalify this gate.';
+  const originalNotes = 'Recorded failure; next action: resolve vendor dependency';
+  const history = ['a'.repeat(64), 'b'.repeat(64)];
+  previous[4].status = 'BLOCKED';
+  previous[4].evidence = 'scenario=retained; outcome=failed';
+  previous[4].receipt = 'private:failed-receipt';
+  previous[4].blocker = `${notice} Prior input=${history[0]}. ${notice} Prior input=${history[1]}. ${originalNotes}`;
+  const unchanged = reconcileTasks(previous, previous);
+  expect(unchanged[4].status).toBe('BLOCKED');
+  expect(unchanged[4].blocker.split(notice)).toHaveLength(2);
+  for (const fingerprint of history) expect(unchanged[4].blocker).toContain(`Prior input=${fingerprint}.`);
+  expect(unchanged[4].blocker).toContain(originalNotes);
+  expect(unchanged[4].evidence).toBe(previous[4].evidence);
+  expect(unchanged[4].receipt).toBe(previous[4].receipt);
+  expect(reconcileTasks(unchanged, unchanged)).toEqual(unchanged);
+  const changed = seedTasks(
+    [{ ...inventory[0], surfaces: [{ ...inventory[0].surfaces[0], fingerprint: 'changed' }] }],
+    links,
+  );
+  const reopened = reconcileTasks(changed, unchanged);
+  expect(reopened[4].status).toBe('TODO');
+  expect(reopened[4].blocker.split(notice)).toHaveLength(2);
+  expect(reopened[4].blocker).toContain(`Prior input=${previous[4].input}.`);
+  for (const fingerprint of history) expect(reopened[4].blocker).toContain(`Prior input=${fingerprint}.`);
+  expect(reopened[4].blocker).toContain(originalNotes);
+  expect(reopened[4].receipt).toBe(previous[4].receipt);
+});

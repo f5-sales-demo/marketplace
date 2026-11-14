@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-10-22T15:23:40.097156+00:00",
+  "evidenceKind": "offline inspection of retained F5-bundled binary; no CE mutation",
+  "binarySha256": "74879f80b6dee02a1546b62fdea77bc1ba8cb04ec4613b5bd927d89a5653d0e5",
+  "bundledDpdkVersion": "23.11.4",
+  "versionFunctionConstants": {
+    "year": 23,
+    "month": 11,
+    "minor": 4,
+    "release": 99,
+    "prefix": "DPDK",
+    "suffix": ""
+  },
+  "enaDeviceInitBindsOpsTable": true,
+  "enaOpsVirtualAddress": "0x10156a0",
+  "linkUpPointerOffset": "0x18",
+  "linkDownPointerOffset": "0x20",
+  "enaLinkUpCallback": 0,
+  "enaLinkDownCallback": 0,
+  "bundledLinkSetMissingCallbackReturn": -95,
+  "interpretation": "The generic bundled rte_eth_dev_set_link_up/down APIs are unsupported for this ENA ops table. This does not establish absence of another F5 primary-owner control.",
+  "upstreamComparison": {
+    "version": "v23.11.4",
+    "ethdevHeaderSha256": "f89e08fde8b3b39fb5ebd9b1ecb680bdb164dd4cdf8c198d0083274b69931de8",
+    "enaSourceSha256": "024864fb2d72fd0bb4bad825f1c7de7fb977db81f8231961ba50d96fb65ec056",
+    "proofBasis": "bundled binary pointer offsets and null-return branches, compared with same-version public headers"
+  },
+  "supportedReversibleSliControlQualified": false,
+  "vendorFreshnessContractQualified": false,
+  "argoPreserved": true,
+  "privateRepositoriesAccessed": false,
+  "universalImpossibilityClaimed": false,
+  "fullCeAcceptance": false,
+  "candidateRevision": 107,
+  "source": "retained authorized diagnostic image; public DPDK v23.11.4 comparison",
+  "publicInterfaceTransitionQualified": false
+}

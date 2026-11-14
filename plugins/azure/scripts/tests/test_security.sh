@@ -5,21 +5,11 @@ set -euo pipefail
 
 # T1.S1 — no hardcoded credentials in plugin files
 test_no_hardcoded_credentials() {
-  local patterns='password[[:space:]]*=|secret[[:space:]]*=|token=[A-Za-z0-9]|Bearer [A-Za-z0-9]{20,}'
-  local matches
-  matches=$(grep -rIin -E "$patterns" "$PLUGIN_ROOT" \
-    --include='*.md' --include='*.json' --include='*.ts' \
-    --exclude-dir=node_modules \
-    --exclude-dir=.xcsh-plugin |
-    grep -v 'AZURE_CLIENT_SECRET\|AWS_SECRET_ACCESS_KEY\|GOOGLE_APPLICATION_CREDENTIALS' |
-    grep -v '\$[A-Z_]*TOKEN\|\$[A-Z_]*SECRET\|\$[A-Z_]*KEY' |
-    grep -v 'sanitizeHintField\|placeholder\|example\|README' ||
-    true)
-  if [ -n "$matches" ]; then
-    echo "Possible hardcoded credentials found:"
-    echo "$matches"
-    return 1
-  fi
+  python3 "$MARKETPLACE_ROOT/scripts/check_credential_literals.py" "$PLUGIN_ROOT"
+}
+
+test_hardcoded_credential_scanner_regressions() {
+  python3 "$MARKETPLACE_ROOT/tests/test_credential_literals.py"
 }
 
 # T1.S2 — auth skill instructs never to echo credentials
@@ -50,7 +40,7 @@ test_ce_secret_boundary() {
     echo "bootstrap file mode validation is missing"
     return 1
   }
-  if grep -rIin -E "--custom-data[= ][^']*(token|secret)|--tags[^']*(token|secret)" "$PLUGIN_ROOT/src" --include='*.ts'; then
+  if grep -rIin -E -- "--custom-data[= ][^']*(token|secret)|--tags[^']*(token|secret)" "$PLUGIN_ROOT/src" --include='*.ts'; then
     echo "bootstrap material may enter Azure command arguments or tags"
     return 1
   fi
