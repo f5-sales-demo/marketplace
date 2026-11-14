@@ -63,6 +63,10 @@ export interface SignalFreeExecutionPolicy {
   originalDeadlineMs: number;
   /** Server-owned lifetime guard; must retain the original input monitor and owner. */
   assertOriginal(): Promise<void>;
+  /** Compiled polling guard over the same admitted inputs. Full release checks stay mandatory. */
+  assertOriginalIdentity?(): Promise<void>;
+  /** Full byte check independent of the expired operation clock; required with identity polling. */
+  assertFinalInputs?(): Promise<void>;
   /** Start trusted readers against the verified gated identity before command release.
    * Failure or late completion prevents submission. Pending startup must settle
    * before final capture can prove reader closure; its original reserve cannot reset.
@@ -199,6 +203,10 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     await policy.assertOriginal();
     if (reserve) await assertFinalReaderReserve(reserve);
   };
+  const assertOriginalIdentity = async () => {
+    await (policy.assertOriginalIdentity ?? policy.assertOriginal)();
+    if (reserve) await assertFinalReaderReserve(reserve);
+  };
   const beforeRelease = policy.beforeRelease;
   if (
     process.platform !== 'linux' ||
@@ -207,6 +215,9 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     policy.originalStartMs < 0 ||
     policy.originalDeadlineMs !== policy.originalStartMs + 7_200_000 ||
     typeof policy.assertOriginal !== 'function' ||
+    (policy.assertOriginalIdentity !== undefined && typeof policy.assertOriginalIdentity !== 'function') ||
+    (policy.assertFinalInputs !== undefined && typeof policy.assertFinalInputs !== 'function') ||
+    (policy.assertOriginalIdentity !== undefined) !== (policy.assertFinalInputs !== undefined) ||
     (beforeRelease !== undefined && typeof beforeRelease !== 'function') ||
     typeof policy.finalCapture !== 'function'
   )
@@ -356,7 +367,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
         inputPhase = 'command-executable-check';
         await executable.require();
         inputPhase = 'original-input-check';
-        await assertOriginal();
+        await assertOriginalIdentity();
       } catch (error) {
         await retainInputFailure(inputPhase, error);
       }
@@ -511,6 +522,15 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
           }
         }
       } else if (!reason) fail('startup');
+      if (!reason && policy.assertOriginalIdentity) {
+        try {
+          await assertOriginal();
+        } catch (error) {
+          await retainInputFailure('release-original-input-check', error);
+        }
+        await check();
+        if (now() >= startupDeadline || actualExitCode !== null) fail('startup');
+      }
       if (!reason) {
         await writeFile(
           join(root, 'submission.private.json'),
@@ -583,7 +603,19 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
             // accept closure evidence until that same callback has finished.
             await captureStartup?.catch(() => undefined);
             if (now() >= capture.finalDeadlineMs) throw new Error('Original final capture deadline exhausted');
-            await policy.finalCapture(Object.freeze({ ...capture, ...startupFields() }));
+            const retainFinalCheck = async () => {
+              try {
+                await policy.assertFinalInputs?.();
+              } catch (error) {
+                finalErrors.push(error);
+              }
+            };
+            await retainFinalCheck();
+            try {
+              await policy.finalCapture(Object.freeze({ ...capture, ...startupFields() }));
+            } finally {
+              await retainFinalCheck();
+            }
           })(),
           new Promise<never>((_resolve, reject) => {
             captureTimer = setTimeout(
@@ -592,7 +624,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
             );
           }),
         ]);
-        captureClosed = true;
+        captureClosed = policy.assertFinalInputs ? finalErrors.length === 0 : true;
       } catch (error) {
         finalErrors.push(error);
       } finally {

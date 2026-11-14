@@ -29,7 +29,15 @@ afterEach(async () => {
 });
 async function fixture(
   body: string,
-  limits: Pick<SignalFreeExecutionPolicy, 'timeoutMs' | 'maxOutputBytes' | 'startupTimeoutMs' | 'beforeRelease'> = {},
+  limits: Pick<
+    SignalFreeExecutionPolicy,
+    | 'timeoutMs'
+    | 'maxOutputBytes'
+    | 'startupTimeoutMs'
+    | 'beforeRelease'
+    | 'assertOriginalIdentity'
+    | 'assertFinalInputs'
+  > = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-signal-free-'));
   directories.push(root);
@@ -606,4 +614,72 @@ test('startup diagnostic persistence preserves original cause and refusal after 
   expect(run.captures[0].submitted).toBe(false);
   expect(run.captures[0].reason).toBe('startup');
   expect(await Bun.file(join(run.root, '.terraform-executor-lock', 'capture-unresolved.json')).exists()).toBe(true);
+});
+
+test('continuous executor polling keeps full digests at release and around final capture', async () => {
+  const events: string[] = [];
+  let identityChecks = 0;
+  const run = await fixture('print("original-success")\n', {
+    assertOriginalIdentity: async () => {
+      identityChecks++;
+    },
+    assertFinalInputs: async () => {
+      events.push('final-digest');
+    },
+    beforeRelease: async () => {
+      events.push('before-release');
+    },
+  });
+  run.checks.push(async () => {
+    events.push('digest');
+  });
+  run.finalChecks.push(async () => {
+    events.push('capture');
+  });
+  const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  expect(result.code).toBe(0);
+  expect(identityChecks).toBeGreaterThan(0);
+  expect(events.slice(events.indexOf('before-release') + 1)).toContain('digest');
+  expect(events.slice(-3)).toEqual(['final-digest', 'capture', 'final-digest']);
+});
+
+test('continuous executor policy cannot omit its independent full final digest hook', async () => {
+  await expect(
+    fixture('print("must-not-run")\n', {
+      assertOriginalIdentity: async () => {},
+    }),
+  ).rejects.toThrow('policy');
+});
+
+test('changed full release digest refuses even when continuous identity polling succeeds', async () => {
+  let before = false;
+  const run = await fixture('print("must-not-run")\n', {
+    assertOriginalIdentity: async () => {},
+    assertFinalInputs: async () => {},
+    beforeRelease: async () => {
+      before = true;
+    },
+  });
+  run.checks.push(async () => {
+    if (before) throw new Error('full release digest changed');
+  });
+  const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  expect(result.code).toBe(1);
+  expect(run.captures[0].reason).toBe('input-changed');
+  expect(run.captures[0].submitted).toBe(false);
+  expect(run.captures[0].stdoutPath && (await readFile(run.captures[0].stdoutPath, 'utf8'))).not.toContain(
+    'must-not-run',
+  );
+});
+
+test('failed full final digest keeps final capture evidence and an unresolved flag', async () => {
+  const run = await fixture('print("owned-original")\n', {
+    assertOriginalIdentity: async () => {},
+    assertFinalInputs: async () => {
+      throw new Error('final digest changed');
+    },
+  });
+  await expect(run.executor({ cwd: run.root, args: [run.script], env: {} })).rejects.toThrow();
+  expect(run.captures).toHaveLength(1);
+  expect(await Bun.file(join(run.root, '.terraform-executor-lock/capture-unresolved.json')).exists()).toBe(true);
 });

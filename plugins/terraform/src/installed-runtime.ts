@@ -14,6 +14,7 @@ import {
   freezeAdmittedCaptureInputs,
   type InstalledCaptureContext,
 } from './installed-capture-context';
+import { createInstalledCaptureInputChecks } from './installed-capture-input-checks';
 import {
   finalizeInstalledCapture,
   type InstalledCaptureInvocation,
@@ -481,15 +482,18 @@ export function createInstalledRuntimeResolver(
         monitor = await monitorOriginalInputs(bindings);
         const start = linuxMonotonicMs(),
           deadline = start + 7200000;
-        const assertInputs = async () => {
-          await store.verify();
-          await monitor?.assertOriginal();
-          await providers?.assertOriginal();
-        };
-        const assertWithinDeadline = async () => {
-          if (linuxMonotonicMs() >= deadline) throw new Error('Original installed operation deadline exhausted');
-          await assertInputs();
-        };
+        const inputChecks = createInstalledCaptureInputChecks({
+          verifyStore: () => store.verify(),
+          monitors: () => {
+            if (!monitor) throw new Error('Original installed input monitor unavailable');
+            return providers ? [monitor, providers] : [monitor];
+          },
+          budget: { start, deadline },
+          clock: linuxMonotonicMs,
+        });
+        // Executor/authentication/final hooks keep complete byte verification.
+        const assertInputs = inputChecks.assertInputs;
+        const assertWithinDeadline = inputChecks.assertWithinDeadline;
         const assertOriginal = async () => {
           await assertWithinDeadline();
           if (preparedCreationScope) await assertPreparedCreationScope(preparedCreationScope);
@@ -522,8 +526,10 @@ export function createInstalledRuntimeResolver(
             budget: { start, deadline },
             environment: { GOOGLE_APPLICATION_CREDENTIALS: snapshotPath, ...originalEnvironment },
             inputs: bindings,
-            assertInputs,
-            assertWithinDeadline,
+            // Capture polling retains original identities without repeatedly hashing
+            // the large executable set inside the original startup budget.
+            assertInputs: inputChecks.assertCaptureInputs,
+            assertWithinDeadline: inputChecks.assertCaptureWithinDeadline,
             readProviderInputs: async () => {
               if (!providers || !providerInputs) throw new Error('Original capture provider packages are not admitted');
               await providers.assertOriginal();
@@ -622,6 +628,12 @@ export function createInstalledRuntimeResolver(
             originalStartMs: start,
             originalDeadlineMs: deadline,
             assertOriginal,
+            assertOriginalIdentity: async () => {
+              await inputChecks.assertCaptureWithinDeadline();
+              if (preparedCreationScope) await assertPreparedCreationScope(preparedCreationScope);
+              await capture?.assertOriginal();
+            },
+            assertFinalInputs: assertInputs,
             beforeRelease: async (admission) => {
               const currentGroup = join(directory, 'google-runtime-groups', randomUUID());
               await privateDirectory(currentGroup);

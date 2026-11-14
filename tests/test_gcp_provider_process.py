@@ -59,6 +59,19 @@ class ProviderProcessTests(unittest.TestCase):
             assert_inputs=self.guard,
         )
 
+    def test_unavailable_actor_failure_keeps_exact_private_snapshot(self) -> None:
+        """Unavailable evidence remains private and cannot become actor authority."""
+        raw = f"{self.row['child']} (synthetic-fixture) Z " + " ".join(["1"] * 30)
+        error = pty.ActorIdentityUnavailableError(self.row["child"], raw, 1000)
+        self.monitor.failure(error)
+        paths = list(self.monitor.root.glob("failure-*.private.json"))
+        assert len(paths) == 1
+        failure = json.loads(paths[0].read_text())
+        assert failure["identityFailure"] == dict(error.snapshot)
+        assert failure["identityFailure"]["identityQualified"] is False
+        assert failure["applyPhaseQualified"] is False
+        assert failure["signalsSent"] is False
+
     def guard(self) -> None:
         """Record original input guard calls."""
         self.checks += 1

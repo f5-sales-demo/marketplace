@@ -242,6 +242,11 @@ class OriginalProviderCandidates:
                     "executor": dict(self.parent),
                     "errorType": type(error).__name__,
                     **(
+                        {"identityFailure": dict(error.snapshot)}
+                        if isinstance(error, ActorIdentityUnavailableError)
+                        else {}
+                    ),
+                    **(
                         {"descriptorAccessFailure": dict(error.snapshot)}
                         if isinstance(error, ProviderDescriptorAccessDeniedError)
                         else {}

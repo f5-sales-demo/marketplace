@@ -680,7 +680,7 @@ var gcp_capture_source_pins_default = {
     'guest_control.py': '1c04972ed1a4576f450cc71d6e01539e20a9ab3c72d82242f55fcb4e115ed032',
     'guest_worker.py': '8cccbddd35d02ffb64d9c91adbf15c016f6f9ecaf817f9b71c0088257d43a392',
     'guest_entrypoint.py': 'f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151',
-    'gcp_provider_process.py': '0669d0a92bffa9ebbc10629a92fb69336157359a56cb3296336261e01acc23d3',
+    'gcp_provider_process.py': '2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00',
     'gcp_provider_reader.py': '19532859fd9390ded4a3321fade653f1ca5ccb0d22afd04f2c37dcc816391ceb',
     'xcsh_creation_observer.py': '988bdf1d393aef539ef62bbe19aea7622c9b796f39c54d8673e6c2c761a5c86d',
     'xcsh_creation_reader.py': '1ee9327729b38dacb8ac9b4d8afb44ec34922ce7c2935c2759cb2ffd395d568a',
@@ -3529,6 +3529,58 @@ function createInstalledApplyController(original, worker, hooks) {
   };
 }
 
+// plugins/terraform/src/installed-capture-input-checks.ts
+function createInstalledCaptureInputChecks(admission) {
+  if (
+    typeof admission?.verifyStore !== 'function' ||
+    typeof admission.monitors !== 'function' ||
+    typeof admission.clock !== 'function' ||
+    !Number.isSafeInteger(admission.budget?.start) ||
+    admission.budget.start < 0 ||
+    !Number.isSafeInteger(admission.budget.deadline) ||
+    admission.budget.deadline - admission.budget.start !== 7200000
+  )
+    throw new Error('Original admitted capture input checks and budget required');
+  const { verifyStore, monitors: readMonitors, clock } = admission;
+  const budget = Object.freeze({ ...admission.budget });
+  const within = () => {
+    const now = clock();
+    if (!Number.isSafeInteger(now) || now < budget.start || now >= budget.deadline)
+      throw new Error('Original installed operation budget exhausted');
+  };
+  const inspect = async (full) => {
+    await verifyStore();
+    const monitors = [...readMonitors()];
+    if (
+      !monitors.length ||
+      new Set(monitors).size !== monitors.length ||
+      monitors.some(
+        (monitor) =>
+          typeof monitor?.assertOriginal !== 'function' || typeof monitor.assertOriginalIdentity !== 'function',
+      )
+    )
+      throw new Error('Original admitted input monitors required');
+    for (const monitor of monitors) {
+      if (full) await monitor.assertOriginal();
+      else await monitor.assertOriginalIdentity();
+    }
+  };
+  return Object.freeze({
+    assertInputs: () => inspect(true),
+    assertCaptureInputs: () => inspect(false),
+    async assertWithinDeadline() {
+      within();
+      await inspect(true);
+      within();
+    },
+    async assertCaptureWithinDeadline() {
+      within();
+      await inspect(false);
+      within();
+    },
+  });
+}
+
 // plugins/terraform/src/installed-final-capture.ts
 import { isAbsolute as isAbsolute4, join as join3, resolve as resolve4 } from 'node:path';
 
@@ -4799,6 +4851,10 @@ function originalExecutor(input, reserve) {
     await policy.assertOriginal();
     if (reserve) await assertFinalReaderReserve(reserve);
   };
+  const assertOriginalIdentity = async () => {
+    await (policy.assertOriginalIdentity ?? policy.assertOriginal)();
+    if (reserve) await assertFinalReaderReserve(reserve);
+  };
   const beforeRelease = policy.beforeRelease;
   if (
     process.platform !== 'linux' ||
@@ -4807,6 +4863,9 @@ function originalExecutor(input, reserve) {
     policy.originalStartMs < 0 ||
     policy.originalDeadlineMs !== policy.originalStartMs + 7200000 ||
     typeof policy.assertOriginal !== 'function' ||
+    (policy.assertOriginalIdentity !== undefined && typeof policy.assertOriginalIdentity !== 'function') ||
+    (policy.assertFinalInputs !== undefined && typeof policy.assertFinalInputs !== 'function') ||
+    (policy.assertOriginalIdentity !== undefined) !== (policy.assertFinalInputs !== undefined) ||
     (beforeRelease !== undefined && typeof beforeRelease !== 'function') ||
     typeof policy.finalCapture !== 'function'
   )
@@ -4955,7 +5014,7 @@ function originalExecutor(input, reserve) {
         inputPhase = 'command-executable-check';
         await executable.require();
         inputPhase = 'original-input-check';
-        await assertOriginal();
+        await assertOriginalIdentity();
       } catch (error) {
         await retainInputFailure(inputPhase, error);
       }
@@ -5101,6 +5160,15 @@ function originalExecutor(input, reserve) {
           }
         }
       } else if (!reason) fail('startup');
+      if (!reason && policy.assertOriginalIdentity) {
+        try {
+          await assertOriginal();
+        } catch (error) {
+          await retainInputFailure('release-original-input-check', error);
+        }
+        await check();
+        if (now() >= startupDeadline || actualExitCode !== null) fail('startup');
+      }
       if (!reason) {
         await writeFile3(
           join8(root, 'submission.private.json'),
@@ -5170,7 +5238,19 @@ function originalExecutor(input, reserve) {
               return;
             });
             if (now() >= capture.finalDeadlineMs) throw new Error('Original final capture deadline exhausted');
-            await policy.finalCapture(Object.freeze({ ...capture, ...startupFields() }));
+            const retainFinalCheck = async () => {
+              try {
+                await policy.assertFinalInputs?.();
+              } catch (error) {
+                finalErrors.push(error);
+              }
+            };
+            await retainFinalCheck();
+            try {
+              await policy.finalCapture(Object.freeze({ ...capture, ...startupFields() }));
+            } finally {
+              await retainFinalCheck();
+            }
           })(),
           new Promise((_resolve, reject) => {
             captureTimer = setTimeout(
@@ -5179,7 +5259,7 @@ function originalExecutor(input, reserve) {
             );
           }),
         ]);
-        captureClosed = true;
+        captureClosed = policy.assertFinalInputs ? finalErrors.length === 0 : true;
       } catch (error) {
         finalErrors.push(error);
       } finally {
@@ -5935,15 +6015,17 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         monitor = await monitorOriginalInputs(bindings);
         const start = linuxMonotonicMs(),
           deadline = start + 7200000;
-        const assertInputs = async () => {
-          await store.verify();
-          await monitor?.assertOriginal();
-          await providers?.assertOriginal();
-        };
-        const assertWithinDeadline = async () => {
-          if (linuxMonotonicMs() >= deadline) throw new Error('Original installed operation deadline exhausted');
-          await assertInputs();
-        };
+        const inputChecks = createInstalledCaptureInputChecks({
+          verifyStore: () => store.verify(),
+          monitors: () => {
+            if (!monitor) throw new Error('Original installed input monitor unavailable');
+            return providers ? [monitor, providers] : [monitor];
+          },
+          budget: { start, deadline },
+          clock: linuxMonotonicMs,
+        });
+        const assertInputs = inputChecks.assertInputs;
+        const assertWithinDeadline = inputChecks.assertWithinDeadline;
         const assertOriginal = async () => {
           await assertWithinDeadline();
           if (preparedCreationScope) await assertPreparedCreationScope(preparedCreationScope);
@@ -5976,8 +6058,8 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             budget: { start, deadline },
             environment: { GOOGLE_APPLICATION_CREDENTIALS: snapshotPath, ...originalEnvironment },
             inputs: bindings,
-            assertInputs,
-            assertWithinDeadline,
+            assertInputs: inputChecks.assertCaptureInputs,
+            assertWithinDeadline: inputChecks.assertCaptureWithinDeadline,
             readProviderInputs: async () => {
               if (!providers || !providerInputs) throw new Error('Original capture provider packages are not admitted');
               await providers.assertOriginal();
@@ -6076,6 +6158,12 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             originalStartMs: start,
             originalDeadlineMs: deadline,
             assertOriginal,
+            assertOriginalIdentity: async () => {
+              await inputChecks.assertCaptureWithinDeadline();
+              if (preparedCreationScope) await assertPreparedCreationScope(preparedCreationScope);
+              await capture?.assertOriginal();
+            },
+            assertFinalInputs: assertInputs,
             beforeRelease: async (admission) => {
               const currentGroup = join11(directory, 'google-runtime-groups', randomUUID6());
               await privateDirectory3(currentGroup);

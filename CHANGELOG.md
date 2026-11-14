@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.90 bounds capture polling with admitted identity checks
+  while preserving full release and final digests. Unavailable actor failures retain
+  private kernel evidence; builtin and live capture qualification remain open.
+
 - **`terraform`** v2.4.89 separates original reader admission, preparation and
   capture while preserving strict identities and deadlines. Python regression failures
   expose bounded exception categories and source locations; raw traces remain private.
