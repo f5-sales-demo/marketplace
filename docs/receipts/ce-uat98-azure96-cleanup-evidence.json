@@ -1,0 +1,31 @@
+{
+  "candidateRevision": 98,
+  "sourceCommit": "52bf929f402a859d1101d2bcaf275cdefebcc6b6",
+  "observedAt": "2026-10-22T06:50:41.395953+00:00",
+  "sanitized": true,
+  "installedPublicTeardownPassed": true,
+  "exactCloudIdsAbsent": 11,
+  "resourceGroupAbsent": true,
+  "ownedAzureTagInventoryEmpty": true,
+  "logicalPhysicalSitesAbsent": true,
+  "registrationsEmpty": true,
+  "exactTokensAbsent": true,
+  "tokensRoutingIngressEmpty": true,
+  "matchingInterfaceObjectsAbsent": true,
+  "terraformStateEmptyVerifiedByOwningRunner": true,
+  "independentPreRetirementStateWitness": false,
+  "owningFinalDestroyNoChanges": true,
+  "preservedOrdinaryRefreshPlanProvenanceVerified": true,
+  "emptyStateIndependentlyObservedBeforeRetirement": false,
+  "newPostRetirementPlanRun": false,
+  "finalPlanSha256": "cf14d32bb0070c4948b7a841e93e7831665f506dc56927608badbbe950c2ecf8",
+  "runnerArtifactsRetired": true,
+  "parentSensitiveArtifactsRetired": true,
+  "separateBootstrapCheckoutCreated": false,
+  "fullCleanupAcceptance": false,
+  "remainingCleanupEvidence": [
+    "Independent pre-retirement empty-state witness was not captured; retired state cannot be re-read"
+  ],
+  "fullCeAcceptance": false,
+  "independentlyVerifiedOwningOrdinaryRefreshPlanProvenance": true
+}
