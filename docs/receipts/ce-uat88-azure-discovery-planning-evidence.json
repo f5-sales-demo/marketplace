@@ -1,0 +1,27 @@
+{
+  "candidateRevision": 88,
+  "sourceCommit": "6d8dff8b136e2bbff5cb52f899fd9740caf43e64",
+  "cliVersion": "23.9.3",
+  "archiveDigestsVerified": true,
+  "cloud": "azure",
+  "engine": "terraform",
+  "profile": "single-site",
+  "cloudMutation": false,
+  "fullCeAcceptance": false,
+  "discovery": {
+    "tool": "azure_compute_discover",
+    "regions": 63,
+    "eligibleRegions": 49,
+    "termsAccepted": true
+  },
+  "planning": {
+    "tool": "azure_ce_plan",
+    "planId": "azure-ce-ca774cb83abe07df1a6d97aa",
+    "planSha256": "ca774cb83abe07df1a6d97aa9a17dc9efd0b3f22ba5ad8ba984b44b48114d64c",
+    "layout": ["slo", "data", "sli"]
+  },
+  "privateResultDigests": {
+    "research-azure_compute_discover.private.json": "7d58f1572d2ea847d545c7c0d594e2fa197462259d1e36f60d3101e63b4e8fd0",
+    "plan-azure_ce_plan.private.json": "001cccf8499b6c854c4184d50da559ea2146bd8ff12455021ba5962ae1d8a359"
+  }
+}

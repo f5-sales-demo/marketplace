@@ -1,0 +1,108 @@
+{
+  "provenance": {
+    "repository": "f5-sales-demo/api-specs-enriched",
+    "tag": "v6.1.2",
+    "commit": "a5fa987f876db955666bd94fefed35f283bb5364",
+    "sha256": "66f3c819e6c1cdc96dadcee513cf0b5af74b70b5d603d28f70578e6f206cfef7"
+  },
+  "schemas": {
+    "siteUpgradeSWRequest": {
+      "type": "object",
+      "description": "Request for Upgrade SW of Site.",
+      "title": "Upgrade SW request",
+      "x-displayname": "Upgrade SW Request.",
+      "x-ves-proto-message": "ves.io.schema.site.UpgradeSWRequest",
+      "properties": {
+        "force": {
+          "$ref": "./shared-schema-components.json#/bc7107060998a5eb71303aab5408722f510f661b709fdcc6574adcf75ac2beec"
+        },
+        "name": {
+          "$ref": "./shared-schema-components.json#/92459e87bcaefe917fed98a4b09e1c83a06eb5b7c1002d81c04f0709dc3fefad"
+        },
+        "namespace": {
+          "$ref": "./shared-schema-components.json#/8bbf6b271775dc42e93173a7e26a7dfa38da903ac83642943bd5b6f0e22be1d9"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version to upgraded to.",
+          "title": "SW/OS Version",
+          "x-displayname": "Version",
+          "x-ves-example": "Crt-20201010-600.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "crt-20201010-600",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for siteUpgradeSWRequest",
+        "required_fields": ["name", "namespace", "version"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"name\": \"ce398\",\n  \"namespace\": \"system\",\n  \"version\": \"crt-20201010-600\"\n}",
+        "example_yaml": "name: ce398\nnamespace: system\nversion: crt-20201010-600"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "siteUpgradeOSRequest": {
+      "type": "object",
+      "description": "Request for Upgrade OS of Site.",
+      "title": "Upgrade OS request",
+      "x-displayname": "Upgrade OS Request.",
+      "x-ves-proto-message": "ves.io.schema.site.UpgradeOSRequest",
+      "properties": {
+        "force": {
+          "$ref": "./shared-schema-components.json#/bc7107060998a5eb71303aab5408722f510f661b709fdcc6574adcf75ac2beec"
+        },
+        "name": {
+          "$ref": "./shared-schema-components.json#/92459e87bcaefe917fed98a4b09e1c83a06eb5b7c1002d81c04f0709dc3fefad"
+        },
+        "namespace": {
+          "$ref": "./shared-schema-components.json#/8bbf6b271775dc42e93173a7e26a7dfa38da903ac83642943bd5b6f0e22be1d9"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version to upgraded to.",
+          "title": "SW/OS Version",
+          "x-displayname": "Version",
+          "x-ves-example": "7.2003.20",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "7.2003.20",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for siteUpgradeOSRequest",
+        "required_fields": ["name", "namespace", "version"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"name\": \"ce398\",\n  \"namespace\": \"system\",\n  \"version\": \"7.2003.20\"\n}",
+        "example_yaml": "name: ce398\nnamespace: system\nversion: 7.2003.20"
+      },
+      "x-f5xc-cli-domain": "other"
+    }
+  }
+}

@@ -107,7 +107,7 @@ const scenarios: Scenario[] = [
         const result = await tool.execute('t', { action: 'show' }, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
-          contains: ['Dev Subscription', '11111111-2222-3333-4444-555555555555', 'Enabled'],
+          contains: ['Dev Subscription', '00000000-0000-4000-8000-000000000001', 'Enabled'],
         });
       }),
   },
@@ -118,7 +118,7 @@ const scenarios: Scenario[] = [
         const tool = createAzAccountShowTool(pi);
         const result = await tool.execute(
           't',
-          { action: 'show', subscription: '11111111-2222-3333-4444-555555555555' },
+          { action: 'show', subscription: '00000000-0000-4000-8000-000000000001' },
           null,
           null,
           { cwd: '/tmp' },
