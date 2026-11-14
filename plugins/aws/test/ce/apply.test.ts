@@ -649,3 +649,76 @@ it('native preflight rejects changed borrowed key identity, digest, region and a
   foreign.identity.accountId = 'example-foreign-account';
   expect(() => assertAwsObservationFresh(plan, foreign)).toThrow();
 });
+
+it('re-reads resume authorization inside the native operation lease before any cloud read', async () => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { CeDeploymentStore } = await import('../../../platform/src/ce/deployment-store');
+  const { saveAwsPlan, saveAwsCheckpoint } = await import('../../src/ce/artifacts');
+  const { executeAwsCeApply } = await import('../../src/ce/apply');
+  const root = await mkdtemp(join(tmpdir(), 'ce-lease-refresh-'));
+  const oldEnv = process.env.XCSH_CE_HEADLESS_MUTATIONS;
+  try {
+    delete process.env.XCSH_CE_HEADLESS_MUTATIONS;
+    const artifacts = join(root, 'artifacts');
+    await mkdir(artifacts);
+    let serial = 0;
+    const session = {
+      getSessionId: () => root,
+      getArtifactsDir: () => artifacts,
+      getArtifactPath: async () => null,
+      saveArtifact: async (content: string, kind: string) => {
+        const id = `lease-event-${++serial}`;
+        await writeFile(join(artifacts, `${id}.${kind}.log`), content, { mode: 0o600 });
+        return id;
+      },
+    };
+    const plan = compileAwsCePlan(intent, observation);
+    await saveAwsPlan(session, plan, observation);
+    const approved = {
+      schemaVersion: 2 as const,
+      engine: 'native' as const,
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      authorization: { planSha256: plan.planSha256, mutations: true as const, destruction: false },
+      completedActionIds: [],
+      resolvedValues: {},
+      state: 'running' as const,
+    };
+    await saveAwsCheckpoint(session, approved);
+    const store = await CeDeploymentStore.open(root, {
+      deploymentId: plan.deploymentName,
+      engine: 'native',
+      provider: 'aws',
+      account: plan.accountId,
+      region: plan.region,
+    });
+    let reads = 0;
+    await expect(
+      executeAwsCeApply(
+        { planId: plan.planId, planSha256: plan.planSha256 },
+        { cwd: root, hasUI: false, ui: { confirm: async () => false }, sessionManager: session },
+        {
+          exec: async () => {
+            reads++;
+            throw Error('Cloud read must not occur');
+          },
+        },
+        {
+          capabilities: async () => capabilities,
+          runtime: async () => ({}),
+          storage: async () => {
+            await saveAwsCheckpoint(session, { ...approved, authorization: undefined, state: 'partial' });
+            return store;
+          },
+        } as never,
+      ),
+    ).rejects.toThrow('Headless AWS CE mutations');
+    expect(reads).toBe(0);
+  } finally {
+    if (oldEnv === undefined) delete process.env.XCSH_CE_HEADLESS_MUTATIONS;
+    else process.env.XCSH_CE_HEADLESS_MUTATIONS = oldEnv;
+    await rm(root, { recursive: true });
+  }
+});
