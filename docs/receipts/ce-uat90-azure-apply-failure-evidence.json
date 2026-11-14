@@ -1,0 +1,28 @@
+{
+  "candidateRevision": 90,
+  "sourceCommit": "455bb429737bd0d70bea9c3a52696abdfd80375d",
+  "fixture": "ce-az90-4b597ef2",
+  "apply": {
+    "startedAt": "2026-10-22T01:55:22.269Z",
+    "completedAt": "2026-10-22T02:11:03.203Z",
+    "isError": true,
+    "reason": "F5 CE API deadline"
+  },
+  "independentFoundationObservation": {
+    "resources": 5,
+    "allOwnerTagsMatch": true,
+    "types": ["publicIPAddresses", "virtualNetworks", "networkInterfaces", "networkInterfaces", "networkInterfaces"]
+  },
+  "journal": {
+    "stage": "network-pending",
+    "bootstrapCount": 0,
+    "launchCount": 0,
+    "reservedSiteRecorded": true
+  },
+  "teardownPreparation": {
+    "isError": true,
+    "reason": "Azure admission or another lifecycle has started; explicit platform retirement is required"
+  },
+  "cleanupVerified": false,
+  "fullCeAcceptance": false
+}

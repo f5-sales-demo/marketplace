@@ -1,0 +1,2914 @@
+{
+  "provenance": {
+    "tag": "v12.5.2",
+    "commit": "18cc909b5ddc97ef9abd48764589d753290a31a4",
+    "assetSha256": "6ddfd13c58332f29c2bb7e6e1a6a567d1e61e75a48da11dad3605344dca083b9",
+    "qualification": "schema-only"
+  },
+  "paths": {
+    "/api/operate/namespaces/{namespace}/sites/{site}/vpm/debug/{node}/exec-user": {
+      "post": {
+        "operationId": "ves.io.schema.operate.debug.CustomPublicAPI.ExecUser",
+        "parameters": [
+          {
+            "name": "namespace",
+            "description": "Namespace\nNamespace for which the request is sent (system)",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Namespace",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "value"
+          },
+          {
+            "name": "site",
+            "description": "Site Name\nName of the site.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Site Name",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "value"
+          },
+          {
+            "name": "node",
+            "description": "Node Name\nName of the node.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Node Name",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "master-0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/debugExecResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/debugExecRequest"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health": {
+      "get": {
+        "operationId": "ves.io.schema.operate.debug.CustomPublicAPI.HealthPublic",
+        "parameters": [
+          {
+            "name": "site",
+            "description": "Site Name\nName of the site.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Site Name",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "value"
+          },
+          {
+            "name": "console_user",
+            "description": "Name of the console user who runs this command.",
+            "in": "query",
+            "required": false,
+            "x-displayname": "User",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "console-user"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/debugHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "debugExecRequest": {
+        "type": "object",
+        "description": "Request to execute CLI command on a specific node in site.",
+        "title": "Exec Request",
+        "x-displayname": "Exec Request.",
+        "x-ves-proto-message": "ves.io.schema.operate.debug.ExecRequest",
+        "properties": {
+          "command": {
+            "type": "array",
+            "description": "Command to execute.",
+            "title": "Command",
+            "items": {
+              "type": "string"
+            },
+            "x-displayname": "Command",
+            "x-f5xc-example": "[\"nslookup\", \"google.com\"]",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "console_user": {
+            "type": "string",
+            "description": "Name of the console user who runs this command.",
+            "title": "User",
+            "x-displayname": "User",
+            "x-ves-example": "Console-user.",
+            "x-f5xc-example": "console-user",
+            "x-f5xc-description-short": "Name of the console user who runs this command.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Namespace for which the request is sent (system)",
+            "title": "Namespace",
+            "x-displayname": "Namespace",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Namespace for which the request is sent (system).",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "node": {
+            "type": "string",
+            "description": "Name of the node.",
+            "title": "Node Name",
+            "x-displayname": "Node Name",
+            "x-ves-example": "Master-0",
+            "x-f5xc-example": "master-0",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "site": {
+            "type": "string",
+            "description": "Name of the site.",
+            "title": "Site Name",
+            "x-displayname": "Site Name",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "Request to execute CLI command on a specific node in site.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for debugExecRequest",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "debugExecResponse": {
+        "type": "object",
+        "description": "Exec response.",
+        "title": "Exec Response",
+        "x-displayname": "Exec Response.",
+        "x-ves-proto-message": "ves.io.schema.operate.debug.ExecResponse",
+        "properties": {
+          "output": {
+            "type": "string",
+            "description": "Output of the requested command.",
+            "title": "Command output",
+            "x-displayname": "Command output.",
+            "x-ves-example": "Non-authoritative answer:\\nName: google.com\\nAddress: 192.0.2.121.",
+            "x-f5xc-example": "Non-authoritative answer:\\nName   google.com\\nAddress: 192.0.2.121",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "return_code": {
+            "type": "integer",
+            "description": "Return code of requested command.",
+            "title": "Return code",
+            "format": "int32",
+            "x-displayname": "Return code.",
+            "x-ves-example": "0",
+            "x-f5xc-example": "0",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for debugExecResponse",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "debugHealthResponse": {
+        "type": "object",
+        "description": "Health response info from site.",
+        "title": "Health Response",
+        "x-displayname": "Health Response.",
+        "x-ves-proto-message": "ves.io.schema.operate.debug.HealthResponse",
+        "properties": {
+          "fqdn": {
+            "type": "string",
+            "description": "Node FQDN used during registration.",
+            "title": "Node FQND",
+            "x-displayname": "Node FQND",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "network",
+              "maxLength": 1024,
+              "minLength": 1,
+              "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+              "format": "fqdn",
+              "validation": {
+                "rfc": "RFC 1123"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.95,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "hostname": {
+            "type": "string",
+            "description": "Hostname of the node.",
+            "title": "Hostname",
+            "x-displayname": "Hostname",
+            "x-f5xc-example": "example-resource",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "network",
+              "maxLength": 1024,
+              "minLength": 1,
+              "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+              "format": "fqdn",
+              "validation": {
+                "rfc": "RFC 1123"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.95,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "initial_password_changed": {
+            "type": "boolean",
+            "description": "If the factory password changed on host.",
+            "title": "Factory Password Changed",
+            "x-displayname": "Factory Password Changed.",
+            "x-f5xc-description-short": "If the factory password changed on host.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "lte_support": {
+            "type": "boolean",
+            "description": "If the box has LTE support.",
+            "title": "LTE Support",
+            "x-displayname": "LTE Support.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "os_info": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteOsInfo__health_read_b9ead95ab1fb"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "os_version": {
+            "type": "string",
+            "description": "OS version on host.",
+            "title": "OS Version",
+            "x-displayname": "OS Version.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "public_ip": {
+            "type": "string",
+            "description": "Public IP gives vhost0 or other primary IP.",
+            "title": "Public IP",
+            "x-displayname": "Public IP",
+            "x-f5xc-description-short": "Public IP gives vhost0 or other primary IP.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "roles": {
+            "type": "array",
+            "description": "If node is worker node.",
+            "title": "Roles",
+            "items": {
+              "type": "string"
+            },
+            "x-displayname": "Roles",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "software_version": {
+            "type": "string",
+            "description": "F5 Distributed Cloud software version.",
+            "title": "Software Version",
+            "x-displayname": "Software Version.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/debugVpmState"
+              }
+            ],
+            "x-f5xc-example": "running",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "VPM version running on host.",
+            "title": "VPM Version",
+            "x-displayname": "VPM version.",
+            "x-f5xc-example": "v1.2.3",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "vesop_ssh_enabled": {
+            "type": "boolean",
+            "description": "Indicates whether F5 (vesop) SSH access is currently enabled on the site.",
+            "title": "F5 SSH Access Enabled",
+            "x-displayname": "F5 SSH Access Enabled.",
+            "x-f5xc-description-short": "Indicates whether F5 (vesop) SSH access is currently enabled on the site.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vesop_ssh_remaining_time": {
+            "type": "string",
+            "description": "Displays the remaining time until F5 (vesop) SSH access is enabled. Empty if SSH is disabled or permanently enabled.",
+            "title": "F5 SSH Expiry Time",
+            "x-displayname": "F5 SSH Expiry Time.",
+            "x-ves-example": "5m30s",
+            "x-f5xc-example": "5m30s",
+            "x-f5xc-description-short": "Displays the remaining time until F5 (vesop) SSH access is enabled. Empty if SSH is disabled or permanently enabled.",
+            "x-f5xc-description-medium": "Displays the remaining time until F5 (vesop) SSH access is enabled. Empty if SSH is disabled or permanently enabled.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "wifi_support": {
+            "type": "boolean",
+            "description": "If the box has WIFI support.",
+            "title": "WIFI Support",
+            "x-displayname": "WIFI Support.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for debugHealthResponse",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-response-nullability": {
+          "issue": "#1984",
+          "paths": ["os_info.gpu"]
+        }
+      },
+      "siteOsInfo__health_read_b9ead95ab1fb": {
+        "type": "object",
+        "description": "OsInfo holds information about host OS and HW.",
+        "title": "OsInfo",
+        "x-displayname": "OS Info",
+        "x-ves-proto-message": "ves.io.schema.site.OsInfo",
+        "properties": {
+          "bios": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteBios"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "board": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteBoard"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "chassis": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteChassis"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "cpu": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteCpu"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "gpu": {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/siteGPU"
+                  }
+                ],
+                "x-f5xc-required-for": {
+                  "minimum_config": false,
+                  "create": false,
+                  "update": false,
+                  "read": false
+                }
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [null]
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "kernel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteKernel"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "memory": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteMemory"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "network": {
+            "type": "array",
+            "description": "List of network devices in server.",
+            "title": "network",
+            "items": {
+              "$ref": "#/components/schemas/siteNetworkDevice"
+            },
+            "x-displayname": "Network",
+            "x-f5xc-example": "192.0.2.0/24",
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "networking",
+              "minItems": 0,
+              "maxItems": 32,
+              "uniqueItems": false,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.8,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "numa_nodes": {
+            "type": "integer",
+            "description": "Non-uniform memory access (NUMA) nodes count.",
+            "title": "NUMA Nodes Count",
+            "format": "int32",
+            "x-displayname": "NUMA nodes count.",
+            "x-ves-example": "1",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.int32.gte": "0"
+            },
+            "x-f5xc-example": "1",
+            "x-validation-rules": {
+              "ves.io.schema.rules.int32.gte": "0"
+            },
+            "x-f5xc-description-short": "Non-uniform memory access (NUMA) nodes count.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 0,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "os": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteOS"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "product": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteProduct"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "storage": {
+            "type": "array",
+            "description": "List of storage devices in server.",
+            "title": "storage",
+            "items": {
+              "$ref": "#/components/schemas/siteStorageDevice"
+            },
+            "x-displayname": "Storage",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "usb": {
+            "type": "array",
+            "description": "List of USB devices in server.",
+            "title": "USBDevice",
+            "items": {
+              "$ref": "#/components/schemas/siteUSBDevice"
+            },
+            "x-displayname": "USB devices.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "OsInfo holds information about host OS and HW.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteOsInfo",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteBios": {
+        "type": "object",
+        "description": "BIOS information.",
+        "title": "Bios Data",
+        "x-displayname": "Bios Data",
+        "x-ves-proto-message": "ves.io.schema.site.Bios",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/bios_date.",
+            "title": "date",
+            "x-displayname": "Date",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/bios_date.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "temporal",
+              "maxLength": 1024,
+              "minLength": 10,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "format": "date",
+              "formatDescription": "ISO 8601 date (e.g., 2026-01-19)",
+              "validation": {
+                "standard": "ISO 8601"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.95,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/bios_vendor.",
+            "title": "vendor",
+            "x-displayname": "Vendor",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/bios_vendor.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/bios_version.",
+            "title": "version",
+            "x-displayname": "Version",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/bios_version.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteBios",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteBoard": {
+        "type": "object",
+        "description": "Board information.",
+        "title": "Board Details",
+        "x-displayname": "Board Details.",
+        "x-ves-proto-message": "ves.io.schema.site.Board",
+        "properties": {
+          "asset_tag": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/board_asset_tag.",
+            "title": "asset_tag",
+            "x-displayname": "Asset Tag",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/board_asset_tag.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/board_name.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/board_name.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "serial": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/board_serial.",
+            "title": "serial",
+            "x-displayname": "Serial Number.",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/board_serial.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/board_vendor.",
+            "title": "vendor",
+            "x-displayname": "Vendor",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/board_vendor.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/board_version.",
+            "title": "version",
+            "x-displayname": "Version",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/board_version.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteBoard",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteChassis": {
+        "type": "object",
+        "description": "Chassis information.",
+        "title": "Chassis Details",
+        "x-displayname": "Chassis Details.",
+        "x-ves-proto-message": "ves.io.schema.site.Chassis",
+        "properties": {
+          "asset_tag": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/chassis_asset_tag.",
+            "title": "asset_tag",
+            "x-displayname": "Asset Tag",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/chassis_asset_tag.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "serial": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/chassis_serial.",
+            "title": "serial",
+            "x-displayname": "Serial Number.",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/chassis_serial.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "type": {
+            "type": "integer",
+            "description": "Information from /sys/class/dmi/ID/chassis_type.",
+            "title": "type",
+            "format": "int64",
+            "x-displayname": "Type",
+            "x-ves-example": "0",
+            "x-f5xc-example": "0",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/chassis_type.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/chassis_vendor.",
+            "title": "vendor",
+            "x-displayname": "Vendor",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/chassis_vendor.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Information from /sys/class/dmi/ID/chassis_version.",
+            "title": "version",
+            "x-displayname": "Version",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Information from /sys/class/dmi/ID/chassis_version.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteChassis",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteCpu": {
+        "type": "object",
+        "description": "CPU information.",
+        "title": "Cpu information",
+        "x-displayname": "CPU Information.",
+        "x-ves-proto-message": "ves.io.schema.site.Cpu",
+        "properties": {
+          "cache": {
+            "type": "integer",
+            "description": "CPU cache size in KB.",
+            "title": "cache",
+            "format": "int64",
+            "x-displayname": "Cache",
+            "x-ves-example": "8192",
+            "x-f5xc-example": "8192",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "cores": {
+            "type": "integer",
+            "description": "Number of physical CPU cores.",
+            "title": "cores",
+            "format": "int64",
+            "x-displayname": "Cores",
+            "x-ves-example": "4",
+            "x-f5xc-example": "4",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "cpus": {
+            "type": "integer",
+            "description": "Number of physical CPUs.",
+            "title": "cpus",
+            "format": "int64",
+            "x-displayname": "CPUs",
+            "x-ves-example": "4",
+            "x-f5xc-example": "4",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "model": {
+            "type": "string",
+            "description": "CPU model",
+            "title": "model",
+            "x-displayname": "Model",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "speed": {
+            "type": "integer",
+            "description": "CPU clock rate in MHz.",
+            "title": "speed",
+            "format": "int64",
+            "x-displayname": "Speed",
+            "x-ves-example": "4200",
+            "x-f5xc-example": "4200",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "threads": {
+            "type": "integer",
+            "description": "Number of logical (HT) CPU cores.",
+            "title": "threads",
+            "format": "int64",
+            "x-displayname": "Threads",
+            "x-ves-example": "4",
+            "x-f5xc-example": "4",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor": {
+            "type": "string",
+            "description": "CPU vendor.",
+            "title": "vendor",
+            "x-displayname": "Vendor",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteCpu",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteGPU": {
+        "type": "object",
+        "description": "GPU information on server.",
+        "title": "GPU",
+        "x-displayname": "GPU",
+        "x-ves-proto-message": "ves.io.schema.site.GPU",
+        "properties": {
+          "cuda_version": {
+            "type": "string",
+            "description": "GPU Cuda Version.",
+            "title": "cudaVersion",
+            "x-displayname": "Cuda Version.",
+            "x-ves-example": "10.2",
+            "x-f5xc-example": "10.2",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "driver_version": {
+            "type": "string",
+            "description": "GPU Driver Version.",
+            "title": "driverVersion",
+            "x-displayname": "Driver Version.",
+            "x-ves-example": "440.82",
+            "x-f5xc-example": "440.82",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "gpu_device": {
+            "type": "array",
+            "description": "List of GPU devices in server.",
+            "title": "GPUDevice",
+            "items": {
+              "$ref": "#/components/schemas/siteGPUDevice"
+            },
+            "x-displayname": "GPU devices.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteGPU",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteGPUDevice": {
+        "type": "object",
+        "title": "GPUDevice",
+        "x-displayname": "GPUDevice",
+        "x-ves-proto-message": "ves.io.schema.site.GPUDevice",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "GPU ID",
+            "title": "id",
+            "x-displayname": "GPU ID",
+            "x-ves-example": "00000000:17:00.0.",
+            "x-f5xc-example": "00000000:17:00.0",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "processes": {
+            "type": "string",
+            "description": "GPU Processes.",
+            "title": "processes",
+            "x-displayname": "Processes",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "product_name": {
+            "type": "string",
+            "description": "GPU Product Name.",
+            "title": "productName",
+            "x-displayname": "Product Name.",
+            "x-ves-example": "Quadro P1000.",
+            "x-f5xc-example": "Quadro P1000",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteGPUDevice",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteKernel": {
+        "type": "object",
+        "description": "Kernel information.",
+        "title": "Kernel Information",
+        "x-displayname": "Kernel",
+        "x-ves-proto-message": "ves.io.schema.site.Kernel",
+        "properties": {
+          "architecture": {
+            "type": "string",
+            "description": "Kernel architecture.",
+            "title": "architecture",
+            "x-displayname": "Architecture.",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "release": {
+            "type": "string",
+            "description": "Kernel release.",
+            "title": "release",
+            "x-displayname": "Release",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Kernel version.",
+            "title": "version",
+            "x-displayname": "Version",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteKernel",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteMemory": {
+        "type": "object",
+        "description": "Memory information.",
+        "title": "Memory Information",
+        "x-displayname": "Memory Information.",
+        "x-ves-proto-message": "ves.io.schema.site.Memory",
+        "properties": {
+          "size_mb": {
+            "type": "integer",
+            "description": "RAM size in MB.",
+            "title": "size_mb",
+            "format": "int64",
+            "x-displayname": "RAM",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "speed": {
+            "type": "integer",
+            "description": "RAM data rate in MT/s.",
+            "title": "speed",
+            "format": "int64",
+            "x-displayname": "Speed",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of memory, eg. DDR4.",
+            "title": "type",
+            "x-displayname": "Type",
+            "x-ves-example": "DDR4",
+            "x-f5xc-example": "DDR4",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteMemory",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteNetworkDevice": {
+        "type": "object",
+        "description": "NetworkDevice information.",
+        "title": "Network Device Information",
+        "x-displayname": "Network Device Information.",
+        "x-ves-proto-message": "ves.io.schema.site.NetworkDevice",
+        "properties": {
+          "driver": {
+            "type": "string",
+            "description": "Driver of device, eg. E1000e.",
+            "title": "driver",
+            "x-displayname": "Driver",
+            "x-ves-example": "E1000e",
+            "x-f5xc-example": "e1000e",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "ip_address": {
+            "type": "array",
+            "description": "IP address on interface.",
+            "title": "ip_address",
+            "items": {
+              "type": "string"
+            },
+            "x-displayname": "IP Address.",
+            "x-ves-example": "192.0.2.242.",
+            "x-f5xc-example": "192.0.2.242",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "link_quality": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteLinkQuality"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for link quality.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "link_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteLinkType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "mac_address": {
+            "type": "string",
+            "description": "MAC address on interface.",
+            "title": "mac_address",
+            "x-displayname": "MAC Address.",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "network",
+              "maxLength": 1024,
+              "minLength": 17,
+              "pattern": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$",
+              "format": "mac-address",
+              "formatDescription": "MAC address (e.g., 00:1A:2B:3C:4D:5E)",
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.95,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of device, eg. Eth0.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "Eth0",
+            "x-f5xc-example": "eth0",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "port": {
+            "type": "string",
+            "description": "Used port, eg. Tp.",
+            "title": "port",
+            "x-displayname": "Port",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "speed": {
+            "type": "integer",
+            "description": "Device max supported speed in Mbps.",
+            "title": "speed",
+            "format": "int64",
+            "x-displayname": "Speed",
+            "x-ves-example": "1000",
+            "x-f5xc-example": "1000",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteNetworkDevice",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteLinkQuality": {
+        "type": "string",
+        "description": "Link quality determined by VER using different probes\n\nUnknown quality\nLink quality is good\nLink quality is poor\nQuality disabled.",
+        "title": "Link quality",
+        "enum": ["QUALITY_UNKNOWN", "QUALITY_GOOD", "QUALITY_POOR", "QUALITY_DISABLED"],
+        "default": "QUALITY_UNKNOWN",
+        "x-displayname": "Link quality.",
+        "x-ves-proto-enum": "ves.io.schema.site.LinkQuality",
+        "x-f5xc-description-short": "Link quality determined by VER using different probes Unknown quality Link quality is good Link quality is poor Quality disabled.",
+        "x-f5xc-description-medium": "Link quality determined by VER using different probes Unknown quality Link quality is good Link quality is poor Quality disabled.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteLinkQuality",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "\"QUALITY_UNKNOWN\"",
+          "example_yaml": "QUALITY_UNKNOWN\n..."
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteLinkType": {
+        "type": "string",
+        "description": "Link type of interface determined operationally\n\nLink type unknown\nLink type ethernet\nWi-Fi link of type 802.11ac\nWi-Fi link of type 802.11bgn\nLink type 4G\nWi-Fi link\nWan link.",
+        "title": "Link type",
+        "enum": [
+          "LINK_TYPE_UNKNOWN",
+          "LINK_TYPE_ETHERNET",
+          "LINK_TYPE_WIFI_802_11AC",
+          "LINK_TYPE_WIFI_802_11BGN",
+          "LINK_TYPE_4G",
+          "LINK_TYPE_WIFI",
+          "LINK_TYPE_WAN"
+        ],
+        "default": "LINK_TYPE_UNKNOWN",
+        "x-displayname": "Link type",
+        "x-ves-proto-enum": "ves.io.schema.site.LinkType",
+        "x-f5xc-description-short": "Link type of interface determined operationally Link type unknown Link type ethernet Wi-Fi link of type 802.11ac Wi-Fi link of type 802.11bgn Link...",
+        "x-f5xc-description-medium": "Link type of interface determined operationally Link type unknown Link type ethernet Wi-Fi link of type 802.11ac Wi-Fi link of type 802.11bgn Link type 4G Wi-Fi link Wan link.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteLinkType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "\"LINK_TYPE_UNKNOWN\"",
+          "example_yaml": "LINK_TYPE_UNKNOWN\n..."
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteOS": {
+        "type": "object",
+        "description": "Details of Operating System.",
+        "title": "OS",
+        "x-displayname": "OS",
+        "x-ves-proto-message": "ves.io.schema.site.OS",
+        "properties": {
+          "architecture": {
+            "type": "string",
+            "description": "Architecture of OS.",
+            "title": "architecture",
+            "x-displayname": "Architecture.",
+            "x-ves-example": "Amd64",
+            "x-f5xc-example": "amd64",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of OS.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "Container Linux by CoreOS 1855.4.0 (Rhyolite)",
+            "x-f5xc-example": "Container Linux by CoreOS 1855.4.0 (Rhyolite)",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "release": {
+            "type": "string",
+            "description": "Release of the OS.",
+            "title": "release",
+            "x-displayname": "Release",
+            "x-ves-example": "20.04",
+            "x-f5xc-example": "20.04",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Vendor of OS.",
+            "title": "vendor",
+            "x-displayname": "Vendor",
+            "x-ves-example": "Coreos",
+            "x-f5xc-example": "coreos",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Version of OS.",
+            "title": "version",
+            "x-displayname": "Version",
+            "x-ves-example": "1855.4.0",
+            "x-f5xc-example": "1855.4.0",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteOS",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteProduct": {
+        "type": "object",
+        "description": "Product information.",
+        "title": "Product Information",
+        "x-displayname": "Product Information.",
+        "x-ves-proto-message": "ves.io.schema.site.Product",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Product name, eg. For AWS m5a.xlarge. Info taken from /sys/class/dmi/ID/product_name.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "m5a.xlarge.",
+            "x-f5xc-example": "m5a.xlarge",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "serial": {
+            "type": "string",
+            "description": "Serial number, eg. For AWS 00000000-0000-4000-8000-23460f645a1f. Info taken from /sys/class/dmi/ID/product_serial.",
+            "title": "serial",
+            "x-displayname": "Serial Number.",
+            "x-ves-example": "00000000-0000-4000-8000-23460f645a1f.",
+            "x-f5xc-example": "00000000-0000-4000-8000-23460f645a1f",
+            "x-f5xc-description-short": "Serial number, eg. For AWS 00000000-0000-4000-8000-23460f645a1f.",
+            "x-f5xc-description-medium": "Serial number, eg. For AWS 00000000-0000-4000-8000-23460f645a1f. Info taken from /sys/class/dmi/ID/product_serial.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Vendor name, eg. For AWS Amazon EC2. Info taken from /sys/class/dmi/ID/product_vendor.",
+            "title": "vendor",
+            "x-displayname": "Vendor",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Version name. Info taken from /sys/class/dmi/ID/product_version.",
+            "title": "version",
+            "x-displayname": "Version",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-description-short": "Version name. Info taken from /sys/class/dmi/ID/product_version.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteProduct",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteStorageDevice": {
+        "type": "object",
+        "description": "StorageDevice information.",
+        "title": "Storage Information",
+        "x-displayname": "Storage Information.",
+        "x-ves-proto-message": "ves.io.schema.site.StorageDevice",
+        "properties": {
+          "driver": {
+            "type": "string",
+            "description": "Driver of device.",
+            "title": "driver",
+            "x-displayname": "Driver",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "model": {
+            "type": "string",
+            "description": "Model of device.",
+            "title": "model",
+            "x-displayname": "Model",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of device, eg. Nvme0n1.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "Nvme0n1",
+            "x-f5xc-example": "nvme0n1",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "serial": {
+            "type": "string",
+            "description": "Serial of device.",
+            "title": "serial",
+            "x-displayname": "Serial Number.",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "size_gb": {
+            "type": "integer",
+            "description": "Device size in GB.",
+            "title": "size_gb",
+            "format": "int64",
+            "x-displayname": "Size(GB)",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Vendor of device.",
+            "title": "vendor",
+            "x-displayname": "Vendor",
+            "x-ves-example": "Value",
+            "x-f5xc-example": "value",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteStorageDevice",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteUSBDevice": {
+        "type": "object",
+        "description": "Information about USB device.",
+        "title": "USB device",
+        "x-displayname": "USB Device information.",
+        "x-ves-proto-message": "ves.io.schema.site.USBDevice",
+        "properties": {
+          "address": {
+            "type": "integer",
+            "description": "Address of the device on the bus in decimal.",
+            "title": "address",
+            "format": "int64",
+            "x-displayname": "Address",
+            "x-ves-example": "4",
+            "x-f5xc-example": "4",
+            "x-f5xc-description-short": "Address of the device on the bus in decimal.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "b_device_class": {
+            "type": "string",
+            "description": "The class of this device.",
+            "title": "b_device_class",
+            "x-displayname": "Class",
+            "x-ves-example": "Hub",
+            "x-f5xc-example": "hub",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "b_device_protocol": {
+            "type": "string",
+            "description": "The protocol (within the sub-class) of this device.",
+            "title": "b_device_protocol",
+            "x-displayname": "Protocol",
+            "x-ves-example": "0002",
+            "x-f5xc-example": "0002",
+            "x-f5xc-description-short": "The protocol (within the sub-class) of this device.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "b_device_sub_class": {
+            "type": "string",
+            "description": "The sub-class (within the class) of this device.",
+            "title": "b_device_sub_class",
+            "x-displayname": "Subclass",
+            "x-ves-example": "Hub",
+            "x-f5xc-example": "hub",
+            "x-f5xc-description-short": "The sub-class (within the class) of this device.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "b_max_packet_size": {
+            "type": "integer",
+            "description": "Maximum size of the control transfer.",
+            "title": "b_max_packet_size",
+            "format": "int64",
+            "x-displayname": "Max packet size.",
+            "x-ves-example": "64",
+            "x-f5xc-example": "64",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "bcd_device": {
+            "type": "string",
+            "description": "The device version.",
+            "title": "bcd_device",
+            "x-displayname": "BCD Device.",
+            "x-ves-example": "5.05",
+            "x-f5xc-example": "5.05",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "bcd_usb": {
+            "type": "string",
+            "description": "USB Specification Release Number.",
+            "title": "bcd_usb",
+            "x-displayname": "BCD Spec",
+            "x-ves-example": "2.0",
+            "x-f5xc-example": "2.0",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "bus": {
+            "type": "integer",
+            "description": "The bus on which the device was detected in decimal.",
+            "title": "bus",
+            "format": "int64",
+            "x-displayname": "Bus",
+            "x-ves-example": "1",
+            "x-f5xc-example": "1",
+            "x-f5xc-description-short": "The bus on which the device was detected in decimal.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "Device description.",
+            "title": "description",
+            "x-displayname": "Description.",
+            "x-ves-example": "NetVista Full Width Keyboard (IBM Corp.)",
+            "x-f5xc-example": "NetVista Full Width Keyboard (IBM Corp.)",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "content",
+              "maxLength": 1024,
+              "minLength": 0,
+              "characterSet": {
+                "description": "Free text with UTF-8 support"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.8,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-10-29T12:14:42+00:00"
+          },
+          "i_manufacturer": {
+            "type": "string",
+            "description": "Manufacturer name.",
+            "title": "i_manufacturer",
+            "x-displayname": "Manufacturer.",
+            "x-ves-example": "Voltera",
+            "x-f5xc-example": "Voltera",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "i_product": {
+            "type": "string",
+            "description": "Product name reported by device.",
+            "title": "i_product",
+            "x-displayname": "Device product.",
+            "x-ves-example": "XHCI Host Controller.",
+            "x-f5xc-example": "xHCI Host Controller",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "i_serial": {
+            "type": "string",
+            "description": "Index of Serial Number String Descriptor.",
+            "title": "i_serial_number",
+            "x-displayname": "ISerialNumber.",
+            "x-ves-example": "0000:00:14.0.",
+            "x-f5xc-example": "0000:00:14.0",
+            "x-f5xc-description-short": "Index of Serial Number String Descriptor.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "id_product": {
+            "type": "string",
+            "description": "Product ID (Assigned by Manufacturer) in hex.",
+            "title": "id_product",
+            "x-displayname": "Product ID.",
+            "x-ves-example": "0x0002",
+            "x-f5xc-example": "0x0002",
+            "x-f5xc-description-short": "Product ID (Assigned by Manufacturer) in hex.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "id_vendor": {
+            "type": "string",
+            "description": "Vendor ID (Assigned by USB Org) in hex.",
+            "title": "id_vendor",
+            "x-displayname": "Vendor ID",
+            "x-ves-example": "0x1d6b",
+            "x-f5xc-example": "0x1d6b",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "port": {
+            "type": "integer",
+            "description": "Port on which the device was detected in decimal.",
+            "title": "port",
+            "format": "int64",
+            "x-displayname": "Port",
+            "x-ves-example": "3",
+            "x-f5xc-example": "3",
+            "x-f5xc-description-short": "Port on which the device was detected in decimal.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "networking",
+              "minimum": 1,
+              "maximum": 65535,
+              "multipleOf": 1,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "product_name": {
+            "type": "string",
+            "description": "Product ID translated to name (if available)",
+            "title": "product_name",
+            "x-displayname": "Product name.",
+            "x-ves-example": "NetVista Full Width Keyboard.",
+            "x-f5xc-example": "NetVista Full Width Keyboard",
+            "x-f5xc-description-short": "Product ID translated to name (if available).",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "speed": {
+            "type": "string",
+            "description": "The negotiated operating speed for the device.",
+            "title": "speed",
+            "x-displayname": "Speed",
+            "x-ves-example": "High",
+            "x-f5xc-example": "high",
+            "x-f5xc-description-short": "The negotiated operating speed for the device.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "usb_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/siteUsbType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "vendor_name": {
+            "type": "string",
+            "description": "Vendor ID translated to name (if available)",
+            "title": "vendor_name",
+            "x-displayname": "Vendor name.",
+            "x-ves-example": "IBM Corp.",
+            "x-f5xc-example": "IBM Corp.",
+            "x-f5xc-description-short": "Vendor ID translated to name (if available).",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-10-29T12:14:42+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteUSBDevice",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "siteUsbType": {
+        "type": "string",
+        "description": "Type of USB device\n\nUnknown USB device type\nInternal USB present in Certified HW\nUSB device present during node registration\nUSB device that can be matched by USB rules.",
+        "title": "UsbType",
+        "enum": ["UNKNOWN_USB", "INTERNAL", "REGISTERED", "CONFIGURABLE"],
+        "default": "UNKNOWN_USB",
+        "x-displayname": "USB Type",
+        "x-ves-proto-enum": "ves.io.schema.site.UsbType",
+        "x-f5xc-description-short": "Type of USB device Unknown USB device type Internal USB present in Certified HW USB device present during node registration USB device that can be...",
+        "x-f5xc-description-medium": "Type of USB device Unknown USB device type Internal USB present in Certified HW USB device present during node registration USB device that can be matched by USB rules.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for siteUsbType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "\"UNKNOWN_USB\"",
+          "example_yaml": "UNKNOWN_USB\n..."
+        },
+        "x-f5xc-cli-domain": "other"
+      },
+      "debugVpmState": {
+        "type": "string",
+        "description": "State of Site defines in which operational state site itself is.\n\nSite is waiting for input configuration.\nSite is waiting for approval.\nSite is in provisioning state.\nSite is in provisioned.\nSite is in failed state. It failed during any stage.\nSite is in factory resetting mode.",
+        "title": "VpmState",
+        "enum": ["WAITING_FOR_CONFIG", "WAITING_FOR_APPROVAL", "PROVISIONING", "PROVISIONED", "FAILED", "RESETTING"],
+        "default": "WAITING_FOR_CONFIG",
+        "x-displayname": "Site State.",
+        "x-ves-proto-enum": "ves.io.schema.operate.debug.VpmState",
+        "x-f5xc-description-short": "State of Site defines in which operational state site itself is. Site is waiting for input configuration.",
+        "x-f5xc-description-medium": "State of Site defines in which operational state site itself is. Site is waiting for input configuration. Site is waiting for approval. Site is in provisioning state. Site is in provisioned.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for debugVpmState",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "\"WAITING_FOR_CONFIG\"",
+          "example_yaml": "WAITING_FOR_CONFIG\n..."
+        },
+        "x-f5xc-cli-domain": "other"
+      }
+    }
+  }
+}
