@@ -1,0 +1,114 @@
+{
+  "request": {
+    "metadata": {
+      "name": "sanitized-site",
+      "namespace": "system"
+    },
+    "spec": {
+      "aws": {
+        "not_managed": {
+          "node_list": [
+            {
+              "hostname": "sanitized-node",
+              "type": "Control",
+              "interface_list": [
+                {
+                  "description": "",
+                  "dhcp_client": {},
+                  "ethernet_interface": {
+                    "device": "ens5",
+                    "mac": "02:00:00:00:00:01"
+                  },
+                  "labels": {},
+                  "mtu": 1500,
+                  "name": "slo",
+                  "network_option": {
+                    "site_local_network": {}
+                  },
+                  "priority": 0,
+                  "is_primary": false,
+                  "is_management": false
+                },
+                {
+                  "description": "",
+                  "dhcp_client": {},
+                  "ethernet_interface": {
+                    "device": "ens6",
+                    "mac": "02:00:00:00:00:02"
+                  },
+                  "labels": {},
+                  "mtu": 1500,
+                  "name": "sli",
+                  "network_option": {
+                    "site_local_inside_network": {}
+                  },
+                  "priority": 0,
+                  "is_primary": false,
+                  "is_management": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "observed": {
+    "metadata": {
+      "name": "sanitized-site",
+      "namespace": "system"
+    },
+    "system_metadata": {
+      "uid": "sanitized-site-uid"
+    },
+    "spec": {
+      "aws": {
+        "not_managed": {
+          "node_list": [
+            {
+              "hostname": "sanitized-node",
+              "interface_list": [
+                {
+                  "description": "",
+                  "dhcp_client": {},
+                  "ethernet_interface": {
+                    "device": "ens5",
+                    "mac": "02:00:00:00:00:01"
+                  },
+                  "is_management": false,
+                  "is_primary": false,
+                  "labels": {},
+                  "mtu": 1500,
+                  "name": "slo",
+                  "network_option": {
+                    "site_local_network": {}
+                  },
+                  "priority": 0
+                },
+                {
+                  "description": "",
+                  "dhcp_client": {},
+                  "ethernet_interface": {
+                    "device": "ens6",
+                    "mac": "02:00:00:00:00:02"
+                  },
+                  "is_management": false,
+                  "is_primary": false,
+                  "labels": {},
+                  "mtu": 1500,
+                  "name": "sli",
+                  "network_option": {
+                    "site_local_inside_network": {}
+                  },
+                  "priority": 0
+                }
+              ],
+              "public_ip": "203.0.113.10",
+              "type": "Control"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

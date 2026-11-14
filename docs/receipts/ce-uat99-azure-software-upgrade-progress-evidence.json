@@ -1,0 +1,28 @@
+{
+  "candidateRevision": 99,
+  "sourceCommit": "6bef7bb848af1562404fe9f6128d6e596d04579b",
+  "cliVersion": "23.9.3",
+  "observedAt": "2026-10-22T08:09:36.754721+00:00",
+  "installedPublicUpgradePlan": {
+    "operation": "apply",
+    "basePlanId": "azure-ce-410522de564e9e3809aeb74a",
+    "basePlanSha256": "410522de564e9e3809aeb74a2c881a1a4d473917b9d5331b3233e8ccc3552241",
+    "upgradePlanId": "azure-ce-upgrade-140ce1bc5645bbb7fc941150",
+    "upgradePlanSha256": "140ce1bc5645bbb7fc94115052546723a1fcf138c4b719e340e394ba81134bdb"
+  },
+  "publicApply": [
+    {
+      "tool": "azure_ce_upgrade",
+      "startedAt": "2026-10-22T08:10:12.257Z",
+      "completedAt": "2026-10-22T08:10:36.757Z",
+      "isError": false,
+      "status": "upgrade-converging"
+    }
+  ],
+  "effectiveSoftware": "crt-20260201-0179",
+  "requestedTarget": "crt-20260801-0209",
+  "siteState": "UPGRADING",
+  "serialSoftwareUpgradeQualified": false,
+  "serialOsUpgradeQualified": false,
+  "fullCeAcceptance": false
+}
