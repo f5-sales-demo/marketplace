@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "qualification": "aws-native-singleton-initial-installed-versions",
+  "evidence": {
+    "observedAt": "2026-10-22T12:48:06.155595+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "sourcePlanSha256": "bc230da925fad2f55ddb4276af5a7c7a88882a1ce318a48f4ce79a64bcc2f201",
+    "sourcePrivateReceipt": "independent-inventory-20261022T124620707663Z.private.json",
+    "responseSha256": "5444fe2b205b794ab50ce191decd47ee7648c4b5660d8b15cc4933dc36b3785c",
+    "publicInstallationStatus": "complete",
+    "siteState": "ONLINE",
+    "installationScope": "site-global-only",
+    "installedBaseline": {
+      "software": "crt-20260201-0179",
+      "os": "9.2026.17",
+      "osHardwareReported": "Red Hat Enterprise Linux 9.2026.17.8 (Plow)"
+    },
+    "registeredInstanceNodeIdentityVerified": true,
+    "interfaces": 2,
+    "serialUpgradeComplete": false,
+    "nodeHealth": "unknown",
+    "traffic": "unknown",
+    "originalCeSampleAge": "unknown",
+    "first20MinuteFailurePreserved": true,
+    "original40MinuteInstallationDeadlineUnchanged": true,
+    "fullCeAcceptance": false,
+    "initialOsDeploymentPhase": "UPGRADE_COMPLETED",
+    "initialOsDeploymentResult": "success",
+    "installationElapsedSecondsFromOriginalSupervisorStart": 1936.281463,
+    "installationDeadlineSeconds": 2400,
+    "awsTerraform45SecondRecoveryQualified": false
+  },
+  "serialUpgradeAcceptance": "pending",
+  "cleanupAcceptance": "pending",
+  "ceReleaseReady": false
+}

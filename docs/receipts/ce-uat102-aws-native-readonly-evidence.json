@@ -1,0 +1,74 @@
+{
+  "observedAt": "2026-10-22T09:26:34.747Z",
+  "candidateRevision": 102,
+  "sourceCommit": "fb7e61a5af2860fa7770bfaf6fffc157bc37f828",
+  "cliVersion": "23.9.3",
+  "sanitized": true,
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "a596fb457a031e98a6879ea43f6ac5b11bf0a4a6ec7f52080e4b3c372b168dd8"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "cdc85ac1d1d49b4e873aa772a292e6570aa64a8992fb531edd7545b4d6a5ec35"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "43a3eef242dfaf0b8ddeb49de0c93fa3faedf0c60b6ac6aadeec63572391f295"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6"
+    }
+  ],
+  "discovery": {
+    "passed": true,
+    "regionCount": 34,
+    "eligibleRegions": 8
+  },
+  "planning": {
+    "passed": true,
+    "profile": "single-site",
+    "plans": [
+      {
+        "engine": "native",
+        "planId": "aws-ce-aa6c66a296af7f510c06583c",
+        "planSha256": "aa6c66a296af7f510c06583c76a8827edd2df2037e868d6e9bb340e5a494f6fa",
+        "nodeCount": 1,
+        "actionCount": 21,
+        "trafficGateCount": 0
+      }
+    ]
+  },
+  "cloudMutationPerformedDuringTheseCalls": false,
+  "fixtureLaterMutated": true,
+  "liveLifecycleAcceptance": false,
+  "fullCeAcceptance": false,
+  "trace": [
+    {
+      "tool": "aws_sts_whoami",
+      "startedAt": "2026-10-22T09:24:44.094Z",
+      "completedAt": "2026-10-22T09:24:44.748Z",
+      "isError": false
+    },
+    {
+      "tool": "f5xc_ce_v2_capabilities",
+      "startedAt": "2026-10-22T09:24:44.748Z",
+      "completedAt": "2026-10-22T09:24:56.751Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_compute_discover",
+      "startedAt": "2026-10-22T09:24:56.751Z",
+      "completedAt": "2026-10-22T09:26:32.032Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T09:26:34.728Z",
+      "completedAt": "2026-10-22T09:26:34.747Z",
+      "isError": false
+    }
+  ]
+}
