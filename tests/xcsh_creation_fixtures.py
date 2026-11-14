@@ -82,13 +82,16 @@ class CooperativeProcess(subprocess.Popen[bytes]):
 
 @pytest.fixture
 def original(tmp_path, request):
+    profile = getattr(request, "param", "single")
+    if profile == "setgid":
+        tmp_path.chmod(0o2700)
     sink = tmp_path / "sink"
     sink.mkdir(mode=0o700)
+    sink.chmod(0o700)
     exe = Path(sys.executable).resolve()
     digest = hashlib.sha256(exe.read_bytes()).hexdigest()
     target = {"type_name": "xcsh_token", "name": "example-token", "namespace": "system"}
     targets = [target]
-    profile = getattr(request, "param", "single")
     if profile in ("two", "partial"):
         targets.append(
             {

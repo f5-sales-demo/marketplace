@@ -389,3 +389,11 @@ def test_missing_or_unknown_admission_bindings_refuse_before_directory_creation(
         with pytest.raises(TypeError, match="complete named bindings"):
             constructor(root, {}, **bindings)
         assert not root.exists()
+
+
+@pytest.mark.parametrize("original", ["setgid"], indirect=True)
+def test_private_fixture_sink_keeps_exact_mode_under_inherited_setgid(original):
+    assert stat.S_IMODE(original["sink"].stat().st_mode) == 0o700
+    observer = original["observer"]
+    witness = observer.observe().witnesses[0]
+    assert len(observer.complete([witness])) == 1
