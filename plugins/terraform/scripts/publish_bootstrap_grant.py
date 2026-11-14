@@ -10,6 +10,7 @@ import os
 import re
 import stat
 import sys
+from operator import is_
 from pathlib import Path
 from typing import Any
 
@@ -115,11 +116,15 @@ def publish_bootstrap_grant(
         or re.fullmatch(r"[a-f0-9]{64}", expected_sha256) is None
         or re.fullmatch(r"\.grant-" + nonce + r"-[a-f0-9]{32}\.partial", staged_name)
         is None
-        or not isinstance(expected_directory, tuple)
-        or len(expected_directory) != DIRECTORY_FIELDS
-        or any(type(value) is not int for value in expected_directory)
     ):
         message = "Original grant publication input differs"
+        raise ValueError(message)
+    if (
+        not isinstance(expected_directory, tuple)
+        or len(expected_directory) != DIRECTORY_FIELDS
+        or any(not is_(type(value), int) for value in expected_directory)
+    ):
+        message = "Original grant directory identity differs"
         raise ValueError(message)
     require_directory(directory, expected_directory)
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW

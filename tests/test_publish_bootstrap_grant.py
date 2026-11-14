@@ -82,6 +82,14 @@ def test_original_directory_identity_is_required(publication):
     assert not (directory / ("grant-" + nonce + ".json")).exists()
 
 
+def test_bool_directory_identity_cannot_become_integer(publication):
+    _, directory, nonce, _, _, identity, stage, publish = publication
+    name = stage()
+    with pytest.raises(ValueError, match="Original"):
+        publish(name, identity=(identity[0], identity[1], True, identity[3]))
+    assert not (directory / ("grant-" + nonce + ".json")).exists()
+
+
 @pytest.mark.parametrize("kind", ["symlink", "mode", "hardlink"])
 def test_symlink_mode_and_hardlink_sources_refuse(publication, kind):
     _, directory, nonce, _, _, _, stage, publish = publication

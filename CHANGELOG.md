@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.91 adds atomic publication of complete bootstrap grants
+- **`terraform`** v2.4.92 adds atomic publication of complete bootstrap grants
   without replacing existing evidence. It retains failed publication artifacts
   and bounds capture polling with admitted identity checks. Builtin and live
   capture qualification remain open.
