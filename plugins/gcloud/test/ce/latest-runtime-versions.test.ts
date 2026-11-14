@@ -7,6 +7,7 @@ import {
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   GCP_TERRAFORM1171_ARTIFACTS,
+  GCP_XCSH15162_TERRAFORM_ARTIFACTS,
   resolveGcpTerraformArtifacts,
 } from '../../src/ce/terraform-public-artifacts';
 
@@ -14,7 +15,7 @@ test('new GCP deployments select the currently verified latest stable Terraform 
   expect(GCP_PUBLIC_TERRAFORM_ARTIFACTS?.versions).toEqual({
     terraform: '1.17.2',
     google: '8.11.0',
-    xcsh: '15.16.2',
+    xcsh: '15.17.3',
   });
 });
 
@@ -69,8 +70,8 @@ test('latest XC provider binds the independently authenticated lock and observer
   const current = GCP_PUBLIC_TERRAFORM_ARTIFACTS;
   const observer = GCP_OBSERVER_TERRAFORM_ARTIFACTS;
   if (!current || !observer) throw new Error('Current packaged artifacts required');
-  expect(current.expectedLockSha256).toBe('sha256:05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc');
-  expect('sha256:' + createHash('sha256').update(current.providerLock).digest('hex')).toBe(current.expectedLockSha256);
+  expect(current.expectedLockSha256).toBe('sha256:ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615');
+  expect(`sha256:${createHash('sha256').update(current.providerLock).digest('hex')}`).toBe(current.expectedLockSha256);
   expect(observer.configurationVersion).toBe(3);
   expect(observer.versions).toEqual(current.versions);
   expect(observer.providerLock).toBe(current.providerLock);
@@ -90,5 +91,18 @@ test('stored Terraform1.17.2 XC15.15.7 public and observer profiles still resolv
     expect(resolved.versions.xcsh).toBe('15.15.7');
     expect(Object.isFrozen(resolved)).toBe(true);
     expect(Object.isFrozen(resolved.versions)).toBe(true);
+  }
+});
+
+test('stored XC15.16.2 public and observer receipts retain exact original lock bytes', () => {
+  const historical = GCP_XCSH15162_TERRAFORM_ARTIFACTS;
+  expect(historical.versions.xcsh).toBe('15.16.2');
+  expect(historical.expectedLockSha256).toBe('sha256:05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc');
+  for (const configurationVersion of [2, 3] as const) {
+    const stored = { ...historical, configurationVersion };
+    expect(resolveGcpTerraformArtifacts(structuredClone(stored))).toEqual(stored);
+    expect(() =>
+      resolveGcpTerraformArtifacts({ ...stored, versions: GCP_PUBLIC_TERRAFORM_ARTIFACTS.versions }),
+    ).toThrow();
   }
 });

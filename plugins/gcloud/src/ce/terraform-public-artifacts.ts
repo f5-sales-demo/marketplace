@@ -54,13 +54,28 @@ export const GCP_XCSH15157_TERRAFORM1172_ARTIFACTS: Omit<GcpTerraformInputs, 'in
 export const GCP_XCSH15157_OBSERVER_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined =
   GCP_XCSH15157_TERRAFORM1172_ARTIFACTS && { ...GCP_XCSH15157_TERRAFORM1172_ARTIFACTS, configurationVersion: 3 };
 
-/** Authenticated current registry packages; capture and live qualification gates remain unchanged. */
-export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
+/** Historical XC15.16.2 receipts retain their exact provider lock for recovery and teardown. */
+export const GCP_XCSH15162_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
   configurationVersion: 2,
   versions: { terraform: '1.17.2', google: '8.11.0', xcsh: '15.16.2' },
   providerLock:
     '# This file is maintained automatically by "terraform init".\n# Manual edits may be lost in future updates.\n\nprovider "registry.terraform.io/f5-sales-demo/xcsh" {\n  version     = "15.16.2"\n  constraints = "15.16.2"\n  hashes = [\n    "h1:cXFxYCm3XL+3hRt3o12gVahNXy+CFbfPi7kTkmAoGOc=",\n    "zh:0df781a1b339c1a117f1ea2f2cab9f1af9ff65b3ba01930e05fc2cce868ecf7e",\n    "zh:2f4ed2a942b409bac7c9701577fcf80ed5a1f0fbf0e464b261c0011516e5f32b",\n    "zh:559cb87e10546922686f598c0deaa0e0d618beffd808d45c4553b3cafcbbdca4",\n    "zh:814d4ba853499bc2dac9b1ae3fbcf3dc249d1458d1cd731179af6cba090e1f1b",\n    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",\n    "zh:ac2964d6843d403a3dc5487a0df357799396b5f43089126e9270dec297dd5e45",\n    "zh:b7bd9eb7bca47e3a3433ef68efa0196810caf73df73f55b6b62318142d6bb08c",\n    "zh:b8fad4ceed32add1f96904c626ec8fe3e737de4e51a9ebf6c01a5d04aa37bc31",\n    "zh:d3ca6ea4c7b61273475f86e684c637ff70d0458e46f24646842fa4f998dad256",\n    "zh:e3c3b7a35e971443bfc2a6854f9f70a9f3f39aaa02fef4d8c5ede931f523e8eb",\n    "zh:f6e88921032cc2bba91bd2769f9b31d4d11004698ce7fe0659d92fda24208aa2",\n  ]\n}\n\nprovider "registry.terraform.io/hashicorp/google" {\n  version     = "8.11.0"\n  constraints = "8.11.0"\n  hashes = [\n    "h1:Wx0mcCg4BAModGKKRbKG0WCdeNc1atseaYCVI08Pu1c=",\n    "zh:06f745dab16e27e746335e1fea09b504dd6fc5ee5d490acdc1bf623b3758a3cb",\n    "zh:0e844d82d0194c769305afe8a109bbd02ed03d2e2fb7c2128a4f086571ae7412",\n    "zh:212c6a9f1f64ac7056e8e85a96de28f00906a8b87e9301611aa20da370753df3",\n    "zh:32aef908bdfd7a67ed10b04d9396d1cdcb11d5bb0baeb89f50fa567cf86c57fb",\n    "zh:47bdba00b1f59937ddb1c6232ee00b7e651d23cb34ad28c859a8da0e4b2277a6",\n    "zh:7b2bcc663e91f19f8ba9dba75037d7d58aa53ffbf4104a8bb952362b1aef0bf8",\n    "zh:7bdfabf1da462eacceb2d36a8331b35ce70a5f6e4538a14097c47d8958c4067d",\n    "zh:8e2017664ccf3fd6ee45c0e7e2b6351ca3c5e812387b3a679f1adc54d640ffef",\n    "zh:c8fbfb3de6f3ecbb44ece3bb05f232a8cf9cf8899a97ae9dd503a208c16d8552",\n    "zh:d9a36ee8b8b86cae8bcaf9034a254b701fec3a4cd53b5f50a7ccde4d4388e3b4",\n    "zh:e173cb16a4673a7a914531c64e7ff0716b27ed6b46e79c1507e50e1af928b4dd",\n    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",\n  ]\n}\n',
   expectedLockSha256: 'sha256:05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc',
+};
+
+/** Authenticated current registry packages; capture and live qualification remain separate gates. */
+export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
+  configurationVersion: 2,
+  versions: { terraform: '1.17.2', google: '8.11.0', xcsh: '15.17.3' },
+  providerLock:
+    '# This file is maintained automatically by "terraform init".\n# Manual edits may be lost in future updates.\n\nprovider "registry.terraform.io/f5-sales-demo/xcsh" {\n  version     = "15.17.3"\n  constraints = "15.17.3"\n  hashes = [\n    "h1:IbBBBaRzyjz4LWNl2b9LNlxJpF4Y+xvsPXCStCxT0K0=",\n    "zh:0341f888a0598010916e0ab605b3fb9c11209c7f4d30d146ee47c8fca1bb92ae",\n    "zh:1b643d818eb28dfcb494d74e065ddfe809786a7f72f0b5284336d29bb8086b40",\n    "zh:48c917ca9348ae815a2a4465eee949da0d2512a9562fc7ea94ec72d1e52c59e2",\n    "zh:69f4607c3f4e0816ffe9a625bbaa1533583940898ec5d322790b31f316c2597f",\n    "zh:72dd29cefcda936ddd205589a64b9229dee67e53f80d813b8aee615508ae47fa",\n    "zh:7fdfcf578b744dfb33d492baa556dfbe099a74a6ca5464dd37442768ebc20c6c",\n    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",\n    "zh:9763efa0afb34c8697342a3c22586479a66f870503a8a74039070a97de8134f2",\n    "zh:b07ddd557ae04d073492f9142425462dd680d0d65c8e15b020121a66e4a0cae9",\n    "zh:b1b128edeb49ca73b89cb6e11141a92795e14c18a6c4134b72a612d65adc96f7",\n    "zh:fefd73bbaa4e369d28c85d66ff43584f29094fc371a931e993cd872e8ffb70af",\n  ]\n}\n\nprovider "registry.terraform.io/hashicorp/google" {\n  version     = "8.11.0"\n  constraints = "8.11.0"\n  hashes = [\n    "h1:Wx0mcCg4BAModGKKRbKG0WCdeNc1atseaYCVI08Pu1c=",\n    "zh:06f745dab16e27e746335e1fea09b504dd6fc5ee5d490acdc1bf623b3758a3cb",\n    "zh:0e844d82d0194c769305afe8a109bbd02ed03d2e2fb7c2128a4f086571ae7412",\n    "zh:212c6a9f1f64ac7056e8e85a96de28f00906a8b87e9301611aa20da370753df3",\n    "zh:32aef908bdfd7a67ed10b04d9396d1cdcb11d5bb0baeb89f50fa567cf86c57fb",\n    "zh:47bdba00b1f59937ddb1c6232ee00b7e651d23cb34ad28c859a8da0e4b2277a6",\n    "zh:7b2bcc663e91f19f8ba9dba75037d7d58aa53ffbf4104a8bb952362b1aef0bf8",\n    "zh:7bdfabf1da462eacceb2d36a8331b35ce70a5f6e4538a14097c47d8958c4067d",\n    "zh:8e2017664ccf3fd6ee45c0e7e2b6351ca3c5e812387b3a679f1adc54d640ffef",\n    "zh:c8fbfb3de6f3ecbb44ece3bb05f232a8cf9cf8899a97ae9dd503a208c16d8552",\n    "zh:d9a36ee8b8b86cae8bcaf9034a254b701fec3a4cd53b5f50a7ccde4d4388e3b4",\n    "zh:e173cb16a4673a7a914531c64e7ff0716b27ed6b46e79c1507e50e1af928b4dd",\n    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",\n  ]\n}\n',
+  expectedLockSha256: 'sha256:ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+};
+
+/** Historical observer receipts retain their original graph and exact provider lock. */
+const GCP_XCSH15162_OBSERVER_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
+  ...GCP_XCSH15162_TERRAFORM_ARTIFACTS,
+  configurationVersion: 3,
 };
 
 /** Separate graph version; never rewrites or substitutes a stored version2 profile. */
@@ -74,6 +89,8 @@ const packagedProfiles = [
   GCP_TERRAFORM1171_ARTIFACTS,
   GCP_XCSH15157_TERRAFORM1172_ARTIFACTS,
   GCP_XCSH15157_OBSERVER_ARTIFACTS,
+  GCP_XCSH15162_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15162_OBSERVER_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   GCP_OBSERVER_TERRAFORM_ARTIFACTS,
 ].filter((profile): profile is Omit<GcpTerraformInputs, 'intent'> => profile !== undefined);

@@ -1265,6 +1265,7 @@ function resolveGcpSiteAccessMapping(providerVersion) {
   if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
   throw new GcpSiteAccessMappingUnavailable();
 }
 function validateGcpSiteAccess(value) {
@@ -1332,6 +1333,7 @@ function gcpSiteAccessFingerprint(intent, providerVersion = GCP_SITE_ACCESS_MAPP
 var GCP_SITE_ACCESS_MAPPING,
   GCP_CURRENT_SITE_ACCESS_MAPPING,
   GCP_XCSH15162_SITE_ACCESS_MAPPING,
+  GCP_PUBLISHED_SITE_ACCESS_MAPPING,
   GcpSiteAccessMappingUnavailable;
 var init_site_access = __esm(() => {
   init_discovery();
@@ -1354,10 +1356,15 @@ var init_site_access = __esm(() => {
     version: '15.16.2',
     sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
   });
+  GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.17.3',
+    sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
+  });
   GcpSiteAccessMappingUnavailable = class GcpSiteAccessMappingUnavailable extends Error {
     constructor() {
       super(
-        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7 or 15.16.2 mapping',
+        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2 or 15.17.3 mapping',
       );
     }
   };
@@ -11147,7 +11154,9 @@ var GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_TERRAFORM1171_ARTIFACTS,
   GCP_XCSH15157_TERRAFORM1172_ARTIFACTS,
   GCP_XCSH15157_OBSERVER_ARTIFACTS,
+  GCP_XCSH15162_TERRAFORM_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15162_OBSERVER_ARTIFACTS,
   GCP_OBSERVER_TERRAFORM_ARTIFACTS,
   packagedProfiles;
 var init_terraform_public_artifacts = __esm(() => {
@@ -11363,7 +11372,7 @@ provider "registry.terraform.io/hashicorp/google" {
     ...GCP_XCSH15157_TERRAFORM1172_ARTIFACTS,
     configurationVersion: 3,
   };
-  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+  GCP_XCSH15162_TERRAFORM_ARTIFACTS = {
     configurationVersion: 2,
     versions: { terraform: '1.17.2', google: '8.11.0', xcsh: '15.16.2' },
     providerLock: `# This file is maintained automatically by "terraform init".
@@ -11410,6 +11419,57 @@ provider "registry.terraform.io/hashicorp/google" {
 `,
     expectedLockSha256: 'sha256:05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc',
   };
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.2', google: '8.11.0', xcsh: '15.17.3' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.17.3"
+  constraints = "15.17.3"
+  hashes = [
+    "h1:IbBBBaRzyjz4LWNl2b9LNlxJpF4Y+xvsPXCStCxT0K0=",
+    "zh:0341f888a0598010916e0ab605b3fb9c11209c7f4d30d146ee47c8fca1bb92ae",
+    "zh:1b643d818eb28dfcb494d74e065ddfe809786a7f72f0b5284336d29bb8086b40",
+    "zh:48c917ca9348ae815a2a4465eee949da0d2512a9562fc7ea94ec72d1e52c59e2",
+    "zh:69f4607c3f4e0816ffe9a625bbaa1533583940898ec5d322790b31f316c2597f",
+    "zh:72dd29cefcda936ddd205589a64b9229dee67e53f80d813b8aee615508ae47fa",
+    "zh:7fdfcf578b744dfb33d492baa556dfbe099a74a6ca5464dd37442768ebc20c6c",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:9763efa0afb34c8697342a3c22586479a66f870503a8a74039070a97de8134f2",
+    "zh:b07ddd557ae04d073492f9142425462dd680d0d65c8e15b020121a66e4a0cae9",
+    "zh:b1b128edeb49ca73b89cb6e11141a92795e14c18a6c4134b72a612d65adc96f7",
+    "zh:fefd73bbaa4e369d28c85d66ff43584f29094fc371a931e993cd872e8ffb70af",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.11.0"
+  constraints = "8.11.0"
+  hashes = [
+    "h1:Wx0mcCg4BAModGKKRbKG0WCdeNc1atseaYCVI08Pu1c=",
+    "zh:06f745dab16e27e746335e1fea09b504dd6fc5ee5d490acdc1bf623b3758a3cb",
+    "zh:0e844d82d0194c769305afe8a109bbd02ed03d2e2fb7c2128a4f086571ae7412",
+    "zh:212c6a9f1f64ac7056e8e85a96de28f00906a8b87e9301611aa20da370753df3",
+    "zh:32aef908bdfd7a67ed10b04d9396d1cdcb11d5bb0baeb89f50fa567cf86c57fb",
+    "zh:47bdba00b1f59937ddb1c6232ee00b7e651d23cb34ad28c859a8da0e4b2277a6",
+    "zh:7b2bcc663e91f19f8ba9dba75037d7d58aa53ffbf4104a8bb952362b1aef0bf8",
+    "zh:7bdfabf1da462eacceb2d36a8331b35ce70a5f6e4538a14097c47d8958c4067d",
+    "zh:8e2017664ccf3fd6ee45c0e7e2b6351ca3c5e812387b3a679f1adc54d640ffef",
+    "zh:c8fbfb3de6f3ecbb44ece3bb05f232a8cf9cf8899a97ae9dd503a208c16d8552",
+    "zh:d9a36ee8b8b86cae8bcaf9034a254b701fec3a4cd53b5f50a7ccde4d4388e3b4",
+    "zh:e173cb16a4673a7a914531c64e7ff0716b27ed6b46e79c1507e50e1af928b4dd",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+  };
+  GCP_XCSH15162_OBSERVER_ARTIFACTS = {
+    ...GCP_XCSH15162_TERRAFORM_ARTIFACTS,
+    configurationVersion: 3,
+  };
   GCP_OBSERVER_TERRAFORM_ARTIFACTS = GCP_PUBLIC_TERRAFORM_ARTIFACTS && {
     ...GCP_PUBLIC_TERRAFORM_ARTIFACTS,
     configurationVersion: 3,
@@ -11421,6 +11481,8 @@ provider "registry.terraform.io/hashicorp/google" {
     GCP_TERRAFORM1171_ARTIFACTS,
     GCP_XCSH15157_TERRAFORM1172_ARTIFACTS,
     GCP_XCSH15157_OBSERVER_ARTIFACTS,
+    GCP_XCSH15162_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15162_OBSERVER_ARTIFACTS,
     GCP_PUBLIC_TERRAFORM_ARTIFACTS,
     GCP_OBSERVER_TERRAFORM_ARTIFACTS,
   ].filter((profile) => profile !== undefined);
@@ -11490,7 +11552,7 @@ function translateGcpTerraformObserverSiteCompute(intent, versions, observer, re
   if (intent.schemaVersion === 2 && fingerprint(observer) !== fingerprint(intent.observer))
     throw new Error('Original observer scope differs from its versioned intent');
   if (
-    !['15.15.7', '15.16.2'].some(
+    !['15.15.7', '15.16.2', '15.17.3'].some(
       (xcsh) => fingerprint(versions) === fingerprint({ terraform: '1.17.2', google: '8.11.0', xcsh }),
     )
   )

@@ -26,7 +26,7 @@ export function translateGcpTerraformObserverSiteCompute(
   if (intent.schemaVersion === 2 && fingerprint(observer) !== fingerprint(intent.observer))
     throw new Error('Original observer scope differs from its versioned intent');
   if (
-    !['15.15.7', '15.16.2'].some(
+    !['15.15.7', '15.16.2', '15.17.3'].some(
       (xcsh) => fingerprint(versions) === fingerprint({ terraform: '1.17.2', google: '8.11.0', xcsh }),
     )
   )

@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`gcloud`** v1.7.52, **`platform`** v6.3.23 and **`terraform`** v2.4.94
+  select authenticated XC provider 15.17.3 with Terraform 1.17.2 and Google
+  8.11.0. Bind the normal registry lock, installed binary and Site SSH schema;
+  preserve original stored deployment locks for recovery and teardown.
+  Bootstrap capture, guest access and live deployment qualification remain open.
+
 - **`terraform`** v2.4.93 adds atomic publication of complete bootstrap grants
   without replacing existing evidence. It retains failed publication artifacts
   and bounds capture polling with admitted identity checks. Builtin and live
