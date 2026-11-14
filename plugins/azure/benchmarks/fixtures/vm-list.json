@@ -1,6 +1,6 @@
 [
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/web-vm-01",
+    "id": "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/web-vm-01",
     "location": "eastus",
     "name": "web-vm-01",
     "provisioningState": "Succeeded",
@@ -12,7 +12,7 @@
     "tags": { "env": "dev" }
   },
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/db-vm-01",
+    "id": "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/db-vm-01",
     "location": "eastus",
     "name": "db-vm-01",
     "provisioningState": "Succeeded",
