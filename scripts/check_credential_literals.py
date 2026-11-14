@@ -67,7 +67,7 @@ def findings(root: Path | str) -> Iterator[tuple[str, int]]:
 
 if __name__ == "__main__":
     if len(sys.argv) != CLI_ARGUMENT_COUNT:
-        sys.stderr.write("Usage: check-credential-literals.py ROOT\n")
+        sys.stderr.write("Usage: check_credential_literals.py ROOT\n")
         raise SystemExit(2)
     try:
         found = list(findings(sys.argv[1]))

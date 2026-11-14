@@ -10,11 +10,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location(
-    "scanner",
-    pathlib.Path(__file__).resolve().parents[1]
-    / "scripts/check-credential-literals.py",
+SCANNER_PATH = (
+    pathlib.Path(__file__).resolve().parents[1] / "scripts/check_credential_literals.py"
 )
+spec = importlib.util.spec_from_file_location("scanner", SCANNER_PATH)
 if spec is None or spec.loader is None:
     MESSAGE = "Credential scanner module is unavailable"
     raise ImportError(MESSAGE)
@@ -115,14 +114,17 @@ class CredentialLiteralTests(unittest.TestCase):
     def _run_cli(self, args: list[str]) -> tuple[int, str, str]:
         output, errors = io.StringIO(), io.StringIO()
         with (
-            patch.object(sys, "argv", [str(spec.origin), *args]),
+            patch.object(sys, "argv", [str(SCANNER_PATH), *args]),
             contextlib.redirect_stdout(output),
             contextlib.redirect_stderr(errors),
         ):
             try:
-                runpy.run_path(str(spec.origin), run_name="__main__")
+                runpy.run_path(str(SCANNER_PATH), run_name="__main__")
             except SystemExit as result:
-                return int(result.code), output.getvalue(), errors.getvalue()
+                if not isinstance(result.code, int):
+                    message = "Scanner returned an invalid exit status"
+                    raise TypeError(message) from result
+                return result.code, output.getvalue(), errors.getvalue()
         message = "Scanner did not return an explicit exit status"
         raise AssertionError(message)
 

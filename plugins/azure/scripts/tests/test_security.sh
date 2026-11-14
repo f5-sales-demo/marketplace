@@ -5,7 +5,7 @@ set -euo pipefail
 
 # T1.S1 — no hardcoded credentials in plugin files
 test_no_hardcoded_credentials() {
-  python3 "$MARKETPLACE_ROOT/scripts/check-credential-literals.py" "$PLUGIN_ROOT"
+  python3 "$MARKETPLACE_ROOT/scripts/check_credential_literals.py" "$PLUGIN_ROOT"
 }
 
 test_hardcoded_credential_scanner_regressions() {
