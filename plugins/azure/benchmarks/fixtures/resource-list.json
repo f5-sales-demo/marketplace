@@ -1,6 +1,6 @@
 [
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/web-vm-01",
+    "id": "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/web-vm-01",
     "location": "eastus",
     "name": "web-vm-01",
     "provisioningState": "Succeeded",
@@ -9,7 +9,7 @@
     "type": "Microsoft.Compute/virtualMachines"
   },
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Storage/storageAccounts/devstore001",
+    "id": "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg-dev-eastus/providers/Microsoft.Storage/storageAccounts/devstore001",
     "location": "eastus",
     "name": "devstore001",
     "provisioningState": "Succeeded",
@@ -18,7 +18,7 @@
     "type": "Microsoft.Storage/storageAccounts"
   },
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Network/virtualNetworks/vnet-dev",
+    "id": "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg-dev-eastus/providers/Microsoft.Network/virtualNetworks/vnet-dev",
     "location": "eastus",
     "name": "vnet-dev",
     "provisioningState": "Succeeded",
@@ -27,7 +27,7 @@
     "type": "Microsoft.Network/virtualNetworks"
   },
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Network/publicIPAddresses/pip-web-vm-01",
+    "id": "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg-dev-eastus/providers/Microsoft.Network/publicIPAddresses/pip-web-vm-01",
     "location": "eastus",
     "name": "pip-web-vm-01",
     "provisioningState": "Succeeded",
@@ -36,7 +36,7 @@
     "type": "Microsoft.Network/publicIPAddresses"
   },
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Network/networkSecurityGroups/nsg-web",
+    "id": "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg-dev-eastus/providers/Microsoft.Network/networkSecurityGroups/nsg-web",
     "location": "eastus",
     "name": "nsg-web",
     "provisioningState": "Succeeded",

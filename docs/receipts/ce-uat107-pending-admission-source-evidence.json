@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 107,
+  "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "implementationIssue": 1838,
+  "behavior": "Exact pending-admission cleanup preserves token UID and frozen ownership; failed VM outside state is imported through a no-op saved plan before destroy. Missing outputs may be omitted only during pending reconciliation; malformed and sensitive outputs reject.",
+  "fullCeSuite": {
+    "passed": 2203,
+    "failed": 0,
+    "assertions": 13075
+  },
+  "focusedPendingAndRegisteredCleanupTests": 73,
+  "fourTypeChecksPassed": true,
+  "fourRuntimeBuildsPassed": true,
+  "requiredPrecommitPassed": true,
+  "retainedLiveFailures": [
+    {
+      "candidateRevision": 105,
+      "reason": "NicInUse after failed allocation left VM outside state"
+    },
+    {
+      "candidateRevision": 106,
+      "reason": "missing Terraform outputs rejected before import submission"
+    }
+  ],
+  "producerPin": "12.2.0",
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
