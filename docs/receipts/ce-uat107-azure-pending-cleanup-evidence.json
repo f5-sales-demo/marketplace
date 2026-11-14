@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 107,
+  "fixtureCreationRevision": 103,
+  "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "cliVersion": "23.9.3",
+  "scope": "Installed current-candidate cleanup of prior failed-admission fixture; does not qualify a complete fresh deployment profile",
+  "publicToolTrace": [
+    {
+      "tool": "azure_ce_teardown",
+      "startedAt": "2026-10-22T15:05:12.650Z",
+      "completedAt": "2026-10-22T15:09:39.716Z",
+      "isError": false,
+      "status": "deployment-artifacts-retired"
+    }
+  ],
+  "independentCleanup": {
+    "candidateRevision": 107,
+    "fixtureCreationRevision": 103,
+    "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+    "observedAt": "2026-10-22T15:10:12.617676+00:00",
+    "sanitized": true,
+    "installedPublicTeardownPassed": true,
+    "exactCloudIdsAbsent": 13,
+    "resourceGroupAbsent": true,
+    "ownedAzureTagInventoryEmpty": true,
+    "logicalPhysicalSitesAbsent": true,
+    "registrationsEmpty": true,
+    "exactTokensAbsent": true,
+    "tokensRoutingIngressEmpty": true,
+    "matchingInterfaceObjectsAbsent": true,
+    "terraformStateEmptyVerifiedByOwningRunner": true,
+    "independentPreRetirementStateWitness": true,
+    "owningFinalDestroyNoChanges": true,
+    "preservedOrdinaryRefreshPlanProvenanceVerified": true,
+    "emptyStateIndependentlyObservedBeforeRetirement": true,
+    "newPostRetirementPlanRun": false,
+    "finalPlanSha256": "e3cc9311472960b5833ea3c93118026d902107de4e7185ebade94b8cccbfd221",
+    "independentlyVerifiedOwningOrdinaryRefreshPlanProvenance": true,
+    "runnerArtifactsRetired": true,
+    "parentSensitiveArtifactsRetired": true,
+    "separateBootstrapCheckoutCreated": false,
+    "fullCleanupAcceptance": false,
+    "remainingCleanupEvidence": [
+      "Retire external private bootstrap, raw state and diagnostic staging after independent inventory verification"
+    ],
+    "fullCeAcceptance": false
+  },
+  "externalSensitiveRetirement": {
+    "observedAt": "2026-10-22T15:10:13.671260+00:00",
+    "candidateRevision": 107,
+    "fixtureCreationRevision": 103,
+    "independentCleanupPassed": true,
+    "sensitiveFilesRetired": 0,
+    "sensitiveBytesRetired": 0,
+    "remainingJwtPrivateKeyOrContextCredentialMatches": 0,
+    "sharedContextPreserved": true,
+    "installedArchivesPreserved": true,
+    "fullCleanupAcceptance": true,
+    "fullCeAcceptance": false
+  },
+  "fullCleanupAcceptance": true,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}

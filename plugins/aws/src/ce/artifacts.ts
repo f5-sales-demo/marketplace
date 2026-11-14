@@ -1,7 +1,9 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { canonicalSha256, safeHexEqual } from './canonical';
-import type { AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
+import { assertAwsBootstrapKeyPair } from './bootstrap-key-pair';
+import { awsCeObservationRegion, canonicalSha256, safeHexEqual } from './canonical';
+import { publishAwsCheckpointJournal, readAwsCheckpointJournal } from './checkpoint-journal';
+import type { AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_SCHEMA_VERSION } from './types';
 
 export interface AwsCeSessionManager {
@@ -27,11 +29,34 @@ export interface AwsCePlanEnvelope {
 const memoryPlans = new Map<string, AwsCePlanEnvelope[]>();
 
 export function verifyAwsCePlan(plan: AwsCePlan): void {
+  awsCeObservationRegion(plan);
+  assertAwsBootstrapKeyPair(plan);
   if (plan.schemaVersion !== AWS_CE_SCHEMA_VERSION || plan.intent.schemaVersion !== AWS_CE_SCHEMA_VERSION)
     throw new Error('Persisted AWS CE plan uses an unsupported schema version');
+  if (!['native', 'terraform'].includes(plan.engine) || plan.intent.engine !== plan.engine)
+    throw new Error('Persisted AWS CE engine ownership is invalid');
+  if (
+    plan.intent.ingress?.mode === 'nlb' &&
+    (!plan.intent.ingress.listener ||
+      typeof plan.intent.ingress.listener.name !== 'string' ||
+      typeof plan.intent.ingress.listener.domain !== 'string' ||
+      typeof plan.intent.ingress.listener.originPool?.name !== 'string' ||
+      !plan.intent.ingress.probe ||
+      typeof plan.intent.ingress.probe.sourceInstanceId !== 'string' ||
+      typeof plan.intent.ingress.probe.expectedBodySha256 !== 'string')
+  )
+    throw new Error('Persisted AWS CE plan uses the obsolete cloud-only NLB ingress schema');
   const { planId, planSha256, ...draft } = plan;
   if (!safeHexEqual(canonicalSha256(draft), planSha256) || planId !== `aws-ce-${planSha256.slice(0, 24)}`)
     throw new Error('Persisted AWS CE plan failed integrity validation');
+}
+
+export function verifyAwsCePlanForInspection(plan: AwsCePlan): void {
+  if (![1, AWS_CE_SCHEMA_VERSION].includes(plan.schemaVersion) || plan.intent?.schemaVersion !== plan.schemaVersion)
+    throw new Error('Unsupported AWS CE inspection artifact');
+  const { planId, planSha256, ...draft } = plan;
+  if (!safeHexEqual(canonicalSha256(draft), planSha256) || planId !== `aws-ce-${planSha256.slice(0, 24)}`)
+    throw new Error('AWS CE inspection artifact failed integrity validation');
 }
 
 export async function saveAwsDiscovery(session: AwsCeSessionManager, observation: AwsCeObservation) {
@@ -46,7 +71,7 @@ export async function loadAwsDiscovery(session: AwsCeSessionManager, id: string)
   if (!path) throw new Error(`AWS CE discovery artifact ${id} was not found in this session`);
   const envelope = JSON.parse(await Bun.file(path).text()) as { kind?: string; observation?: AwsCeObservation };
   if (envelope.kind !== 'aws-ce-discovery' || envelope.observation?.schemaVersion !== AWS_CE_SCHEMA_VERSION)
-    throw new Error('Artifact is not an AWS CE schema-v1 discovery observation');
+    throw new Error('Artifact is not an AWS CE schema-v2 discovery observation');
   return envelope.observation;
 }
 
@@ -63,12 +88,14 @@ export async function loadAwsPlan(
   session: AwsCeSessionManager,
   planId: string,
   planSha256: string,
+  mode: 'execute' | 'inspect' = 'execute',
 ): Promise<AwsCePlanEnvelope> {
+  const verify = mode === 'inspect' ? verifyAwsCePlanForInspection : verifyAwsCePlan;
   const memory = memoryPlans
     .get(session.getSessionId())
     ?.find((item) => item.plan.planId === planId && item.plan.planSha256 === planSha256);
   if (memory) {
-    verifyAwsCePlan(memory.plan);
+    verify(memory.plan);
     return memory;
   }
   const directory = session.getArtifactsDir();
@@ -84,7 +111,7 @@ export async function loadAwsPlan(
       const envelope = JSON.parse(await Bun.file(join(directory, file)).text()) as AwsCePlanEnvelope;
       if (envelope.kind !== 'aws-ce-plan' || envelope.plan.planId !== planId || envelope.plan.planSha256 !== planSha256)
         continue;
-      verifyAwsCePlan(envelope.plan);
+      verify(envelope.plan);
       return envelope;
     } catch {
       // Continue to the next exact candidate.
@@ -93,42 +120,5 @@ export async function loadAwsPlan(
   throw new Error('No exact, integrity-valid AWS CE plan was found in this session');
 }
 
-export async function saveAwsCheckpoint(session: AwsCeSessionManager, checkpoint: AwsCeCheckpoint) {
-  return session.saveArtifact(JSON.stringify({ kind: 'aws-ce-checkpoint', checkpoint }), 'aws-ce-checkpoint');
-}
-
-export async function loadAwsCheckpoint(
-  session: AwsCeSessionManager,
-  planId: string,
-  planSha256: string,
-): Promise<AwsCeCheckpoint | undefined> {
-  const directory = session.getArtifactsDir();
-  if (!directory) return undefined;
-  let files: string[] = [];
-  try {
-    files = (await readdir(directory))
-      .filter((file) => file.endsWith('.aws-ce-checkpoint.log'))
-      .sort()
-      .reverse();
-  } catch {
-    return undefined;
-  }
-  for (const file of files) {
-    try {
-      const envelope = JSON.parse(await Bun.file(join(directory, file)).text()) as {
-        kind: string;
-        checkpoint: AwsCeCheckpoint;
-      };
-      if (
-        envelope.kind === 'aws-ce-checkpoint' &&
-        envelope.checkpoint.schemaVersion === AWS_CE_SCHEMA_VERSION &&
-        envelope.checkpoint.planId === planId &&
-        envelope.checkpoint.planSha256 === planSha256
-      )
-        return envelope.checkpoint;
-    } catch {
-      // Continue to an older checkpoint.
-    }
-  }
-  return undefined;
-}
+export const saveAwsCheckpoint = publishAwsCheckpointJournal;
+export const loadAwsCheckpoint = readAwsCheckpointJournal;

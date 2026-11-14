@@ -1,0 +1,105 @@
+{
+  "candidateRevision": 104,
+  "sourceCommit": "32c028a6e04b0566601ddfdfdee1f371e4a7e450",
+  "cliVersion": "23.9.3",
+  "installedPaths": [
+    "installed/plugins/platform/dist/runtime.js",
+    "installed/plugins/aws/dist/runtime.js",
+    "installed/plugins/azure/dist/runtime.js",
+    "installed/plugins/terraform/dist/runtime.js"
+  ],
+  "cases": [
+    {
+      "provider": "aws",
+      "identity": "same",
+      "puts": 1,
+      "retained": true,
+      "cleared": false,
+      "status": "unknown",
+      "reachedObserver": true,
+      "canSatisfyMutationGate": false
+    },
+    {
+      "provider": "aws",
+      "identity": "foreign-site",
+      "puts": 1,
+      "retained": false,
+      "cleared": true,
+      "status": "unknown",
+      "reachedObserver": false,
+      "canSatisfyMutationGate": false
+    },
+    {
+      "provider": "aws",
+      "identity": "foreign-contract",
+      "puts": 1,
+      "retained": false,
+      "cleared": true,
+      "status": "unknown",
+      "reachedObserver": false,
+      "canSatisfyMutationGate": false
+    },
+    {
+      "provider": "aws",
+      "identity": "foreign-tenant",
+      "puts": 1,
+      "retained": false,
+      "cleared": true,
+      "status": "unknown",
+      "reachedObserver": false,
+      "canSatisfyMutationGate": false
+    },
+    {
+      "provider": "azure",
+      "identity": "same",
+      "puts": 1,
+      "retained": true,
+      "cleared": false,
+      "status": "unknown",
+      "reachedObserver": true,
+      "canSatisfyMutationGate": false
+    },
+    {
+      "provider": "azure",
+      "identity": "foreign-site",
+      "puts": 1,
+      "retained": false,
+      "cleared": true,
+      "status": "unknown",
+      "reachedObserver": false,
+      "canSatisfyMutationGate": false
+    },
+    {
+      "provider": "azure",
+      "identity": "foreign-contract",
+      "puts": 1,
+      "retained": false,
+      "cleared": true,
+      "status": "unknown",
+      "reachedObserver": false,
+      "canSatisfyMutationGate": false
+    },
+    {
+      "provider": "azure",
+      "identity": "foreign-tenant",
+      "puts": 1,
+      "retained": false,
+      "cleared": true,
+      "status": "unknown",
+      "reachedObserver": false,
+      "canSatisfyMutationGate": false
+    }
+  ],
+  "controlledApiResponses": true,
+  "liveQualification": false,
+  "fullCeAcceptance": false,
+  "publicTools": ["f5xc_ce_v2_site", "f5xc_ce_v2_status"],
+  "oldCandidateRegression": {
+    "revision": 103,
+    "exitCode": 1,
+    "sameIdentityBindingsRetained": false,
+    "observerReachedAfterUpdate": false
+  },
+  "allEightCasesPassed": true,
+  "releaseReady": false
+}
