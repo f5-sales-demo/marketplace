@@ -15,6 +15,7 @@ const captureScripts = [
   'gcp_provider_reader.py',
   'xcsh_creation_observer.py',
   'xcsh_creation_reader.py',
+  'publish_bootstrap_grant.py',
 ];
 await writeFile(
   join(root, 'plugins/terraform/src/gcp-capture-source-pins.json'),

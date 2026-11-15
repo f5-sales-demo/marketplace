@@ -11,6 +11,7 @@ export {
 } from './gcp-preapply-bootstrap';
 export { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
 export { openInstalledXcshCreationReader, readOriginalInstalledXcshCreation } from './installed-xcsh-creation-reader';
+export { publishOriginalGcpBootstrapGrant } from './prepared-creation-scope';
 export { joinOriginalXcshCreationBody, readOriginalXcshCreationBody } from './xcsh-creation-body';
 
 import type { CeEventBus } from '../../platform/src/ce/service';

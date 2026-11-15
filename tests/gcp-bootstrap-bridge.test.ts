@@ -198,3 +198,21 @@ it('compiled version 2 keeps Platform body authority in its issuer and preserves
   ).rejects.toThrow('Original');
   await expect(run.terraform.readOriginalGcpTerraformBootstrapJwt({ ...value })).rejects.toThrow('Original');
 });
+
+it('compiled grant publication refuses serialized authority before checkout or execution', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.publishOriginalGcpBootstrapGrant).toBe('function');
+  let executions = 0;
+  await expect(
+    runtime.publishOriginalGcpBootstrapGrant(
+      { packet: { schemaVersion: 2, kind: 'prepared-original-creation-scope' }, token: {}, evidence: {}, store: {} },
+      {
+        executorFactory: () => {
+          executions++;
+          throw new Error('must not execute');
+        },
+      },
+    ),
+  ).rejects.toThrow('Trusted');
+  expect(executions).toBe(0);
+});

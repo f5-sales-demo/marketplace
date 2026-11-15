@@ -1715,3 +1715,16 @@ the original commit. Complete SDK CI/publication/consumer acceptance remains
 unproven while pending. Builtin original capture, all original native/Terraform
 network/lifecycle/traffic/recovery/cleanup/restoration, remaining installation
 checks and required #1559 review/CI/merge/publication/user installation remain open.
+
+## Original bootstrap grant source gate on November 15
+
+The [grant publication receipt](gcp-original-bootstrap-grant-20261115.md) records
+source-issued original scope/token joins, durable claims before one-use checkout,
+exact provider signature mapping and bounded atomic Linux publication. Failed or
+uncertain publication cannot authorize replay. Official endpoints confirm the
+current Terraform, Google, XC, Bun and xcsh dependency versions.
+
+This is source and offline fixture evidence. Builtin original capture/controller
+composition, live provider grant consumption, all original GCP networking and
+lifecycle acceptance, independent closure/cleanup, remaining installed checks
+and review/CI/merge/publication remain open. No new cloud campaign was submitted.

@@ -73,8 +73,8 @@ test('xcsh bridge production cannot substitute an offline clock', async () => {
   ).rejects.toThrow('clock');
 });
 
-import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash, createPublicKey, verify } from 'node:crypto';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInstalledCaptureContext } from '../src/installed-capture-context';
@@ -90,6 +90,7 @@ async function scoped(
   run: (context: InstalledCaptureContext, admission: ExecutionCaptureAdmission, packet: unknown) => Promise<void>,
   includeSite = false,
   pendingTokens = 0,
+  consume = false,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'xcsh-bridge-fixture-'));
   const deployment: Deployment = {
@@ -191,6 +192,18 @@ async function scoped(
             }),
         });
         const packet = await prepareOriginalCreationScope(context);
+        if (consume) {
+          const { createInstalledGcpInvocationCompiler } = await import('../src/installed-gcp-invocation');
+          const environment = { PATH: '/usr/bin:/bin', HOME: tmpdir(), ...context.environment };
+          createInstalledGcpInvocationCompiler({
+            directory: request.cwd,
+            environment,
+            readPreparedCreationScope: () => packet,
+          } as Parameters<typeof createInstalledGcpInvocationCompiler>[0])({
+            ...request,
+            env: { ...request.env, ...environment },
+          });
+        }
         const admission = {
           output: fixtureOutput(),
           stdoutPath: join(request.cwd, 'stdout.private'),
@@ -964,163 +977,292 @@ test('per-target source evidence is available before reader closure and is issue
   });
 });
 
-test('original Site and Token bodies join their separate early targets while other HA tokens and capture remain pending', async () => {
-  await scoped(
-    async (context, admission, packet) => {
-      const bridgeModule = await bridge();
-      const bodyModule = await import('../src/xcsh-creation-body');
-      const bootstrapModule = await import('../src/gcp-preapply-bootstrap');
-      const release = Promise.withResolvers<void>();
-      const published = Promise.withResolvers<void>();
-      const uids = { site: 'early-original-site', token: 'early-original-token' };
-      const reader = await bridgeModule.openInstalledXcshCreationReader(context, admission, packet, {
-        executorFactory: fakeExecutor(async (value, request, directory) => {
-          const receipt = (value.receipts as Record<string, unknown>[])[0];
-          value.targetCount = 2;
-          value.receipts = [
-            {
-              ...receipt,
-              target: { type_name: 'xcsh_securemesh_site_v2', namespace: 'system', name: 'example-site' },
-              nonce: 'a'.repeat(32),
-              creation_identity_sha256: sha(Buffer.from(uids.site)),
-            },
-            {
-              ...receipt,
-              target: { type_name: 'xcsh_token', namespace: 'system', name: 'example-token' },
-              nonce: 'b'.repeat(32),
-              creation_identity_sha256: sha(Buffer.from(uids.token)),
-            },
-          ];
-          for (const current of value.receipts as Record<string, unknown>[]) {
-            await writeFile(
-              earlyTargetPath(directory, current.target as Record<string, string>),
-              JSON.stringify({ ...earlyTargetValue(value), receipt: current }),
-              { mode: 0o400, flag: 'wx' },
+for (const grantCase of [
+  'checkout',
+  'published',
+  'unconsumed',
+  'copied-token',
+  'copied-evidence',
+  'uncertain',
+  'directory',
+  'claim-failed',
+  'checkout-failed',
+] as const) {
+  test(`original early Site and Token grant gate: ${grantCase}`, async () => {
+    await scoped(
+      async (context, admission, packet) => {
+        const bridgeModule = await bridge();
+        const bodyModule = await import('../src/xcsh-creation-body');
+        const bootstrapModule = await import('../src/gcp-preapply-bootstrap');
+        const release = Promise.withResolvers<void>();
+        const published = Promise.withResolvers<void>();
+        const uids = { site: 'early-original-site', token: 'early-original-token' };
+        const reader = await bridgeModule.openInstalledXcshCreationReader(context, admission, packet, {
+          executorFactory: fakeExecutor(async (value, request, directory) => {
+            const receipt = (value.receipts as Record<string, unknown>[])[0];
+            value.targetCount = 2;
+            value.receipts = [
+              {
+                ...receipt,
+                target: { type_name: 'xcsh_securemesh_site_v2', namespace: 'system', name: 'example-site' },
+                nonce: 'a'.repeat(32),
+                creation_identity_sha256: sha(Buffer.from(uids.site)),
+              },
+              {
+                ...receipt,
+                target: { type_name: 'xcsh_token', namespace: 'system', name: 'example-token' },
+                nonce: 'b'.repeat(32),
+                creation_identity_sha256: sha(Buffer.from(uids.token)),
+              },
+            ];
+            for (const current of value.receipts as Record<string, unknown>[]) {
+              await writeFile(
+                earlyTargetPath(directory, current.target as Record<string, string>),
+                JSON.stringify({ ...earlyTargetValue(value), receipt: current }),
+                { mode: 0o400, flag: 'wx' },
+              );
+            }
+            published.resolve();
+            await release.promise;
+            const remaining = (request.scope as { targets: Record<string, string>[] }).targets.filter((target) =>
+              target.name.startsWith('pending-token-'),
             );
-          }
-          published.resolve();
-          await release.promise;
-          const remaining = (request.scope as { targets: Record<string, string>[] }).targets.filter((target) =>
-            target.name.startsWith('pending-token-'),
+            value.targetCount = 4;
+            value.receipts = [
+              ...(value.receipts as unknown[]),
+              ...remaining.map((target, index) => ({
+                ...receipt,
+                target,
+                nonce: String(index + 3).repeat(32),
+                creation_identity_sha256: sha(Buffer.from(target.name)),
+              })),
+            ];
+          }),
+        });
+        const storeRoot = await mkdtemp(join(tmpdir(), 'early-original-body-'));
+        try {
+          await reader.ready;
+          await published.promise;
+          const targets = await reader.availableTargets();
+          expect(targets).toHaveLength(2);
+          const siteTarget = targets.find((value) => value.target.type_name === 'xcsh_securemesh_site_v2');
+          const tokenTarget = targets.find((value) => value.target.type_name === 'xcsh_token');
+          if (!siteTarget || !tokenTarget) throw new Error('Both original targets required');
+          expect(siteTarget.requestSha256).toBe(tokenTarget.requestSha256);
+          expect(siteTarget.evidenceSha256).not.toBe(tokenTarget.evidenceSha256);
+          const store = await CeDeploymentStore.open(storeRoot, context.owner);
+          const capture = await openGcpLifecycleHttpCapture(store, context.assertInputs, {
+            siteNames: ['example-site'],
+            tokenNames: ['example-token'],
+          });
+          const labels = { 'xcsh-deployment': context.owner.deploymentId, 'xcsh-engine': 'terraform' };
+          const jwt = [
+            Buffer.from('{}').toString('base64url'),
+            Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'),
+            Buffer.from('synthetic-signature').toString('base64url'),
+          ].join('.');
+          const siteValue = {
+            metadata: {
+              name: 'example-site',
+              namespace: 'system',
+              labels: { ...labels, 'ves.io/provider': 'ves-io-GOOGLE' },
+            },
+            system_metadata: { uid: uids.site },
+            spec: { gcp: { not_managed: { node_list: [] } } },
+          };
+          const tokenValue = {
+            metadata: {
+              name: 'example-token',
+              namespace: 'system',
+              labels: { ...labels, 'xcsh-node': 'example-node' },
+            },
+            system_metadata: { uid: uids.token },
+            spec: { site_name: 'example-site', type: 1, content: jwt },
+          };
+          const port = createGcpLifecycleHttpPort(
+            context.environment.XCSH_API_URL,
+            context.environment.XCSH_API_TOKEN,
+            async (url) => Response.json(String(url).includes('/tokens/') ? tokenValue : siteValue),
+            capture,
           );
-          value.targetCount = 4;
-          value.receipts = [
-            ...(value.receipts as unknown[]),
-            ...remaining.map((target, index) => ({
-              ...receipt,
-              target,
-              nonce: String(index + 3).repeat(32),
-              creation_identity_sha256: sha(Buffer.from(target.name)),
-            })),
-          ];
-        }),
-      });
-      const storeRoot = await mkdtemp(join(tmpdir(), 'early-original-body-'));
-      try {
-        await reader.ready;
-        await published.promise;
-        const targets = await reader.availableTargets();
-        expect(targets).toHaveLength(2);
-        const siteTarget = targets.find((value) => value.target.type_name === 'xcsh_securemesh_site_v2');
-        const tokenTarget = targets.find((value) => value.target.type_name === 'xcsh_token');
-        if (!siteTarget || !tokenTarget) throw new Error('Both original targets required');
-        expect(siteTarget.requestSha256).toBe(tokenTarget.requestSha256);
-        expect(siteTarget.evidenceSha256).not.toBe(tokenTarget.evidenceSha256);
-        const store = await CeDeploymentStore.open(storeRoot, context.owner);
-        const capture = await openGcpLifecycleHttpCapture(store, context.assertInputs, {
-          siteNames: ['example-site'],
-          tokenNames: ['example-token'],
-        });
-        const labels = { 'xcsh-deployment': context.owner.deploymentId, 'xcsh-engine': 'terraform' };
-        const jwt = [
-          Buffer.from('{}').toString('base64url'),
-          Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'),
-          Buffer.from('synthetic-signature').toString('base64url'),
-        ].join('.');
-        const siteValue = {
-          metadata: {
-            name: 'example-site',
-            namespace: 'system',
-            labels: { ...labels, 'ves.io/provider': 'ves-io-GOOGLE' },
-          },
-          system_metadata: { uid: uids.site },
-          spec: { gcp: { not_managed: { node_list: [] } } },
-        };
-        const tokenValue = {
-          metadata: { name: 'example-token', namespace: 'system', labels: { ...labels, 'xcsh-node': 'example-node' } },
-          system_metadata: { uid: uids.token },
-          spec: { site_name: 'example-site', type: 1, content: jwt },
-        };
-        const port = createGcpLifecycleHttpPort(
-          context.environment.XCSH_API_URL,
-          context.environment.XCSH_API_TOKEN,
-          async (url) => Response.json(String(url).includes('/tokens/') ? tokenValue : siteValue),
-          capture,
-        );
-        const siteResponse = await port.read('/api/config/namespaces/system/securemesh_site_v2s/example-site');
-        const tokenResponse = await port.read('/api/register/namespaces/system/tokens/example-token');
-        if (!siteResponse || !tokenResponse) throw new Error('Original fixture response missing');
-        const site = await bodyModule.joinOriginalXcshCreationBody({
-          context,
-          packet,
-          result: siteTarget,
-          platform: originalGcpBootstrapSource,
-          body: await capture.read(capture.evidenceFor(siteResponse)),
-          target: siteTarget.target,
-        });
-        const token = await bodyModule.joinOriginalXcshCreationBody({
-          context,
-          packet,
-          result: tokenTarget,
-          platform: originalGcpBootstrapSource,
-          body: await capture.read(capture.evidenceFor(tokenResponse)),
-          target: tokenTarget.target,
-        });
-        const value = await bootstrapModule.collectOriginalGcpPreapplyBootstrap({
-          site,
-          token,
-          platform: originalGcpBootstrapSource,
-          binding: {
-            owner: context.owner,
-            deploymentName: context.owner.deploymentId,
-            siteName: 'example-site',
-            nodeName: 'example-node',
-            tokenName: 'example-token',
-          },
-        });
-        expect(value.schemaVersion).toBe(4);
-        expect(value.readerRequestSha256).toBe(siteTarget.requestSha256);
-        const checkoutModule = await import('../src/gcp-preapply-checkout');
-        const bootstrapFormat = await import('../../gcloud/src/ce/bootstrap');
-        expect(await checkoutModule.checkoutOriginalGcpPreapplyBootstrap(value, store)).toBe(
-          bootstrapFormat.formatGcpUserData({ ...value.bootstrap, jwt }),
-        );
-        await expect(checkoutModule.checkoutOriginalGcpPreapplyBootstrap(value, store)).rejects.toThrow(
-          'already claimed',
-        );
-        expect(value.bootstrapOwnershipQualified).toBe(false);
-        expect(await bootstrapModule.readOriginalGcpPreapplyBootstrapJwt(value)).toBe(jwt);
-        await expect(
-          bodyModule.joinOriginalXcshCreationBody({
+          const siteResponse = await port.read('/api/config/namespaces/system/securemesh_site_v2s/example-site');
+          const tokenResponse = await port.read('/api/register/namespaces/system/tokens/example-token');
+          if (!siteResponse || !tokenResponse) throw new Error('Original fixture response missing');
+          const site = await bodyModule.joinOriginalXcshCreationBody({
             context,
             packet,
             result: siteTarget,
             platform: originalGcpBootstrapSource,
+            body: await capture.read(capture.evidenceFor(siteResponse)),
+            target: siteTarget.target,
+          });
+          const token = await bodyModule.joinOriginalXcshCreationBody({
+            context,
+            packet,
+            result: tokenTarget,
+            platform: originalGcpBootstrapSource,
             body: await capture.read(capture.evidenceFor(tokenResponse)),
             target: tokenTarget.target,
-          }),
-        ).rejects.toThrow();
-      } finally {
-        release.resolve();
-        await reader.completed;
-        await reader.closeAfterExecutorExit();
-        await rm(storeRoot, { recursive: true });
-      }
-    },
-    true,
-    2,
-  );
-});
+          });
+          const value = await bootstrapModule.collectOriginalGcpPreapplyBootstrap({
+            site,
+            token,
+            platform: originalGcpBootstrapSource,
+            binding: {
+              owner: context.owner,
+              deploymentName: context.owner.deploymentId,
+              siteName: 'example-site',
+              nodeName: 'example-node',
+              tokenName: 'example-token',
+            },
+          });
+          expect(value.schemaVersion).toBe(4);
+          expect(value.readerRequestSha256).toBe(siteTarget.requestSha256);
+          const checkoutModule = await import('../src/gcp-preapply-checkout');
+          const bootstrapFormat = await import('../../gcloud/src/ce/bootstrap');
+          if (grantCase === 'checkout') {
+            expect(await checkoutModule.checkoutOriginalGcpPreapplyBootstrap(value, store)).toBe(
+              bootstrapFormat.formatGcpUserData({ ...value.bootstrap, jwt }),
+            );
+            await expect(checkoutModule.checkoutOriginalGcpPreapplyBootstrap(value, store)).rejects.toThrow(
+              'already claimed',
+            );
+          } else {
+            const { publishOriginalGcpBootstrapGrant, inspectPreparedCreationScope } = await import(
+              '../src/prepared-creation-scope'
+            );
+            const snapshot = await inspectPreparedCreationScope(packet);
+            if (!snapshot.bootstrapAuthorization) throw new Error('Bootstrap authorization required');
+            let publications = 0;
+            const claimName = 'gcp-original-bootstrap-grant-example-node.json';
+            const originalWrite = store.write.bind(store);
+            const grantStore =
+              grantCase === 'claim-failed'
+                ? {
+                    owner: store.owner,
+                    directory: store.directory,
+                    verify: store.verify.bind(store),
+                    read: store.read.bind(store),
+                    write: async (name: string, record: unknown) => {
+                      await originalWrite(name, record);
+                      if (name === claimName) throw new Error('uncertain claim flush');
+                    },
+                  }
+                : store;
+            if (grantCase === 'checkout-failed')
+              await checkoutModule.checkoutOriginalGcpPreapplyBootstrap(value, store);
+            const executorFactory = (policy: SignalFreeExecutionPolicy) => async (invocation: Invocation) => {
+              publications++;
+              await policy.assertOriginal();
+              expect(((await store.read(claimName)) as { state: string }).state).toBe('claiming');
+              expect(((await store.read('gcp-preapply-bootstrap-example-node.json')) as { state: string }).state).toBe(
+                'consumed',
+              );
+              const child = Bun.spawn([process.env.CE_TEST_PYTHON ?? 'python3', ...invocation.args], {
+                cwd: invocation.cwd,
+                stdout: 'pipe',
+                stderr: 'pipe',
+              });
+              const [stdout, stderr, code] = await Promise.all([
+                new Response(child.stdout).text(),
+                new Response(child.stderr).text(),
+                child.exited,
+              ]);
+              if (code !== 0) throw new Error(`Publisher fixture failed: ${stderr}`);
+              await policy.finalCapture({ actualExitCode: 0, originalGroupClosed: true, signalsSent: false } as never);
+              if (grantCase === 'uncertain') throw new Error('uncertain publication after rename');
+              return { code, stdout };
+            };
+            const input = {
+              packet,
+              token: grantCase === 'copied-token' ? { ...tokenTarget } : tokenTarget,
+              evidence: grantCase === 'copied-evidence' ? { ...value } : value,
+              store: grantStore,
+            };
+            if (grantCase === 'directory') await chmod(snapshot.bootstrapAuthorization.directory, 0o755);
+            if (grantCase === 'published') {
+              const results = await Promise.allSettled([
+                publishOriginalGcpBootstrapGrant(input, { executorFactory }),
+                publishOriginalGcpBootstrapGrant(input, { executorFactory }),
+              ]);
+              const successes = results.filter((row) => row.status === 'fulfilled');
+              expect(successes).toHaveLength(1);
+              expect(publications).toBe(1);
+              if (successes[0].status !== 'fulfilled') throw new Error('Original grant not published');
+              const grant = successes[0].value;
+              expect(grant.executionQualified).toBe(false);
+              const raw = await readFile(
+                join(snapshot.bootstrapAuthorization.directory, `grant-${'b'.repeat(32)}.json`),
+              );
+              const envelope = JSON.parse(raw.toString());
+              const publicKey = createPublicKey({
+                key: Buffer.concat([
+                  Buffer.from('302a300506032b6570032100', 'hex'),
+                  Buffer.from(snapshot.bootstrapAuthorization.public_key, 'base64'),
+                ]),
+                format: 'der',
+                type: 'spki',
+              });
+              expect(
+                verify(
+                  null,
+                  Buffer.from(`XCSH_BOOTSTRAP_RELEASE_V1\n${JSON.stringify(envelope.payload)}`),
+                  publicKey,
+                  Buffer.from(envelope.signature, 'base64'),
+                ),
+              ).toBe(true);
+              expect(envelope.signature).not.toContain('=');
+              expect(envelope.payload.content_sha256).toBe(sha(Buffer.from(jwt)));
+              expect(envelope.payload.scope_sha256).toBe(value.planSha256);
+              expect(envelope.payload.scope_file_sha256).toBe(snapshot.scope?.sha256);
+              expect(envelope.payload.creation_identity_sha256).toBe(value.tokenCreationSha256);
+              expect(envelope.payload.process.parent_pid).toBe(admission.identity.pid);
+              expect(envelope.payload.expires_at_epoch_ms).toBe(Date.parse(value.bootstrap.expiresAt));
+              expect(raw.length).toBeLessThanOrEqual(16384);
+              expect(raw.toString()).not.toContain(jwt);
+              expect(((await store.read(claimName)) as { state: string }).state).toBe('published');
+            } else {
+              await expect(publishOriginalGcpBootstrapGrant(input, { executorFactory })).rejects.toThrow();
+              expect(publications).toBe(grantCase === 'uncertain' ? 1 : 0);
+              if (['uncertain', 'claim-failed', 'checkout-failed'].includes(grantCase)) {
+                expect(((await store.read(claimName)) as { state: string }).state).toBe('claiming');
+                const resumed = await CeDeploymentStore.open(storeRoot, context.owner);
+                await expect(
+                  publishOriginalGcpBootstrapGrant({ ...input, store: resumed }, { executorFactory }),
+                ).rejects.toThrow();
+              }
+            }
+            await expect(publishOriginalGcpBootstrapGrant(input, { executorFactory })).rejects.toThrow();
+          }
+          expect(value.bootstrapOwnershipQualified).toBe(false);
+          if (grantCase !== 'directory')
+            expect(await bootstrapModule.readOriginalGcpPreapplyBootstrapJwt(value)).toBe(jwt);
+          await expect(
+            bodyModule.joinOriginalXcshCreationBody({
+              context,
+              packet,
+              result: siteTarget,
+              platform: originalGcpBootstrapSource,
+              body: await capture.read(capture.evidenceFor(tokenResponse)),
+              target: tokenTarget.target,
+            }),
+          ).rejects.toThrow();
+        } finally {
+          release.resolve();
+          if (grantCase === 'directory') await reader.completed.catch(() => {});
+          else {
+            await reader.completed;
+            await reader.closeAfterExecutorExit();
+          }
+          await rm(storeRoot, { recursive: true });
+        }
+      },
+      true,
+      2,
+      grantCase !== 'checkout' && grantCase !== 'unconsumed',
+    );
+  });
+}
 
 for (const bad of ['authority', 'target', 'nonce', 'parent', 'schema', 'mode'] as const) {
   test(`early target rejects ${bad} and retires its source`, async () => {

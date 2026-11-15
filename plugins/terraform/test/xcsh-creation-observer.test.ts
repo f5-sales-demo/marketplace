@@ -25,6 +25,7 @@ test.skipIf(process.platform !== 'linux')(
         `pythonpath=${resolve(import.meta.dir, '../../..')}`,
         resolve(import.meta.dir, '../../../tests/test_xcsh_creation_observer.py'),
         resolve(import.meta.dir, '../../../tests/test_xcsh_bootstrap_scope.py'),
+        resolve(import.meta.dir, '../../../tests/test_publish_bootstrap_grant.py'),
       ],
       { stdin: 'ignore', stdout: stdout.fd, stderr: stderr.fd, env: { ...process.env } },
     );

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 DirectoryIdentity = tuple[int, int, int, int]
-MAX_GRANT_BYTES = 65536
+MAX_GRANT_BYTES = 16384
 RENAME_NOREPLACE = 1
 PRIVATE_DIRECTORY_MODE = 0o700
 PRIVATE_FILE_MODE = 0o400

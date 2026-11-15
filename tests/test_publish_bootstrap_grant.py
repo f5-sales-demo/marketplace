@@ -15,6 +15,7 @@ def publication(tmp_path):
     )
     directory = tmp_path / "authorization"
     directory.mkdir(mode=0o700)
+    directory.chmod(0o700)
     nonce = "a" * 32
     raw = b'{"payload":{"kind":"synthetic-unit-fixture"},"signature":"synthetic"}'
     sha = hashlib.sha256(raw).hexdigest()
@@ -184,9 +185,25 @@ def test_directory_replacement_during_capture_refuses(publication, monkeypatch):
         directory.rename(directory.with_name("retained-original"))
         directory.mkdir(mode=0o700)
 
+    directory.chmod(0o700)
+
     monkeypatch.setattr(module.os, "fsync", swap)
     name = stage()
     with pytest.raises(ValueError, match="Original"):
         publish(name)
     assert not (directory / ("grant-" + nonce + ".json")).exists()
     assert (directory.with_name("retained-original") / name).exists()
+
+
+def test_provider_grant_size_bound_retains_oversize_staging(publication):
+    _, directory, nonce, _, _, _, stage, publish = publication
+    name = stage()
+    raw = b"x" * 16385
+    path = directory / name
+    path.chmod(0o600)
+    path.write_bytes(raw)
+    path.chmod(0o400)
+    with pytest.raises(ValueError, match="Original"):
+        publish(name, sha=hashlib.sha256(raw).hexdigest())
+    assert path.read_bytes() == raw
+    assert not (directory / ("grant-" + nonce + ".json")).exists()

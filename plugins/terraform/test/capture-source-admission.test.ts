@@ -16,6 +16,7 @@ const names = [
   'gcp_provider_reader.py',
   'xcsh_creation_observer.py',
   'xcsh_creation_reader.py',
+  'publish_bootstrap_grant.py',
 ];
 const roots: string[] = [];
 afterEach(async () => {

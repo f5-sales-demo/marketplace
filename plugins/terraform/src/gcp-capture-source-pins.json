@@ -11,6 +11,7 @@
     "gcp_provider_process.py": "2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00",
     "gcp_provider_reader.py": "19532859fd9390ded4a3321fade653f1ca5ccb0d22afd04f2c37dcc816391ceb",
     "xcsh_creation_observer.py": "6ebd1f53ef6e1ae69c41533a6930351fca4e3a0d928d46fb6d3f0ea0fb918b5b",
-    "xcsh_creation_reader.py": "39e491fafa0885e735652c63743a86167253ef9a5c8a8fe522c014df28e557b2"
+    "xcsh_creation_reader.py": "39e491fafa0885e735652c63743a86167253ef9a5c8a8fe522c014df28e557b2",
+    "publish_bootstrap_grant.py": "6309afaebcd31730e750d14fb03d12afff5b83e3b9f06f765f1c1178d156ab9a"
   }
 }

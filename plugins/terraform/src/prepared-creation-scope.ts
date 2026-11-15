@@ -1,8 +1,23 @@
-import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
+import { createHash, generateKeyPairSync, type KeyObject, sign } from 'node:crypto';
 import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
+import type { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
+import { decodeEvidenceObject } from '../../platform/src/ce/evidence-json';
+import { acquireProcessLock } from '../../platform/src/ce/process-lock';
+import {
+  type BootstrapGrantPublicationOptions,
+  publishSignedBootstrapGrant,
+  retainBootstrapGrantFile,
+} from './bootstrap-grant-publication';
+import {
+  assertOriginalGcpPreapplyBootstrapContext,
+  type OriginalGcpPreapplyBootstrapEvidence,
+  readOriginalGcpPreapplyBootstrapJwt,
+} from './gcp-preapply-bootstrap';
+import { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
 import type { InstalledCaptureContext } from './installed-capture-context';
+import { type InstalledXcshCreationTarget, readOriginalInstalledXcshTarget } from './installed-xcsh-creation-reader';
 import { linuxMonotonicMs } from './linux-clock';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import {
@@ -40,6 +55,7 @@ interface Lease {
   refused: boolean;
   closed: boolean;
   consumed: boolean;
+  grantClaims?: Set<string>;
   authorized: boolean;
 }
 const preparations = new WeakMap<object, Promise<PreparedOriginalCreationScope>>();
@@ -386,4 +402,170 @@ export function closePreparedCreationScope(packet: unknown): void {
   current.closed = true;
   current.authorized = false;
   current.monitor?.close();
+}
+
+/** Source-only bootstrap release. A durable claim precedes shared one-use checkout;
+ * failed or uncertain issuance cannot be retried with the same original nonce.
+ * The provider independently verifies and consumes the grant before releasing JWT content.
+ */
+export async function publishOriginalGcpBootstrapGrant(
+  input: {
+    packet: unknown;
+    token: InstalledXcshCreationTarget;
+    evidence: OriginalGcpPreapplyBootstrapEvidence;
+    store: Pick<CeDeploymentStore, 'owner' | 'directory' | 'verify' | 'read' | 'write'>;
+  },
+  options: BootstrapGrantPublicationOptions = {},
+) {
+  const current = lease(input.packet),
+    evidence = input.evidence,
+    token = input.token,
+    store = input.store,
+    bootstrap = current.bootstrap;
+  if (!current.consumed || !bootstrap || !current.binding) throw failure();
+  await assertOriginalGcpPreapplyBootstrapContext(evidence, current.context);
+  const raw = await readOriginalInstalledXcshTarget(token);
+  const creation = decodeEvidenceObject(raw),
+    receipt = creation.receipt as Record<string, unknown>;
+  if (
+    receipt?.schema_version !== 1 ||
+    creation.scopeSha256 !== current.projection.receipt.planSha256 ||
+    creation.scopeFileSha256 !== current.binding.sha256 ||
+    receipt.scope_sha256 !== current.projection.receipt.planSha256 ||
+    receipt.scope_file_sha256 !== current.binding.sha256 ||
+    token.requestSha256 !== evidence.readerRequestSha256 ||
+    token.evidenceSha256 !== evidence.tokenReaderEvidenceSha256 ||
+    token.creationIdentitySha256 !== evidence.tokenCreationSha256 ||
+    token.target.type_name !== 'xcsh_token' ||
+    token.target.name !== evidence.bootstrap.tokenName ||
+    token.target.namespace !== 'system' ||
+    evidence.planSha256 !== current.projection.receipt.planSha256 ||
+    JSON.stringify(token.executor) !== JSON.stringify(evidence.executor) ||
+    receipt.creation_identity_sha256 !== evidence.tokenCreationSha256 ||
+    typeof receipt.nonce !== 'string' ||
+    !/^[a-f0-9]{32}$/.test(receipt.nonce)
+  )
+    throw new Error('Original bootstrap token and reader scope differ');
+  const nonce = receipt.nonce,
+    directory = store.directory,
+    expiresAt = Date.parse(evidence.bootstrap.expiresAt);
+  const jwt = await readOriginalGcpPreapplyBootstrapJwt(evidence);
+  const jwtSha256 = hash(Buffer.from(jwt));
+  if (jwtSha256 !== evidence.bootstrap.jwtSha256 || !Number.isSafeInteger(expiresAt) || expiresAt <= Date.now())
+    throw new Error('Fresh original bootstrap token required');
+  const guard = async () => {
+    const observedMs = linuxMonotonicMs();
+    if (
+      observedMs < current.context.budget.start ||
+      observedMs >= current.context.budget.deadline ||
+      current.context.budget.deadline - current.context.budget.start !== 7200000
+    )
+      throw new Error('Original bootstrap grant budget exhausted');
+    await assertPreparedCreationScope(input.packet);
+    await assertOriginalGcpPreapplyBootstrapContext(evidence, current.context);
+    if (
+      !(await readOriginalInstalledXcshTarget(token)).equals(raw) ||
+      (await readOriginalGcpPreapplyBootstrapJwt(evidence)) !== jwt ||
+      expiresAt <= Date.now()
+    )
+      throw new Error('Original bootstrap token changed or expired');
+    await store.verify();
+    if (
+      store.directory !== directory ||
+      (['provider', 'engine', 'account', 'region', 'deploymentId'] as const).some(
+        (key) =>
+          store.owner[key] !== current.context.owner[key] ||
+          evidence.bootstrap.owner[key] !== current.context.owner[key],
+      )
+    )
+      throw new Error('Original bootstrap grant storage scope differs');
+  };
+  await guard();
+  // Claim synchronously before another caller can pass the same nonce gate.
+  current.grantClaims ??= new Set();
+  if (current.grantClaims.has(nonce))
+    throw new Error('Original bootstrap grant already claimed; reconcile without replay');
+  current.grantClaims.add(nonce);
+  const release = await acquireProcessLock(join(directory, '.gcp-original-bootstrap-grant-lock'));
+  try {
+    await guard();
+    const name = `gcp-original-bootstrap-grant-${evidence.bootstrap.nodeName}.json`;
+    try {
+      await store.read(name);
+      throw new Error('Original bootstrap grant already claimed; reconcile without replay');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    const claim = {
+      schemaVersion: 1,
+      kind: 'original-gcp-bootstrap-grant-claim',
+      owner: current.context.owner,
+      planSha256: evidence.planSha256,
+      scopeFileSha256: current.binding.sha256,
+      readerRequestSha256: evidence.readerRequestSha256,
+      tokenEvidenceSha256: token.evidenceSha256,
+      tokenCreationSha256: evidence.tokenCreationSha256,
+      nonce,
+      jwtSha256,
+      originalStartMs: current.context.budget.start,
+      originalDeadlineMs: current.context.budget.deadline,
+    };
+    // An exclusive immutable marker also survives a replaced or uncertain store record.
+    await retainBootstrapGrantFile(
+      bootstrap.specification.directory,
+      `claim-${nonce}.json`,
+      Buffer.from(JSON.stringify(claim)),
+    );
+    await guard();
+    await store.write(name, { ...claim, state: 'claiming' });
+    await guard();
+    await checkoutOriginalGcpPreapplyBootstrap(evidence, store);
+    await guard();
+    const issuedMs = linuxMonotonicMs();
+    const payload = {
+      schema_version: 1,
+      kind: 'original-bootstrap-release',
+      scope_sha256: receipt.scope_sha256,
+      scope_file_sha256: receipt.scope_file_sha256,
+      target: receipt.target,
+      creation_identity_sha256: receipt.creation_identity_sha256,
+      process: receipt.process,
+      nonce,
+      content_sha256: jwtSha256,
+      issued_monotonic_ms: issuedMs,
+      expires_at_epoch_ms: expiresAt,
+    };
+    const message = Buffer.from(`XCSH_BOOTSTRAP_RELEASE_V1\n${JSON.stringify(payload)}`);
+    const signature = sign(null, message, bootstrap.privateKey).toString('base64').replace(/=+$/, '');
+    const envelope = Buffer.from(JSON.stringify({ payload, signature }));
+    const freshGuard = async () => {
+      await guard();
+      const now = linuxMonotonicMs();
+      if (now < issuedMs || now - issuedMs >= 300000) throw new Error('Original bootstrap grant freshness exhausted');
+    };
+    const published = await publishSignedBootstrapGrant(
+      current.context,
+      {
+        directory: bootstrap.specification.directory,
+        identity: bootstrap.directoryIdentity,
+      },
+      nonce,
+      envelope,
+      freshGuard,
+      options,
+    );
+    await freshGuard();
+    await store.write(name, { ...claim, state: 'published', grantSha256: published.sha256 });
+    await freshGuard();
+    return Object.freeze({
+      schemaVersion: 1 as const,
+      kind: 'original-gcp-bootstrap-grant-published' as const,
+      ...published,
+      planSha256: evidence.planSha256,
+      nonce,
+      executionQualified: false as const,
+    });
+  } finally {
+    await release();
+  }
 }
