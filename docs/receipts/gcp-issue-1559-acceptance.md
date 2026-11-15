@@ -1795,3 +1795,14 @@ pass after the fresh worktree dependency repair.
 
 These are development-tool checks. Full built-in capture, original live GCP
 acceptance, remaining installed checks and review/CI/merge/publication remain open.
+
+## Original initial inventory stage on November 15
+
+The [initial inventory receipt](gcp-initial-inventory-stage-20261115.md) records
+complete original plan target coverage through actual Compute and Platform
+evidence issuers, retained partial captures, single-use context state and
+receipt/input freshness checks. The graph counts remain 8 for single-node and
+21 for HA with observer. Source tests and the compiled export pass.
+
+Fresh live initial absences, full built-in capture and all original live and
+delivery gates remain required. The stage grants no execution authority.

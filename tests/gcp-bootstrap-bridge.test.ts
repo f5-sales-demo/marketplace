@@ -381,3 +381,26 @@ it('compiled Platform presence preserves attributed absence and retires issuer a
   await expect(observation.assertPresence(presence)).rejects.toThrow('retired');
   await expect(run.platform.assertOriginalGcpPlatformHttpBody(presence.body)).rejects.toThrow('retired');
 });
+
+it('compiled initial inventory refuses serialized scope before authentication or Platform reads', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.openInstalledInitialInventory).toBe('function');
+  let reads = 0;
+  await expect(
+    runtime.openInstalledInitialInventory(
+      {
+        context: {},
+        scope: { schemaVersion: 1, kind: 'original-gcp-inventory-scope' },
+        store: {},
+        platform: {},
+      },
+      {
+        fetcher: async () => {
+          reads++;
+          return Response.json({});
+        },
+      },
+    ),
+  ).rejects.toThrow('Original');
+  expect(reads).toBe(0);
+});

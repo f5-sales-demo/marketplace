@@ -8819,6 +8819,73 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
     },
   });
 }
+async function openInstalledGcpCloudSerialReader(context, signal, fetcher = fetch, finalCapture) {
+  if (
+    context.schemaVersion !== 2 ||
+    context.kind !== 'original-installed-gcp-capture-context' ||
+    context.owner.provider !== 'gcp' ||
+    context.owner.engine !== 'terraform' ||
+    context.environment.GOOGLE_APPLICATION_CREDENTIALS !== context.inputs.adc?.path
+  )
+    throw new Error('Trusted original installed cloud reader context required');
+  const expected = context.authentication;
+  const reserve = finalCapture?.reserve;
+  if (finalCapture) {
+    const snapshot = inspectFinalReaderReserve(finalCapture.reserve);
+    const admission = finalCapture.admission;
+    if (
+      !admission ||
+      admission.directory !== context.executionDirectory ||
+      admission.args[0] !== 'apply' ||
+      admission.originalStartMs !== context.budget.start ||
+      admission.originalDeadlineMs !== context.budget.deadline ||
+      snapshot.originalStartMs !== context.budget.start ||
+      snapshot.originalDeadlineMs !== context.budget.deadline ||
+      !admission.identity ||
+      ['pid', 'group', 'start', 'boot'].some((key) => admission.identity[key] !== snapshot.identity[key])
+    )
+      throw new Error('Original installed cloud final reader parent differs');
+  }
+  const assertClock = async () => {
+    if (reserve) await assertFinalReaderReserve(reserve);
+    else {
+      if (linuxMonotonicMs() >= context.budget.deadline)
+        throw new Error('Original installed cloud operation deadline exhausted');
+      await context.assertWithinDeadline();
+      if (linuxMonotonicMs() >= context.budget.deadline)
+        throw new Error('Original installed cloud operation deadline exhausted');
+    }
+  };
+  const assertOriginal = async () => {
+    await assertClock();
+    await context.assertInputs();
+    const providers = await context.readProviderInputs();
+    if (Object.keys(providers).length !== 6)
+      throw new Error('All six original admitted provider-package inputs required');
+    await context.assertInputs();
+    await assertClock();
+  };
+  await assertOriginal();
+  const originalAdc = await owned(context.inputs.adc.path, 65536);
+  assertSameOriginalInput(context.inputs.adc, originalAdc.binding);
+  const bytes = originalAdc.bytes;
+  await assertOriginal();
+  return openGcpCloudSerialReader(
+    {
+      root: join15(context.executionDirectory, `gcp-cloud-capture-${randomUUID8()}`),
+      region: context.owner.region,
+      authentication: {
+        credentialBytes: bytes,
+        project: context.owner.account,
+        accountSha256: expected.accountSha256,
+        audienceSha256: expected.audienceSha256,
+        assertOriginal,
+      },
+    },
+    signal,
+    fetcher,
+  );
+}
 
 // plugins/terraform/src/installed-bootstrap-capture.ts
 import { createHash as createHash19, randomUUID as randomUUID9 } from 'node:crypto';
@@ -9459,6 +9526,9 @@ async function assertOriginalGcpInventoryScope(packet) {
 async function inspectOriginalGcpInventoryScope(packet) {
   await assertOriginalGcpInventoryInputs(packet);
   return record(packet).view;
+}
+function assertOriginalGcpInventoryContext(packet, context) {
+  if (record(packet).context !== context) throw refuse();
 }
 function closeOriginalGcpInventoryScope(packet) {
   record(packet).close();
@@ -10150,6 +10220,241 @@ function requestPlatform(bus) {
   });
 }
 
+// plugins/terraform/src/installed-initial-inventory.ts
+import { createHash as createHash21, randomUUID as randomUUID10 } from 'node:crypto';
+import { join as join19 } from 'node:path';
+
+var preparations2 = new WeakMap();
+async function openInstalledInitialInventory(input, options = {}) {
+  const { context, scope, store, platform } = input;
+  assertOriginalGcpInventoryContext(scope, context);
+  const current = preparations2.get(context);
+  if (current) {
+    if (
+      current.scope !== scope ||
+      current.directory !== store.directory ||
+      current.platform !== platform ||
+      current.fetcher !== options.fetcher
+    )
+      throw new Error('Original initial inventory source differs');
+    await store.verify();
+    await assertOriginalGcpInventoryScope(scope);
+    return current.value;
+  }
+  const value = openInitialInventory(input, options);
+  preparations2.set(context, { scope, directory: store.directory, platform, fetcher: options.fetcher, value });
+  return value;
+}
+async function openInitialInventory(input, options = {}) {
+  const { context, scope, store, platform } = input;
+  assertOriginalGcpInventoryContext(scope, context);
+  const view = await inspectOriginalGcpInventoryScope(scope);
+  const directory = store.directory;
+  const owner = Object.freeze({ ...context.owner });
+  const source = platform.gcpBootstrapSource?.();
+  const openObservation = platform.gcpBootstrapObservation?.bind(platform);
+  const origin = context.environment.XCSH_API_URL;
+  const credential = context.environment.XCSH_API_TOKEN;
+  if (!source || !openObservation || !origin || !credential)
+    throw new Error('Original installed Platform inventory source required');
+  let retired = false,
+    claimed = false,
+    closingRequested = false;
+  let failureRetention;
+  let closure;
+  let pending;
+  let snapshot;
+  let receiptBinding;
+  let started = 0;
+  const guard = async () => {
+    if (retired) throw new Error('Original initial inventory retired');
+    assertOriginalGcpInventoryContext(scope, context);
+    await assertOriginalGcpInventoryScope(scope);
+    await context.assertInputs();
+    await store.verify();
+    if (
+      store.directory !== directory ||
+      ['provider', 'engine', 'account', 'region', 'deploymentId'].some((key) => store.owner[key] !== owner[key])
+    )
+      throw new Error('Original inventory storage scope changed');
+    await context.assertWithinDeadline();
+    if (retired) throw new Error('Original initial inventory retired');
+  };
+  await guard();
+  const saved = await store.read('gcp-terraform-input-identity.json');
+  const cloud = await openInstalledGcpCloudSerialReader(context, undefined, options.fetcher);
+  let observation;
+  try {
+    observation = await openObservation(owner, saved.platformContext, {
+      origin,
+      credentialSha256: createHash21('sha256').update(credential).digest('hex'),
+      targets: view.platform.map((row) => row.target),
+      assertOriginal: guard,
+    });
+    await guard();
+  } catch (error) {
+    retired = true;
+    try {
+      await cloud.close();
+    } catch (closureError) {
+      throw new AggregateError([error, closureError], 'Original inventory opening and closure failed');
+    }
+    throw error;
+  }
+  const cloudEvidence = [];
+  const platformEvidence = [];
+  const rows = [];
+  const id = randomUUID10();
+  const retain = async (state, error) => {
+    if (store.directory !== directory) throw new Error('Original inventory storage scope changed');
+    const name = `gcp-initial-inventory-${id}-${state}.private.json`;
+    await store.write(name, {
+      schemaVersion: 1,
+      kind: 'original-initial-gcp-inventory-capture',
+      state,
+      owner,
+      planSha256: view.planSha256,
+      intentFingerprint: view.intentFingerprint,
+      resources: rows,
+      expectedResources: view.resources,
+      startedMonotonicMs: started,
+      creationOwnershipQualified: false,
+      executionAuthorized: false,
+      ...(error === undefined ? {} : { errorType: error instanceof Error ? error.name : typeof error }),
+    });
+    return join19(directory, name);
+  };
+  const retainFailure = (error) => {
+    if (!failureRetention) failureRetention = retain('failed', error);
+    return failureRetention;
+  };
+  const fresh = () => {
+    const elapsed = linuxMonotonicMs() - started;
+    if (elapsed < 0 || elapsed >= 300000) throw new Error('Original initial inventory freshness exhausted');
+  };
+  const assertSnapshot = async (value) => {
+    if (!snapshot || value !== snapshot) throw new Error('Original initial inventory reference required');
+    try {
+      await guard();
+      fresh();
+      if (!receiptBinding) throw new Error('Original initial inventory receipt required');
+      assertSameOriginalInput(receiptBinding, (await owned(receiptBinding.path)).binding);
+      for (const entry of cloudEvidence) {
+        if (entry.resource) await cloud.readResourceEvidence(entry.value);
+        else await cloud.readEvidence(entry.value);
+      }
+      for (const presence of platformEvidence) {
+        await observation.assertPresence(presence);
+        await source.assertBody(presence.body);
+      }
+      await guard();
+      fresh();
+    } catch (error) {
+      retired = true;
+      if (!closingRequested) {
+        try {
+          await retainFailure(error);
+        } catch (persistenceError) {
+          throw new AggregateError(
+            [error, persistenceError],
+            'Original inventory verification and failure persistence failed',
+          );
+        }
+      }
+      throw error;
+    }
+  };
+  return Object.freeze({
+    capture() {
+      if (claimed) return Promise.reject(new Error('Original initial inventory already claimed'));
+      claimed = true;
+      started = linuxMonotonicMs();
+      pending = (async () => {
+        try {
+          await guard();
+          await retain('capturing');
+          for (const binding of view.cloud) {
+            await guard();
+            fresh();
+            const target = binding.target;
+            const value =
+              target.kind === 'instance'
+                ? await cloud.instance(target.zone, target.name)
+                : await cloud.resource(target);
+            cloudEvidence.push({ value, resource: target.kind !== 'instance' });
+            rows.push({
+              address: binding.address,
+              type: binding.type,
+              present: value.present,
+              bodyPath: value.path,
+              bodySha256: value.sha256,
+            });
+            await retain('capturing');
+            if (value.present) throw new Error('Initial GCP resource already exists');
+          }
+          for (const binding of view.platform) {
+            await guard();
+            fresh();
+            const value = await observation.readPresence(binding.target);
+            await source.assertBody(value.body);
+            platformEvidence.push(value);
+            rows.push({
+              address: binding.address,
+              type: binding.type,
+              present: value.present,
+              bodyPath: value.body.evidence.bodyPath,
+              bodySha256: value.body.evidence.bodySha256,
+            });
+            await retain('capturing');
+            if (value.present) throw new Error('Initial Platform resource already exists');
+          }
+          await guard();
+          fresh();
+          if (rows.length !== view.resources.length) throw new Error('Original initial inventory coverage incomplete');
+          const path = await retain('complete');
+          receiptBinding = (await owned(path)).binding;
+          snapshot = Object.freeze({ schemaVersion: 1, kind: 'original-initial-gcp-inventory' });
+          await assertSnapshot(snapshot);
+          return snapshot;
+        } catch (error) {
+          retired = true;
+          try {
+            await retainFailure(error);
+          } catch (persistenceError) {
+            throw new AggregateError([error, persistenceError], 'Original inventory failure and persistence failed');
+          }
+          throw error;
+        }
+      })();
+      return pending;
+    },
+    assertSnapshot,
+    async inspect(value) {
+      await assertSnapshot(value);
+      return Object.freeze({
+        planSha256: view.planSha256,
+        resources: view.resources,
+        cloudCount: view.cloud.length,
+        platformCount: view.platform.length,
+        creationOwnershipQualified: false,
+        executionAuthorized: false,
+      });
+    },
+    close() {
+      if (closure) return closure;
+      closingRequested = true;
+      retired = true;
+      closure = (async () => {
+        const results = await Promise.allSettled([cloud.close(), observation.close()]);
+        if (pending) await Promise.allSettled([pending]);
+        const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []));
+        if (failures.length) throw new AggregateError(failures, 'Original initial inventory reader closure failed');
+      })();
+      return closure;
+    },
+  });
+}
+
 // plugins/terraform/src/index.ts
 function factory(pi) {
   pi.setLabel('Terraform CE lifecycle execution');
@@ -10196,6 +10501,7 @@ export {
   joinOriginalXcshCreationBody,
   openGcpCloudSerialReader,
   openInstalledBootstrapCapture,
+  openInstalledInitialInventory,
   openInstalledXcshCreationReader,
   prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
