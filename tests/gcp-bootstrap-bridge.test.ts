@@ -257,3 +257,27 @@ it('compiled Platform observation supplies original bodies to the actual compile
     await (await import('node:fs/promises')).rm(root, { recursive: true, force: true });
   }
 });
+
+it('compiled bootstrap stage refuses copied scope before reader or publisher execution', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.openInstalledBootstrapCapture).toBe('function');
+  let executions = 0;
+  const factory = () => {
+    executions++;
+    throw new Error('must not execute');
+  };
+  await expect(
+    runtime.openInstalledBootstrapCapture(
+      {
+        context: {},
+        packet: { schemaVersion: 2, kind: 'prepared-original-creation-scope' },
+        nodes: [],
+        platform: {},
+        store: {},
+        platformContext: 'example',
+      },
+      { reader: { executorFactory: factory }, publication: { executorFactory: factory } },
+    ),
+  ).rejects.toThrow('Trusted');
+  expect(executions).toBe(0);
+});

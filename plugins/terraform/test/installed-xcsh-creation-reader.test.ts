@@ -1410,3 +1410,327 @@ for (const duplicate of ['nonce', 'identity'] as const) {
     }, true);
   });
 }
+
+for (const stageCase of [
+  'published',
+  'authentication',
+  'uncertain',
+  'wrong-node',
+  'replaced-token',
+  'reader-startup',
+  'ha',
+] as const) {
+  test(`original installed bootstrap stage: ${stageCase}`, async () => {
+    await scoped(
+      async (context, originalAdmission, packet) => {
+        const { openInstalledBootstrapCapture } = await import('../src/installed-bootstrap-capture');
+        const { createInstalledApplyController } = await import('../src/installed-apply-controller');
+        const { admitFinalReaderReserve } = await import('../src/reader-final-reserve');
+        const { fingerprint } = await import('../../gcloud/src/ce/discovery');
+        const { openOriginalGcpBootstrapObservation } = await import('../../platform/src/ce/gcp-bootstrap-observation');
+        const index = [
+          'published',
+          'authentication',
+          'uncertain',
+          'wrong-node',
+          'replaced-token',
+          'reader-startup',
+          'ha',
+        ].indexOf(stageCase);
+        const identity = {
+          ...originalAdmission.identity,
+          pid: 7600 + index,
+          group: 7600 + index,
+          start: String(linuxMonotonicMs()),
+        };
+        const admission = { ...originalAdmission, identity };
+        const release = Promise.withResolvers<void>();
+        const allowTargets = Promise.withResolvers<void>();
+        const published = Promise.withResolvers<void>();
+        const remaining = Promise.withResolvers<void>();
+        const extra =
+          stageCase === 'ha'
+            ? Array.from({ length: 2 }, (_, index) => ({
+                siteName: 'example-site',
+                nodeName: `pending-node-${index}`,
+                tokenName: `pending-token-${index}`,
+              }))
+            : [];
+        const root = await mkdtemp(join(tmpdir(), 'bootstrap-stage-store-'));
+        const store = await CeDeploymentStore.open(root, context.owner);
+        const intent = {
+          project: context.owner.account,
+          region: context.owner.region,
+          deploymentName: context.owner.deploymentId,
+          platformContext: 'example',
+          engine: 'terraform',
+          operation: 'deploy',
+          sites: [
+            {
+              name: 'example-site',
+              nodes: [{ name: 'example-node' }, ...extra.map((node) => ({ name: node.nodeName }))],
+            },
+          ],
+        };
+        await store.write('gcp-terraform-input-identity.json', {
+          intent,
+          intentFingerprint: fingerprint(intent),
+          platformContext: 'example',
+        });
+        const uids = { site: 'stage-original-site', token: 'stage-original-token' };
+        const labels = { 'xcsh-deployment': context.owner.deploymentId, 'xcsh-engine': 'terraform' };
+        const jwt = [
+          Buffer.from('{}').toString('base64url'),
+          Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'),
+          Buffer.from('synthetic-signature').toString('base64url'),
+        ].join('.');
+        const site = {
+          metadata: {
+            name: 'example-site',
+            namespace: 'system',
+            labels: { ...labels, 'ves.io/provider': 'ves-io-GOOGLE' },
+          },
+          system_metadata: { uid: uids.site },
+          spec: { gcp: { not_managed: { node_list: [] } } },
+        };
+        const token = {
+          metadata: { name: 'example-token', namespace: 'system', labels: { ...labels, 'xcsh-node': 'example-node' } },
+          system_metadata: { uid: uids.token },
+          spec: { site_name: 'example-site', type: 1, content: jwt },
+        };
+        const tokenValues = new Map([
+          [token.metadata.name, token],
+          ...extra.map(
+            (node) =>
+              [
+                node.tokenName,
+                {
+                  metadata: {
+                    ...token.metadata,
+                    name: node.tokenName,
+                    labels: { ...labels, 'xcsh-node': node.nodeName },
+                  },
+                  system_metadata: { uid: `stage-original-${node.tokenName}` },
+                  spec: token.spec,
+                },
+              ] as const,
+          ),
+        ]);
+        let gets = 0,
+          publications = 0;
+        const platform = {
+          gcpBootstrapSource: () => originalGcpBootstrapSource,
+          gcpBootstrapObservation: async (
+            _owner: unknown,
+            _name: string,
+            input: Parameters<
+              NonNullable<import('../../platform/src/ce/service').CePlatformService['gcpBootstrapObservation']>
+            >[2],
+          ) =>
+            openOriginalGcpBootstrapObservation(
+              {
+                store,
+                origin: input.origin,
+                credential: context.environment.XCSH_API_TOKEN,
+                targets: input.targets,
+                assertOriginal: input.assertOriginal,
+              },
+              {
+                fetcher: async (url) => {
+                  gets++;
+                  return stageCase === 'authentication'
+                    ? Response.json({}, { status: 401 })
+                    : Response.json(
+                        url.pathname.includes('/tokens/')
+                          ? tokenValues.get(url.pathname.split('/').at(-1) ?? '')
+                          : site,
+                      );
+                },
+              },
+            ),
+        };
+        const readerFactory = fakeExecutor(async (value, _request, directory) => {
+          await allowTargets.promise;
+          const base = (value.receipts as Record<string, unknown>[])[0];
+          value.targetCount = 2;
+          value.receipts = [
+            {
+              ...base,
+              target: { type_name: 'xcsh_securemesh_site_v2', namespace: 'system', name: 'example-site' },
+              nonce: 'a'.repeat(32),
+              creation_identity_sha256: sha(Buffer.from(uids.site)),
+            },
+            {
+              ...base,
+              target: { type_name: 'xcsh_token', namespace: 'system', name: 'example-token' },
+              nonce: 'b'.repeat(32),
+              creation_identity_sha256: sha(Buffer.from(uids.token)),
+            },
+          ];
+          for (const receipt of value.receipts as Record<string, unknown>[])
+            await writeFile(
+              earlyTargetPath(directory, receipt.target as Record<string, string>),
+              JSON.stringify({ ...earlyTargetValue(value), receipt }),
+              { mode: 0o400, flag: 'wx' },
+            );
+          published.resolve();
+          if (stageCase === 'ha') {
+            await remaining.promise;
+            const more = extra.map((node, index) => ({
+              ...base,
+              target: { type_name: 'xcsh_token', namespace: 'system', name: node.tokenName },
+              nonce: String(index + 3).repeat(32),
+              creation_identity_sha256: sha(Buffer.from(`stage-original-${node.tokenName}`)),
+            }));
+            value.targetCount = 4;
+            for (const receipt of more)
+              await writeFile(
+                earlyTargetPath(directory, receipt.target),
+                JSON.stringify({ ...earlyTargetValue(value), receipt }),
+                { mode: 0o400, flag: 'wx' },
+              );
+            value.receipts = [...(value.receipts as unknown[]), ...more];
+          }
+          await release.promise;
+        });
+        const publisherFactory = (policy: SignalFreeExecutionPolicy) => async (invocation: Invocation) => {
+          publications++;
+          const child = Bun.spawn([process.env.CE_TEST_PYTHON ?? 'python3', ...invocation.args], {
+            cwd: invocation.cwd,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          const [stdout, stderr, code] = await Promise.all([
+            new Response(child.stdout).text(),
+            new Response(child.stderr).text(),
+            child.exited,
+          ]);
+          if (code) throw new Error(`Offline publication fixture failed: ${stderr}`);
+          await policy.finalCapture({ actualExitCode: 0, originalGroupClosed: true, signalsSent: false } as never);
+          if (stageCase === 'uncertain') throw new Error('uncertain stage publication after rename');
+          remaining.resolve();
+          return { code, stdout };
+        };
+        const input = {
+          context,
+          packet,
+          platform,
+          store,
+          platformContext: 'example',
+          nodes: [
+            {
+              siteName: 'example-site',
+              tokenName: 'example-token',
+              nodeName: stageCase === 'wrong-node' ? 'foreign-node' : 'example-node',
+            },
+            ...extra,
+          ],
+        };
+        if (stageCase === 'wrong-node') {
+          await expect(
+            openInstalledBootstrapCapture(input, {
+              reader: { executorFactory: readerFactory },
+              publication: { executorFactory: publisherFactory },
+            }),
+          ).rejects.toThrow('intent');
+          expect(gets).toBe(0);
+          await rm(root, { recursive: true });
+          return;
+        }
+        const worker = await openInstalledBootstrapCapture(input, {
+          reader: {
+            executorFactory:
+              stageCase === 'reader-startup'
+                ? () => {
+                    throw new Error('fixture reader startup failed');
+                  }
+                : readerFactory,
+          },
+          publication: { executorFactory: publisherFactory },
+        });
+        const events: Record<string, unknown>[] = [];
+        const controller = createInstalledApplyController(context, worker, {
+          persist: async (event) => {
+            events.push(event);
+          },
+        });
+        try {
+          if (!controller.prepare) throw new Error('Original controller preparation unavailable');
+          await controller.prepare(context);
+          if (stageCase === 'reader-startup') {
+            await expect(controller.start(admission)).rejects.toThrow('startup failed');
+            await expect(worker.waitForGrants()).rejects.toThrow('startup failed');
+            expect(gets).toBe(0);
+            expect(publications).toBe(0);
+          } else {
+            await controller.start(admission);
+            expect(gets).toBe(0);
+            expect(publications).toBe(0);
+            allowTargets.resolve();
+            await published.promise;
+            if (stageCase === 'published' || stageCase === 'replaced-token' || stageCase === 'ha') {
+              const grants = await worker.waitForGrants();
+              expect(grants).toHaveLength(1 + extra.length);
+              expect(grants[0].executionQualified).toBe(false);
+              expect(publications).toBe(1 + extra.length);
+              const refreshed = await worker.refreshBootstrap('example-node');
+              expect(refreshed.bootstrap.jwtSha256).toBe(sha(Buffer.from(jwt)));
+              expect(publications).toBe(1 + extra.length);
+              if (stageCase === 'replaced-token') {
+                token.spec.content = jwt.replace(/.$/, jwt.endsWith('A') ? 'B' : 'A');
+                await expect(worker.refreshBootstrap('example-node')).rejects.toThrow('changed');
+                token.spec.content = jwt;
+                await expect(worker.refreshBootstrap('example-node')).rejects.toThrow('retired');
+                expect(publications).toBe(1 + extra.length);
+              }
+            } else {
+              await expect(worker.waitForGrants()).rejects.toThrow();
+              expect(publications).toBe(stageCase === 'uncertain' ? 1 : 0);
+            }
+          }
+          await expect(controller.start(admission)).rejects.toThrow('claimed');
+        } finally {
+          allowTargets.resolve();
+          remaining.resolve();
+          release.resolve();
+          const began = linuxMonotonicMs();
+          const finished = {
+            identity,
+            pid: identity.pid,
+            actualExitCode: 0,
+            originalGroupClosed: true,
+            signalsSent: false,
+            originalDeadlineMs: context.budget.deadline,
+            invocationStartedMs: context.budget.start,
+            finalStartedMs: began,
+            finalDeadlineMs: began + 300000,
+            stdoutPath: admission.stdoutPath,
+            stderrPath: admission.stderrPath,
+            submitted: true,
+          } as import('../src/signal-free-executor').FinalExecutionCapture;
+          const reserve = admitFinalReaderReserve({
+            identity,
+            originalStartMs: context.budget.start,
+            originalDeadlineMs: context.budget.deadline,
+            finalStartedMs: began,
+            finalDeadlineMs: began + 300000,
+            assertOriginal: context.assertInputs,
+          });
+          if (stageCase === 'published' || stageCase === 'ha') await controller.finalCapture(finished, reserve);
+          else await expect(controller.finalCapture(finished, reserve)).rejects.toThrow();
+          if (stageCase === 'reader-startup') {
+            await expect(controller.closeAfterExecutorExit()).rejects.toThrow();
+            expect(events.some((event) => event.phase === 'final-failed')).toBe(true);
+          } else {
+            await controller.closeAfterExecutorExit();
+            expect(events.some((event) => event.phase === 'closed')).toBe(true);
+          }
+          await rm(root, { recursive: true });
+        }
+      },
+      true,
+      stageCase === 'ha' ? 2 : 0,
+      true,
+    );
+  }, 30000);
+}

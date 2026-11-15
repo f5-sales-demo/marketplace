@@ -1739,3 +1739,14 @@ Platform-issued bodies and refuses access after observation retirement.
 These are source and offline ABI checks. Builtin capture/controller composition,
 actual provider grant consumption, all original live GCP acceptance and cleanup,
 remaining installed checks and review/CI/merge/publication remain required.
+
+## Original controller bootstrap stage on November 15
+
+The [bootstrap stage receipt](gcp-original-bootstrap-stage-20261115.md) records
+original callback/scoped reader/Platform observation/grant composition, asynchronous
+publication, permanent failure retirement and retained final capture. Offline
+three-node tests delay two tokens until the first grant without delaying startup.
+
+The enclosing built-in factory still requires inventory, original insertion and
+guest stages. Provider consumption, all original live GCP acceptance, independent
+cleanup/restoration, remaining installed and delivery gates remain open.
