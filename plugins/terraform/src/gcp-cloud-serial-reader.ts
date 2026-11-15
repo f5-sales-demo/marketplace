@@ -130,7 +130,9 @@ export async function openGcpCloudSerialReader(
     )
       throw new Error('Original cloud evidence directory changed');
   };
-  const client = await openGoogleAdcComputeReader(authentication, signal, fetcher);
+  const retirement = new AbortController();
+  const sourceSignal = signal ? AbortSignal.any([signal, retirement.signal]) : retirement.signal;
+  const client = await openGoogleAdcComputeReader(authentication, sourceSignal, fetcher);
   const admitted = new WeakSet<OriginalGcpVm>();
   const issuedEvidence = new WeakSet<GcpCloudReadEvidence>();
   const auditQueries = new WeakMap<GcpInsertAuditBatch, OriginalInputBinding>();
@@ -144,13 +146,21 @@ export async function openGcpCloudSerialReader(
   const resourceOrigins = new WeakSet<OriginalGcpInventoryResource>();
   const resourceIdentities = new Map<string, string>();
   let retired = false;
+  let closure: Promise<void> | undefined;
+  const pendingReads = new Set<Promise<unknown>>();
   const run = async <T>(operation: () => Promise<T>) => {
     if (retired) throw new Error('Original cloud reader is retired');
+    const pending = Promise.resolve().then(operation);
+    pendingReads.add(pending);
     try {
-      return await operation();
+      const result = await pending;
+      if (retired) throw new Error('Original cloud reader retired during capture');
+      return result;
     } catch (error) {
       retired = true;
       throw error;
+    } finally {
+      pendingReads.delete(pending);
     }
   };
   const validate = (zone: string, node: string) => {
@@ -732,6 +742,16 @@ export async function openGcpCloudSerialReader(
     insertAudit,
     readEvidence,
     readAuditEvidence,
+    close() {
+      if (closure) return closure;
+      retired = true;
+      retirement.abort(new Error('Original cloud reader retired'));
+      closure = (async () => {
+        while (pendingReads.size) await Promise.allSettled([...pendingReads]);
+        await requireRoot();
+      })();
+      return closure;
+    },
   });
 }
 

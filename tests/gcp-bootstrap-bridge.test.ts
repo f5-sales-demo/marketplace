@@ -351,3 +351,33 @@ it('compiled inventory scope rejects fabricated packets before exposing targets'
     runtime.inspectOriginalGcpInventoryScope({ schemaVersion: 1, kind: 'original-gcp-inventory-scope' }),
   ).rejects.toThrow('Original');
 });
+
+it('compiled Platform presence preserves attributed absence and retires issuer authority on closure', async () => {
+  const run = await fixture();
+  const root = await mkdtemp(join(tmpdir(), 'compiled-presence-'));
+  const store = await CeDeploymentStore.open(root, run.input.binding.owner);
+  const target = { type_name: 'xcsh_token' as const, name: 'node-a-token', namespace: 'system' as const };
+  const observation = await run.platform.openOriginalGcpBootstrapObservation(
+    {
+      store,
+      origin: 'https://tenant.example.test',
+      credential: 'fixture',
+      targets: [target],
+      assertOriginal: async () => {},
+    },
+    { fetcher: async () => Response.json({ error: 'synthetic missing token' }, { status: 404 }) },
+  );
+  const presence = await observation.readPresence(target);
+  expect(presence.present).toBe(false);
+  expect(presence.creationOwnershipQualified).toBe(false);
+  expect(presence.body.evidence.status).toBe(404);
+  expect(presence.body.bytes.toString()).toBe(JSON.stringify({ error: 'synthetic missing token' }));
+  await observation.assertPresence(presence);
+  await run.platform.assertOriginalGcpPlatformHttpBody(presence.body);
+  await expect(observation.assertPresence({ ...presence })).rejects.toThrow('Original');
+  const closure = observation.close();
+  expect(observation.close()).toBe(closure);
+  await closure;
+  await expect(observation.assertPresence(presence)).rejects.toThrow('retired');
+  await expect(run.platform.assertOriginalGcpPlatformHttpBody(presence.body)).rejects.toThrow('retired');
+});

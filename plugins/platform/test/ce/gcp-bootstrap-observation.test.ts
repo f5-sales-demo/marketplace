@@ -291,3 +291,97 @@ test('an opened registered observer refuses selected credential and intent chang
     await observation.close();
   }
 });
+
+for (const targetType of ['xcsh_securemesh_site_v2', 'xcsh_token'] as const) {
+  test(`Platform ${targetType} absence retains original GET evidence without bootstrap authority`, async () => {
+    const run = await fixture();
+    const { openOriginalGcpBootstrapObservation } = await module();
+    const target = run.targets.find((row) => row.type_name === targetType);
+    if (!target) throw new Error('Original target required');
+    const observation = await openOriginalGcpBootstrapObservation(
+      {
+        store: run.store,
+        origin: 'https://tenant.example.com',
+        credential: 'synthetic-credential',
+        targets: run.targets,
+        assertOriginal: run.assertOriginal,
+      },
+      { fetcher: async () => Response.json({ error: 'synthetic not found' }, { status: 404 }) },
+    );
+    const presence = await observation.readPresence(target);
+    expect(presence.present).toBe(false);
+    expect(presence.body.evidence.status).toBe(404);
+    expect(presence.body.evidence.method).toBe('GET');
+    expect(presence.creationOwnershipQualified).toBe(false);
+    expect(presence.body.bytes.toString()).toContain('synthetic not found');
+    await observation.assertPresence(presence);
+    await originalGcpBootstrapSource.assertBody(presence.body);
+    await expect(observation.assertPresence({ ...presence })).rejects.toThrow('Original');
+    await observation.close();
+    await expect(observation.assertPresence(presence)).rejects.toThrow('retired');
+  });
+}
+
+test('Platform presence requires exact returned metadata and cannot become another target', async () => {
+  const run = await fixture();
+  const { openOriginalGcpBootstrapObservation } = await module();
+  const observation = await openOriginalGcpBootstrapObservation(
+    {
+      store: run.store,
+      origin: 'https://tenant.example.com',
+      credential: 'synthetic-credential',
+      targets: run.targets,
+      assertOriginal: run.assertOriginal,
+    },
+    { fetcher: async () => Response.json({ metadata: { name: 'foreign-site', namespace: 'system' } }) },
+  );
+  await expect(observation.readPresence(run.targets[0])).rejects.toThrow('metadata');
+  await expect(observation.readPresence(run.targets[0])).rejects.toThrow('retired');
+});
+
+test('Platform close settles pending reads and retains partial transport before returning', async () => {
+  const run = await fixture();
+  const { openOriginalGcpBootstrapObservation } = await module();
+  const pulled = Promise.withResolvers<void>();
+  let cancelled = false;
+  let pulls = 0;
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (++pulls === 1) {
+          controller.enqueue(Buffer.from('partial-owned-platform'));
+          return;
+        }
+        pulled.resolve();
+        return new Promise<void>(() => {});
+      },
+      cancel() {
+        cancelled = true;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const observation = await openOriginalGcpBootstrapObservation(
+    {
+      store: run.store,
+      origin: 'https://tenant.example.com',
+      credential: 'synthetic-credential',
+      targets: run.targets,
+      assertOriginal: run.assertOriginal,
+    },
+    { fetcher: async () => new Response(stream) },
+  );
+  const pending = observation.readPresence(run.targets[0]);
+  pending.catch(() => {});
+  await pulled.promise;
+  const closed = observation.close();
+  await expect(pending).rejects.toThrow();
+  await closed;
+  expect(cancelled).toBe(true);
+  await expect(observation.read(run.targets[0])).rejects.toThrow('retired');
+  const files = await readdir(run.store.directory);
+  const body = files.find((name) => name.endsWith('.body.private.bin'));
+  if (!body) throw new Error('Retained original partial Platform response required');
+  const { readFile } = await import('node:fs/promises');
+  expect(await readFile(join(run.store.directory, body), 'utf8')).toBe('partial-owned-platform');
+});

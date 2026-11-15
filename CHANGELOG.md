@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.98 normalizes new authorization directories to exact
+- **`terraform`** v2.4.104 normalizes new authorization directories to exact
   private permissions before admitting their identities, including setgid-parent
   environments. Runtime validation stays strict; CI diagnostics identify the new
   bootstrap-scope regression family. Live acceptance remains open.
@@ -58,7 +58,7 @@ and this project adheres to
   ownership, image/account/NIC joins and typed full or partial-disk cleanup.
   Legacy graphs remain unchanged; live qualification and default capture remain open.
 
-- **`platform`** v6.3.22 and **`terraform`** v2.4.85 bundle the versioned
+- **`platform`** v6.3.25 and **`terraform`** v2.4.85 bundle the versioned
   observer input contract while preserving original receipts and execution gates.
 
 - **`gcloud`** v1.7.49 bundles the owning runner read channel while preserving

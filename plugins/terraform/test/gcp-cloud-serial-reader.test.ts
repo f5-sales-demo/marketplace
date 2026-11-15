@@ -835,3 +835,51 @@ test('equivalent inventory label order does not replace the original identity', 
   const second = await f.reader.resource(target);
   expect(first.present && second.present && first.value.id === second.value.id).toBe(true);
 });
+
+test('cloud reader retires without renewing source identity and refuses every later read', async () => {
+  const f = await fixture([vm]);
+  await f.reader.instance('us-central1-a', 'example-node');
+  await f.reader.close();
+  await f.reader.close();
+  await expect(f.reader.instance('us-central1-a', 'example-node')).rejects.toThrow('retired');
+  await expect(f.reader.resource(inventoryTargets[1])).rejects.toThrow('retired');
+  expect(f.calls).toHaveLength(4);
+});
+
+test('cloud reader closure waits for its pending response and retains cancellation as incomplete', async () => {
+  const pulled = Promise.withResolvers<void>();
+  let cancelled = false;
+  let pulls = 0;
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (++pulls === 1) {
+          controller.enqueue(Buffer.from('partial-owned-response'));
+          return;
+        }
+        // With no prefetch, this pull proves the consumer retained the first chunk.
+        pulled.resolve();
+        return new Promise<void>(() => {});
+      },
+      cancel() {
+        cancelled = true;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const f = await fixture([new Response(stream)]);
+  const pending = f.reader.resource(inventoryTargets[1]);
+  pending.catch(() => {});
+  await pulled.promise;
+  const closed = f.reader.close();
+  await expect(pending).rejects.toThrow();
+  await closed;
+  expect(cancelled).toBe(true);
+  const names = await readdir(f.root);
+  const body = names.find((name) => name.endsWith('.body.private.bin'));
+  const receipt = names.find((name) => name.endsWith('.receipt.private.json'));
+  if (!body || !receipt) throw new Error('Retained original partial response required');
+  expect(await readFile(join(f.root, body), 'utf8')).toBe('partial-owned-response');
+  expect(JSON.parse(await readFile(join(f.root, receipt), 'utf8')).complete).toBe(false);
+  await expect(f.reader.resource(inventoryTargets[1])).rejects.toThrow('retired');
+});

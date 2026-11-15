@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { decodeEvidenceObject } from './evidence-json';
-import type { GcpLifecycleHttpCapture, GcpPlatformHttpCaptureSession } from './gcp-http-capture';
+import type {
+  GcpLifecycleHttpCapture,
+  GcpPlatformHttpCaptureSession,
+  OriginalGcpPlatformHttpBody,
+} from './gcp-http-capture';
 import type { GcpLifecyclePort } from './gcp-lifecycle';
 import { CeApiError } from './runtime';
 
@@ -12,7 +16,7 @@ export function createGcpLifecycleHttpPort(
   credential: string,
   fetcher: GcpLifecycleFetcher = fetch,
   capture?: GcpLifecycleHttpCapture,
-): GcpLifecyclePort {
+): GcpLifecyclePort & { readCaptured(path: string, signal?: AbortSignal): Promise<OriginalGcpPlatformHttpBody> } {
   const base = new URL(apiUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !credential)
     throw new Error('Explicit HTTPS GCP context required');
@@ -146,7 +150,7 @@ export function createGcpLifecycleHttpPort(
         reference = await session.finish({ status, responseComplete, accepted: true, truncated });
       }
       if (value && reference) await capture?.bindResponse(value, reference);
-      return value;
+      return Object.freeze({ value, reference });
     } catch (error) {
       if (session && !captureSealed) {
         captureSealed = true;
@@ -163,9 +167,15 @@ export function createGcpLifecycleHttpPort(
     }
   };
   return {
-    read: (path, signal) => request(path, 'GET', undefined, signal),
+    read: async (path, signal) => (await request(path, 'GET', undefined, signal)).value,
+    readCaptured: async (path, signal) => {
+      if (!capture) throw new Error('Original Platform capture source required');
+      const result = await request(path, 'GET', undefined, signal);
+      if (!result.reference) throw new Error('Original captured Platform GET required');
+      return capture.read(result.reference);
+    },
     mutate: async (path, method, body, signal) => {
-      const value = await request(path, method, body, signal);
+      const { value } = await request(path, method, body, signal);
       if (!value) throw new CeApiError('malformed');
       return value;
     },

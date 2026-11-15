@@ -5010,7 +5010,7 @@ function createGcpLifecycleHttpPort(apiUrl, credential, fetcher = fetch, capture
         reference = await session.finish({ status, responseComplete, accepted: true, truncated });
       }
       if (value && reference) await capture?.bindResponse(value, reference);
-      return value;
+      return Object.freeze({ value, reference });
     } catch (error) {
       if (session && !captureSealed) {
         captureSealed = true;
@@ -5027,9 +5027,15 @@ function createGcpLifecycleHttpPort(apiUrl, credential, fetcher = fetch, capture
     }
   };
   return {
-    read: (path, signal) => request(path, 'GET', undefined, signal),
+    read: async (path, signal) => (await request(path, 'GET', undefined, signal)).value,
+    readCaptured: async (path, signal) => {
+      if (!capture) throw new Error('Original Platform capture source required');
+      const result = await request(path, 'GET', undefined, signal);
+      if (!result.reference) throw new Error('Original captured Platform GET required');
+      return capture.read(result.reference);
+    },
     mutate: async (path, method, body, signal) => {
-      const value = await request(path, method, body, signal);
+      const { value } = await request(path, method, body, signal);
       if (!value) throw new CeApiError('malformed');
       return value;
     },
@@ -5070,6 +5076,10 @@ async function openOriginalGcpBootstrapObservation(input, options = {}) {
     throw new Error('Original bootstrap observation origin required');
   const declared = new Set(targets.map(targetKey));
   let retired = false;
+  let closing;
+  const retirement = new AbortController();
+  const pendingReads = new Set();
+  const presences = new WeakSet();
   const guard = async () => {
     if (retired) throw new Error('Original bootstrap observation retired');
     await assertInputs();
@@ -5088,6 +5098,42 @@ async function openOriginalGcpBootstrapObservation(input, options = {}) {
     tokenNames: targets.filter((target) => target.type_name === 'xcsh_token').map((target) => target.name),
   });
   const port = createGcpLifecycleHttpPort(origin, credential, options.fetcher ?? fetch, capture);
+  const run = async (operation) => {
+    if (retired) throw new Error('Original bootstrap observation retired');
+    const pending = Promise.resolve().then(operation);
+    pendingReads.add(pending);
+    try {
+      const value = await pending;
+      if (retired) throw new Error('Original bootstrap observation retired');
+      return value;
+    } catch (error) {
+      retired = true;
+      throw error;
+    } finally {
+      pendingReads.delete(pending);
+    }
+  };
+  const readBody = async (inputTarget, signal) => {
+    const target = Object.freeze({ ...inputTarget });
+    await guard();
+    if (!validTarget(target) || !declared.has(targetKey(target)))
+      throw new Error('Original bootstrap target escaped scope');
+    const family =
+      target.type_name === 'xcsh_token'
+        ? 'register/namespaces/system/tokens'
+        : 'config/namespaces/system/securemesh_site_v2s';
+    const combined = signal ? AbortSignal.any([signal, retirement.signal]) : retirement.signal;
+    const body = await port.readCaptured(`/api/${family}/${target.name}`, combined);
+    await guard();
+    if (
+      !body.evidence.accepted ||
+      !body.evidence.responseComplete ||
+      body.evidence.truncated ||
+      ![200, 404].includes(body.evidence.status ?? 0)
+    )
+      throw new Error('Original complete Platform presence response required');
+    return { target, body };
+  };
   return Object.freeze({
     async assertOriginal() {
       try {
@@ -5098,27 +5144,55 @@ async function openOriginalGcpBootstrapObservation(input, options = {}) {
       }
     },
     async read(target, signal) {
-      try {
-        await guard();
-        if (!validTarget(target) || !declared.has(targetKey(target)))
-          throw new Error('Original bootstrap target escaped scope');
-        const family =
-          target.type_name === 'xcsh_token'
-            ? 'register/namespaces/system/tokens'
-            : 'config/namespaces/system/securemesh_site_v2s';
-        const response = await port.read(`/api/${family}/${target.name}`, signal);
-        await guard();
-        if (!response) return;
-        const body = await capture.read(capture.evidenceFor(response));
-        await guard();
-        return body;
-      } catch (error) {
-        retired = true;
-        throw error;
-      }
+      return run(async () => {
+        const result = await readBody(target, signal);
+        return result.body.evidence.status === 404 ? undefined : result.body;
+      });
     },
-    async close() {
+    async readPresence(target, signal) {
+      return run(async () => {
+        const result = await readBody(target, signal);
+        const present = result.body.evidence.status === 200;
+        if (present) {
+          const value = decodeEvidenceObject(result.body.bytes),
+            metadata = value.metadata;
+          if (
+            !metadata ||
+            typeof metadata !== 'object' ||
+            Array.isArray(metadata) ||
+            metadata.name !== result.target.name ||
+            metadata.namespace !== result.target.namespace
+          )
+            throw new Error('Original Platform presence metadata differs');
+        }
+        const value = Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-gcp-platform-presence',
+          target: result.target,
+          present,
+          body: result.body,
+          creationOwnershipQualified: false,
+        });
+        presences.add(value);
+        return value;
+      });
+    },
+    async assertPresence(value) {
+      if (!presences.has(value)) throw new Error('Original Platform presence reference required');
+      return run(async () => {
+        await guard();
+        await assertOriginalGcpPlatformHttpBody(value.body);
+        await guard();
+      });
+    },
+    close() {
+      if (closing) return closing;
       retired = true;
+      retirement.abort(new Error('Original bootstrap observation retired'));
+      closing = (async () => {
+        while (pendingReads.size) await Promise.allSettled([...pendingReads]);
+      })();
+      return closing;
     },
   });
 }

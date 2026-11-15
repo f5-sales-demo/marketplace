@@ -1773,3 +1773,14 @@ Read-only final inspection does not renew an expired operation.
 These are source and offline checks. Initial absences, full built-in capture,
 original insertion/guest capture, all original live acceptance and delivery
 gates remain open.
+
+## Capture retirement and presence evidence on November 15
+
+The [retirement receipt](gcp-capture-retirement-20261115.md) records source-owned
+abort-and-settle closure, exact retained partial bytes and issuer-owned Platform
+presence packets, including HTTP 404 evidence. Copied references and retired
+issuers refuse. Presence provides no creation or bootstrap authority.
+
+Current upstream versions are already selected. These are source and compiled
+checks; full inventory and built-in capture, original live acceptance, remaining
+installed checks and delivery gates remain open.
