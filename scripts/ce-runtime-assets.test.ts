@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -98,5 +99,19 @@ test('split runtime rejects missing, extra, duplicate and foreign code or asset 
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  }
+});
+
+test('every runtime code file is tracked for a fresh checkout and archive', async () => {
+  const repository = resolve(import.meta.dir, '..');
+  const files = new Set(execFileSync('git', ['ls-files', '-z'], { cwd: repository, encoding: 'utf8' }).split('\0'));
+  for (const plugin of ['platform', 'aws', 'azure', 'terraform']) {
+    const manifest = JSON.parse(
+      await (await import('node:fs/promises')).readFile(
+        resolve(repository, 'plugins', plugin, 'dist/runtime-assets.json'),
+        'utf8',
+      ),
+    );
+    for (const bundle of manifest.bundles) expect(files.has(`plugins/${plugin}/dist/${bundle.runtimePath}`)).toBe(true);
   }
 });
