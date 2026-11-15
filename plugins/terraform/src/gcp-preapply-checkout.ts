@@ -44,7 +44,7 @@ export async function checkoutOriginalGcpPreapplyBootstrap(
     }
     if (prior !== undefined) throw new Error('Original preapply bootstrap already claimed; reconcile without replay');
     const record = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       kind: 'original-gcp-preapply-bootstrap-checkout',
       owner: expected,
       siteName: bootstrap.siteName,
@@ -52,7 +52,9 @@ export async function checkoutOriginalGcpPreapplyBootstrap(
       tokenName: bootstrap.tokenName,
       expiresAt: bootstrap.expiresAt,
       planSha256: evidence.planSha256,
-      readerResultSha256: evidence.readerResultSha256,
+      readerRequestSha256: evidence.readerRequestSha256,
+      siteReaderEvidenceSha256: evidence.siteReaderEvidenceSha256,
+      tokenReaderEvidenceSha256: evidence.tokenReaderEvidenceSha256,
       siteCreationSha256: evidence.siteCreationSha256,
       tokenCreationSha256: evidence.tokenCreationSha256,
       jwtSha256: bootstrap.jwtSha256,

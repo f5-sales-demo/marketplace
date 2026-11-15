@@ -4,7 +4,12 @@ import type { GcpBootstrapEvidenceSource } from '../../platform/src/ce/gcp-boots
 import type { OriginalGcpPlatformHttpBody } from '../../platform/src/ce/gcp-http-capture';
 import { containsControlCharacters } from '../../platform/src/ce/security';
 import type { InstalledCaptureContext } from './installed-capture-context';
-import { type InstalledXcshCreationResult, readOriginalInstalledXcshCreation } from './installed-xcsh-creation-reader';
+import {
+  type InstalledXcshCreationResult,
+  type InstalledXcshCreationTarget,
+  readOriginalInstalledXcshCreation,
+  readOriginalInstalledXcshTarget,
+} from './installed-xcsh-creation-reader';
 import { assertPreparedCreationScopeContext, inspectPreparedCreationScope } from './prepared-creation-scope';
 
 type Target = Readonly<{ type_name: 'xcsh_token' | 'xcsh_securemesh_site_v2'; namespace: 'system'; name: string }>;
@@ -15,12 +20,13 @@ const object = (value: unknown): Json => {
   return value as Json;
 };
 export interface OriginalXcshCreationBodyEvidence {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly kind: 'original-xcsh-creation-body-candidate';
   readonly target: Target;
   readonly executor: InstalledXcshCreationResult['executor'];
   readonly planSha256: string;
   readonly readerResultSha256: string;
+  readonly readerRequestSha256: string;
   readonly bodySha256: string;
   readonly creationIdentitySha256: string;
   readonly originalCreationCorroborated: true;
@@ -36,7 +42,7 @@ const contexts = new WeakMap<object, InstalledCaptureContext>();
 export async function joinOriginalXcshCreationBody(input: {
   context: InstalledCaptureContext;
   packet: unknown;
-  result: InstalledXcshCreationResult;
+  result: InstalledXcshCreationResult | InstalledXcshCreationTarget;
   platform: Pick<GcpBootstrapEvidenceSource, 'assertBody'>;
   body: OriginalGcpPlatformHttpBody;
   target: Target;
@@ -49,6 +55,11 @@ export async function joinOriginalXcshCreationBody(input: {
     target.type_name === 'xcsh_token'
       ? `/api/register/namespaces/system/tokens/${target.name}`
       : `/api/config/namespaces/system/securemesh_site_v2s/${target.name}`;
+  const early = result.kind === 'original-xcsh-target-creation-evidence';
+  const readCreation = () =>
+    early
+      ? readOriginalInstalledXcshTarget(result as InstalledXcshCreationTarget)
+      : readOriginalInstalledXcshCreation(result as InstalledXcshCreationResult);
   let refused = false;
   const verify = async () => {
     if (refused) throw new Error('Original creation body evidence retired');
@@ -64,17 +75,18 @@ export async function joinOriginalXcshCreationBody(input: {
         )
       )
         throw new Error('Original creation scope target required');
-      const raw = await readOriginalInstalledXcshCreation(result);
+      const raw = await readCreation();
       const creation = decodeEvidenceObject(raw);
       if (
-        !result.complete ||
-        creation.complete !== true ||
+        creation.requestSha256 !== result.requestSha256 ||
         creation.scopeSha256 !== scope.planSha256 ||
         creation.scopeFileSha256 !== scope.scope?.sha256 ||
-        !Array.isArray(creation.receipts)
+        (early
+          ? creation.complete !== false || creation.kind !== 'original-xcsh-target-creation-evidence'
+          : !result.complete || creation.complete !== true || !Array.isArray(creation.receipts))
       )
         throw new Error('Original complete creation receipt required');
-      const receipts = creation.receipts.map(object).filter((row) => {
+      const receipts = (early ? [creation.receipt] : (creation.receipts as unknown[])).map(object).filter((row) => {
         const actual = object(row.target);
         return (
           actual.type_name === target.type_name && actual.name === target.name && actual.namespace === target.namespace
@@ -123,7 +135,7 @@ export async function joinOriginalXcshCreationBody(input: {
       )
         throw new Error('Original creation response identity differs');
       await assertBody(body);
-      await readOriginalInstalledXcshCreation(result);
+      await readCreation();
       await context.assertInputs();
       await context.assertWithinDeadline();
       return { planSha256: scope.planSha256, identity: hash(system.uid) };
@@ -134,12 +146,13 @@ export async function joinOriginalXcshCreationBody(input: {
   };
   const original = await verify();
   const evidence = Object.freeze({
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     kind: 'original-xcsh-creation-body-candidate' as const,
     target,
     executor: Object.freeze({ ...result.executor }),
     planSha256: original.planSha256,
     readerResultSha256: result.evidenceSha256,
+    readerRequestSha256: result.requestSha256,
     bodySha256: body.evidence.bodySha256,
     creationIdentitySha256: original.identity,
     originalCreationCorroborated: true as const,

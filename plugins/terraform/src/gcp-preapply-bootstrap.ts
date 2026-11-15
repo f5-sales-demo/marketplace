@@ -18,12 +18,14 @@ const object = (value: unknown): Json => {
   return value as Json;
 };
 export interface OriginalGcpPreapplyBootstrapEvidence {
-  readonly schemaVersion: 3;
+  readonly schemaVersion: 4;
   readonly executor: OriginalXcshCreationBodyEvidence['executor'];
   readonly kind: 'original-gcp-preapply-bootstrap-candidate';
   readonly xcshProviderVersion: '15.17.3';
   readonly planSha256: string;
-  readonly readerResultSha256: string;
+  readonly readerRequestSha256: string;
+  readonly siteReaderEvidenceSha256: string;
+  readonly tokenReaderEvidenceSha256: string;
   readonly siteCreationSha256: string;
   readonly tokenCreationSha256: string;
   readonly bootstrap: OriginalGcpBootstrapEvidence;
@@ -62,7 +64,7 @@ export async function collectOriginalGcpPreapplyBootstrap(input: {
     site.target.name !== binding.siteName ||
     token.target.name !== binding.tokenName ||
     site.planSha256 !== token.planSha256 ||
-    site.readerResultSha256 !== token.readerResultSha256
+    site.readerRequestSha256 !== token.readerRequestSha256
   )
     throw new Error('Original joint Site and Token creation scope required');
   const labels = (value: Json, node?: string) => {
@@ -105,12 +107,14 @@ export async function collectOriginalGcpPreapplyBootstrap(input: {
   };
   const bootstrap = await verify();
   const value = Object.freeze({
-    schemaVersion: 3 as const,
+    schemaVersion: 4 as const,
     executor: site.executor,
     kind: 'original-gcp-preapply-bootstrap-candidate' as const,
     xcshProviderVersion: '15.17.3' as const,
     planSha256: site.planSha256,
-    readerResultSha256: site.readerResultSha256,
+    readerRequestSha256: site.readerRequestSha256,
+    siteReaderEvidenceSha256: site.readerResultSha256,
+    tokenReaderEvidenceSha256: token.readerResultSha256,
     siteCreationSha256: site.creationIdentitySha256,
     tokenCreationSha256: token.creationIdentitySha256,
     bootstrap,

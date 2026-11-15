@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.96 issues original per-target creation evidence during
+  capture, before the remaining HA targets complete. Site and token bodies join
+  through the same original reader request, with durable single-use checkout.
+  Tampering, duplicate identities and final receipt replacement retire evidence.
+  Full inventory, bootstrap signing and live qualification remain separate gates.
+
 - **`terraform`** v2.4.95 binds original creation-reader and preapply/bootstrap
   evidence consumers to the authenticated XC provider 15.17.3 binary and lock.
   Source-issued evidence, original input checks and separate single-use

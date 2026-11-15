@@ -89,6 +89,7 @@ const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('he
 async function scoped(
   run: (context: InstalledCaptureContext, admission: ExecutionCaptureAdmission, packet: unknown) => Promise<void>,
   includeSite = false,
+  pendingTokens = 0,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'xcsh-bridge-fixture-'));
   const deployment: Deployment = {
@@ -254,6 +255,16 @@ async function scoped(
                               after_unknown: {},
                             },
                           },
+                          ...Array.from({ length: pendingTokens }, (_, index) => ({
+                            address: `xcsh_token.pending_${index}`,
+                            type: 'xcsh_token',
+                            mode: 'managed',
+                            change: {
+                              actions: ['create'],
+                              after: { name: `pending-token-${index}`, namespace: 'system' },
+                              after_unknown: {},
+                            },
+                          })),
                         ],
                       }
                     : {}),
@@ -275,7 +286,13 @@ async function scoped(
 }
 
 const fakeExecutor =
-  (mutate: (value: Record<string, unknown>) => void = () => {}) =>
+  (
+    mutate: (
+      value: Record<string, unknown>,
+      request: Record<string, unknown>,
+      directory: string,
+    ) => void | Promise<void> = () => {},
+  ) =>
   (policy: SignalFreeExecutionPolicy) =>
   async (invocation: Invocation) => {
     await policy.assertOriginal();
@@ -332,7 +349,7 @@ const fakeExecutor =
         },
       ],
     };
-    mutate(result);
+    await mutate(result, request, invocation.cwd);
     await writeFile(join(invocation.cwd, 'xcsh-result.private.json'), JSON.stringify(result), {
       mode: 0o400,
       flag: 'wx',
@@ -717,7 +734,7 @@ for (const finalWriteFailure of [false, true]) {
         await expect(module.assertOriginalGcpPreapplyBootstrapContext({ ...value }, context)).rejects.toThrow(
           'Original',
         );
-        expect(value.schemaVersion).toBe(3);
+        expect(value.schemaVersion).toBe(4);
         expect(value.xcshProviderVersion).toBe('15.17.3');
         expect(value.bootstrapOwnershipQualified).toBe(false);
         expect(JSON.stringify(value)).not.toContain(jwt);
@@ -882,6 +899,371 @@ for (const finalWriteFailure of [false, true]) {
         // A second successful close is idempotent for this source reader.
         await reader.closeAfterExecutorExit();
         await rm(storeRoot, { recursive: true });
+      }
+    }, true);
+  });
+}
+
+function earlyTargetPath(directory: string, target: Record<string, string>) {
+  const pythonTarget = `{${Object.keys(target)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}: ${JSON.stringify(target[key])}`)
+    .join(', ')}}`;
+  return join(directory, `xcsh-target-${sha(Buffer.from(pythonTarget))}.private.json`);
+}
+
+function earlyTargetValue(result: Record<string, unknown>): Record<string, unknown> {
+  const { kind, finishedMs, complete, targetCount, witnessCount, incompletePids, receipts, ...base } = result;
+  return {
+    ...base,
+    kind: 'original-xcsh-target-creation-evidence',
+    receipt: (receipts as unknown[])[0],
+    complete: false,
+  };
+}
+
+test('per-target source evidence is available before reader closure and is issued once without authority', async () => {
+  await scoped(async (context, admission, packet) => {
+    const module = await bridge();
+    const release = Promise.withResolvers<void>();
+    const published = Promise.withResolvers<void>();
+    const reader = await module.openInstalledXcshCreationReader(context, admission, packet, {
+      executorFactory: fakeExecutor(async (value, _request, directory) => {
+        const target = (value.receipts as Record<string, unknown>[])[0].target as Record<string, string>;
+        await writeFile(earlyTargetPath(directory, target), JSON.stringify(earlyTargetValue(value)), {
+          mode: 0o400,
+          flag: 'wx',
+        });
+        published.resolve();
+        await release.promise;
+      }),
+    });
+    try {
+      await reader.ready;
+      await published.promise;
+      let closed = false;
+      reader.completed.then(() => {
+        closed = true;
+      });
+      const [first, second] = await Promise.all([reader.availableTargets(), reader.availableTargets()]);
+      expect(first).toHaveLength(1);
+      expect(first[0]).toBe(second[0]);
+      expect(first[0].complete).toBe(false);
+      expect(first[0].executionAuthorized).toBe(false);
+      expect(first[0].signalsSent).toBe(false);
+      expect(first[0].cloudSubmissions).toBe(0);
+      expect(closed).toBe(false);
+      const raw = await module.readOriginalInstalledXcshTarget(first[0]);
+      expect(JSON.parse(raw.toString()).receipt.creation_identity_sha256).toBe('b'.repeat(64));
+      await expect(module.readOriginalInstalledXcshTarget({ ...first[0] })).rejects.toThrow('original');
+    } finally {
+      release.resolve();
+      await reader.completed;
+      await reader.closeAfterExecutorExit();
+    }
+  });
+});
+
+test('original Site and Token bodies join their separate early targets while other HA tokens and capture remain pending', async () => {
+  await scoped(
+    async (context, admission, packet) => {
+      const bridgeModule = await bridge();
+      const bodyModule = await import('../src/xcsh-creation-body');
+      const bootstrapModule = await import('../src/gcp-preapply-bootstrap');
+      const release = Promise.withResolvers<void>();
+      const published = Promise.withResolvers<void>();
+      const uids = { site: 'early-original-site', token: 'early-original-token' };
+      const reader = await bridgeModule.openInstalledXcshCreationReader(context, admission, packet, {
+        executorFactory: fakeExecutor(async (value, request, directory) => {
+          const receipt = (value.receipts as Record<string, unknown>[])[0];
+          value.targetCount = 2;
+          value.receipts = [
+            {
+              ...receipt,
+              target: { type_name: 'xcsh_securemesh_site_v2', namespace: 'system', name: 'example-site' },
+              nonce: 'a'.repeat(32),
+              creation_identity_sha256: sha(Buffer.from(uids.site)),
+            },
+            {
+              ...receipt,
+              target: { type_name: 'xcsh_token', namespace: 'system', name: 'example-token' },
+              nonce: 'b'.repeat(32),
+              creation_identity_sha256: sha(Buffer.from(uids.token)),
+            },
+          ];
+          for (const current of value.receipts as Record<string, unknown>[]) {
+            await writeFile(
+              earlyTargetPath(directory, current.target as Record<string, string>),
+              JSON.stringify({ ...earlyTargetValue(value), receipt: current }),
+              { mode: 0o400, flag: 'wx' },
+            );
+          }
+          published.resolve();
+          await release.promise;
+          const remaining = (request.scope as { targets: Record<string, string>[] }).targets.filter((target) =>
+            target.name.startsWith('pending-token-'),
+          );
+          value.targetCount = 4;
+          value.receipts = [
+            ...(value.receipts as unknown[]),
+            ...remaining.map((target, index) => ({
+              ...receipt,
+              target,
+              nonce: String(index + 3).repeat(32),
+              creation_identity_sha256: sha(Buffer.from(target.name)),
+            })),
+          ];
+        }),
+      });
+      const storeRoot = await mkdtemp(join(tmpdir(), 'early-original-body-'));
+      try {
+        await reader.ready;
+        await published.promise;
+        const targets = await reader.availableTargets();
+        expect(targets).toHaveLength(2);
+        const siteTarget = targets.find((value) => value.target.type_name === 'xcsh_securemesh_site_v2');
+        const tokenTarget = targets.find((value) => value.target.type_name === 'xcsh_token');
+        if (!siteTarget || !tokenTarget) throw new Error('Both original targets required');
+        expect(siteTarget.requestSha256).toBe(tokenTarget.requestSha256);
+        expect(siteTarget.evidenceSha256).not.toBe(tokenTarget.evidenceSha256);
+        const store = await CeDeploymentStore.open(storeRoot, context.owner);
+        const capture = await openGcpLifecycleHttpCapture(store, context.assertInputs, {
+          siteNames: ['example-site'],
+          tokenNames: ['example-token'],
+        });
+        const labels = { 'xcsh-deployment': context.owner.deploymentId, 'xcsh-engine': 'terraform' };
+        const jwt = [
+          Buffer.from('{}').toString('base64url'),
+          Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'),
+          Buffer.from('synthetic-signature').toString('base64url'),
+        ].join('.');
+        const siteValue = {
+          metadata: {
+            name: 'example-site',
+            namespace: 'system',
+            labels: { ...labels, 'ves.io/provider': 'ves-io-GOOGLE' },
+          },
+          system_metadata: { uid: uids.site },
+          spec: { gcp: { not_managed: { node_list: [] } } },
+        };
+        const tokenValue = {
+          metadata: { name: 'example-token', namespace: 'system', labels: { ...labels, 'xcsh-node': 'example-node' } },
+          system_metadata: { uid: uids.token },
+          spec: { site_name: 'example-site', type: 1, content: jwt },
+        };
+        const port = createGcpLifecycleHttpPort(
+          context.environment.XCSH_API_URL,
+          context.environment.XCSH_API_TOKEN,
+          async (url) => Response.json(String(url).includes('/tokens/') ? tokenValue : siteValue),
+          capture,
+        );
+        const siteResponse = await port.read('/api/config/namespaces/system/securemesh_site_v2s/example-site');
+        const tokenResponse = await port.read('/api/register/namespaces/system/tokens/example-token');
+        if (!siteResponse || !tokenResponse) throw new Error('Original fixture response missing');
+        const site = await bodyModule.joinOriginalXcshCreationBody({
+          context,
+          packet,
+          result: siteTarget,
+          platform: originalGcpBootstrapSource,
+          body: await capture.read(capture.evidenceFor(siteResponse)),
+          target: siteTarget.target,
+        });
+        const token = await bodyModule.joinOriginalXcshCreationBody({
+          context,
+          packet,
+          result: tokenTarget,
+          platform: originalGcpBootstrapSource,
+          body: await capture.read(capture.evidenceFor(tokenResponse)),
+          target: tokenTarget.target,
+        });
+        const value = await bootstrapModule.collectOriginalGcpPreapplyBootstrap({
+          site,
+          token,
+          platform: originalGcpBootstrapSource,
+          binding: {
+            owner: context.owner,
+            deploymentName: context.owner.deploymentId,
+            siteName: 'example-site',
+            nodeName: 'example-node',
+            tokenName: 'example-token',
+          },
+        });
+        expect(value.schemaVersion).toBe(4);
+        expect(value.readerRequestSha256).toBe(siteTarget.requestSha256);
+        const checkoutModule = await import('../src/gcp-preapply-checkout');
+        const bootstrapFormat = await import('../../gcloud/src/ce/bootstrap');
+        expect(await checkoutModule.checkoutOriginalGcpPreapplyBootstrap(value, store)).toBe(
+          bootstrapFormat.formatGcpUserData({ ...value.bootstrap, jwt }),
+        );
+        await expect(checkoutModule.checkoutOriginalGcpPreapplyBootstrap(value, store)).rejects.toThrow(
+          'already claimed',
+        );
+        expect(value.bootstrapOwnershipQualified).toBe(false);
+        expect(await bootstrapModule.readOriginalGcpPreapplyBootstrapJwt(value)).toBe(jwt);
+        await expect(
+          bodyModule.joinOriginalXcshCreationBody({
+            context,
+            packet,
+            result: siteTarget,
+            platform: originalGcpBootstrapSource,
+            body: await capture.read(capture.evidenceFor(tokenResponse)),
+            target: tokenTarget.target,
+          }),
+        ).rejects.toThrow();
+      } finally {
+        release.resolve();
+        await reader.completed;
+        await reader.closeAfterExecutorExit();
+        await rm(storeRoot, { recursive: true });
+      }
+    },
+    true,
+    2,
+  );
+});
+
+for (const bad of ['authority', 'target', 'nonce', 'parent', 'schema', 'mode'] as const) {
+  test(`early target rejects ${bad} and retires its source`, async () => {
+    await scoped(async (context, admission, packet) => {
+      const module = await bridge();
+      const release = Promise.withResolvers<void>(),
+        published = Promise.withResolvers<void>();
+      const reader = await module.openInstalledXcshCreationReader(context, admission, packet, {
+        executorFactory: fakeExecutor(async (value, _request, directory) => {
+          const early = earlyTargetValue(value);
+          const receipt = structuredClone(early.receipt) as Record<string, unknown>;
+          const target = receipt.target as Record<string, string>;
+          const originalPath = earlyTargetPath(directory, target);
+          if (bad === 'authority') early.executionAuthorized = true;
+          if (bad === 'target') target.name = 'foreign-token';
+          if (bad === 'nonce') receipt.nonce = 'invalid';
+          if (bad === 'parent') (receipt.process as Record<string, unknown>).parent_pid = 999;
+          if (bad === 'schema') early.schemaVersion = 2;
+          await writeFile(originalPath, JSON.stringify({ ...early, receipt }), {
+            mode: bad === 'mode' ? 0o600 : 0o400,
+            flag: 'wx',
+          });
+          published.resolve();
+          await release.promise;
+        }),
+      });
+      try {
+        await reader.ready;
+        await published.promise;
+        await expect(reader.availableTargets()).rejects.toThrow();
+        await expect(reader.availableTargets()).rejects.toThrow('retired');
+      } finally {
+        release.resolve();
+        await reader.completed.catch(() => {});
+      }
+    });
+  });
+}
+
+test('missing early targets stay pending, but an observed target cannot disappear or be restored', async () => {
+  await scoped(async (context, admission, packet) => {
+    const module = await bridge();
+    const publish = Promise.withResolvers<void>(),
+      published = Promise.withResolvers<{ path: string; raw: string }>(),
+      release = Promise.withResolvers<void>();
+    const reader = await module.openInstalledXcshCreationReader(context, admission, packet, {
+      executorFactory: fakeExecutor(async (value, _request, directory) => {
+        await publish.promise;
+        const target = (value.receipts as { target: Record<string, string> }[])[0].target;
+        const path = earlyTargetPath(directory, target),
+          raw = JSON.stringify(earlyTargetValue(value));
+        await writeFile(path, raw, { mode: 0o400, flag: 'wx' });
+        published.resolve({ path, raw });
+        await release.promise;
+      }),
+    });
+    try {
+      await reader.ready;
+      expect(await reader.availableTargets()).toEqual([]);
+      publish.resolve();
+      const file = await published.promise;
+      const targets = await reader.availableTargets();
+      expect(targets).toHaveLength(1);
+      await rm(file.path);
+      await expect(module.readOriginalInstalledXcshTarget(targets[0])).rejects.toThrow();
+      await expect(reader.availableTargets()).rejects.toThrow();
+      await writeFile(file.path, file.raw, { mode: 0o400, flag: 'wx' });
+      await expect(module.readOriginalInstalledXcshTarget(targets[0])).rejects.toThrow('retired');
+    } finally {
+      publish.resolve();
+      release.resolve();
+      await reader.completed.catch(() => {});
+    }
+  });
+});
+
+test('final completion cannot replace an already issued original target identity', async () => {
+  await scoped(async (context, admission, packet) => {
+    const module = await bridge();
+    const release = Promise.withResolvers<void>(),
+      published = Promise.withResolvers<void>();
+    const reader = await module.openInstalledXcshCreationReader(context, admission, packet, {
+      executorFactory: fakeExecutor(async (value, _request, directory) => {
+        const receipt = (value.receipts as Record<string, unknown>[])[0];
+        await writeFile(
+          earlyTargetPath(directory, receipt.target as Record<string, string>),
+          JSON.stringify(earlyTargetValue(value)),
+          { mode: 0o400, flag: 'wx' },
+        );
+        published.resolve();
+        await release.promise;
+        receipt.creation_identity_sha256 = 'e'.repeat(64);
+      }),
+    });
+    await reader.ready;
+    await published.promise;
+    const targets = await reader.availableTargets();
+    release.resolve();
+    await expect(reader.completed).rejects.toThrow('published target');
+    await expect(module.readOriginalInstalledXcshTarget(targets[0])).rejects.toThrow('retired');
+  });
+});
+
+for (const duplicate of ['nonce', 'identity'] as const) {
+  test(`separate early targets reject duplicate ${duplicate}`, async () => {
+    await scoped(async (context, admission, packet) => {
+      const module = await bridge();
+      const release = Promise.withResolvers<void>(),
+        published = Promise.withResolvers<void>();
+      const reader = await module.openInstalledXcshCreationReader(context, admission, packet, {
+        executorFactory: fakeExecutor(async (value, request, directory) => {
+          const first = (value.receipts as Record<string, unknown>[])[0];
+          const targets = (request.scope as { targets: Record<string, string>[] }).targets;
+          const receipts = targets.map((target, index) => ({
+            ...first,
+            target,
+            nonce: String(index + 1).repeat(32),
+            creation_identity_sha256: sha(Buffer.from(target.name)),
+          }));
+          value.targetCount = 2;
+          value.receipts = receipts;
+          for (const [index, receipt] of receipts.entries()) {
+            const copy = { ...receipt };
+            if (index === 1 && duplicate === 'nonce') copy.nonce = receipts[0].nonce;
+            if (index === 1 && duplicate === 'identity')
+              copy.creation_identity_sha256 = receipts[0].creation_identity_sha256;
+            await writeFile(
+              earlyTargetPath(directory, receipt.target),
+              JSON.stringify({ ...earlyTargetValue(value), receipt: copy }),
+              { mode: 0o400, flag: 'wx' },
+            );
+          }
+          published.resolve();
+          await release.promise;
+        }),
+      });
+      try {
+        await reader.ready;
+        await published.promise;
+        await expect(reader.availableTargets()).rejects.toThrow('receipt join');
+      } finally {
+        release.resolve();
+        await reader.completed.catch(() => {});
       }
     }, true);
   });

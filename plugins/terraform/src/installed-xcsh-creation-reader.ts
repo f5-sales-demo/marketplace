@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { decodeEvidenceObject } from './evidence-json';
 import sources from './gcp-capture-source-pins.json';
 import { freezeAdmittedCaptureInputs, type InstalledCaptureContext } from './installed-capture-context';
@@ -28,6 +29,7 @@ const terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947
 const providerHash = '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0';
 const origins = new WeakMap<object, () => Promise<Buffer>>();
 const openings = new WeakSet<object>();
+const targetOrigins = new WeakMap<object, () => Promise<Buffer>>();
 const object = (value: unknown): Json => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original xcsh evidence');
   return value as Json;
@@ -52,6 +54,7 @@ export interface InstalledXcshCreationReady {
   readonly evidenceSha256: string;
 }
 export interface InstalledXcshCreationResult {
+  readonly requestSha256: string;
   readonly kind: 'original-xcsh-creation-result';
   readonly executor: Identity;
   readonly reader: Identity;
@@ -60,6 +63,32 @@ export interface InstalledXcshCreationResult {
   readonly evidencePath: string;
   readonly evidenceSha256: string;
 }
+type CreationTarget = Readonly<{
+  type_name: 'xcsh_token' | 'xcsh_securemesh_site_v2';
+  namespace: 'system';
+  name: string;
+}>;
+export interface InstalledXcshCreationTarget {
+  readonly kind: 'original-xcsh-target-creation-evidence';
+  readonly requestSha256: string;
+  readonly executor: Identity;
+  readonly reader: Identity;
+  readonly target: CreationTarget;
+  readonly creationIdentitySha256: string;
+  readonly complete: false;
+  readonly executionAuthorized: false;
+  readonly signalsSent: false;
+  readonly cloudSubmissions: 0;
+  readonly evidencePath: string;
+  readonly evidenceSha256: string;
+}
+/** Read-only original per-target capture, available during the owning apply. */
+export async function readOriginalInstalledXcshTarget(target: InstalledXcshCreationTarget): Promise<Buffer> {
+  const read = targetOrigins.get(target);
+  if (!read) throw new Error('An original installed xcsh target is required');
+  return read();
+}
+
 /** Private raw evidence is readable only through its actual source-issued result. */
 export async function readOriginalInstalledXcshCreation(result: InstalledXcshCreationResult): Promise<Buffer> {
   const read = origins.get(result);
@@ -222,6 +251,15 @@ export async function openInstalledXcshCreationReader(
     requestPath = join(root, 'request.private.json');
   const requestBinding = await persist(requestPath, bytes);
   monitors.push(await monitorOriginalInputs({ request: requestBinding }));
+  const retainedTargets = new Map<
+    string,
+    {
+      evidence: InstalledXcshCreationTarget;
+      receipt: Json;
+      binding: Awaited<ReturnType<typeof readOwnedInstalledInput>>['binding'];
+    }
+  >();
+  let finalTargetReceipts: Map<string, Json> | undefined;
   const readyState = Promise.withResolvers<InstalledXcshCreationReady>();
   readyState.promise.catch(() => {});
   const baseKeys = [
@@ -257,6 +295,67 @@ export async function openInstalledXcshCreationReader(
       value.cloudSubmissions !== 0
     )
       throw new Error('Original xcsh reader attribution differs');
+  };
+  const inspectReceipts = (values: unknown[]) => {
+    const targets = new Set(
+      scope.resources.map((target) => JSON.stringify([target.type_name, target.namespace, target.name])),
+    );
+    const joined = new Map<string, Json>();
+    const identities = new Set<string>(),
+      nonces = new Set<string>();
+    for (const raw of values) {
+      const receipt = object(raw),
+        target = object(receipt.target),
+        actor = object(receipt.process);
+      const key = JSON.stringify([target.type_name, target.namespace, target.name]);
+      if (
+        !sameKeys(receipt, [
+          'schema_version',
+          'scope_sha256',
+          'scope_file_sha256',
+          'target',
+          'process',
+          'nonce',
+          'creation_identity_sha256',
+        ]) ||
+        receipt.schema_version !== 1 ||
+        receipt.scope_sha256 !== scope.planSha256 ||
+        receipt.scope_file_sha256 !== scopeBinding.sha256 ||
+        !sameKeys(target, ['type_name', 'namespace', 'name']) ||
+        !targets.delete(key) ||
+        typeof receipt.nonce !== 'string' ||
+        !/^[a-f0-9]{32}$/.test(receipt.nonce) ||
+        nonces.has(receipt.nonce) ||
+        typeof receipt.creation_identity_sha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(receipt.creation_identity_sha256) ||
+        identities.has(receipt.creation_identity_sha256) ||
+        !sameKeys(actor, [
+          'pid',
+          'parent_pid',
+          'start_ticks',
+          'boot_id_sha256',
+          'executable_sha256',
+          'executable_device',
+          'executable_inode',
+        ]) ||
+        !Number.isSafeInteger(actor.pid) ||
+        (actor.pid as number) <= 0 ||
+        actor.parent_pid !== admission.identity.pid ||
+        typeof actor.start_ticks !== 'string' ||
+        !/^[1-9][0-9]*$/.test(actor.start_ticks) ||
+        actor.executable_sha256 !== providerHash ||
+        actor.boot_id_sha256 !== hash(Buffer.from(`${admission.identity.boot}\n`)) ||
+        !Number.isSafeInteger(actor.executable_device) ||
+        (actor.executable_device as number) <= 0 ||
+        !Number.isSafeInteger(actor.executable_inode) ||
+        (actor.executable_inode as number) <= 0
+      )
+        throw new Error('Original xcsh creation receipt join differs');
+      identities.add(receipt.creation_identity_sha256);
+      nonces.add(receipt.nonce);
+      joined.set(key, receipt);
+    }
+    return { joined, remainingTargets: targets.size };
   };
   const policy: SignalFreeExecutionPolicy = {
     python: { path: inputs.python.path, sha256: pins.pythonSha256 },
@@ -382,67 +481,21 @@ export async function openInstalledXcshCreationReader(
       )
         throw new Error('Original xcsh creation result incomplete or malformed');
       inspectBase(value, readerActor, ready);
-      const targets = new Set(
-        scope.resources.map((target) => JSON.stringify([target.type_name, target.namespace, target.name])),
-      );
-      const identities = new Set<string>(),
-        nonces = new Set<string>();
-      for (const raw of value.receipts) {
-        const receipt = object(raw),
-          target = object(receipt.target),
-          actor = object(receipt.process);
-        const key = JSON.stringify([target.type_name, target.namespace, target.name]);
-        if (
-          !sameKeys(receipt, [
-            'schema_version',
-            'scope_sha256',
-            'scope_file_sha256',
-            'target',
-            'process',
-            'nonce',
-            'creation_identity_sha256',
-          ]) ||
-          receipt.schema_version !== 1 ||
-          receipt.scope_sha256 !== scope.planSha256 ||
-          receipt.scope_file_sha256 !== scopeBinding.sha256 ||
-          !sameKeys(target, ['type_name', 'namespace', 'name']) ||
-          !targets.delete(key) ||
-          typeof receipt.nonce !== 'string' ||
-          !/^[a-f0-9]{32}$/.test(receipt.nonce) ||
-          nonces.has(receipt.nonce) ||
-          typeof receipt.creation_identity_sha256 !== 'string' ||
-          !/^[a-f0-9]{64}$/.test(receipt.creation_identity_sha256) ||
-          identities.has(receipt.creation_identity_sha256) ||
-          !sameKeys(actor, [
-            'pid',
-            'parent_pid',
-            'start_ticks',
-            'boot_id_sha256',
-            'executable_sha256',
-            'executable_device',
-            'executable_inode',
-          ]) ||
-          !Number.isSafeInteger(actor.pid) ||
-          (actor.pid as number) <= 0 ||
-          actor.parent_pid !== admission.identity.pid ||
-          typeof actor.start_ticks !== 'string' ||
-          !/^[1-9][0-9]*$/.test(actor.start_ticks) ||
-          actor.executable_sha256 !== providerHash ||
-          actor.boot_id_sha256 !== hash(Buffer.from(`${admission.identity.boot}\n`)) ||
-          !Number.isSafeInteger(actor.executable_device) ||
-          (actor.executable_device as number) <= 0 ||
-          !Number.isSafeInteger(actor.executable_inode) ||
-          (actor.executable_inode as number) <= 0
-        )
-          throw new Error('Original xcsh creation receipt join differs');
-        identities.add(receipt.creation_identity_sha256);
-        nonces.add(receipt.nonce);
+      const checkedReceipts = inspectReceipts(value.receipts);
+      if (value.complete) {
+        for (const [key, retained] of retainedTargets) {
+          if (!isDeepStrictEqual(retained.receipt, checkedReceipts.joined.get(key)))
+            throw new Error('Original xcsh final receipt differs from its published target');
+        }
+        finalTargetReceipts = checkedReceipts.joined;
       }
-      if (value.complete && targets.size) throw new Error('Original xcsh scope target coverage differs');
+      if (value.complete && checkedReceipts.remainingTargets)
+        throw new Error('Original xcsh scope target coverage differs');
       monitors.push(await monitorOriginalInputs({ result: resultFile.binding }));
       await assertOriginal();
       const result = Object.freeze({
         kind: 'original-xcsh-creation-result' as const,
+        requestSha256: requestHash,
         executor: admission.identity,
         reader: readerActor,
         complete: value.complete,
@@ -496,9 +549,114 @@ export async function openInstalledXcshCreationReader(
     }
   })();
   completed.catch(() => {});
+  let targetRead: Promise<readonly InstalledXcshCreationTarget[]> | undefined;
+  const availableTargets = (): Promise<readonly InstalledXcshCreationTarget[]> => {
+    if (targetRead) return targetRead;
+    const pendingRead = Promise.resolve()
+      .then(async () => {
+        const ready = await readyState.promise;
+        await guard();
+        const currentFiles: Array<{
+          key: string;
+          file: Awaited<ReturnType<typeof readOwnedInstalledInput>>;
+          value: Json;
+        }> = [];
+        for (const target of scope.resources) {
+          // Match Python's sorted, ASCII JSON encoding used by the shipped writer.
+          const encodedString = (value: string) =>
+            JSON.stringify(value).replace(
+              /[\u007f-\uffff]/g,
+              (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`,
+            );
+          const encoded = `{${Object.keys(target)
+            .sort()
+            .map((key) => `${encodedString(key)}: ${encodedString(target[key as keyof typeof target])}`)
+            .join(', ')}}`;
+          const key = JSON.stringify([target.type_name, target.namespace, target.name]);
+          const path = join(root, `xcsh-target-${hash(Buffer.from(encoded))}.private.json`);
+          let file: Awaited<ReturnType<typeof readOwnedInstalledInput>>;
+          try {
+            file = await readOwnedInstalledInput(path, 65536);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT' && !retainedTargets.has(key)) continue;
+            throw error;
+          }
+          const value = decodeEvidenceObject(file.bytes);
+          if (
+            !readerActor ||
+            !sameKeys(value, [...baseKeys, 'kind', 'receipt', 'complete']) ||
+            value.kind !== 'original-xcsh-target-creation-evidence' ||
+            value.complete !== false ||
+            Number(file.binding.expectedIdentity?.mode) % 512 !== 0o400
+          )
+            throw new Error('Original private xcsh target evidence required');
+          inspectBase(value, readerActor, ready);
+          const receipt = object(value.receipt),
+            actual = object(receipt.target);
+          if (JSON.stringify([actual.type_name, actual.namespace, actual.name]) !== key)
+            throw new Error('Original xcsh target file scope differs');
+          const retained = retainedTargets.get(key);
+          if (retained) {
+            assertSameOriginalInput(retained.binding, file.binding);
+            if (hash(file.bytes) !== retained.evidence.evidenceSha256)
+              throw new Error('Original xcsh target bytes changed');
+          }
+          currentFiles.push({ key, file, value });
+        }
+        inspectReceipts(currentFiles.map((row) => row.value.receipt));
+        await guard();
+        for (const row of currentFiles) {
+          if (retainedTargets.has(row.key)) continue;
+          const receipt = object(row.value.receipt);
+          const evidence = Object.freeze({
+            kind: 'original-xcsh-target-creation-evidence' as const,
+            requestSha256: requestHash,
+            executor: admission.identity,
+            reader: ready.reader,
+            target: Object.freeze({ ...object(receipt.target) }) as CreationTarget,
+            creationIdentitySha256: receipt.creation_identity_sha256 as string,
+            complete: false as const,
+            executionAuthorized: false as const,
+            signalsSent: false as const,
+            cloudSubmissions: 0 as const,
+            evidencePath: row.file.binding.path,
+            evidenceSha256: hash(row.file.bytes),
+          });
+          monitors.push(await monitorOriginalInputs({ target: row.file.binding }));
+          if (finalTargetReceipts && !isDeepStrictEqual(receipt, finalTargetReceipts.get(row.key)))
+            throw new Error('Original xcsh target differs from its final receipt');
+          retainedTargets.set(row.key, { evidence, receipt, binding: row.file.binding });
+          targetOrigins.set(evidence, async () => {
+            await guard();
+            const current = await readOwnedInstalledInput(evidence.evidencePath, 65536);
+            assertSameOriginalInput(row.file.binding, current.binding);
+            if (hash(current.bytes) !== evidence.evidenceSha256) throw new Error('Original xcsh target bytes changed');
+            await guard();
+            return Buffer.from(current.bytes);
+          });
+        }
+        await guard();
+        return Object.freeze([...retainedTargets.values()].map((row) => row.evidence));
+      })
+      .catch((error) => {
+        retired = true;
+        throw error;
+      });
+    targetRead = pendingRead;
+    pendingRead.then(
+      () => {
+        if (targetRead === pendingRead) targetRead = undefined;
+      },
+      () => {
+        if (targetRead === pendingRead) targetRead = undefined;
+      },
+    );
+    return pendingRead;
+  };
   return Object.freeze({
     ready: readyState.promise,
     completed,
+    availableTargets,
     assertOriginal,
     closeAfterExecutorExit: async () => {
       await completed;
