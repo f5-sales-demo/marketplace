@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "sanitized": true,
+  "observedAt": "2026-10-22T22:50:34.869054+00:00",
+  "candidateRevision": 107,
+  "consumerSourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "consumerProducerPin": "v12.2.0",
+  "producerPublication": {
+    "owningRun": 39865142345,
+    "releasePr": 1987,
+    "candidateVersion": "v12.3.0",
+    "releaseHead": "f570e243032c620cdcfffb57618f8eaf8adac630",
+    "requiredSourceAnnotationsAndMappingsVerified": true,
+    "immutablePublicationVerified": false
+  },
+  "freshFixturePreparation": {
+    "allArchiveFilesCompared": 768,
+    "independentEmptyBaselineVerified": true,
+    "verifierRegressionTestsPassed": 7,
+    "cloudMutationPerformed": false,
+    "freshPublishedQualificationPending": true
+  },
+  "permissions": {
+    "sentinelDetailReads": [
+      {
+        "httpStatus": 404,
+        "exactUidResolved": false
+      },
+      {
+        "httpStatus": 404,
+        "exactUidResolved": false
+      }
+    ],
+    "credentialRevokeMapped": true,
+    "roleDeleteMapped": true,
+    "pairedRbacPolicyRetirementQualified": false,
+    "effectivePrincipalQualified": false,
+    "credentialsOrAssignmentsChanged": false
+  },
+  "consumerRepinned": false,
+  "releaseReady": false,
+  "fullCeAcceptance": false
+}

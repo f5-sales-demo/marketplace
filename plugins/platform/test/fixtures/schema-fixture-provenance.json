@@ -1,0 +1,66 @@
+{
+  "sourceCommit": "a6f7c9075b9e420c99aea4aac83df6a7c1d07d67",
+  "originalSchemas": [
+    {
+      "file": "aws-routing-schema.json",
+      "group": "network",
+      "canonicalSha256": "c5521ff2605317d3d77b3cf137556497edd012e1820ab46b872ba1d496cac844"
+    },
+    {
+      "file": "aws-routing-schema.json",
+      "group": "marketplace",
+      "canonicalSha256": "254063d02d9cebb841a105770b7cbf63dfd44bfec0bc72bb39d52c609adaf68b"
+    },
+    {
+      "file": "inside-listener-schema.json",
+      "group": "schemas",
+      "canonicalSha256": "da524e723d88023544710f9b77092badc81b51749ff8c4430c22c15c2841b4b4"
+    },
+    {
+      "file": "site-local-origin-schema.json",
+      "group": "schemas",
+      "canonicalSha256": "b0ea47cf444af336918e49736467c339e6952e2019eb0a263d01e9c91215dac0"
+    },
+    {
+      "file": "site-upgrade-schema.json",
+      "group": "schemas",
+      "canonicalSha256": "0897e101b6dcb2eecf6276e5806510bff76ef5bff0587bb6af381f1727728b22"
+    },
+    {
+      "file": "smsv2-create-schema.json",
+      "group": "schemas",
+      "canonicalSha256": "0cdb19167c8654eb3663c55b2307898b4153181b0fa31bbeecca79914b33799f"
+    },
+    {
+      "file": "smsv2-replace-schema.json",
+      "group": "schemas",
+      "canonicalSha256": "771e20ac0913210c2dc6547ad836f6ca0762176c19ae0077f5be438ec753b9bf"
+    }
+  ],
+  "originalDocuments": [
+    {
+      "file": "aws-routing-schema.json",
+      "canonicalSha256": "de746054d7a114423a023b63f22dbe603886a1bf5e4f885cc08a169684853a69"
+    },
+    {
+      "file": "inside-listener-schema.json",
+      "canonicalSha256": "b80e828d84840d53544f8b10309a87f961c34fcf3e380172662199d7206c74ae"
+    },
+    {
+      "file": "site-local-origin-schema.json",
+      "canonicalSha256": "a1623b20637381137c0b791fe1e498524b86d25b2d982fb31a28c138c7ebc35e"
+    },
+    {
+      "file": "site-upgrade-schema.json",
+      "canonicalSha256": "e9f7c6bb1fd16270577652512e7ae7a7ea55557010e9e7921c7c9947f2bcbc38"
+    },
+    {
+      "file": "smsv2-create-schema.json",
+      "canonicalSha256": "36c366c1a90d7b6c3f134003ad7fa81877dcd5fb9e96eeb9fa479896d121b5b9"
+    },
+    {
+      "file": "smsv2-replace-schema.json",
+      "canonicalSha256": "8c91c3610f45b1396345fb80f4c65657c0d35fe8bf77f8a0ddb8860ea9dd91ca"
+    }
+  ]
+}
