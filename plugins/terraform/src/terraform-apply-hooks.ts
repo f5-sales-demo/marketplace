@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
 import { decodeEvidenceObject } from './evidence-json';
+import { isEvidenceRfc3339 } from './evidence-rfc3339';
 import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import {
+  type OriginalExecutionOutput,
+  type OriginalOutputChunk,
+  type OriginalOutputCompletion,
+  readOriginalExecutionChunk,
+  readOriginalExecutionCompletion,
+} from './original-output-stream';
 import type { PlanReceipt } from './runner';
 
 type Json = Record<string, unknown>;
@@ -49,6 +57,26 @@ export interface TerraformApplyHookCandidate {
   readonly planSha256: string;
   readonly applyRpcQualified: false;
   readonly originalInsertQualified: false;
+}
+export interface OriginalTerraformApplyHookSource {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-terraform-apply-hook-source';
+  readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
+  readonly planSha256: string;
+  readonly rawLineSha256: string;
+  readonly eventEpochMs: number;
+  readonly stdoutBytes: number;
+  readonly stdoutSha256: string;
+  readonly stderrBytes: number;
+  readonly stderrSha256: string;
+  readonly applyRpcQualified: false;
+  readonly originalInsertQualified: false;
+}
+const hookOrigins = new WeakMap<TerraformApplyHookCandidate, () => Promise<OriginalTerraformApplyHookSource>>();
+export async function readOriginalTerraformApplyHookSource(value: TerraformApplyHookCandidate) {
+  const read = hookOrigins.get(value);
+  if (!read) throw new Error('Original executor-issued apply hook required');
+  return read();
 }
 const maxLineBytes = 1024 * 1024;
 const maxStreamBytes = 64 * 1024 * 1024;
@@ -127,6 +155,12 @@ export class TerraformApplyHookParser {
   #active: ActiveAction | undefined;
   #completed = 0;
   #expected = 0;
+  #originOutput: OriginalExecutionOutput | undefined;
+  #originCompletion: ReturnType<typeof readOriginalExecutionCompletion> | undefined;
+  #sourceEnd = 0;
+  readonly #sourceHash = createHash('sha256');
+  readonly #eventTimes = new WeakMap<TerraformApplyHookCandidate, number>();
+  #eventEpochMs = 0;
 
   constructor(plan: PlanReceipt, binding?: InstalledGcpVersionBinding, configuration?: string) {
     const profile = binding ? resolveInstalledGcpVersionProfile(binding) : undefined;
@@ -161,6 +195,14 @@ export class TerraformApplyHookParser {
 
   push(chunk: Uint8Array): readonly TerraformApplyHookCandidate[] {
     this.#assertOpen();
+    if (this.#originOutput) {
+      this.#failed = true;
+      throw new Error('Original descriptor UI cannot accept unowned bytes');
+    }
+    return this.#consume(chunk);
+  }
+  #consume(chunk: Uint8Array): readonly TerraformApplyHookCandidate[] {
+    this.#assertOpen();
     try {
       this.#streamBytes += chunk.byteLength;
       if (this.#streamBytes > maxStreamBytes) throw new Error('Terraform UI stream size exceeded');
@@ -187,6 +229,68 @@ export class TerraformApplyHookParser {
     }
   }
 
+  pushOriginal(output: OriginalExecutionOutput, chunk: OriginalOutputChunk): readonly TerraformApplyHookCandidate[] {
+    this.#assertOpen();
+    try {
+      const source = readOriginalExecutionChunk(output, chunk, 'stdout');
+      if (
+        (this.#originOutput && this.#originOutput !== output) ||
+        (!this.#originOutput && this.#streamBytes !== 0) ||
+        source.offset !== this.#sourceEnd
+      )
+        throw new Error('Original UI descriptor stream changed or has a gap');
+      this.#originOutput = output;
+      this.#sourceEnd = source.offset + source.bytes.length;
+      this.#sourceHash.update(source.bytes);
+      const candidates = this.#consume(source.bytes);
+      for (const candidate of candidates) {
+        const epoch = this.#eventTimes.get(candidate);
+        hookOrigins.set(candidate, async () => {
+          if (this.#failed) throw new Error('Original UI hook source failed');
+          const original = this.#originCompletion;
+          if (!original || epoch === undefined) throw new Error('Original UI descriptor completion required');
+          try {
+            readOriginalExecutionCompletion(output, original.completion);
+            const current = await output.finish();
+            const checked = readOriginalExecutionCompletion(output, current);
+            for (const channel of ['stdout', 'stderr'] as const)
+              if (
+                current[channel].bytes !== original.completion[channel].bytes ||
+                current[channel].sha256 !== original.completion[channel].sha256
+              )
+                throw new Error('Original UI descriptor bytes changed');
+            if (
+              (['pid', 'group', 'start', 'boot'] as const).some(
+                (key) => checked.identity[key] !== original.identity[key],
+              )
+            )
+              throw new Error('Original UI executor identity changed');
+            return Object.freeze({
+              schemaVersion: 1,
+              kind: 'original-terraform-apply-hook-source',
+              executor: original.identity,
+              planSha256: this.#planSha256,
+              rawLineSha256: candidate.rawLineSha256,
+              eventEpochMs: epoch,
+              stdoutBytes: current.stdout.bytes,
+              stdoutSha256: current.stdout.sha256,
+              stderrBytes: current.stderr.bytes,
+              stderrSha256: current.stderr.sha256,
+              applyRpcQualified: false,
+              originalInsertQualified: false,
+            });
+          } catch (error) {
+            this.#failed = true;
+            throw error;
+          }
+        });
+      }
+      return candidates;
+    } catch (error) {
+      this.#failed = true;
+      throw error;
+    }
+  }
   #parse(raw: Uint8Array): TerraformApplyHookCandidate | undefined {
     let event: Json;
     try {
@@ -199,10 +303,10 @@ export class TerraformApplyHookParser {
       event['@module'] !== 'terraform.ui' ||
       !['info', 'warn', 'error'].includes(String(event['@level'])) ||
       typeof event['@message'] !== 'string' ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp) ||
-      !Number.isFinite(Date.parse(timestamp))
+      !isEvidenceRfc3339(timestamp)
     )
       throw new Error('Original Terraform UI producer envelope required');
+    this.#eventEpochMs = Date.parse(timestamp);
     if (event['@level'] === 'error') this.#successful = false;
     const type = text(event.type);
     if (!this.#version) {
@@ -301,6 +405,7 @@ export class TerraformApplyHookParser {
       applyRpcQualified: false,
       originalInsertQualified: false,
     });
+    this.#eventTimes.set(candidate, this.#eventEpochMs);
     if (type === 'apply_complete' || type === 'apply_errored') {
       if (active.provisioning || (type === 'apply_complete' && active.provisionerNext !== active.provisioners.length))
         throw new Error('Original Terraform provisioner steps truncated or missing');
@@ -355,6 +460,7 @@ export class TerraformApplyHookParser {
       applyRpcQualified: false,
       originalInsertQualified: false,
     });
+    this.#eventTimes.set(candidate, this.#eventEpochMs);
     if (phase === 'provision_complete' || phase === 'provision_errored') {
       if (phase === 'provision_errored') this.#successful = false;
       active.provisioning = false;
@@ -364,6 +470,33 @@ export class TerraformApplyHookParser {
   }
 
   finish() {
+    this.#assertOpen();
+    if (this.#originOutput) {
+      this.#failed = true;
+      throw new Error('Original UI descriptor completion required');
+    }
+    return this.#finish();
+  }
+  finishOriginal(output: OriginalExecutionOutput, completion: OriginalOutputCompletion) {
+    this.#assertOpen();
+    try {
+      const original = readOriginalExecutionCompletion(output, completion);
+      if (
+        output !== this.#originOutput ||
+        this.#sourceEnd !== completion.stdout.bytes ||
+        this.#streamBytes !== completion.stdout.bytes ||
+        this.#sourceHash.copy().digest('hex') !== completion.stdout.sha256
+      )
+        throw new Error('Original UI descriptor completion differs');
+      const result = this.#finish();
+      this.#originCompletion = original;
+      return result;
+    } catch (error) {
+      this.#failed = true;
+      throw error;
+    }
+  }
+  #finish() {
     this.#assertOpen();
     if (!this.#version || this.#lineBytes || this.#active || this.#completed !== this.#expected) {
       this.#failed = true;

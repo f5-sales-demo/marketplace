@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
+import { createInstalledGcpInvocationCompiler } from '../src/installed-gcp-invocation';
 import { fixture, roots } from './original-gcp-inventory-fixture';
 
 for (const ha of [false, true])
@@ -85,5 +86,20 @@ test('cached inventory preparation cannot ignore a different storage owner', asy
     roots.push(root);
     const foreign = await CeDeploymentStore.open(root, { ...context.owner, deploymentId: 'foreign' });
     await expect(prepareOriginalGcpInventoryScope(context, foreign)).rejects.toThrow('storage');
+  });
+});
+
+test('owning GCP apply preserves raw admission and gains tracing only through the compiler', async () => {
+  await fixture(async (context, _store, invocation) => {
+    expect(invocation.args).not.toContain('-json');
+    expect(invocation.originalPlanSource).toBeDefined();
+    const environment = { ...context.environment, HOME: '/private/example-home', PATH: '/usr/bin:/bin' };
+    const compile = createInstalledGcpInvocationCompiler({ directory: invocation.cwd, environment });
+    const compiled = compile({ ...invocation, env: { ...invocation.env, ...environment } });
+    expect(compiled.args).toContain('-json');
+    expect(compiled.args).toContain('-parallelism=1');
+    expect(compiled.args.filter((arg) => arg === '-json')).toHaveLength(1);
+    expect(compiled.args.at(-1)).toBe('saved.tfplan');
+    expect(compiled.originalPlanSource).toBe(invocation.originalPlanSource);
   });
 });

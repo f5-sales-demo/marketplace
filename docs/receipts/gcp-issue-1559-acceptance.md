@@ -1819,3 +1819,15 @@ group absence and empty local final plan/destroy/state.
 The probe does not qualify cloud authentication, guest capture or normal
 installed execution. Full built-in capture and all original live and delivery
 gates remain required.
+
+## Original apply stdout on November 15
+
+The [stdout receipt](gcp-original-apply-stdout-20261115.md) records executor-owned
+UI hook records, exact descriptor completion, strict event dates and verification
+of the existing runner-to-tracing-compiler handoff. Source and compiled checks
+pass. Two local native probes completed cleanup with zero cloud resources; the
+final probe exercised the correct compiler path and independently confirmed
+original process absence, hook ordering and empty state/destroy.
+
+Full built-in insertion/provider/serial/guest capture, all original live GCP
+acceptance and remaining installed/delivery gates remain required.

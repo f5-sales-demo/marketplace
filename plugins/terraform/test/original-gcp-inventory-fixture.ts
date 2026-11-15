@@ -69,7 +69,7 @@ type Row = {
   change: { actions: string[]; after: Record<string, unknown>; after_unknown: Record<string, unknown> };
 };
 export async function fixture(
-  run: (context: InstalledCaptureContext, store: CeDeploymentStore) => Promise<void>,
+  run: (context: InstalledCaptureContext, store: CeDeploymentStore, invocation: Invocation) => Promise<void>,
   mutation = '',
   ha = true,
   expired: () => boolean = () => false,
@@ -213,7 +213,7 @@ export async function fixture(
               backendIdentity: deployment.backendIdentity,
             }),
         });
-        await run(context, store);
+        await run(context, store, request);
       }
       return {
         code: 0,

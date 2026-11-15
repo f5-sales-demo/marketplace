@@ -429,3 +429,47 @@ it('compiled provider reader closes its original child while retaining evidence 
   await expect(reader.read()).rejects.toThrow('retired');
   expect(run.executions()).toBe(1);
 });
+
+it('compiled apply hook parser refuses source authority for plain UI bytes', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.TerraformApplyHookParser).toBe('function');
+  expect(typeof runtime.readOriginalTerraformApplyHookSource).toBe('function');
+  const binding = {
+    terraformVersion: '1.17.2',
+    providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+  };
+  const parser = new runtime.TerraformApplyHookParser(
+    {
+      schemaVersion: 1,
+      deploymentId: 'compiled-hook',
+      engine: 'terraform',
+      backendIdentity: 'local:compiled-hook',
+      configurationSha256: hash('{}'),
+      providerLockSha256: binding.providerLockSha256,
+      planSha256: hash('plan'),
+      changes: [{ address: 'terraform_data.local', type: 'terraform_data', actions: ['create'] }],
+      noChanges: false,
+    },
+    binding,
+  );
+  const resource = {
+    addr: 'terraform_data.local',
+    module: '',
+    resource: 'terraform_data.local',
+    implied_provider: 'terraform',
+    resource_type: 'terraform_data',
+    resource_name: 'local',
+    resource_key: null,
+  };
+  const line = (type: string, fields: object = {}) =>
+    `${JSON.stringify({ '@level': 'info', '@module': 'terraform.ui', '@message': 'synthetic compiled UI', '@timestamp': '2026-11-15T00:00:00Z', type, ...fields })}\n`;
+  const values = parser.push(
+    Buffer.from(
+      line('version', { terraform: '1.17.2', ui: '1.3' }) +
+        line('apply_start', { hook: { resource, action: 'create' } }) +
+        line('apply_complete', { hook: { resource, action: 'create', elapsed_seconds: 0 } }),
+    ),
+  );
+  expect(parser.finish().applySuccessful).toBe(true);
+  await expect(runtime.readOriginalTerraformApplyHookSource(values[0])).rejects.toThrow('Original');
+});

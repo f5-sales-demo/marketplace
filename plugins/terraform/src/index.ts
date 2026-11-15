@@ -65,3 +65,5 @@ export {
   readOriginalInstalledProviderWindow,
   readOriginalInstalledProviderWindowClock,
 } from './installed-provider-reader';
+
+export { readOriginalTerraformApplyHookSource, TerraformApplyHookParser } from './terraform-apply-hooks';
