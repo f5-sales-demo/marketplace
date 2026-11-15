@@ -70,6 +70,39 @@ export const operationFixture = () => ({
   targetLink: `https://www.googleapis.com/compute/v1/projects/${project}/zones/${zone}/instances/${node}`,
 });
 
+export function traceFixture(request = requestFixture(), response = operationFixture(), googleVersion = '8.10.0') {
+  const row = (message: string, fields = {}) =>
+    `${JSON.stringify({
+      '@timestamp': '2026-11-10T10:00:00Z',
+      '@level': 'debug',
+      '@module': `provider.terraform-provider-google_v${googleVersion}_x5`,
+      '@message': message,
+      ...fields,
+    })}\n`;
+  const rpc = (message: string) => row(message, { '@module': 'sdk.proto', '@level': 'trace', ...identity });
+  const end = row('-----------------------------------------------------');
+  return (
+    rpc('Received request') +
+    row('2026/11/10 10:00:00 [DEBUG] Google API Request Details:') +
+    row('---[ REQUEST ]---------------------------------------') +
+    row('POST /compute/v1/projects/example-project/zones/us-central1-a/instances?alt=json HTTP/1.1') +
+    row('Host: compute.googleapis.com') +
+    row('Content-Type: application/json') +
+    row('X-Goog-Request-Reason: xcsh-1559-example') +
+    row('') +
+    row(JSON.stringify(request)) +
+    end +
+    row('2026/11/10 10:00:00 [DEBUG] Google API Response Details:') +
+    row('---[ RESPONSE ]--------------------------------------') +
+    row('HTTP/1.1 200 OK') +
+    row('Content-Type: application/json') +
+    row('') +
+    row(JSON.stringify(response)) +
+    end +
+    rpc('Served request')
+  );
+}
+
 export function capture(
   request: unknown = requestFixture(),
   response: unknown = operationFixture(),

@@ -58,12 +58,12 @@ export default function factory(pi: { events: CeEventBus; setLabel(label: string
   });
 }
 
+export { GoogleHttpRpcTraceParser, readOriginalGoogleHttpRpcSource } from './gcp-http-rpc-trace';
+export { collectOriginalGcpInsertWitnesses, readOriginalGcpInsertWitnesses } from './gcp-insert-evidence';
 export { openInstalledInitialInventory } from './installed-initial-inventory';
-
 export {
   openInstalledProviderReader,
   readOriginalInstalledProviderWindow,
   readOriginalInstalledProviderWindowClock,
 } from './installed-provider-reader';
-
 export { readOriginalTerraformApplyHookSource, TerraformApplyHookParser } from './terraform-apply-hooks';

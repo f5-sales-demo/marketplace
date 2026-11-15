@@ -1831,3 +1831,18 @@ original process absence, hook ordering and empty state/destroy.
 
 Full built-in insertion/provider/serial/guest capture, all original live GCP
 acceptance and remaining installed/delivery gates remain required.
+
+## Original insertion witnesses on November 15
+
+The [insertion witness receipt](gcp-original-insert-witnesses-20261115.md) records
+executor-owned HTTP evidence joined with the original owning plan, UI hooks,
+provider lifecycle and independently observed RPC time window. Copied,
+inconsistent, expired or changed source capabilities refuse. Source and compiled
+checks pass; current dependency catalogs, a fresh authenticated observer-image
+read and a real apply-time provider read are verified. Independent cleanup
+confirmed 26 absent command groups, empty state/destroy and zero locks or cloud
+resources.
+
+Insertion and execution qualification flags remain false. Original VM/NIC/token/
+audit joins, full built-in capture, all original live acceptance and remaining
+installed/delivery gates remain required.

@@ -1,6 +1,14 @@
 import { createHash, type Hash } from 'node:crypto';
 import { decodeEvidenceObject } from './evidence-json';
+import { isEvidenceRfc3339 } from './evidence-rfc3339';
 import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import {
+  type OriginalExecutionOutput,
+  type OriginalOutputChunk,
+  type OriginalOutputCompletion,
+  readOriginalExecutionChunk,
+  readOriginalExecutionCompletion,
+} from './original-output-stream';
 
 type Json = Record<string, unknown>;
 type Rpc = 'ReadDataSource' | 'ReadResource' | 'ApplyResourceChange';
@@ -40,6 +48,25 @@ export interface OriginalGoogleHttpRpcBodies extends GoogleHttpRpcTraceCandidate
   readonly googleProviderVersion: string;
   readonly requestBody: string;
   readonly responseBody: string;
+}
+export interface OriginalGoogleHttpRpcSource {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-google-http-rpc-source';
+  readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
+  readonly planSha256: string;
+  readonly rpcRequestId: string;
+  readonly stdoutBytes: number;
+  readonly stdoutSha256: string;
+  readonly stderrBytes: number;
+  readonly stderrSha256: string;
+  readonly applyRpcQualified: false;
+  readonly originalInsertQualified: false;
+}
+const bodyOrigins = new WeakMap<OriginalGoogleHttpRpcBodies, () => Promise<OriginalGoogleHttpRpcSource>>();
+export async function readOriginalGoogleHttpRpcSource(value: OriginalGoogleHttpRpcBodies) {
+  const read = bodyOrigins.get(value);
+  if (!read) throw new Error('Original executor-issued HTTP bodies required');
+  return read();
 }
 const issuedBodies = new WeakSet<OriginalGoogleHttpRpcBodies>();
 export function assertOriginalGoogleHttpRpcBodies(value: OriginalGoogleHttpRpcBodies): void {
@@ -144,6 +171,10 @@ export class GoogleHttpRpcTraceParser {
   #pending: HttpRequest | undefined;
   #matched: Transaction | undefined;
   #matches = 0;
+  #originOutput: OriginalExecutionOutput | undefined;
+  #originCompletion: ReturnType<typeof readOriginalExecutionCompletion> | undefined;
+  #sourceEnd = 0;
+  readonly #sourceHash = createHash('sha256');
 
   constructor(scope: GoogleHttpRpcTraceScope, binding?: InstalledGcpVersionBinding) {
     const googleVersion = binding ? resolveInstalledGcpVersionProfile(binding).googleVersion : '8.7.0';
@@ -186,6 +217,35 @@ export class GoogleHttpRpcTraceParser {
     if (this.#closed) throw new Error('Original HTTP/RPC trace closed');
   }
   push(chunk: Uint8Array): readonly GoogleHttpRpcTraceCandidate[] {
+    this.#open();
+    if (this.#originOutput) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw new Error('Original HTTP descriptor cannot accept unowned bytes');
+    }
+    return this.#consume(chunk);
+  }
+  pushOriginal(output: OriginalExecutionOutput, chunk: OriginalOutputChunk): readonly GoogleHttpRpcTraceCandidate[] {
+    this.#open();
+    try {
+      const source = readOriginalExecutionChunk(output, chunk, 'stderr');
+      if (
+        (this.#originOutput && this.#originOutput !== output) ||
+        (!this.#originOutput && this.#streamBytes !== 0) ||
+        source.offset !== this.#sourceEnd
+      )
+        throw new Error('Original HTTP descriptor stream changed or has a gap');
+      this.#originOutput = output;
+      this.#sourceEnd = source.offset + source.bytes.length;
+      this.#sourceHash.update(source.bytes);
+      return this.#consume(source.bytes);
+    } catch (error) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw error;
+    }
+  }
+  #consume(chunk: Uint8Array): readonly GoogleHttpRpcTraceCandidate[] {
     this.#open();
     try {
       this.#streamBytes += chunk.byteLength;
@@ -231,11 +291,7 @@ export class GoogleHttpRpcTraceParser {
       return;
     }
     const timestamp = text(record['@timestamp']);
-    if (
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp) ||
-      !Number.isFinite(Date.parse(timestamp)) ||
-      !['trace', 'debug', 'info', 'warn', 'error'].includes(text(record['@level']))
-    )
+    if (!isEvidenceRfc3339(timestamp) || !['trace', 'debug', 'info', 'warn', 'error'].includes(text(record['@level'])))
       throw new Error('Original trace envelope required');
     if (rpcRecord) return this.#rpc(record, message, raw);
     if (!this.#active) return;
@@ -345,6 +401,45 @@ export class GoogleHttpRpcTraceParser {
     this.#bodies.delete(candidate);
     this.#releasedBody = bodies;
     issuedBodies.add(bodies);
+    const output = this.#originOutput;
+    if (output)
+      bodyOrigins.set(bodies, async () => {
+        if (this.#failed || !issuedBodies.has(bodies)) throw new Error('Original HTTP descriptor source failed');
+        const original = this.#originCompletion;
+        if (!original) throw new Error('Original HTTP descriptor completion required');
+        try {
+          readOriginalExecutionCompletion(output, original.completion);
+          const current = await output.finish();
+          const checked = readOriginalExecutionCompletion(output, current);
+          for (const channel of ['stdout', 'stderr'] as const)
+            if (
+              current[channel].bytes !== original.completion[channel].bytes ||
+              current[channel].sha256 !== original.completion[channel].sha256
+            )
+              throw new Error('Original HTTP descriptor bytes changed');
+          if (
+            (['pid', 'group', 'start', 'boot'] as const).some((key) => checked.identity[key] !== original.identity[key])
+          )
+            throw new Error('Original HTTP executor identity changed');
+          return Object.freeze({
+            schemaVersion: 1,
+            kind: 'original-google-http-rpc-source',
+            executor: original.identity,
+            planSha256: bodies.planSha256,
+            rpcRequestId: bodies.rpcRequestId,
+            stdoutBytes: current.stdout.bytes,
+            stdoutSha256: current.stdout.sha256,
+            stderrBytes: current.stderr.bytes,
+            stderrSha256: current.stderr.sha256,
+            applyRpcQualified: false,
+            originalInsertQualified: false,
+          });
+        } catch (error) {
+          this.#failed = true;
+          issuedBodies.delete(bodies);
+          throw error;
+        }
+      });
     return bodies;
   }
   #completeDump(dump: Dump) {
@@ -386,6 +481,35 @@ export class GoogleHttpRpcTraceParser {
     this.#pending = undefined;
   }
   finish() {
+    this.#open();
+    if (this.#originOutput) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw new Error('Original HTTP descriptor completion required');
+    }
+    return this.#finish();
+  }
+  finishOriginal(output: OriginalExecutionOutput, completion: OriginalOutputCompletion) {
+    this.#open();
+    try {
+      const original = readOriginalExecutionCompletion(output, completion);
+      if (
+        output !== this.#originOutput ||
+        this.#sourceEnd !== completion.stderr.bytes ||
+        this.#streamBytes !== completion.stderr.bytes ||
+        this.#sourceHash.copy().digest('hex') !== completion.stderr.sha256
+      )
+        throw new Error('Original HTTP descriptor completion differs');
+      const result = this.#finish();
+      this.#originCompletion = original;
+      return result;
+    } catch (error) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw error;
+    }
+  }
+  #finish() {
     this.#open();
     if (this.#lineBytes || this.#active || this.#dump || this.#pending || this.#matches !== 1) {
       this.#failed = true;

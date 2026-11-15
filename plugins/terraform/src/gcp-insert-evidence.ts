@@ -1,12 +1,20 @@
 import { createHash } from 'node:crypto';
 import { basename, isAbsolute, resolve } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
-import { assertOriginalGoogleHttpRpcBodies, type OriginalGoogleHttpRpcBodies } from './gcp-http-rpc-trace';
+import {
+  assertOriginalGoogleHttpRpcBodies,
+  type OriginalGoogleHttpRpcBodies,
+  readOriginalGoogleHttpRpcSource,
+} from './gcp-http-rpc-trace';
 import type { GoogleProviderRpcCandidate } from './google-provider-lifecycle';
+import { readOriginalGoogleProviderRpcSource } from './google-provider-lifecycle';
 import type { InstalledProviderWindow } from './installed-provider-reader';
 import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import { corroborateOriginalGoogleRpcProvider } from './original-google-provider-source';
 import type { PlanReceipt } from './runner';
+import { assertOriginalTerraformPlanProjection, type OriginalTerraformPlanProjection } from './runner';
 import type { TerraformApplyHookCandidate } from './terraform-apply-hooks';
+import { readOriginalTerraformApplyHookSource } from './terraform-apply-hooks';
 
 export type OriginalGcpInsertSourceCandidate = ReturnType<typeof joinOriginalGcpInsertSource>;
 const sourceBodies = new WeakMap<OriginalGcpInsertSourceCandidate, OriginalGoogleHttpRpcBodies>();
@@ -436,4 +444,153 @@ export function joinOriginalGcpInsertSource(input: OriginalGcpInsertSourceJoinIn
   });
   sourceBodies.set(joined, bodies);
   return joined;
+}
+
+export type OriginalGcpInsertWitnessInput = Omit<OriginalGcpInsertSourceJoinInput, 'plan' | 'parent'> & {
+  readonly originalPlan: OriginalTerraformPlanProjection;
+};
+export interface OriginalGcpInsertWitnesses {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-gcp-insert-source-witnesses';
+  readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
+  readonly planSha256: string;
+  readonly stdoutSha256: string;
+  readonly stderrSha256: string;
+  readonly uiStartEpochMs: number;
+  readonly uiCompleteEpochMs: number;
+  readonly rpcReceivedEpochMs: number;
+  readonly rpcServedEpochMs: number;
+  readonly uiSourceCorroborated: true;
+  readonly httpSourceCorroborated: true;
+  readonly rpcWindowTimeCorroborated: true;
+  readonly applyRpcQualified: false;
+  readonly originalInsertQualified: false;
+}
+const originalWitnesses = new WeakMap<OriginalGcpInsertSourceCandidate, () => Promise<OriginalGcpInsertWitnesses>>();
+export async function readOriginalGcpInsertWitnesses(value: OriginalGcpInsertSourceCandidate) {
+  const read = originalWitnesses.get(value);
+  if (!read) throw new Error('Original witnessed GCP insert reference required');
+  return read();
+}
+
+/** Join actual producer capabilities, not serialized logs or caller-created window flags.
+ * Source correspondence remains separate from numeric VM/NIC/token/audit ownership.
+ */
+export async function collectOriginalGcpInsertWitnesses(input: OriginalGcpInsertWitnessInput) {
+  const originalPlan = input.originalPlan;
+  const binding = Object.freeze({ ...input.binding });
+  const configuration = input.configuration,
+    providerPath = input.providerPath;
+  const insert = input.insert,
+    started = input.started,
+    completed = input.completed,
+    rpc = input.rpc,
+    window = input.window;
+  await assertOriginalTerraformPlanProjection(originalPlan);
+  const bodies = insertOrigins.get(insert);
+  if (!bodies) throw new Error('Original insert projection required');
+  let refused = false;
+  const verify = async (): Promise<OriginalGcpInsertWitnesses> => {
+    if (refused) throw new Error('Original insertion witnesses were refused');
+    try {
+      await assertOriginalTerraformPlanProjection(originalPlan);
+      if (
+        originalPlan.terraformVersion !== binding.terraformVersion ||
+        originalPlan.receipt.providerLockSha256 !== binding.providerLockSha256 ||
+        originalPlan.receipt.planSha256 !== insert.planSha256 ||
+        originalPlan.scope.cloud !== 'gcp' ||
+        originalPlan.scope.account !== insert.project ||
+        !insert.zone.startsWith(`${originalPlan.scope.region}-`)
+      )
+        throw new Error('Original insert owning plan scope differs');
+      const startSource = await readOriginalTerraformApplyHookSource(started);
+      const completeSource = await readOriginalTerraformApplyHookSource(completed);
+      const http = await readOriginalGoogleHttpRpcSource(bodies);
+      const lifecycle = readOriginalGoogleProviderRpcSource(rpc);
+      const executor = startSource.executor;
+      for (const source of [completeSource, http, lifecycle]) {
+        if (
+          (['pid', 'group', 'start', 'boot'] as const).some((key) => source.executor[key] !== executor[key]) ||
+          source.planSha256 !== originalPlan.receipt.planSha256 ||
+          source.stderrSha256 !== startSource.stderrSha256 ||
+          source.stderrBytes !== startSource.stderrBytes
+        )
+          throw new Error('Original insert executor, plan or stderr producer differs');
+      }
+      if (
+        completeSource.stdoutSha256 !== startSource.stdoutSha256 ||
+        completeSource.stdoutBytes !== startSource.stdoutBytes ||
+        http.stdoutSha256 !== startSource.stdoutSha256 ||
+        http.stdoutBytes !== startSource.stdoutBytes ||
+        http.rpcRequestId !== rpc.rpcRequestId ||
+        http.rpcRequestId !== insert.rpcRequestId
+      )
+        throw new Error('Original insert UI and HTTP records differ');
+      if (
+        startSource.eventEpochMs > completeSource.eventEpochMs ||
+        startSource.eventEpochMs > lifecycle.receivedEpochMs ||
+        completeSource.eventEpochMs < lifecycle.servedEpochMs
+      )
+        throw new Error('Original insert UI temporal interval does not contain its RPC');
+      const correspondence = await corroborateOriginalGoogleRpcProvider({ rpc, windows: [window], binding });
+      if (
+        correspondence.planSha256 !== originalPlan.receipt.planSha256 ||
+        correspondence.sourceStderrSha256 !== startSource.stderrSha256
+      )
+        throw new Error('Original insert provider window source differs');
+      joinOriginalGcpInsertSource({
+        insert,
+        binding,
+        plan: originalPlan.receipt,
+        configuration,
+        started,
+        completed,
+        rpc,
+        window,
+        parent: executor,
+        providerPath,
+      });
+      // Recheck all sources after the independent temporal and identity joins.
+      await readOriginalTerraformApplyHookSource(started);
+      await readOriginalTerraformApplyHookSource(completed);
+      await readOriginalGoogleHttpRpcSource(bodies);
+      readOriginalGoogleProviderRpcSource(rpc);
+      await assertOriginalTerraformPlanProjection(originalPlan);
+      return Object.freeze({
+        schemaVersion: 1,
+        kind: 'original-gcp-insert-source-witnesses',
+        executor,
+        planSha256: originalPlan.receipt.planSha256,
+        stdoutSha256: startSource.stdoutSha256,
+        stderrSha256: startSource.stderrSha256,
+        uiStartEpochMs: startSource.eventEpochMs,
+        uiCompleteEpochMs: completeSource.eventEpochMs,
+        rpcReceivedEpochMs: lifecycle.receivedEpochMs,
+        rpcServedEpochMs: lifecycle.servedEpochMs,
+        uiSourceCorroborated: true,
+        httpSourceCorroborated: true,
+        rpcWindowTimeCorroborated: true,
+        applyRpcQualified: false,
+        originalInsertQualified: false,
+      });
+    } catch (error) {
+      refused = true;
+      throw error;
+    }
+  };
+  const witnesses = await verify();
+  const candidate = joinOriginalGcpInsertSource({
+    insert,
+    binding,
+    plan: originalPlan.receipt,
+    configuration,
+    started,
+    completed,
+    rpc,
+    window,
+    parent: witnesses.executor,
+    providerPath,
+  });
+  originalWitnesses.set(candidate, verify);
+  return candidate;
 }
