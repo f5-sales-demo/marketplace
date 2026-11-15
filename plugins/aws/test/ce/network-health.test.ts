@@ -215,8 +215,10 @@ test('mismatched inside CIDRs and out-of-tunnel BGP addresses remain unknown', a
 function failoverFixture() {
   const f = fixture();
   f.plan.schemaVersion = AWS_CE_SCHEMA_VERSION;
+  f.plan.observationScope = { kind: 'execution-region-v1', region: f.plan.region };
   f.plan.intent = {
     ...f.plan.intent,
+    region: f.plan.region,
     instance: { type: 'm5.2xlarge', diskGiB: 80, bootstrapKeyPairName: 'demo-bootstrap' },
     schemaVersion: AWS_CE_SCHEMA_VERSION,
     engine: f.plan.engine,
