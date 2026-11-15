@@ -59,6 +59,7 @@ export interface TerraformApplyHookCandidate {
   readonly originalInsertQualified: false;
 }
 export interface OriginalTerraformApplyHookSource {
+  readonly directory: string;
   readonly schemaVersion: 1;
   readonly kind: 'original-terraform-apply-hook-source';
   readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
@@ -269,6 +270,7 @@ export class TerraformApplyHookParser {
               schemaVersion: 1,
               kind: 'original-terraform-apply-hook-source',
               executor: original.identity,
+              directory: original.directory,
               planSha256: this.#planSha256,
               rawLineSha256: candidate.rawLineSha256,
               eventEpochMs: epoch,

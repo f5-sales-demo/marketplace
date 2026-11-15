@@ -50,6 +50,7 @@ export interface OriginalGoogleHttpRpcBodies extends GoogleHttpRpcTraceCandidate
   readonly responseBody: string;
 }
 export interface OriginalGoogleHttpRpcSource {
+  readonly directory: string;
   readonly schemaVersion: 1;
   readonly kind: 'original-google-http-rpc-source';
   readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
@@ -425,6 +426,7 @@ export class GoogleHttpRpcTraceParser {
             schemaVersion: 1,
             kind: 'original-google-http-rpc-source',
             executor: original.identity,
+            directory: original.directory,
             planSha256: bodies.planSha256,
             rpcRequestId: bodies.rpcRequestId,
             stdoutBytes: current.stdout.bytes,

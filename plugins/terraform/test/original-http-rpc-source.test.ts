@@ -80,6 +80,7 @@ test('original HTTP dump bodies join their actual executor stderr and completed 
     parser.finishOriginal(output, completion);
     const source = await http.readOriginalGoogleHttpRpcSource(body);
     expect(source.executor).toEqual(admission.identity);
+    expect(source.directory).toBe(admission.directory);
     expect(source.stderrSha256).toBe(completion.stderr.sha256);
     expect(source.stdoutSha256).toBe(completion.stdout.sha256);
     expect(source.planSha256).toBe(scope.planSha256);

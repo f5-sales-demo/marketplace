@@ -450,6 +450,7 @@ export type OriginalGcpInsertWitnessInput = Omit<OriginalGcpInsertSourceJoinInpu
   readonly originalPlan: OriginalTerraformPlanProjection;
 };
 export interface OriginalGcpInsertWitnesses {
+  readonly directory: string;
   readonly schemaVersion: 1;
   readonly kind: 'original-gcp-insert-source-witnesses';
   readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
@@ -508,9 +509,12 @@ export async function collectOriginalGcpInsertWitnesses(input: OriginalGcpInsert
       const http = await readOriginalGoogleHttpRpcSource(bodies);
       const lifecycle = readOriginalGoogleProviderRpcSource(rpc);
       const executor = startSource.executor;
+      if (startSource.directory !== originalPlan.directory)
+        throw new Error('Original insert owning plan directory differs');
       for (const source of [completeSource, http, lifecycle]) {
         if (
           (['pid', 'group', 'start', 'boot'] as const).some((key) => source.executor[key] !== executor[key]) ||
+          source.directory !== originalPlan.directory ||
           source.planSha256 !== originalPlan.receipt.planSha256 ||
           source.stderrSha256 !== startSource.stderrSha256 ||
           source.stderrBytes !== startSource.stderrBytes
@@ -559,6 +563,7 @@ export async function collectOriginalGcpInsertWitnesses(input: OriginalGcpInsert
       return Object.freeze({
         schemaVersion: 1,
         kind: 'original-gcp-insert-source-witnesses',
+        directory: originalPlan.directory,
         executor,
         planSha256: originalPlan.receipt.planSha256,
         stdoutSha256: startSource.stdoutSha256,

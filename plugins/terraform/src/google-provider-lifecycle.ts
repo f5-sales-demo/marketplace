@@ -34,6 +34,7 @@ export interface GoogleProviderRpcCandidate {
   readonly originalInsertQualified: false;
 }
 export interface OriginalGoogleProviderRpcSource {
+  readonly directory: string;
   readonly schemaVersion: 2;
   readonly providerStartingEpochMs: number;
   readonly providerStartedEpochMs: number;
@@ -163,6 +164,7 @@ export class GoogleProviderLifecycleParser {
             receivedEpochMs: candidate.receivedEpochMs,
             servedEpochMs: candidate.servedEpochMs,
             executor: origin.identity,
+            directory: origin.directory,
             stderrBytes: origin.completion.stderr.bytes,
             stderrSha256: origin.completion.stderr.sha256,
             planSha256: this.#scope.planSha256,

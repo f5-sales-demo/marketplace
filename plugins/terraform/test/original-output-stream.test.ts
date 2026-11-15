@@ -295,6 +295,7 @@ test('missing original producer descriptors are accepted only after the same ind
     const original = JSON.parse(await readFile(ready, 'utf8'));
     release = await acquireProcessLock(lock, child.pid, { trackProcessGroup: true });
     admitted = await bindOriginalExecutionOutput({
+      directory: root,
       identity: { pid: original.pid, group: original.group, start: original.start, boot: original.boot },
       stdout: { path: stdoutPath, writer: stdout },
       stderr: { path: stderrPath, writer: stderr },

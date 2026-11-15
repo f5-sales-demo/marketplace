@@ -373,7 +373,15 @@ import { dlopen, FFIType, ptr } from 'bun:ffi';
 import { createHash as createHash2, createHash as createHash3, createHash as createHash19 } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, readFile, realpath, stat } from 'node:fs/promises';
-import { basename as basename3, dirname, isAbsolute as isAbsolute12, join, resolve as resolve12 } from 'node:path';
+import {
+  basename as basename3,
+  dirname,
+  isAbsolute,
+  isAbsolute as isAbsolute13,
+  join,
+  resolve,
+  resolve as resolve13,
+} from 'node:path';
 
 var sample;
 function linuxMonotonicMs() {
@@ -409,6 +417,7 @@ function readOriginalExecutionChunk(output, chunk, channel) {
   origin.assertValid();
   return Object.freeze({
     identity: origin.identity,
+    directory: origin.directory,
     offset: chunk.offset,
     endOffset: chunk.endOffset,
     sha256: chunk.sha256,
@@ -419,13 +428,19 @@ function readOriginalExecutionCompletion(output, completion) {
   const origin = completionOrigins.get(completion);
   if (!origin || origin.output !== output) throw new Error('An original executor-issued completion is required');
   origin.assertValid();
-  return Object.freeze({ identity: origin.identity, completion });
+  return Object.freeze({ identity: origin.identity, directory: origin.directory, completion });
 }
 
 class OutputNotReady extends Error {}
 
 class OutputRefusal extends Error {}
 async function bindOriginalExecutionOutput(input) {
+  const directory = input.directory;
+  if (!isAbsolute(directory) || resolve(directory) !== directory || (await realpath(directory)) !== directory)
+    throw new Error('Original executor workspace directory required');
+  const workspace = await lstat(directory, { bigint: true });
+  if (!workspace.isDirectory() || workspace.isSymbolicLink() || workspace.uid !== BigInt(process.getuid?.() ?? -1))
+    throw new Error('Original owned executor workspace required');
   const identity = Object.freeze({ ...input.identity });
   const maximum = Math.min(input.maximum, maximumRetention);
   const streams = {};
@@ -525,6 +540,14 @@ async function bindOriginalExecutionOutput(input) {
     assertOpen();
     phase = 'input-lifetime';
     await input.assertInputs();
+    const currentWorkspace = await lstat(directory, { bigint: true });
+    if (
+      !currentWorkspace.isDirectory() ||
+      currentWorkspace.isSymbolicLink() ||
+      parentKeys.some((key) => currentWorkspace[key] !== workspace[key]) ||
+      (await realpath(directory)) !== directory
+    )
+      throw new OutputRefusal('Original executor workspace directory changed');
     phase = 'file-metadata';
     const [current, writer, opened, parent] = await Promise.all([
       lstat(stream.path, { bigint: true }),
@@ -671,6 +694,7 @@ async function bindOriginalExecutionOutput(input) {
           chunkOrigins.set(chunk, {
             output,
             identity,
+            directory,
             channel,
             bytes: Buffer.from(bytes),
             assertValid: () => {
@@ -703,6 +727,7 @@ async function bindOriginalExecutionOutput(input) {
           completionOrigins.set(completion, {
             output,
             identity,
+            directory,
             assertValid: () => {
               if (refused) throw new Error('Original completion source is refused');
             },
@@ -1061,6 +1086,7 @@ class GoogleHttpRpcTraceParser {
             schemaVersion: 1,
             kind: 'original-google-http-rpc-source',
             executor: original.identity,
+            directory: original.directory,
             planSha256: bodies.planSha256,
             rpcRequestId: bodies.rpcRequestId,
             stdoutBytes: current.stdout.bytes,
@@ -1222,12 +1248,12 @@ import {
   basename,
   dirname as dirname2,
   dirname as dirname4,
-  isAbsolute as isAbsolute2,
   isAbsolute as isAbsolute3,
+  isAbsolute as isAbsolute4,
   join as join2,
   join as join3,
-  resolve as resolve2,
   resolve as resolve3,
+  resolve as resolve4,
 } from 'node:path';
 
 async function processGroup(pid) {
@@ -1524,7 +1550,7 @@ class TerraformCommandError extends Error {
 import { createHash as createHash4 } from 'node:crypto';
 import { constants as constants2, watch } from 'node:fs';
 import { lstat as lstat3, open as open2, realpath as realpath2 } from 'node:fs/promises';
-import { basename as basename2, dirname as dirname3, isAbsolute, resolve } from 'node:path';
+import { basename as basename2, dirname as dirname3, isAbsolute as isAbsolute2, resolve as resolve2 } from 'node:path';
 
 class OriginalInputMonitorError extends Error {
   reason;
@@ -1639,8 +1665,8 @@ async function monitorOriginalInputs(input) {
   try {
     for (const binding of bindings) {
       if (
-        !isAbsolute(binding.path) ||
-        resolve(binding.path) !== binding.path ||
+        !isAbsolute2(binding.path) ||
+        resolve2(binding.path) !== binding.path ||
         (await realpath2(binding.path)) !== binding.path ||
         !/^[a-f0-9]{64}$/.test(binding.sha256)
       )
@@ -2131,7 +2157,7 @@ class TerraformRunner {
     if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || execute === executeTerraform))
       throw new Error('Trusted versioned owning plan source requires its original executor');
     this.#planSource = planSource === 'gcp-resource-plan-v1';
-    if (!isAbsolute2(root) || resolve2(root) !== root) throw new Error('Terraform storage must be an absolute path');
+    if (!isAbsolute3(root) || resolve3(root) !== root) throw new Error('Terraform storage must be an absolute path');
     if (cleanup) {
       if (
         execute === executeTerraform ||
@@ -3336,7 +3362,7 @@ var parentKeys3 = ['dev', 'ino', 'uid', 'mode'];
 var controls = (value) =>
   Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127);
 function canonical2(path) {
-  return typeof path === 'string' && isAbsolute3(path) && resolve3(path) === path && !controls(path);
+  return typeof path === 'string' && isAbsolute4(path) && resolve4(path) === path && !controls(path);
 }
 function freezeAdmittedCaptureInputs(input) {
   if (!input || typeof input !== 'object' || !Object.keys(input).length)
@@ -3488,7 +3514,7 @@ import {
   writeFile as writeFile5,
 } from 'node:fs/promises';
 import { homedir as homedir2 } from 'node:os';
-import { dirname as dirname11, isAbsolute as isAbsolute11, join as join14, resolve as resolve11 } from 'node:path';
+import { dirname as dirname11, isAbsolute as isAbsolute12, join as join14, resolve as resolve12 } from 'node:path';
 
 // plugins/gcloud/src/ce/types.ts
 var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
@@ -4548,7 +4574,7 @@ function createInstalledCaptureInputChecks(admission) {
 }
 
 // plugins/terraform/src/installed-final-capture.ts
-import { isAbsolute as isAbsolute4, join as join4, resolve as resolve4 } from 'node:path';
+import { isAbsolute as isAbsolute5, join as join4, resolve as resolve5 } from 'node:path';
 
 function key(identity) {
   if (
@@ -4576,7 +4602,7 @@ class InstalledCaptureInvocations {
         input.budget.deadline - input.budget.start !== 7200000)
     )
       throw new Error('Original installed capture operation budget required');
-    if (!isAbsolute4(input.groupDirectory) || resolve4(input.groupDirectory) !== input.groupDirectory)
+    if (!isAbsolute5(input.groupDirectory) || resolve5(input.groupDirectory) !== input.groupDirectory)
       throw new Error('Original installed capture directory required');
     const groupInputs = freezeAdmittedCaptureInputs(input.groupInputs);
     if (
@@ -4661,11 +4687,11 @@ import { lstat as lstat5, open as open3, realpath as realpath4 } from 'node:fs/p
 // plugins/terraform/src/installed-gcp-invocation.ts
 import {
   dirname as dirname5,
-  isAbsolute as isAbsolute5,
-  isAbsolute as isAbsolute8,
+  isAbsolute as isAbsolute6,
+  isAbsolute as isAbsolute9,
   join as join10,
-  resolve as resolve5,
-  resolve as resolve8,
+  resolve as resolve6,
+  resolve as resolve9,
 } from 'node:path';
 
 var googleCredentialAlternatives = Object.freeze([
@@ -4720,10 +4746,10 @@ async function openGoogleAdcSession(input, expectedInput) {
     !sameOwner(lease.owner, expected.owner) ||
     typeof lease.assertOriginal !== 'function' ||
     typeof lease.closeAfterExecutorExit !== 'function' ||
-    !isAbsolute5(expected.directory) ||
-    resolve5(expected.directory) !== expected.directory ||
-    !isAbsolute5(lease.snapshotPath) ||
-    resolve5(lease.snapshotPath) !== lease.snapshotPath ||
+    !isAbsolute6(expected.directory) ||
+    resolve6(expected.directory) !== expected.directory ||
+    !isAbsolute6(lease.snapshotPath) ||
+    resolve6(lease.snapshotPath) !== lease.snapshotPath ||
     dirname5(lease.snapshotPath) !== expected.directory ||
     !Number.isSafeInteger(lease.verifiedAt) ||
     !Number.isSafeInteger(lease.expiresNoEarlierThan) ||
@@ -4876,10 +4902,10 @@ import {
 } from 'node:fs/promises';
 import {
   dirname as dirname8,
-  isAbsolute as isAbsolute7,
+  isAbsolute as isAbsolute8,
   join as join6,
   join as join9,
-  resolve as resolve7,
+  resolve as resolve8,
 } from 'node:path';
 
 // plugins/terraform/src/installed-runtime-pins.json
@@ -4924,7 +4950,7 @@ import {
   stat as stat2,
   writeFile as writeFile3,
 } from 'node:fs/promises';
-import { dirname as dirname6, isAbsolute as isAbsolute6, join as join5, resolve as resolve6 } from 'node:path';
+import { dirname as dirname6, isAbsolute as isAbsolute7, join as join5, resolve as resolve7 } from 'node:path';
 
 var hash6 = (value) => createHash9('sha256').update(value).digest('hex');
 var now = linuxMonotonicMs;
@@ -4957,8 +4983,8 @@ os.execve(sys.argv[2],[sys.argv[2],*sys.argv[3:]],dict(os.environ))
 async function pinned(binding) {
   if (
     !binding ||
-    !isAbsolute6(binding.path) ||
-    resolve6(binding.path) !== binding.path ||
+    !isAbsolute7(binding.path) ||
+    resolve7(binding.path) !== binding.path ||
     !/^[a-f0-9]{64}$/.test(binding.sha256)
   )
     throw new Error('Reviewed original executable binding required');
@@ -5024,7 +5050,7 @@ function signalFreeFinalReaderExecutor(input, reserve) {
       invocation.args.length < 3 ||
       invocation.args[0] !== '-I' ||
       invocation.args[1] !== '-B' ||
-      !isAbsolute6(invocation.args[2])
+      !isAbsolute7(invocation.args[2])
     )
       throw new Error('Exact isolated final reader script arguments required');
     return execute(invocation);
@@ -5280,6 +5306,7 @@ function originalExecutor(input, reserve) {
               .then(async () => {
                 if (!originalIdentity) throw new Error('Original execution identity unavailable');
                 originalOutput = await bindOriginalExecutionOutput({
+                  directory: cwd,
                   identity: originalIdentity,
                   stdout: { path: stdoutPath, writer: stdout },
                   stderr: { path: stderrPath, writer: stderr },
@@ -6650,7 +6677,7 @@ function lease(value) {
   return current;
 }
 async function privateDirectory2(path) {
-  if (!isAbsolute7(path) || resolve7(path) !== path) throw failure();
+  if (!isAbsolute8(path) || resolve8(path) !== path) throw failure();
   let current = '/';
   for (const part of path.split('/').filter(Boolean)) {
     current = join9(current, part);
@@ -7146,7 +7173,7 @@ var hostKeys = Object.freeze([
 ]);
 var identityKeys = ['GOOGLE_APPLICATION_CREDENTIALS', 'XCSH_API_URL', 'XCSH_API_TOKEN'];
 var canonicalPath = (value) =>
-  typeof value === 'string' && isAbsolute8(value) && resolve8(value) === value && !/[\0\r\n]/.test(value);
+  typeof value === 'string' && isAbsolute9(value) && resolve9(value) === value && !/[\0\r\n]/.test(value);
 function selectInstalledGcpEnvironment(environment) {
   if (
     originalLoaderAlternatives.some((key) => environment[key] !== undefined) ||
@@ -7262,7 +7289,7 @@ function createInstalledGcpInvocationCompiler(input) {
 // plugins/terraform/src/installed-terraform-executable.ts
 import { lstat as lstat9, realpath as realpath8 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname as dirname9, isAbsolute as isAbsolute9, join as join11, resolve as resolve9 } from 'node:path';
+import { dirname as dirname9, isAbsolute as isAbsolute10, join as join11, resolve as resolve10 } from 'node:path';
 
 function selectPinnedTerraformInput(expectedSha256, cached, ambient) {
   if (cached) {
@@ -7291,7 +7318,7 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
   if (!/^\d+\.\d+\.\d+$/.test(profile.terraformVersion) || !/^[a-f0-9]{64}$/.test(profile.terraformSha256))
     throw new Error('Original Terraform executable profile required');
   const root = installedTerraformVersionsDirectory(environment);
-  if (!isAbsolute9(root) || resolve9(root) !== root)
+  if (!isAbsolute10(root) || resolve10(root) !== root)
     throw new Error('Original canonical Terraform version cache required');
   const exists = async (path) => {
     try {
@@ -7384,7 +7411,7 @@ function createLegacyInstalledTerraformExecutor(options) {
 // plugins/terraform/src/provider-package.ts
 import { createHash as createHash14 } from 'node:crypto';
 import { lstat as lstat10, readdir as readdir2, readFile as readFile6, realpath as realpath9 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute10, join as join13, resolve as resolve10 } from 'node:path';
+import { isAbsolute as isAbsolute11, join as join13, resolve as resolve11 } from 'node:path';
 
 var digest3 = (bytes) => createHash14('sha256').update(bytes).digest('hex');
 function lockEntries(raw) {
@@ -7477,8 +7504,8 @@ async function verifyProviderPackage(request) {
   if (entry.version !== version) throw new Error('Provider lock version differs');
   const root = await lstat10(directory);
   if (
-    !isAbsolute10(directory) ||
-    resolve10(directory) !== directory ||
+    !isAbsolute11(directory) ||
+    resolve11(directory) !== directory ||
     (await realpath9(directory)) !== directory ||
     !root.isDirectory() ||
     root.isSymbolicLink() ||
@@ -7591,8 +7618,8 @@ async function inspectInstalledCaptureScripts(directory = join14(import.meta.dir
   try {
     const parent = await lstat11(directory);
     if (
-      !isAbsolute11(directory) ||
-      resolve11(directory) !== directory ||
+      !isAbsolute12(directory) ||
+      resolve12(directory) !== directory ||
       (await realpath10(directory)) !== directory ||
       !parent.isDirectory() ||
       parent.isSymbolicLink() ||
@@ -7615,7 +7642,7 @@ async function inspectInstalledCaptureScripts(directory = join14(import.meta.dir
   }
 }
 async function owned(path, maximum = 256 * 1024 * 1024) {
-  if (!isAbsolute11(path) || resolve11(path) !== path || (await realpath10(path)) !== path)
+  if (!isAbsolute12(path) || resolve12(path) !== path || (await realpath10(path)) !== path)
     throw new Error('Canonical owned runtime input required');
   const before = await lstat11(path, { bigint: true });
   if (
@@ -7656,7 +7683,7 @@ async function owned(path, maximum = 256 * 1024 * 1024) {
   }
 }
 async function privateDirectory3(path) {
-  if (!isAbsolute11(path) || resolve11(path) !== path) throw new Error('Canonical private runtime directory required');
+  if (!isAbsolute12(path) || resolve12(path) !== path) throw new Error('Canonical private runtime directory required');
   await mkdir6(path, { recursive: true, mode: 448 });
   const stat = await lstat11(path);
   if (
@@ -9178,6 +9205,7 @@ class TerraformApplyHookParser {
               schemaVersion: 1,
               kind: 'original-terraform-apply-hook-source',
               executor: original.identity,
+              directory: original.directory,
               planSha256: this.#planSha256,
               rawLineSha256: candidate.rawLineSha256,
               eventEpochMs: epoch,
@@ -9548,8 +9576,8 @@ function joinOriginalGcpInsertSource(input) {
     rpc.planSha256 !== plan.planSha256 ||
     rpc.receivedRecordSha256 !== insert.receivedRecordSha256 ||
     rpc.servedRecordSha256 !== insert.servedRecordSha256 ||
-    !isAbsolute12(input.providerPath) ||
-    resolve12(input.providerPath) !== input.providerPath ||
+    !isAbsolute13(input.providerPath) ||
+    resolve13(input.providerPath) !== input.providerPath ||
     basename3(input.providerPath) !== `terraform-provider-google_v${profile.googleVersion}_x5` ||
     rpc.providerPathSha256 !== hash13(input.providerPath)
   )
@@ -9678,9 +9706,12 @@ async function collectOriginalGcpInsertWitnesses(input) {
       const http = await readOriginalGoogleHttpRpcSource(bodies);
       const lifecycle = readOriginalGoogleProviderRpcSource(rpc);
       const executor = startSource.executor;
+      if (startSource.directory !== originalPlan.directory)
+        throw new Error('Original insert owning plan directory differs');
       for (const source of [completeSource, http, lifecycle]) {
         if (
           ['pid', 'group', 'start', 'boot'].some((key) => source.executor[key] !== executor[key]) ||
+          source.directory !== originalPlan.directory ||
           source.planSha256 !== originalPlan.receipt.planSha256 ||
           source.stderrSha256 !== startSource.stderrSha256 ||
           source.stderrBytes !== startSource.stderrBytes
@@ -9728,6 +9759,7 @@ async function collectOriginalGcpInsertWitnesses(input) {
       return Object.freeze({
         schemaVersion: 1,
         kind: 'original-gcp-insert-source-witnesses',
+        directory: originalPlan.directory,
         executor,
         planSha256: originalPlan.receipt.planSha256,
         stdoutSha256: startSource.stdoutSha256,
@@ -10197,7 +10229,7 @@ async function joinOriginalGcpBootstrapVm(input) {
 // plugins/terraform/src/gcp-cloud-serial-reader.ts
 import { createHash as createHash23, randomUUID as randomUUID9 } from 'node:crypto';
 import { lstat as lstat13, mkdir as mkdir8, open as open10, realpath as realpath12 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute13, join as join16, resolve as resolve13 } from 'node:path';
+import { isAbsolute as isAbsolute14, join as join16, resolve as resolve14 } from 'node:path';
 
 var hash17 = (raw) => createHash23('sha256').update(raw).digest('hex');
 var name4 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -10219,7 +10251,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
     ...input.authentication,
     credentialBytes: Buffer.from(input.authentication.credentialBytes),
   });
-  if (!isAbsolute13(root) || resolve13(root) !== root || !name4.test(region))
+  if (!isAbsolute14(root) || resolve14(root) !== root || !name4.test(region))
     throw new Error('Private original cloud reader scope required');
   await mkdir8(root, { recursive: true, mode: 448 });
   const initial = await lstat13(root, { bigint: true });
@@ -11576,7 +11608,7 @@ import {
 } from 'node:crypto';
 import { constants as constants8 } from 'node:fs';
 import { lstat as lstat14, mkdir as mkdir9, open as open11, realpath as realpath13 } from 'node:fs/promises';
-import { dirname as dirname13, isAbsolute as isAbsolute14, join as join18, resolve as resolve14 } from 'node:path';
+import { dirname as dirname13, isAbsolute as isAbsolute15, join as join18, resolve as resolve15 } from 'node:path';
 
 var fileKeys2 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var parentKeys4 = ['dev', 'ino', 'uid', 'mode'];
@@ -11633,7 +11665,7 @@ function requestScope(store, request) {
   };
 }
 async function privateDirectory4(path) {
-  if (!isAbsolute14(path) || resolve14(path) !== path || (await realpath13(path)) !== path)
+  if (!isAbsolute15(path) || resolve15(path) !== path || (await realpath13(path)) !== path)
     throw new Error('Canonical original private campaign directory required');
   const parent = await lstat14(path, { bigint: true });
   if (

@@ -8,6 +8,7 @@ test('original insertion witnesses join owning plan, stdout hooks, HTTP/lifecycl
     const joined = await inserts.collectOriginalGcpInsertWitnesses(input);
     const proof = await inserts.readOriginalGcpInsertWitnesses(joined);
     expect(proof.executor).toEqual(admission.identity);
+    expect(proof.directory).toBe(admission.directory);
     expect(proof.planSha256).toBe(input.originalPlan.receipt.planSha256);
     expect(proof.uiSourceCorroborated).toBe(true);
     expect(proof.httpSourceCorroborated).toBe(true);
@@ -50,5 +51,17 @@ test('changed original stdout bytes retire a collected insertion proof without a
     await expect(inserts.readOriginalGcpInsertWitnesses(proof)).rejects.toThrow();
     await writeFile(admission.stdoutPath, bytes);
     await expect(inserts.readOriginalGcpInsertWitnesses(proof)).rejects.toThrow('refused');
+  });
+});
+
+test('another original plan lease with identical bytes cannot attest this executor workspace', async () => {
+  await withInsertWitnesses(async (first) => {
+    await withInsertWitnesses(async (second) => {
+      expect(first.originalPlan.directory).not.toBe(second.originalPlan.directory);
+      expect(first.originalPlan.receipt.planSha256).toBe(second.originalPlan.receipt.planSha256);
+      await expect(
+        inserts.collectOriginalGcpInsertWitnesses({ ...first, originalPlan: second.originalPlan }),
+      ).rejects.toThrow('directory');
+    });
   });
 });

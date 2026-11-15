@@ -1846,3 +1846,8 @@ resources.
 Insertion and execution qualification flags remain false. Original VM/NIC/token/
 audit joins, full built-in capture, all original live acceptance and remaining
 installed/delivery gates remain required.
+
+The additional workspace-binding regression is fixed. Its fresh provider probe
+failed original group-closure capture after Terraform exited successfully.
+Independent cleanup passed, but that capture remains rejected and the hidden
+underlying error remains unresolved. Source failure diagnosis is the next gate.

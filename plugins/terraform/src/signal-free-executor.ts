@@ -455,6 +455,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
               .then(async () => {
                 if (!originalIdentity) throw new Error('Original execution identity unavailable');
                 originalOutput = await bindOriginalExecutionOutput({
+                  directory: cwd,
                   identity: originalIdentity,
                   stdout: { path: stdoutPath, writer: stdout },
                   stderr: { path: stderrPath, writer: stderr },

@@ -121,6 +121,7 @@ test('original apply hooks bind exact executor stdout, completion, plan and even
     expect(parser.finishOriginal(output, completion).applySuccessful).toBe(true);
     const source = await hooks.readOriginalTerraformApplyHookSource(values[0]);
     expect(source.executor).toEqual(admission.identity);
+    expect(source.directory).toBe(admission.directory);
     expect(source.planSha256).toBe(plan.planSha256);
     expect(source.rawLineSha256).toBe(hash(start));
     expect(source.eventEpochMs).toBe(Date.parse('2026-11-15T00:00:00Z'));

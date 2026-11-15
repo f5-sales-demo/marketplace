@@ -1,7 +1,7 @@
 import { createHash, type Hash } from 'node:crypto';
 import { type BigIntStats, constants } from 'node:fs';
 import { type FileHandle, lstat, open, readFile, realpath, stat } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { linuxMonotonicMs } from './linux-clock';
 
 type Channel = 'stdout' | 'stderr';
@@ -31,6 +31,7 @@ export interface OriginalExecutionOutput {
   finish(): Promise<OriginalOutputCompletion>;
 }
 interface OriginalRecordOrigin {
+  directory: string;
   output: OriginalExecutionOutput;
   identity: Identity;
   assertValid(): void;
@@ -49,6 +50,7 @@ export function readOriginalExecutionChunk(
   origin.assertValid();
   return Object.freeze({
     identity: origin.identity,
+    directory: origin.directory,
     offset: chunk.offset,
     endOffset: chunk.endOffset,
     sha256: chunk.sha256,
@@ -59,7 +61,7 @@ export function readOriginalExecutionCompletion(output: OriginalExecutionOutput,
   const origin = completionOrigins.get(completion);
   if (!origin || origin.output !== output) throw new Error('An original executor-issued completion is required');
   origin.assertValid();
-  return Object.freeze({ identity: origin.identity, completion });
+  return Object.freeze({ identity: origin.identity, directory: origin.directory, completion });
 }
 class OutputNotReady extends Error {}
 class OutputRefusal extends Error {}
@@ -80,6 +82,7 @@ interface Stream {
  * cloud incarnation qualification.
  */
 export async function bindOriginalExecutionOutput(input: {
+  directory: string;
   identity: Identity;
   stdout: { path: string; writer: FileHandle };
   stderr: { path: string; writer: FileHandle };
@@ -87,6 +90,12 @@ export async function bindOriginalExecutionOutput(input: {
   assertInputs(): Promise<void>;
   originalGroupClosed(): Promise<boolean>;
 }) {
+  const directory = input.directory;
+  if (!isAbsolute(directory) || resolve(directory) !== directory || (await realpath(directory)) !== directory)
+    throw new Error('Original executor workspace directory required');
+  const workspace = await lstat(directory, { bigint: true });
+  if (!workspace.isDirectory() || workspace.isSymbolicLink() || workspace.uid !== BigInt(process.getuid?.() ?? -1))
+    throw new Error('Original owned executor workspace required');
   const identity = Object.freeze({ ...input.identity });
   const maximum = Math.min(input.maximum, maximumRetention);
   const streams = {} as Record<Channel, Stream>;
@@ -193,6 +202,14 @@ export async function bindOriginalExecutionOutput(input: {
     assertOpen();
     phase = 'input-lifetime';
     await input.assertInputs();
+    const currentWorkspace = await lstat(directory, { bigint: true });
+    if (
+      !currentWorkspace.isDirectory() ||
+      currentWorkspace.isSymbolicLink() ||
+      parentKeys.some((key) => currentWorkspace[key] !== workspace[key]) ||
+      (await realpath(directory)) !== directory
+    )
+      throw new OutputRefusal('Original executor workspace directory changed');
     phase = 'file-metadata';
     const [current, writer, opened, parent] = await Promise.all([
       lstat(stream.path, { bigint: true }),
@@ -344,6 +361,7 @@ export async function bindOriginalExecutionOutput(input: {
           chunkOrigins.set(chunk, {
             output,
             identity,
+            directory,
             channel,
             bytes: Buffer.from(bytes),
             assertValid: () => {
@@ -377,6 +395,7 @@ export async function bindOriginalExecutionOutput(input: {
           completionOrigins.set(completion, {
             output,
             identity,
+            directory,
             assertValid: () => {
               if (refused) throw new Error('Original completion source is refused');
             },
