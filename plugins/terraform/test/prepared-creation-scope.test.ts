@@ -198,6 +198,22 @@ test('owning plan prepares and compiles exact original scope once, without seria
     if (!snapshot.scopeFile || !snapshot.directory) throw new Error('Original scope paths unavailable');
     const raw = JSON.parse(await readFile(snapshot.scopeFile, 'utf8'));
     expect(raw.scope_sha256).toBe(request.originalPlanSource?.planSha256);
+    expect(raw.schema_version).toBe(2);
+    expect(raw.bootstrap_authorization.schema_version).toBe(1);
+    expect(raw.bootstrap_authorization.original_start_ms).toBe(context.budget.start);
+    expect(raw.bootstrap_authorization.original_deadline_ms).toBe(context.budget.deadline);
+    expect(raw.bootstrap_authorization.original_deadline_ms - raw.bootstrap_authorization.original_start_ms).toBe(
+      7200000,
+    );
+    const key = Buffer.from(raw.bootstrap_authorization.public_key, 'base64');
+    expect(key).toHaveLength(32);
+    expect(key.toString('base64').replace(/=+$/, '')).toBe(raw.bootstrap_authorization.public_key);
+    expect(raw.bootstrap_authorization.directory).not.toBe(snapshot.directory);
+    expect(raw.bootstrap_authorization.directory.startsWith(`${snapshot.directory}/`)).toBe(false);
+    expect(snapshot.directory.startsWith(`${raw.bootstrap_authorization.directory}/`)).toBe(false);
+    expect((await lstat(raw.bootstrap_authorization.directory)).mode & 0o777).toBe(0o700);
+    expect(JSON.stringify(snapshot)).not.toContain('PRIVATE KEY');
+
     expect(raw.provider_executable_sha256).toBe(hash('synthetic-unit-test-provider'));
     expect((await lstat(snapshot.scopeFile)).mode & 0o777).toBe(0o400);
     expect((await lstat(snapshot.directory)).mode & 0o777).toBe(0o700);
@@ -322,3 +338,23 @@ test('a consumed preparation cannot be reissued from the context cache', async (
     closePreparedCreationScope(packet);
   });
 });
+
+for (const mutation of ['replacement', 'mode'] as const) {
+  test(`ScopeV2 refuses original authorization directory ${mutation} without renewing its key or budget`, async () => {
+    await fixture(async (_request, context) => {
+      const packet = await prepareOriginalCreationScope(context);
+      const scope = await inspectPreparedCreationScope(packet);
+      const authorization = scope.bootstrapAuthorization;
+      if (!authorization) throw new Error('Original authorization scope required');
+      if (mutation === 'replacement') {
+        await rename(authorization.directory, `${authorization.directory}.retained`);
+        await mkdir(authorization.directory, { mode: 0o700 });
+      } else await chmod(authorization.directory, 0o755);
+      await expect(assertPreparedCreationScopeInputs(packet)).rejects.toThrow('Trusted');
+      await expect(prepareOriginalCreationScope(context)).rejects.toThrow('Trusted');
+      expect(authorization.original_start_ms).toBe(context.budget.start);
+      expect(authorization.original_deadline_ms).toBe(context.budget.deadline);
+      closePreparedCreationScope(packet);
+    });
+  });
+}

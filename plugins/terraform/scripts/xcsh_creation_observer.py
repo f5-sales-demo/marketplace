@@ -6,6 +6,8 @@ Issued witnesses qualify evidence only; they cannot authorize Terraform executio
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -37,6 +39,10 @@ PRIVATE_DIRECTORY_MODE = 0o700
 LIMIT = 65536
 FRESHNESS_MS = 300000
 MAX_TARGETS = 128
+AUTHORIZATION_SCOPE_VERSION = 2
+BOOTSTRAP_BUDGET_MS = 7200000
+BOOTSTRAP_MAXIMUM_INTEGER = 9007199254740991
+ED25519_PUBLIC_KEY_BYTES = 32
 TARGET_KEYS = {"type_name", "name", "namespace"}
 PROCESS_KEYS = {
     "pid",
@@ -77,6 +83,85 @@ def exact_native_type(value: object, expected: type) -> bool:
 def digest(raw: bytes) -> str:
     """Hash exact admitted bytes."""
     return hashlib.sha256(raw).hexdigest()
+
+
+def validate_bootstrap_scope(
+    data: dict[str, Any],
+    creation: Path,
+    deadline: int,
+    clock: Callable[[], int],
+    *,
+    admission: bool = True,
+) -> tuple[Path, tuple[int, int, int, int]] | None:
+    """Bind versioned public authorization metadata without creating authority."""
+    if not exact_native_type(data.get("schema_version"), int):
+        reject()
+    if data["schema_version"] == 1:
+        if "bootstrap_authorization" in data:
+            reject()
+        return None
+    spec = data.get("bootstrap_authorization")
+    keys = {
+        "schema_version",
+        "directory",
+        "public_key",
+        "original_start_ms",
+        "original_deadline_ms",
+    }
+    if (
+        data["schema_version"] != AUTHORIZATION_SCOPE_VERSION
+        or not isinstance(spec, dict)
+        or set(spec) != keys
+    ):
+        reject()
+    if (
+        not exact_native_type(spec["schema_version"], int)
+        or spec["schema_version"] != 1
+    ):
+        reject()
+    for name in ("original_start_ms", "original_deadline_ms"):
+        if (
+            not exact_native_type(spec[name], int)
+            or not 0 <= spec[name] <= BOOTSTRAP_MAXIMUM_INTEGER
+        ):
+            reject()
+    began, ended = spec["original_start_ms"], spec["original_deadline_ms"]
+    if (
+        ended != deadline
+        or ended - began != BOOTSTRAP_BUDGET_MS
+        or (admission and not began <= clock() < ended)
+    ):
+        reject()
+    public_key = spec["public_key"]
+    if (
+        not isinstance(public_key, str)
+        or re.fullmatch(r"[A-Za-z0-9+/]{43}", public_key) is None
+    ):
+        reject()
+    try:
+        raw_key = base64.b64decode(public_key + "=", validate=True)
+    except (ValueError, binascii.Error):
+        reject()
+    if (
+        len(raw_key) != ED25519_PUBLIC_KEY_BYTES
+        or base64.b64encode(raw_key).decode().rstrip("=") != public_key
+    ):
+        reject()
+    directory = canonical(spec["directory"])
+    if (
+        directory == creation
+        or creation in directory.parents
+        or directory in creation.parents
+    ):
+        reject()
+    info = directory.lstat()
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.getuid()
+        or stat.S_IMODE(info.st_mode) != PRIVATE_DIRECTORY_MODE
+    ):
+        reject()
+    return directory, OriginalProviderCandidates.directory_identity(directory)
 
 
 def target_key(target: object) -> str:
@@ -142,6 +227,15 @@ class ObservedClaim:
 
 
 @dataclass(frozen=True)
+class PreparedScopeDirectories:
+    """Retain creation and authorization directory identities separately."""
+
+    creation: Path
+    creation_identity: tuple[int, int, int, int]
+    bootstrap: tuple[Path, tuple[int, int, int, int]] | None
+
+
+@dataclass(frozen=True)
 class PreparedXcshScope:
     """Keep the admitted scope and its exact file/directory bindings together."""
 
@@ -153,8 +247,7 @@ class PreparedXcshScope:
     plan_sha256: str
     data: dict[str, Any]
     targets: dict[str, dict[str, str]]
-    directory: Path
-    directory_identity: tuple[int, int, int, int]
+    directories: PreparedScopeDirectories
 
 
 class OriginalXcshArtifactUnavailableError(ValueError):
@@ -237,9 +330,17 @@ class OriginalXcshCreationObserver:
         ):
             reject()
         if (
-            set(scope_data) != SCOPE_KEYS
+            set(scope_data)
+            != (
+                SCOPE_KEYS
+                | (
+                    {"bootstrap_authorization"}
+                    if scope_data.get("schema_version") == AUTHORIZATION_SCOPE_VERSION
+                    else set()
+                )
+            )
             or not exact_native_type(scope_data["schema_version"], int)
-            or scope_data["schema_version"] != 1
+            or scope_data["schema_version"] not in (1, AUTHORIZATION_SCOPE_VERSION)
             or scope_data["scope_sha256"] != settings["plan_sha256"]
         ):
             reject()
@@ -251,6 +352,9 @@ class OriginalXcshCreationObserver:
         ):
             reject()
         directory = canonical(scope_data["directory"])
+        bootstrap_binding = validate_bootstrap_scope(
+            scope_data, directory, self.deadline, self.clock
+        )
         self.prepared_scope = PreparedXcshScope(
             file=admitted_file,
             raw=scope_raw,
@@ -260,8 +364,13 @@ class OriginalXcshCreationObserver:
             plan_sha256=settings["plan_sha256"],
             data=scope_data,
             targets=expected,
-            directory=directory,
-            directory_identity=OriginalProviderCandidates.directory_identity(directory),
+            directories=PreparedScopeDirectories(
+                creation=directory,
+                creation_identity=OriginalProviderCandidates.directory_identity(
+                    directory
+                ),
+                bootstrap=bootstrap_binding,
+            ),
         )
         self.monitor = OriginalProviderCandidates(
             root / "xcsh-processes",
@@ -316,12 +425,12 @@ class OriginalXcshCreationObserver:
     @property
     def directory(self) -> Path:
         """Expose the original admitted directory binding."""
-        return self.prepared_scope.directory
+        return self.prepared_scope.directories.creation
 
     @property
     def directory_identity(self) -> tuple[int, int, int, int]:
         """Expose the original admitted directory identity binding."""
-        return self.prepared_scope.directory_identity
+        return self.prepared_scope.directories.creation_identity
 
     @staticmethod
     def read_file(path: Path) -> bytes:
@@ -367,6 +476,15 @@ class OriginalXcshCreationObserver:
             or OriginalProviderCandidates.directory_identity(self.directory)
             != self.directory_identity
         ):
+            reject()
+        current_bootstrap = validate_bootstrap_scope(
+            self.prepared_scope.data,
+            self.directory,
+            self.deadline,
+            self.clock,
+            admission=False,
+        )
+        if current_bootstrap != self.prepared_scope.directories.bootstrap:
             reject()
         self.check_artifacts()
         self.assert_inputs()

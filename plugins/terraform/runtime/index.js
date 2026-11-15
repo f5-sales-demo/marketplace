@@ -692,7 +692,7 @@ var gcp_capture_source_pins_default = {
     'guest_entrypoint.py': 'f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151',
     'gcp_provider_process.py': '2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00',
     'gcp_provider_reader.py': '19532859fd9390ded4a3321fade653f1ca5ccb0d22afd04f2c37dcc816391ceb',
-    'xcsh_creation_observer.py': '63158a527b0a178b96b1918333a44c087837f78a6490ab9d7ad989f758dd6d28',
+    'xcsh_creation_observer.py': '6ebd1f53ef6e1ae69c41533a6930351fca4e3a0d928d46fb6d3f0ea0fb918b5b',
     'xcsh_creation_reader.py': '39e491fafa0885e735652c63743a86167253ef9a5c8a8fe522c014df28e557b2',
   },
 };
@@ -3905,7 +3905,7 @@ async function openGoogleAdcSession(input, expectedInput) {
 }
 
 // plugins/terraform/src/prepared-creation-scope.ts
-import { createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash9, generateKeyPairSync } from 'node:crypto';
 import { constants as constants3 } from 'node:fs';
 import {
   lstat as lstat5,
@@ -4077,14 +4077,45 @@ function prepareOriginalCreationScope(context) {
       const directory = join4(base, projection.receipt.planSha256);
       await mkdir3(directory, { mode: 448 });
       await privateDirectory2(directory);
+      const bootstrapBase = join4(context.executionDirectory, '.xcsh-original-bootstrap');
+      try {
+        await mkdir3(bootstrapBase, { mode: 448 });
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+      }
+      await privateDirectory2(bootstrapBase);
+      const bootstrapDirectory = join4(bootstrapBase, projection.receipt.planSha256);
+      await mkdir3(bootstrapDirectory, { mode: 448 });
+      const bootstrapIdentity = await privateDirectory2(bootstrapDirectory);
+      const keyPair = generateKeyPairSync('ed25519');
+      const publicBytes = keyPair.publicKey.export({ format: 'der', type: 'spki' });
+      if (publicBytes.length !== 44 || publicBytes.subarray(0, 12).toString('hex') !== '302a300506032b6570032100')
+        throw failure();
+      record.bootstrap = {
+        specification: Object.freeze({
+          schema_version: 1,
+          directory: bootstrapDirectory,
+          public_key: publicBytes.subarray(12).toString('base64').replace(/=+$/, ''),
+          original_start_ms: context.budget.start,
+          original_deadline_ms: context.budget.deadline,
+        }),
+        directoryIdentity: Object.freeze({
+          dev: bootstrapIdentity.dev,
+          ino: bootstrapIdentity.ino,
+          uid: bootstrapIdentity.uid,
+          mode: bootstrapIdentity.mode,
+        }),
+        privateKey: keyPair.privateKey,
+      };
       const scopeFile = join4(directory, 'scope.json');
       const raw = Buffer.from(
         JSON.stringify({
-          schema_version: 1,
+          schema_version: 2,
           scope_sha256: projection.receipt.planSha256,
           directory,
           provider_executable_sha256: provider.sha256,
           resources,
+          bootstrap_authorization: record.bootstrap.specification,
         }),
       );
       if (raw.length > 65536) throw failure();
@@ -4099,7 +4130,7 @@ function prepareOriginalCreationScope(context) {
       } finally {
         await file.close();
       }
-      for (const path of [directory, base]) {
+      for (const path of [directory, base, bootstrapDirectory, bootstrapBase]) {
         const handle = await open3(path, constants3.O_RDONLY | constants3.O_DIRECTORY | constants3.O_NOFOLLOW);
         try {
           await handle.sync();
@@ -4112,7 +4143,7 @@ function prepareOriginalCreationScope(context) {
       record.binding = await fileBinding(scopeFile);
       record.monitor = await monitorOriginalInputs({ scope: record.binding });
     }
-    const packet = Object.freeze({ schemaVersion: 1, kind: 'prepared-original-creation-scope' });
+    const packet = Object.freeze({ schemaVersion: 2, kind: 'prepared-original-creation-scope' });
     leases.set(packet, record);
     try {
       await assertPreparedCreationScope(packet);
@@ -4136,6 +4167,17 @@ async function assertPreparedCreationScopeInputs(packet) {
       const matches = Object.values(providers).filter((p) => p.path === current.provider?.path);
       if (matches.length !== 1) throw failure();
       assertSameOriginalInput(current.provider, matches[0]);
+    }
+    const bootstrap = current.bootstrap;
+    if (bootstrap) {
+      const actual = await privateDirectory2(bootstrap.specification.directory);
+      if (['dev', 'ino', 'uid', 'mode'].some((key) => actual[key] !== current.bootstrap?.directoryIdentity[key]))
+        throw failure();
+      if (
+        bootstrap.specification.original_start_ms !== current.context.budget.start ||
+        bootstrap.specification.original_deadline_ms !== current.context.budget.deadline
+      )
+        throw failure();
     }
     await current.monitor?.assertOriginal();
     if (current.scopeFile) {
@@ -4170,6 +4212,7 @@ async function inspectPreparedCreationScope(packet) {
     scope: current.binding,
     provider: current.provider,
     planSha256: current.projection.receipt.planSha256,
+    bootstrapAuthorization: current.bootstrap?.specification,
   });
 }
 function consumePreparedCreationScope(packet, request, environment) {
@@ -7356,7 +7399,7 @@ import {
   createHash as createHash17,
   createPrivateKey,
   createPublicKey,
-  generateKeyPairSync,
+  generateKeyPairSync as generateKeyPairSync2,
   randomBytes,
 } from 'node:crypto';
 import { constants as constants7 } from 'node:fs';
@@ -7484,7 +7527,7 @@ async function persist2(path, bytes) {
   return (await readOriginal(path)).binding;
 }
 function generateKey() {
-  const pair = generateKeyPairSync('ed25519');
+  const pair = generateKeyPairSync2('ed25519');
   const jwk = pair.privateKey.export({ format: 'jwk' });
   if (!jwk.d || !jwk.x) throw new Error('Ed25519 private seed unavailable');
   const seed = Buffer.from(jwk.d, 'base64url'),

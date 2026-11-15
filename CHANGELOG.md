@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.97 prepares version2 creation scopes with an original
+  authorization key, sibling grant directory and unchanged execution budget.
+  The observer validates the mapping and retains read-only final evidence after
+  authorization expires. Grant signing and live bootstrap qualification remain open.
+
 - **`terraform`** v2.4.96 issues original per-target creation evidence during
   capture, before the remaining HA targets complete. Site and token bodies join
   through the same original reader request, with durable single-use checkout.

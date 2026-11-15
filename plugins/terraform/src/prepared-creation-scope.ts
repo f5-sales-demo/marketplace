@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
@@ -13,7 +13,7 @@ import {
 } from './runner';
 
 export interface PreparedOriginalCreationScope {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly kind: 'prepared-original-creation-scope';
 }
 type Target = Readonly<{ type_name: string; name: string; namespace: string }>;
@@ -25,6 +25,17 @@ interface Lease {
   scopeFile?: string;
   directory?: string;
   binding?: OriginalInputBinding;
+  bootstrap?: {
+    specification: Readonly<{
+      schema_version: 1;
+      directory: string;
+      public_key: string;
+      original_start_ms: number;
+      original_deadline_ms: number;
+    }>;
+    directoryIdentity: Readonly<{ dev: bigint; ino: bigint; uid: bigint; mode: bigint }>;
+    privateKey: KeyObject;
+  };
   monitor?: Awaited<ReturnType<typeof monitorOriginalInputs>>;
   refused: boolean;
   closed: boolean;
@@ -199,14 +210,45 @@ export function prepareOriginalCreationScope(context: InstalledCaptureContext): 
       const directory = join(base, projection.receipt.planSha256);
       await mkdir(directory, { mode: 0o700 });
       await privateDirectory(directory);
+      const bootstrapBase = join(context.executionDirectory, '.xcsh-original-bootstrap');
+      try {
+        await mkdir(bootstrapBase, { mode: 0o700 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      }
+      await privateDirectory(bootstrapBase);
+      const bootstrapDirectory = join(bootstrapBase, projection.receipt.planSha256);
+      await mkdir(bootstrapDirectory, { mode: 0o700 });
+      const bootstrapIdentity = await privateDirectory(bootstrapDirectory);
+      const keyPair = generateKeyPairSync('ed25519');
+      const publicBytes = keyPair.publicKey.export({ format: 'der', type: 'spki' });
+      if (publicBytes.length !== 44 || publicBytes.subarray(0, 12).toString('hex') !== '302a300506032b6570032100')
+        throw failure();
+      record.bootstrap = {
+        specification: Object.freeze({
+          schema_version: 1 as const,
+          directory: bootstrapDirectory,
+          public_key: publicBytes.subarray(12).toString('base64').replace(/=+$/, ''),
+          original_start_ms: context.budget.start,
+          original_deadline_ms: context.budget.deadline,
+        }),
+        directoryIdentity: Object.freeze({
+          dev: bootstrapIdentity.dev,
+          ino: bootstrapIdentity.ino,
+          uid: bootstrapIdentity.uid,
+          mode: bootstrapIdentity.mode,
+        }),
+        privateKey: keyPair.privateKey,
+      };
       const scopeFile = join(directory, 'scope.json');
       const raw = Buffer.from(
         JSON.stringify({
-          schema_version: 1,
+          schema_version: 2,
           scope_sha256: projection.receipt.planSha256,
           directory,
           provider_executable_sha256: provider.sha256,
           resources,
+          bootstrap_authorization: record.bootstrap.specification,
         }),
       );
       if (raw.length > 65536) throw failure();
@@ -221,7 +263,7 @@ export function prepareOriginalCreationScope(context: InstalledCaptureContext): 
       } finally {
         await file.close();
       }
-      for (const path of [directory, base]) {
+      for (const path of [directory, base, bootstrapDirectory, bootstrapBase]) {
         const handle = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
         try {
           await handle.sync();
@@ -234,7 +276,7 @@ export function prepareOriginalCreationScope(context: InstalledCaptureContext): 
       record.binding = await fileBinding(scopeFile);
       record.monitor = await monitorOriginalInputs({ scope: record.binding });
     }
-    const packet = Object.freeze({ schemaVersion: 1 as const, kind: 'prepared-original-creation-scope' as const });
+    const packet = Object.freeze({ schemaVersion: 2 as const, kind: 'prepared-original-creation-scope' as const });
     leases.set(packet, record);
     try {
       await assertPreparedCreationScope(packet);
@@ -259,6 +301,23 @@ export async function assertPreparedCreationScopeInputs(packet: unknown): Promis
       const matches = Object.values(providers).filter((p) => p.path === current.provider?.path);
       if (matches.length !== 1) throw failure();
       assertSameOriginalInput(current.provider, matches[0]);
+    }
+    const bootstrap = current.bootstrap;
+    if (bootstrap) {
+      const actual = await privateDirectory(bootstrap.specification.directory);
+      if (
+        ['dev', 'ino', 'uid', 'mode'].some(
+          (key) =>
+            actual[key as keyof typeof bootstrap.directoryIdentity] !==
+            current.bootstrap?.directoryIdentity[key as keyof typeof bootstrap.directoryIdentity],
+        )
+      )
+        throw failure();
+      if (
+        bootstrap.specification.original_start_ms !== current.context.budget.start ||
+        bootstrap.specification.original_deadline_ms !== current.context.budget.deadline
+      )
+        throw failure();
     }
     await current.monitor?.assertOriginal();
     if (current.scopeFile) {
@@ -294,6 +353,7 @@ export async function inspectPreparedCreationScope(packet: unknown) {
     scope: current.binding,
     provider: current.provider,
     planSha256: current.projection.receipt.planSha256,
+    bootstrapAuthorization: current.bootstrap?.specification,
   });
 }
 /** Consume only inside the exact compiler after async original-input checks. */
