@@ -311,6 +311,43 @@ function isEvidenceRfc3339(value) {
 }
 
 // plugins/terraform/src/gcp-insert-audit-query.ts
+var resourceName = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+function compileGcpInsertAuditQuery(project, zone, node, input) {
+  const window = { ...input };
+  if (
+    !resourceName.test(project) ||
+    !resourceName.test(zone) ||
+    !resourceName.test(node) ||
+    Object.keys(window).sort().join(',') !== 'after,before' ||
+    ![window.after, window.before].every(
+      (value) =>
+        typeof value === 'string' &&
+        /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$/.test(value) &&
+        Number.isFinite(Date.parse(value)) &&
+        new Date(value).toISOString() === value,
+    ) ||
+    Date.parse(window.after) < 0 ||
+    Date.parse(window.before) <= Date.parse(window.after) ||
+    Date.parse(window.before) - Date.parse(window.after) > 7200000
+  )
+    throw new Error('Fixed original Compute insert audit window required');
+  const logName = `projects/${project}/logs/cloudaudit.googleapis.com%2Factivity`;
+  const resource = `projects/${project}/zones/${zone}/instances/${node}`;
+  const filter = [
+    `logName=${JSON.stringify(logName)}`,
+    'protoPayload.serviceName="compute.googleapis.com"',
+    'protoPayload.methodName="v1.compute.instances.insert"',
+    `protoPayload.resourceName=${JSON.stringify(resource)}`,
+    `timestamp>=${JSON.stringify(window.after)}`,
+    `timestamp<=${JSON.stringify(window.before)}`,
+  ].join(' AND ');
+  return Object.freeze({
+    resourceNames: Object.freeze([`projects/${project}`]),
+    filter,
+    pageSize: 100,
+    orderBy: 'timestamp asc',
+  });
+}
 function hasAuditControlCharacters(value) {
   return Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127);
 }
@@ -3052,8 +3089,26 @@ function fingerprint(value) {
 // plugins/terraform/src/google-adc-authentication.ts
 import { createHash as createHash7 } from 'node:crypto';
 
+// plugins/terraform/src/gcp-inventory-target.ts
+var validName = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
+function compileGcpInventoryResourceTarget(project, input) {
+  if (!validName(project) || !input) throw new Error('Original Compute inventory scope required');
+  const target = Object.freeze({ ...input });
+  if (!validName(target.name)) throw new Error('Original Compute inventory name required');
+  const keys = Object.keys(target).sort().join(',');
+  let path;
+  if (target.kind === 'disk' && keys === 'kind,name,zone' && validName(target.zone))
+    path = `projects/${project}/zones/${target.zone}/disks/${target.name}`;
+  else if (target.kind === 'subnetwork' && keys === 'kind,name,region' && validName(target.region))
+    path = `projects/${project}/regions/${target.region}/subnetworks/${target.name}`;
+  else if (['network', 'firewall'].includes(target.kind) && keys === 'kind,name')
+    path = `projects/${project}/global/${target.kind}s/${target.name}`;
+  else throw new Error('Original Compute inventory target differs');
+  return Object.freeze({ target, path, selfLink: `https://www.googleapis.com/compute/v1/${path}` });
+}
+
 // plugins/terraform/src/gcp-observer-image-pin.ts
-var _GCP_OBSERVER_IMAGE_PIN = Object.freeze({
+var GCP_OBSERVER_IMAGE_PIN = Object.freeze({
   project: 'ubuntu-os-cloud',
   name: 'ubuntu-2404-noble-amd64-v20261021',
   id: '4996011480491275419',
@@ -3246,7 +3301,177 @@ async function authenticateGoogleAdcSession(input, signal, fetcher = fetch) {
 async function authenticateGoogleAdc(input, signal, fetcher = fetch) {
   return (await authenticateGoogleAdcSession(input, signal, fetcher)).receipt;
 }
-var _computeMaximum = 4 * 1024 * 1024;
+
+class GoogleComputeReadError extends AggregateError {
+  capture;
+  constructor(capture, failures) {
+    super(failures, 'Original Google Compute read incomplete');
+    this.capture = capture;
+  }
+}
+var computeMaximum = 4 * 1024 * 1024;
+var resourceName2 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+var operationName = /^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?|[1-9][0-9]{0,19})$/;
+var offset = /^(?:0|[1-9][0-9]{0,19})$/;
+var serialOffset = (value) => typeof value === 'string' && offset.test(value) && BigInt(value) <= 9223372036854775807n;
+async function openGoogleAdcComputeReader(input, signal, fetcher = fetch) {
+  const original = Object.freeze({ ...input, credentialBytes: Buffer.from(input.credentialBytes) });
+  let session = await authenticateGoogleAdcSession(original, signal, fetcher);
+  let refreshing;
+  const guard = async () => {
+    signal?.throwIfAborted();
+    try {
+      await original.assertOriginal();
+    } catch {
+      throw new Error('Original Google Compute reader inputs changed');
+    }
+  };
+  const readRaw = async (url, body, requestSignal, maximumBytes = computeMaximum) => {
+    if (!Number.isSafeInteger(maximumBytes) || maximumBytes <= 0 || maximumBytes > computeMaximum)
+      throw new Error('Original Google response byte bound required');
+    const combined = requestSignal ? (signal ? AbortSignal.any([signal, requestSignal]) : requestSignal) : signal;
+    combined?.throwIfAborted();
+    await guard();
+    if (Date.now() >= session.receipt.expiresNoEarlierThan - 60000) {
+      refreshing ??= authenticateGoogleAdcSession(original, combined, fetcher);
+      try {
+        session = await refreshing;
+      } finally {
+        refreshing = undefined;
+      }
+    }
+    await guard();
+    combined?.throwIfAborted();
+    const began = Date.now();
+    const chunks = [];
+    const failures = [];
+    let size = 0;
+    let status = 0;
+    let complete = false;
+    let truncated = false;
+    try {
+      const bounded = combined ? AbortSignal.any([combined, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+      const response = await fetcher(url, {
+        method: body === undefined ? 'GET' : 'POST',
+        redirect: 'error',
+        signal: bounded,
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${session.accessToken}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body }),
+      });
+      status = response.status;
+      if (!response.body) throw new Error('Missing cloud body');
+      const stream = response.body.getReader();
+      let abortCancellation;
+      const cancelOnAbort = () => {
+        abortCancellation = stream.cancel();
+        abortCancellation.catch(() => {});
+      };
+      bounded.addEventListener('abort', cancelOnAbort, { once: true });
+      try {
+        for (;;) {
+          bounded.throwIfAborted();
+          const { value, done } = await stream.read();
+          bounded.throwIfAborted();
+          if (done) break;
+          const available = Math.max(0, maximumBytes - size);
+          chunks.push(Buffer.from(value.subarray(0, available)));
+          size += value.length;
+          if (size > maximumBytes) {
+            truncated = true;
+            throw new Error('Cloud read exceeds bound');
+          }
+        }
+        complete = true;
+      } finally {
+        bounded.removeEventListener('abort', cancelOnAbort);
+        if (abortCancellation) {
+          try {
+            await abortCancellation;
+          } catch (error) {
+            complete = false;
+            failures.push(new Error('Google Compute abort closure failed', { cause: error }));
+          }
+        }
+        try {
+          await stream.cancel();
+        } catch (error) {
+          complete = false;
+          failures.push(new Error('Google Compute stream closure failed', { cause: error }));
+        }
+        stream.releaseLock();
+      }
+    } catch (error) {
+      failures.push(new Error('Google Compute read transport failed', { cause: error }));
+    }
+    try {
+      await guard();
+    } catch (error) {
+      complete = false;
+      failures.push(error);
+    }
+    const finishedAt = Date.now();
+    if (finishedAt < began || finishedAt - began > 60000) {
+      complete = false;
+      failures.push(new Error('Bounded original Compute response required'));
+    }
+    const result = {
+      raw: Buffer.concat(chunks),
+      status,
+      startedAt: began,
+      finishedAt,
+      complete,
+      truncated,
+    };
+    if (failures.length) throw new GoogleComputeReadError(result, failures);
+    return result;
+  };
+  const read = async (zone, name, start, operation = false) => {
+    if (
+      !resourceName2.test(zone) ||
+      !(operation ? operationName : resourceName2).test(name) ||
+      (operation && /^[0-9]+$/.test(name) && BigInt(name) > 18446744073709551615n) ||
+      (start !== undefined && (!serialOffset(start) || operation))
+    )
+      throw new Error('Fixed named Google Compute read required');
+    const base = `https://compute.googleapis.com/compute/v1/projects/${original.project}/zones/${zone}/${operation ? 'operations' : 'instances'}/${name}`;
+    const url = start === undefined ? base : `${base}/serialPort?port=1&start=${start}`;
+    return readRaw(url);
+  };
+  return Object.freeze({
+    authentication: session.receipt,
+    observerImage: (...args) => {
+      if (args.length) throw new Error('Original fixed observer image read takes no arguments');
+      return readRaw(
+        `https://compute.googleapis.com/compute/v1/projects/${GCP_OBSERVER_IMAGE_PIN.project}/global/images/${GCP_OBSERVER_IMAGE_PIN.name}`,
+      );
+    },
+    resource: (target, requestSignal) => {
+      const compiled = compileGcpInventoryResourceTarget(original.project, target);
+      return readRaw(`https://compute.googleapis.com/compute/v1/${compiled.path}`, undefined, requestSignal);
+    },
+    instance: (zone, name) => read(zone, name),
+    serial: (zone, name, start) => read(zone, name, start),
+    operation: (zone, name) => read(zone, name, undefined, true),
+    auditInstanceInsert: (zone, node, window, pageToken, requestSignal, maximumBytes = computeMaximum) => {
+      const query = compileGcpInsertAuditQuery(original.project, zone, node, window);
+      if (
+        pageToken !== undefined &&
+        (typeof pageToken !== 'string' || !pageToken || pageToken.length > 8192 || hasAuditControlCharacters(pageToken))
+      )
+        throw new Error('Original audit continuation required');
+      return readRaw(
+        'https://logging.googleapis.com/v2/entries:list',
+        JSON.stringify({ ...query, ...(pageToken === undefined ? {} : { pageToken }) }),
+        requestSignal,
+        maximumBytes,
+      );
+    },
+  });
+}
 
 // plugins/terraform/src/linux-clock.ts
 import { dlopen, FFIType, ptr } from 'bun:ffi';
@@ -3346,6 +3571,12 @@ async function assertFinalReaderReserve(reserve) {
 
 // plugins/terraform/src/installed-apply-controller.ts
 var callbacks = new WeakMap();
+var lifetimes = new WeakMap();
+async function assertOriginalApplyLifetime(value) {
+  const verify = lifetimes.get(value);
+  if (!verify) throw new Error('Original operation lifetime callback required');
+  await verify();
+}
 async function assertOriginalApplyCallback(value) {
   const verify = callbacks.get(value);
   if (!verify) throw new Error('Original apply callback context required');
@@ -3428,6 +3659,17 @@ function createInstalledApplyController(original, worker, hooks) {
     Object.defineProperty(value, 'original', { value: original, enumerable: false });
     Object.freeze(value);
     callbacks.set(value, verify);
+    if (phase === 'before') {
+      const identity = () => {
+        if (closed || finalStarted || !started || !sameIdentity(execution.identity, started.identity))
+          throw new Error('Original operation lifetime retired or identity changed');
+      };
+      lifetimes.set(value, async () => {
+        identity();
+        await within();
+        identity();
+      });
+    }
     return value;
   };
   return {
@@ -7657,11 +7899,646 @@ async function joinOriginalGcpBootstrapVm(input) {
   });
 }
 
-// plugins/terraform/src/installed-bootstrap-capture.ts
+// plugins/terraform/src/gcp-cloud-serial-reader.ts
 import { createHash as createHash18, randomUUID as randomUUID8 } from 'node:crypto';
+import { lstat as lstat12, mkdir as mkdir7, open as open9, realpath as realpath11 } from 'node:fs/promises';
+import { isAbsolute as isAbsolute12, join as join15, resolve as resolve12 } from 'node:path';
+
+var hash14 = (raw) => createHash18('sha256').update(raw).digest('hex');
+var name2 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+var numericId = /^[1-9][0-9]{0,19}$/;
+var uint64 = (value) => typeof value === 'string' && numericId.test(value) && BigInt(value) <= 18446744073709551615n;
+var operationName2 = /^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?|[1-9][0-9]{0,19})$/;
+var returnedOperationName = /^[a-z][a-z0-9-]{0,254}$/;
+var offset2 = /^(?:0|[1-9][0-9]{0,19})$/;
+var serialOffset2 = (value) =>
+  typeof value === 'string' && offset2.test(value) && BigInt(value) <= 9223372036854775807n;
+var object10 = (v) => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('Malformed original cloud response');
+  return v;
+};
+var decode3 = (raw) => decodeEvidenceObject(raw);
+async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
+  const { root, region } = input;
+  const authentication = Object.freeze({
+    ...input.authentication,
+    credentialBytes: Buffer.from(input.authentication.credentialBytes),
+  });
+  if (!isAbsolute12(root) || resolve12(root) !== root || !name2.test(region))
+    throw new Error('Private original cloud reader scope required');
+  await mkdir7(root, { recursive: true, mode: 448 });
+  const initial = await lstat12(root, { bigint: true });
+  if (
+    !initial.isDirectory() ||
+    initial.isSymbolicLink() ||
+    initial.uid !== BigInt(process.getuid?.() ?? -1) ||
+    (initial.mode & 0o777n) !== 0o700n ||
+    (await realpath11(root)) !== root
+  )
+    throw new Error('Private original cloud reader directory required');
+  const requireRoot = async () => {
+    const current = await lstat12(root, { bigint: true });
+    if (
+      current.dev !== initial.dev ||
+      current.ino !== initial.ino ||
+      current.uid !== initial.uid ||
+      current.mode !== initial.mode ||
+      (await realpath11(root)) !== root
+    )
+      throw new Error('Original cloud evidence directory changed');
+  };
+  const client = await openGoogleAdcComputeReader(authentication, signal, fetcher);
+  const admitted = new WeakSet();
+  const issuedEvidence = new WeakSet();
+  const auditQueries = new WeakMap();
+  const evidenceInputs = new Map();
+  const issue = (value) => {
+    if (!evidenceInputs.has(value.path)) throw new Error('Original retained cloud evidence required');
+    issuedEvidence.add(value);
+    return value;
+  };
+  const originals = new Map();
+  const resourceOrigins = new WeakSet();
+  const resourceIdentities = new Map();
+  let retired = false;
+  const run = async (operation) => {
+    if (retired) throw new Error('Original cloud reader is retired');
+    try {
+      return await operation();
+    } catch (error) {
+      retired = true;
+      throw error;
+    }
+  };
+  const validate = (zone, node) => {
+    if (!name2.test(zone) || !zone.startsWith(`${region}-`) || !name2.test(node))
+      throw new Error('Original named regional cloud scope required');
+  };
+  const retainScoped = async (response, kind, scope, querySha256) => {
+    await requireRoot();
+    const stem = join15(root, `${kind}-${randomUUID8()}`);
+    const path = `${stem}.body.private.bin`;
+    const receiptPath = `${stem}.receipt.private.json`;
+    const handle = await open9(path, 'wx', 256);
+    try {
+      await handle.writeFile(response.raw);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    const evidence = Object.freeze({
+      path,
+      sha256: hash14(response.raw),
+      startedAt: response.startedAt,
+      finishedAt: response.finishedAt,
+    });
+    const receipt = await open9(receiptPath, 'wx', 256);
+    try {
+      await receipt.writeFile(
+        JSON.stringify({
+          schemaVersion: 1,
+          kind,
+          project: authentication.project,
+          ...('target' in scope
+            ? { target: scope.target, selfLink: scope.selfLink }
+            : { zone: scope.zone, nodeName: scope.node }),
+          ...evidence,
+          status: response.status,
+          complete: response.complete,
+          truncated: response.truncated,
+          adcSha256: hash14(authentication.credentialBytes),
+          accountSha256: authentication.accountSha256,
+          audienceSha256: authentication.audienceSha256,
+          ...(querySha256 ? { querySha256 } : {}),
+          cloudExecutionAuthorized: false,
+        }),
+      );
+      await receipt.sync();
+    } finally {
+      await receipt.close();
+    }
+    const directory = await open9(root, 'r');
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+    await requireRoot();
+    const retained = await owned(path, 4 * 1024 * 1024);
+    if (retained.binding.sha256 !== evidence.sha256) throw new Error('Original retained cloud bytes changed');
+    evidenceInputs.set(path, {
+      binding: retained.binding,
+      scope: Object.freeze(scope),
+    });
+    return issue(evidence);
+  };
+  const retain = (response, kind, zone, node, querySha256) =>
+    retainScoped(response, kind, Object.freeze({ project: authentication.project, zone, node }), querySha256);
+  const read = async (operation, kind, zone, node) => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof GoogleComputeReadError) {
+        try {
+          await retain(error.capture, kind, zone, node);
+        } catch (persistenceError) {
+          throw new AggregateError([error, persistenceError], 'Original cloud capture and persistence failed');
+        }
+      }
+      throw error;
+    }
+  };
+  const instance = async (zone, node) => {
+    validate(zone, node);
+    return run(async () => {
+      const began = linuxMonotonicMs();
+      const response = await read(() => client.instance(zone, node), 'cloud', zone, node);
+      const evidence = await retain(response, 'cloud', zone, node);
+      const value = decode3(response.raw);
+      if (response.status === 404) {
+        const error =
+          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object10(value.error) : {};
+        if (
+          error.code !== 404 ||
+          !Array.isArray(error.errors) ||
+          !error.errors.some((v) => object10(v).reason === 'notFound')
+        )
+          throw new Error('Attributed original cloud absence required');
+        return issue(Object.freeze({ ...evidence, present: false }));
+      }
+      if (response.status !== 200) throw new Error('Original cloud read HTTP failure');
+      const zoneUrl = `https://www.googleapis.com/compute/v1/projects/${authentication.project}/zones/${zone}`;
+      if (
+        !uint64(value.id) ||
+        value.name !== node ||
+        value.zone !== zoneUrl ||
+        typeof value.creationTimestamp !== 'string' ||
+        !isEvidenceRfc3339(value.creationTimestamp) ||
+        !Array.isArray(value.networkInterfaces) ||
+        linuxMonotonicMs() - began > 60000
+      )
+        throw new Error('Original numeric cloud VM identity required');
+      const freeze = (v) => {
+        if (v && typeof v === 'object') {
+          for (const child of Object.values(v)) freeze(child);
+          Object.freeze(v);
+        }
+        return v;
+      };
+      freeze(value);
+      const original = Object.freeze({
+        ...evidence,
+        present: true,
+        zone,
+        name: node,
+        value,
+      });
+      const key = `${zone}/${node}`;
+      const prior = originals.get(key);
+      if (
+        prior &&
+        (prior.value.id !== original.value.id ||
+          prior.value.creationTimestamp !== original.value.creationTimestamp ||
+          JSON.stringify(prior.value.metadata) !== JSON.stringify(original.value.metadata) ||
+          JSON.stringify(prior.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces) ||
+          JSON.stringify(prior.value.labels) !== JSON.stringify(original.value.labels) ||
+          JSON.stringify(prior.value.serviceAccounts) !== JSON.stringify(original.value.serviceAccounts))
+      )
+        throw new Error('Original VM identity changed during cloud capture');
+      originals.set(key, prior ?? original);
+      admitted.add(original);
+      return issue(original);
+    });
+  };
+  const serial = async (original, start) => {
+    if (!admitted.has(original) || !serialOffset2(start))
+      throw new Error('An admitted original VM and exact serial offset are required');
+    return run(async () => {
+      const began = linuxMonotonicMs();
+      const assertVm = async () => {
+        const current = await instance(original.zone, original.name);
+        if (
+          !current.present ||
+          current.value.id !== original.value.id ||
+          current.value.creationTimestamp !== original.value.creationTimestamp ||
+          JSON.stringify(current.value.metadata) !== JSON.stringify(original.value.metadata) ||
+          JSON.stringify(current.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces) ||
+          JSON.stringify(current.value.labels) !== JSON.stringify(original.value.labels) ||
+          JSON.stringify(current.value.serviceAccounts) !== JSON.stringify(original.value.serviceAccounts)
+        )
+          throw new Error('Original VM identity changed during serial capture');
+      };
+      await assertVm();
+      const response = await read(
+        () => client.serial(original.zone, original.name, start),
+        'serial',
+        original.zone,
+        original.name,
+      );
+      const evidence = await retain(response, 'serial', original.zone, original.name);
+      const value = decode3(response.raw);
+      await assertVm();
+      if (
+        response.status !== 200 ||
+        typeof value.start !== 'string' ||
+        typeof value.next !== 'string' ||
+        !serialOffset2(value.start) ||
+        !serialOffset2(value.next) ||
+        typeof value.contents !== 'string' ||
+        value.start !== start ||
+        BigInt(value.next) - BigInt(value.start) !== BigInt(Buffer.byteLength(value.contents)) ||
+        linuxMonotonicMs() - began > 60000
+      )
+        throw new Error('Complete original serial offsets and contents required');
+      return issue(Object.freeze({ ...evidence, instanceId: original.value.id, value: Object.freeze(value) }));
+    });
+  };
+  const operations = new Map();
+  const insertOperation = async (zone, operation, node) => {
+    validate(zone, node);
+    if (!operationName2.test(operation) || (/^[0-9]+$/.test(operation) && !uint64(operation)))
+      throw new Error('Exact named Compute operation scope required');
+    return run(async () => {
+      const response = await read(() => client.operation(zone, operation), 'insert-operation', zone, node);
+      const evidence = await retain(response, 'insert-operation', zone, node);
+      const value = decode3(response.raw);
+      const scope = `https://www.googleapis.com/compute/v1/projects/${authentication.project}/zones/${zone}`;
+      if (
+        response.status !== 200 ||
+        !uint64(value.id) ||
+        typeof value.name !== 'string' ||
+        !returnedOperationName.test(value.name) ||
+        (/^[0-9]+$/.test(operation) ? value.id !== operation : value.name !== operation) ||
+        value.operationType !== 'insert' ||
+        value.error !== undefined ||
+        value.zone !== scope ||
+        value.selfLink !== `${scope}/operations/${value.name}` ||
+        value.targetLink !== `${scope}/instances/${node}` ||
+        !['PENDING', 'RUNNING', 'DONE'].includes(value.status) ||
+        typeof value.insertTime !== 'string' ||
+        !isEvidenceRfc3339(value.insertTime) ||
+        (value.targetId !== undefined && !uint64(value.targetId))
+      )
+        throw new Error('Exact scoped Compute insert operation identity required');
+      const targetId = value.targetId === undefined ? null : value.targetId;
+      const candidate = Object.freeze({
+        ...evidence,
+        kind: 'compute-insert-operation-candidate',
+        operationId: value.id,
+        operationName: value.name,
+        targetId,
+        targetName: node,
+        zone,
+        status: value.status,
+        applyPhaseQualified: false,
+        originalInsertQualified: false,
+      });
+      const key = `${zone}/${value.name}`;
+      const original = operations.get(key);
+      if (
+        original &&
+        (original.operationId !== candidate.operationId ||
+          original.targetName !== node ||
+          (original.targetId !== null && original.targetId !== candidate.targetId))
+      )
+        throw new Error('Original Compute insert operation changed');
+      operations.set(key, candidate);
+      return issue(candidate);
+    });
+  };
+  const insertAudit = async (zone, node, input) => {
+    validate(zone, node);
+    const window = Object.freeze({ ...input });
+    const query = compileGcpInsertAuditQuery(authentication.project, zone, node, window);
+    const queryBytes = Buffer.from(JSON.stringify(query));
+    const querySha256 = hash14(queryBytes);
+    return run(async () => {
+      const began = linuxMonotonicMs(),
+        signalForCommand = AbortSignal.timeout(60000);
+      await requireRoot();
+      const queryPath = join15(root, `insert-audit-${randomUUID8()}.query.private.json`);
+      const queryHandle = await open9(queryPath, 'wx', 256);
+      try {
+        await queryHandle.writeFile(queryBytes);
+        await queryHandle.sync();
+      } finally {
+        await queryHandle.close();
+      }
+      const queryDirectory = await open9(root, 'r');
+      try {
+        await queryDirectory.sync();
+      } finally {
+        await queryDirectory.close();
+      }
+      await requireRoot();
+      const originalQuery = await owned(queryPath, 65536);
+      if (originalQuery.binding.sha256 !== querySha256) throw new Error('Original audit query bytes changed');
+      const pages = [],
+        entries = [];
+      const tokens = new Set(),
+        ids = new Set();
+      let pageToken,
+        bytes = 0;
+      while (true) {
+        signalForCommand.throwIfAborted();
+        if (linuxMonotonicMs() - began >= 60000 || pages.length >= 32)
+          throw new Error('Original audit command deadline or page bound exhausted');
+        let response;
+        try {
+          response = await client.auditInstanceInsert(
+            zone,
+            node,
+            window,
+            pageToken,
+            signalForCommand,
+            4 * 1024 * 1024 - bytes,
+          );
+        } catch (error) {
+          if (error instanceof GoogleComputeReadError) {
+            try {
+              await retain(error.capture, 'insert-audit', zone, node, querySha256);
+            } catch (persistenceFailure) {
+              throw new AggregateError([error, persistenceFailure], 'Original audit capture and persistence failed');
+            }
+          }
+          throw error;
+        }
+        pages.push(issue(await retain(response, 'insert-audit', zone, node, querySha256)));
+        bytes += response.raw.byteLength;
+        if (!response.complete || response.truncated || response.status !== 200 || bytes > 4 * 1024 * 1024)
+          throw new Error('Complete bounded original audit response required');
+        const value = decode3(response.raw);
+        if (Object.keys(value).some((key) => !['entries', 'nextPageToken'].includes(key)))
+          throw new Error('Original audit envelope contains unsupported fields');
+        if (value.entries !== undefined && !Array.isArray(value.entries))
+          throw new Error('Original audit entries malformed');
+        for (const raw of value.entries ?? []) {
+          const entry = object10(raw),
+            payload = object10(entry.protoPayload),
+            resource = object10(entry.resource),
+            labels = object10(resource.labels);
+          if (
+            entry.split !== undefined ||
+            typeof entry.insertId !== 'string' ||
+            !entry.insertId ||
+            entry.insertId.length > 256 ||
+            hasAuditControlCharacters(entry.insertId) ||
+            ids.has(entry.insertId) ||
+            typeof entry.timestamp !== 'string' ||
+            !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,9})?Z$/.test(entry.timestamp) ||
+            !isEvidenceRfc3339(entry.timestamp) ||
+            Date.parse(entry.timestamp) < Date.parse(window.after) ||
+            Date.parse(entry.timestamp) > Date.parse(window.before) ||
+            entry.logName !== `projects/${authentication.project}/logs/cloudaudit.googleapis.com%2Factivity` ||
+            payload['@type'] !== 'type.googleapis.com/google.cloud.audit.AuditLog' ||
+            payload.serviceName !== 'compute.googleapis.com' ||
+            payload.methodName !== 'v1.compute.instances.insert' ||
+            payload.resourceName !== `projects/${authentication.project}/zones/${zone}/instances/${node}` ||
+            resource.type !== 'gce_instance' ||
+            labels.project_id !== authentication.project ||
+            labels.zone !== zone
+          )
+            throw new Error('Foreign, replayed or stale original insert audit entry');
+          ids.add(entry.insertId);
+          const freeze = (v) => {
+            if (v && typeof v === 'object') {
+              for (const child of Object.values(v)) freeze(child);
+              Object.freeze(v);
+            }
+            return v;
+          };
+          freeze(entry);
+          entries.push(entry);
+        }
+        const next = value.nextPageToken;
+        if (next === undefined || next === '') break;
+        if (typeof next !== 'string' || next.length > 8192 || hasAuditControlCharacters(next) || tokens.has(next))
+          throw new Error('Original audit continuation malformed or replayed');
+        tokens.add(next);
+        pageToken = next;
+      }
+      signalForCommand.throwIfAborted();
+      if (linuxMonotonicMs() - began >= 60000) throw new Error('Original audit command deadline exhausted');
+      const finalQuery = await owned(queryPath, 65536);
+      assertSameOriginalInput(originalQuery.binding, finalQuery.binding);
+      await authentication.assertOriginal();
+      await requireRoot();
+      const batch = Object.freeze({
+        schemaVersion: 1,
+        kind: 'compute-instance-insert-audit-batch',
+        complete: true,
+        queryPath,
+        window,
+        project: authentication.project,
+        zone,
+        node,
+        querySha256,
+        pages: Object.freeze(pages),
+        entries: Object.freeze(entries),
+        originalInsertQualified: false,
+      });
+      const issuedQuery = await owned(queryPath, 65536);
+      assertSameOriginalInput(originalQuery.binding, issuedQuery.binding);
+      auditQueries.set(batch, originalQuery.binding);
+      return batch;
+    });
+  };
+  const resource = async (input, signal) => {
+    const compiled = compileGcpInventoryResourceTarget(authentication.project, input);
+    const target = compiled.target;
+    if (
+      (target.kind === 'disk' && !target.zone.startsWith(`${region}-`)) ||
+      (target.kind === 'subnetwork' && target.region !== region)
+    )
+      throw new Error('Original regional Compute inventory scope required');
+    const scope = Object.freeze({
+      project: authentication.project,
+      target,
+      selfLink: compiled.selfLink,
+    });
+    return run(async () => {
+      let response;
+      try {
+        response = await client.resource(target, signal);
+      } catch (error) {
+        if (error instanceof GoogleComputeReadError) {
+          try {
+            await retainScoped(error.capture, 'inventory', scope);
+          } catch (retention) {
+            throw new AggregateError([error, retention], 'Original inventory transport and retention failed');
+          }
+        }
+        throw error;
+      }
+      const evidence = await retainScoped(response, 'inventory', scope);
+      const value = decode3(response.raw);
+      const base = {
+        ...evidence,
+        kind: 'original-compute-inventory-resource',
+        target,
+        selfLink: compiled.selfLink,
+        creationOwnershipQualified: false,
+      };
+      let result;
+      if (response.status === 404) {
+        const error =
+          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object10(value.error) : {};
+        if (
+          error.code !== 404 ||
+          !Array.isArray(error.errors) ||
+          !error.errors.some((entry) => object10(entry).reason === 'notFound')
+        )
+          throw new Error('Attributed original inventory absence required');
+        result = Object.freeze({ ...base, present: false });
+      } else {
+        const prefix = `https://www.googleapis.com/compute/v1/projects/${authentication.project}`;
+        if (
+          response.status !== 200 ||
+          value.kind !== `compute#${target.kind}` ||
+          !uint64(value.id) ||
+          value.name !== target.name ||
+          value.selfLink !== compiled.selfLink ||
+          typeof value.creationTimestamp !== 'string' ||
+          !isEvidenceRfc3339(value.creationTimestamp) ||
+          (target.kind === 'disk' && value.zone !== `${prefix}/zones/${target.zone}`) ||
+          (target.kind === 'subnetwork' && value.region !== `${prefix}/regions/${target.region}`)
+        )
+          throw new Error('Original numeric inventory resource identity required');
+        const anchor = fingerprint(
+          Object.fromEntries(
+            [
+              'id',
+              'kind',
+              'name',
+              'selfLink',
+              'creationTimestamp',
+              'labels',
+              'zone',
+              'region',
+              'network',
+              'ipCidrRange',
+              'sourceRanges',
+              'destinationRanges',
+              'targetTags',
+              'allowed',
+              'denied',
+              'direction',
+              'disabled',
+              'sourceImage',
+              'sourceImageId',
+              'type',
+              'sizeGb',
+            ]
+              .filter((key) => Object.hasOwn(value, key))
+              .map((key) => [key, value[key]]),
+          ),
+        );
+        const prior = resourceIdentities.get(compiled.selfLink);
+        if (prior && prior !== anchor) throw new Error('Original inventory resource identity changed');
+        resourceIdentities.set(compiled.selfLink, anchor);
+        const freeze = (entry) => {
+          if (entry && typeof entry === 'object') {
+            for (const child of Object.values(entry)) freeze(child);
+            Object.freeze(entry);
+          }
+        };
+        freeze(value);
+        result = Object.freeze({ ...base, present: true, value });
+      }
+      resourceOrigins.add(result);
+      issuedEvidence.add(result);
+      return result;
+    });
+  };
+  const readResourceEvidence = async (evidence) => {
+    if (!resourceOrigins.has(evidence)) throw new Error('An original reader-issued inventory resource is required');
+    const binding = evidenceInputs.get(evidence.path);
+    if (!binding || !('target' in binding.scope)) throw new Error('Original inventory resource binding required');
+    const scope = binding.scope;
+    return run(async () => {
+      await authentication.assertOriginal();
+      await requireRoot();
+      const original = await owned(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(binding.binding, original.binding);
+      if (original.binding.sha256 !== evidence.sha256) throw new Error('Original inventory resource bytes changed');
+      await authentication.assertOriginal();
+      await requireRoot();
+      const final = await owned(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(binding.binding, final.binding);
+      return Object.freeze({ raw: Buffer.from(original.bytes), scope });
+    });
+  };
+  const readEvidence = async (evidence) => {
+    if (!issuedEvidence.has(evidence)) throw new Error('An original reader-issued cloud evidence record is required');
+    const admittedInput = evidenceInputs.get(evidence.path);
+    if (!admittedInput) throw new Error('Original cloud evidence binding unavailable');
+    if ('target' in admittedInput.scope)
+      throw new Error('Original inventory resource requires its dedicated evidence reader');
+    const scope = admittedInput.scope;
+    return run(async () => {
+      await authentication.assertOriginal();
+      await requireRoot();
+      const retained = await owned(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(admittedInput.binding, retained.binding);
+      if (retained.binding.sha256 !== evidence.sha256) throw new Error('Original cloud evidence bytes changed');
+      await authentication.assertOriginal();
+      await requireRoot();
+      const final = await owned(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(admittedInput.binding, final.binding);
+      if (final.binding.sha256 !== evidence.sha256)
+        throw new Error('Original cloud evidence changed after input checks');
+      return Object.freeze({
+        raw: Buffer.from(retained.bytes),
+        scope,
+        authentication: Object.freeze({
+          accountSha256: authentication.accountSha256,
+          audienceSha256: authentication.audienceSha256,
+          adcSha256: hash14(authentication.credentialBytes),
+        }),
+      });
+    });
+  };
+  const readAuditEvidence = async (batch) => {
+    const binding = auditQueries.get(batch);
+    if (!binding) throw new Error('An original reader-issued audit batch is required');
+    return run(async () => {
+      await authentication.assertOriginal();
+      await requireRoot();
+      const query = await owned(batch.queryPath, 65536);
+      assertSameOriginalInput(binding, query.binding);
+      if (query.binding.sha256 !== batch.querySha256) throw new Error('Original audit query bytes changed');
+      const pages = [];
+      for (const page of batch.pages) {
+        const read = await readEvidence(page);
+        if (read.scope.project !== batch.project || read.scope.zone !== batch.zone || read.scope.node !== batch.node)
+          throw new Error('Original audit page scope changed');
+        pages.push(read);
+      }
+      for (const page of batch.pages) await readEvidence(page);
+      await authentication.assertOriginal();
+      await requireRoot();
+      const final = await owned(batch.queryPath, 65536);
+      assertSameOriginalInput(binding, final.binding);
+      return Object.freeze({ query: Buffer.from(query.bytes), pages: Object.freeze(pages) });
+    });
+  };
+  return Object.freeze({
+    instance,
+    serial,
+    resource,
+    readResourceEvidence,
+    insertOperation,
+    insertAudit,
+    readEvidence,
+    readAuditEvidence,
+  });
+}
+
+// plugins/terraform/src/installed-bootstrap-capture.ts
+import { createHash as createHash19, randomUUID as randomUUID9 } from 'node:crypto';
 
 var sameActor2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
-var name2 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
+var name3 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
 async function openInstalledBootstrapCapture(input, options = {}) {
   const { context, packet, platform, store, platformContext } = input;
   const nodes = Object.freeze(input.nodes.map((node) => Object.freeze({ ...node })));
@@ -7678,7 +8555,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
     nodes.some(
       (node) =>
         Object.keys(node).sort().join(',') !== 'nodeName,siteName,tokenName' ||
-        ![node.siteName, node.tokenName, node.nodeName].every(name2),
+        ![node.siteName, node.tokenName, node.nodeName].every(name3),
     ) ||
     new Set(nodes.map((node) => node.nodeName)).size !== nodes.length ||
     new Set(nodes.map((node) => node.tokenName)).size !== nodes.length
@@ -7753,12 +8630,12 @@ async function openInstalledBootstrapCapture(input, options = {}) {
     const now = linuxMonotonicMs();
     if (now < context.budget.start || now >= context.budget.deadline)
       throw new Error('Original bootstrap stage deadline exhausted');
-    if (callback) await assertOriginalApplyCallback(callback);
+    if (callback) await assertOriginalApplyLifetime(callback);
   };
   const retain = async (phase, value) => {
     await store.verify();
     if (store.directory !== directory) throw new Error('Original bootstrap stage retention directory changed');
-    await store.write(`gcp-bootstrap-stage-${randomUUID8()}.json`, {
+    await store.write(`gcp-bootstrap-stage-${randomUUID9()}.json`, {
       schemaVersion: 1,
       kind: 'original-installed-bootstrap-stage-event',
       phase,
@@ -7788,7 +8665,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
   await guard();
   observation = await openObservation(context.owner, platformContext, {
     origin: context.environment.XCSH_API_URL,
-    credentialSha256: createHash18('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
+    credentialSha256: createHash19('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
     targets: scope.resources,
     assertOriginal: inputs,
   });
@@ -7915,6 +8792,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         })();
         pending.catch(() => {});
         await guard();
+        await assertOriginalApplyCallback(originalCallback);
       } catch (error) {
         failure ??= error;
         pending ??= Promise.reject(error);
@@ -7958,7 +8836,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         publishedCount: grants.size,
         expectedCount: nodes.length,
         creationComplete: result.status === 'fulfilled' && result.value.complete,
-        creationEvidenceSha256: raw ? createHash18('sha256').update(raw).digest('hex') : undefined,
+        creationEvidenceSha256: raw ? createHash19('sha256').update(raw).digest('hex') : undefined,
         originalGroupClosed,
         finalReserve: reserve,
         failures: outcomes.filter((value) => value.status === 'rejected').length,
@@ -8013,19 +8891,19 @@ async function openInstalledBootstrapCapture(input, options = {}) {
 
 // plugins/terraform/src/gcp-campaign-access.ts
 import {
-  createHash as createHash19,
+  createHash as createHash20,
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync as generateKeyPairSync2,
   randomBytes as randomBytes2,
 } from 'node:crypto';
 import { constants as constants8 } from 'node:fs';
-import { lstat as lstat12, mkdir as mkdir7, open as open9, realpath as realpath11 } from 'node:fs/promises';
-import { dirname as dirname12, isAbsolute as isAbsolute12, join as join15, resolve as resolve12 } from 'node:path';
+import { lstat as lstat13, mkdir as mkdir8, open as open10, realpath as realpath12 } from 'node:fs/promises';
+import { dirname as dirname12, isAbsolute as isAbsolute13, join as join16, resolve as resolve13 } from 'node:path';
 
 var fileKeys2 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var parentKeys4 = ['dev', 'ino', 'uid', 'mode'];
-var hash14 = (bytes) => createHash19('sha256').update(bytes).digest('hex');
+var hash15 = (bytes) => createHash20('sha256').update(bytes).digest('hex');
 var magic = Buffer.from('openssh-key-v1\x00');
 var scalar = (value) => {
   const bytes = Buffer.alloc(4);
@@ -8078,9 +8956,9 @@ function requestScope(store, request) {
   };
 }
 async function privateDirectory4(path) {
-  if (!isAbsolute12(path) || resolve12(path) !== path || (await realpath11(path)) !== path)
+  if (!isAbsolute13(path) || resolve13(path) !== path || (await realpath12(path)) !== path)
     throw new Error('Canonical original private campaign directory required');
-  const parent = await lstat12(path, { bigint: true });
+  const parent = await lstat13(path, { bigint: true });
   if (
     !parent.isDirectory() ||
     parent.isSymbolicLink() ||
@@ -8091,7 +8969,7 @@ async function privateDirectory4(path) {
 }
 async function readOriginal(path) {
   await privateDirectory4(dirname12(path));
-  const before = await lstat12(path, { bigint: true });
+  const before = await lstat13(path, { bigint: true });
   if (
     !before.isFile() ||
     before.isSymbolicLink() ||
@@ -8102,20 +8980,20 @@ async function readOriginal(path) {
     before.size > 65536n
   )
     throw new Error('Original private single-link campaign input required');
-  const handle = await open9(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
+  const handle = await open10(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
   try {
     const opened = await handle.stat({ bigint: true });
     const bytes = await handle.readFile();
-    const after = await lstat12(path, { bigint: true });
+    const after = await lstat13(path, { bigint: true });
     if (fileKeys2.some((key) => before[key] !== opened[key] || before[key] !== after[key]))
       throw new Error('Original campaign input changed during read');
-    const parent = await lstat12(dirname12(path), { bigint: true });
+    const parent = await lstat13(dirname12(path), { bigint: true });
     await privateDirectory4(dirname12(path));
     return {
       bytes,
       binding: Object.freeze({
         path,
-        sha256: hash14(bytes),
+        sha256: hash15(bytes),
         expectedIdentity: Object.freeze(Object.fromEntries(fileKeys2.map((key) => [key, before[key].toString()]))),
         expectedParentIdentity: Object.freeze(
           Object.fromEntries(parentKeys4.map((key) => [key, parent[key].toString()])),
@@ -8128,14 +9006,14 @@ async function readOriginal(path) {
 }
 async function persist2(path, bytes) {
   await privateDirectory4(dirname12(path));
-  const handle = await open9(path, 'wx', 256);
+  const handle = await open10(path, 'wx', 256);
   try {
     await handle.writeFile(bytes);
     await handle.sync();
   } finally {
     await handle.close();
   }
-  const parent = await open9(dirname12(path), constants8.O_RDONLY);
+  const parent = await open10(dirname12(path), constants8.O_RDONLY);
   try {
     await parent.sync();
   } finally {
@@ -8251,9 +9129,9 @@ async function prepareOriginalGcpCampaignAccess(store, request) {
   const scope = requestScope(store, request);
   await store.verify();
   await privateDirectory4(store.directory);
-  const root = join15(store.directory, 'gcp-campaign-access');
+  const root = join16(store.directory, 'gcp-campaign-access');
   try {
-    await lstat12(root);
+    await lstat13(root);
     return (await readOriginalGcpCampaignAccess(store, request)).publicAccess;
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
@@ -8264,14 +9142,14 @@ async function prepareOriginalGcpCampaignAccess(store, request) {
     'gcp-tf-deploy-original-authorization.json',
   ]) {
     try {
-      await lstat12(join15(store.directory, name));
+      await lstat13(join16(store.directory, name));
       throw new Error('Existing deployment cannot mint new campaign keys');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
   }
   try {
-    await mkdir7(root, { mode: 448 });
+    await mkdir8(root, { mode: 448 });
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
     return (await readOriginalGcpCampaignAccess(store, request)).publicAccess;
@@ -8279,12 +9157,12 @@ async function prepareOriginalGcpCampaignAccess(store, request) {
   const ce = generateKey(),
     observer = generateKey();
   const inputs = {
-    ce_key: await persist2(join15(root, 'ce_key'), ce.privateBytes),
-    observer_key: await persist2(join15(root, 'observer_key'), observer.privateBytes),
+    ce_key: await persist2(join16(root, 'ce_key'), ce.privateBytes),
+    observer_key: await persist2(join16(root, 'observer_key'), observer.privateBytes),
   };
   const publicAccess = { schemaVersion: 1, cePublicKey: ce.publicKey, observerPublicKey: observer.publicKey };
   await persist2(
-    join15(root, 'manifest.private.json'),
+    join16(root, 'manifest.private.json'),
     Buffer.from(JSON.stringify({ schemaVersion: 1, ...scope, publicAccess, inputs })),
   );
   return (await readOriginalGcpCampaignAccess(store, request)).publicAccess;
@@ -8293,8 +9171,8 @@ async function readOriginalGcpCampaignAccess(store, request, intentSha256) {
   const scope = requestScope(store, request);
   await store.verify();
   await privateDirectory4(store.directory);
-  const root = join15(store.directory, 'gcp-campaign-access');
-  const manifest = await readOriginal(join15(root, 'manifest.private.json'));
+  const root = join16(store.directory, 'gcp-campaign-access');
+  const manifest = await readOriginal(join16(root, 'manifest.private.json'));
   const saved = JSON.parse(manifest.bytes.toString());
   if (
     saved.schemaVersion !== 1 ||
@@ -8308,7 +9186,7 @@ async function readOriginalGcpCampaignAccess(store, request, intentSha256) {
     throw new Error('Original campaign key scope differs');
   const inputs = { campaign_manifest: manifest.binding };
   for (const name of ['ce_key', 'observer_key']) {
-    const path = join15(root, name),
+    const path = join16(root, name),
       key = await readOriginal(path);
     assertSameOriginalInput(saved.inputs[name], key.binding);
     const publicKey = derivePublic(key.bytes);
@@ -8322,14 +9200,14 @@ async function readOriginalGcpCampaignAccess(store, request, intentSha256) {
     throw new Error('Exact original intent hash required');
   let claim;
   try {
-    await privateDirectory4(join15(root, 'intent-binding-claim'));
-    claim = await lstat12(join15(root, 'intent-binding-claim'));
+    await privateDirectory4(join16(root, 'intent-binding-claim'));
+    claim = await lstat13(join16(root, 'intent-binding-claim'));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
   let binding;
   try {
-    binding = await readOriginal(join15(root, 'intent-binding.private.json'));
+    binding = await readOriginal(join16(root, 'intent-binding.private.json'));
   } catch (error) {
     if (error.code !== 'ENOENT' || claim || intentSha256 !== undefined) throw error;
   }
@@ -8378,17 +9256,17 @@ async function bindOriginalGcpCampaignAccess(store, binding) {
     original.publicAccess.observerPublicKey !== binding.observerPublicKey
   )
     throw new Error('Original campaign intent public keys differ');
-  const path = join15(store.directory, 'gcp-campaign-access', 'intent-binding.private.json');
-  const claimPath = join15(store.directory, 'gcp-campaign-access', 'intent-binding-claim');
+  const path = join16(store.directory, 'gcp-campaign-access', 'intent-binding.private.json');
+  const claimPath = join16(store.directory, 'gcp-campaign-access', 'intent-binding-claim');
   let claimed = false;
   try {
-    await mkdir7(claimPath, { mode: 448 });
+    await mkdir8(claimPath, { mode: 448 });
     claimed = true;
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
   }
   if (claimed) {
-    const claim = await lstat12(claimPath);
+    const claim = await lstat13(claimPath);
     await persist2(
       path,
       Buffer.from(
@@ -8405,7 +9283,7 @@ async function bindOriginalGcpCampaignAccess(store, binding) {
 }
 
 // plugins/terraform/src/service.ts
-import { join as join16 } from 'node:path';
+import { join as join17 } from 'node:path';
 
 // plugins/terraform/src/session-lifetime.ts
 async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
@@ -8463,7 +9341,7 @@ function createCeTerraformService(platform, options = {}) {
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const directory = deployment.stage
-        ? join16(store.directory, 'terraform-stages', deployment.stage)
+        ? join17(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
       const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
         ? freezeRuntime(
@@ -8734,6 +9612,7 @@ export {
   factory as default,
   joinOriginalGcpBootstrapVm,
   joinOriginalXcshCreationBody,
+  openGcpCloudSerialReader,
   openInstalledBootstrapCapture,
   openInstalledXcshCreationReader,
   publishOriginalGcpBootstrapGrant,

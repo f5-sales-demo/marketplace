@@ -5,6 +5,7 @@ import {
   type GcpInsertAuditWindow,
   hasAuditControlCharacters,
 } from './gcp-insert-audit-query';
+import { compileGcpInventoryResourceTarget, type GcpInventoryResourceTarget } from './gcp-inventory-target';
 import { GCP_OBSERVER_IMAGE_PIN } from './gcp-observer-image-pin';
 
 export interface GoogleAdcAuthenticationRequest {
@@ -299,13 +300,20 @@ export async function openGoogleAdcComputeReader(
       status = response.status;
       if (!response.body) throw new Error('Missing cloud body');
       const stream = response.body.getReader();
+      let abortCancellation: Promise<void> | undefined;
+      const cancelOnAbort = () => {
+        abortCancellation = stream.cancel();
+        abortCancellation.catch(() => {});
+      };
+      bounded.addEventListener('abort', cancelOnAbort, { once: true });
       try {
         for (;;) {
           bounded.throwIfAborted();
           const { value, done } = await stream.read();
+          bounded.throwIfAborted();
           if (done) break;
           const available = Math.max(0, maximumBytes - size);
-          chunks.push(value.subarray(0, available));
+          chunks.push(Buffer.from(value.subarray(0, available)));
           size += value.length;
           if (size > maximumBytes) {
             truncated = true;
@@ -314,11 +322,25 @@ export async function openGoogleAdcComputeReader(
         }
         complete = true;
       } finally {
-        await stream.cancel().catch(() => undefined);
+        bounded.removeEventListener('abort', cancelOnAbort);
+        if (abortCancellation) {
+          try {
+            await abortCancellation;
+          } catch (error) {
+            complete = false;
+            failures.push(new Error('Google Compute abort closure failed', { cause: error }));
+          }
+        }
+        try {
+          await stream.cancel();
+        } catch (error) {
+          complete = false;
+          failures.push(new Error('Google Compute stream closure failed', { cause: error }));
+        }
         stream.releaseLock();
       }
-    } catch {
-      failures.push(new Error('Google Compute read transport failed'));
+    } catch (error) {
+      failures.push(new Error('Google Compute read transport failed', { cause: error }));
     }
     try {
       await guard();
@@ -362,6 +384,10 @@ export async function openGoogleAdcComputeReader(
       return readRaw(
         `https://compute.googleapis.com/compute/v1/projects/${GCP_OBSERVER_IMAGE_PIN.project}/global/images/${GCP_OBSERVER_IMAGE_PIN.name}`,
       );
+    },
+    resource: (target: GcpInventoryResourceTarget, requestSignal?: AbortSignal) => {
+      const compiled = compileGcpInventoryResourceTarget(original.project, target);
+      return readRaw(`https://compute.googleapis.com/compute/v1/${compiled.path}`, undefined, requestSignal);
     },
     instance: (zone: string, name: string) => read(zone, name),
     serial: (zone: string, name: string, start: string) => read(zone, name, start),

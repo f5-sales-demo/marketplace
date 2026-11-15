@@ -1750,3 +1750,15 @@ three-node tests delay two tokens until the first grant without delaying startup
 The enclosing built-in factory still requires inventory, original insertion and
 guest stages. Provider consumption, all original live GCP acceptance, independent
 cleanup/restoration, remaining installed and delivery gates remain open.
+
+## Authenticated inventory and callback lifetime repair on November 15
+
+The [inventory receipt](gcp-authenticated-inventory-20261115.md) records scoped
+disk/network/subnetwork/firewall reads, uint64 identities, retained partial
+responses and original evidence references. CI exposed a startup callback used
+for ongoing collection; the new operation-lifetime check preserves the original
+startup, operation and final-reserve boundaries.
+
+These are source and offline checks. Full built-in factory composition, original
+insertion/guest capture, all original live acceptance and cleanup/restoration,
+remaining installed and delivery gates remain open.

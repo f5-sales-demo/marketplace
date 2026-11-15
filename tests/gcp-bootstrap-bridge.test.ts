@@ -281,3 +281,65 @@ it('compiled bootstrap stage refuses copied scope before reader or publisher exe
   ).rejects.toThrow('Trusted');
   expect(executions).toBe(0);
 });
+
+it('compiled authenticated inventory retains original disk evidence and rejects copied references', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.openGcpCloudSerialReader).toBe('function');
+  const root = await mkdtemp(join(tmpdir(), 'compiled-inventory-'));
+  const credential = {
+    type: 'authorized_user',
+    client_id: 'synthetic-client',
+    client_secret: 'synthetic-secret',
+    refresh_token: 'synthetic-refresh',
+    quota_project_id: 'example-project',
+  };
+  const info = {
+    email: 'principal@example.com',
+    verified_email: true,
+    audience: credential.client_id,
+    issued_to: credential.client_id,
+    expires_in: 3599,
+    scope: 'https://www.googleapis.com/auth/cloud-platform',
+  };
+  const disk = {
+    kind: 'compute#disk',
+    id: '4996011480491275425',
+    name: 'example-disk',
+    zone: 'https://www.googleapis.com/compute/v1/projects/example-project/zones/us-central1-a',
+    selfLink: 'https://www.googleapis.com/compute/v1/projects/example-project/zones/us-central1-a/disks/example-disk',
+    creationTimestamp: '2026-11-09T00:00:00Z',
+  };
+  const fetcher = async (url: string) => {
+    const path = new URL(url).pathname;
+    if (path === '/token')
+      return Response.json({ access_token: 'synthetic-access', token_type: 'Bearer', expires_in: 3599 });
+    if (path === '/oauth2/v2/tokeninfo') return Response.json(info);
+    if (path === '/v1/projects/example-project')
+      return Response.json({ projectId: 'example-project', lifecycleState: 'ACTIVE' });
+    return Response.json(disk);
+  };
+  try {
+    const reader = await runtime.openGcpCloudSerialReader(
+      {
+        root,
+        region: 'us-central1',
+        authentication: {
+          credentialBytes: Buffer.from(JSON.stringify(credential)),
+          project: 'example-project',
+          accountSha256: hash(info.email),
+          audienceSha256: hash(credential.client_id),
+          assertOriginal: async () => {},
+        },
+      },
+      undefined,
+      fetcher,
+    );
+    const evidence = await reader.resource({ kind: 'disk', name: 'example-disk', zone: 'us-central1-a' });
+    expect(evidence.value.id).toBe(disk.id);
+    expect(evidence.creationOwnershipQualified).toBe(false);
+    expect((await reader.readResourceEvidence(evidence)).raw.toString()).toBe(JSON.stringify(disk));
+    await expect(reader.readResourceEvidence({ ...evidence })).rejects.toThrow('original');
+  } finally {
+    await (await import('node:fs/promises')).rm(root, { recursive: true, force: true });
+  }
+});

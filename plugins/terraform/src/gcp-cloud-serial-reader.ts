@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import { fingerprint } from '../../gcloud/src/ce/discovery';
 import { decodeEvidenceObject } from './evidence-json';
 import { isEvidenceRfc3339 } from './evidence-rfc3339';
 import {
@@ -8,6 +9,7 @@ import {
   type GcpInsertAuditWindow,
   hasAuditControlCharacters,
 } from './gcp-insert-audit-query';
+import { compileGcpInventoryResourceTarget, type GcpInventoryResourceTarget } from './gcp-inventory-target';
 import {
   type GoogleAdcAuthenticationRequest,
   type GoogleComputeRead,
@@ -22,6 +24,17 @@ import { assertFinalReaderReserve, type FinalReaderReserve, inspectFinalReaderRe
 import type { ExecutionCaptureAdmission } from './signal-free-executor';
 
 type Json = Record<string, unknown>;
+type VmReadScope = Readonly<{ project: string; zone: string; node: string }>;
+type ResourceReadScope = Readonly<{ project: string; target: GcpInventoryResourceTarget; selfLink: string }>;
+type ReadScope = VmReadScope | ResourceReadScope;
+export type OriginalGcpInventoryResource = GcpCloudReadEvidence &
+  Readonly<{
+    kind: 'original-compute-inventory-resource';
+    target: GcpInventoryResourceTarget;
+    selfLink: string;
+    creationOwnershipQualified: false;
+  }> &
+  (Readonly<{ present: false }> | Readonly<{ present: true; value: Readonly<Json & { id: string }> }>);
 const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
 const name = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const numericId = /^[1-9][0-9]{0,19}$/;
@@ -121,16 +134,15 @@ export async function openGcpCloudSerialReader(
   const admitted = new WeakSet<OriginalGcpVm>();
   const issuedEvidence = new WeakSet<GcpCloudReadEvidence>();
   const auditQueries = new WeakMap<GcpInsertAuditBatch, OriginalInputBinding>();
-  const evidenceInputs = new Map<
-    string,
-    { binding: OriginalInputBinding; scope: Readonly<{ project: string; zone: string; node: string }> }
-  >();
+  const evidenceInputs = new Map<string, { binding: OriginalInputBinding; scope: ReadScope }>();
   const issue = <T extends GcpCloudReadEvidence>(value: T): T => {
     if (!evidenceInputs.has(value.path)) throw new Error('Original retained cloud evidence required');
     issuedEvidence.add(value);
     return value;
   };
   const originals = new Map<string, OriginalGcpVm>();
+  const resourceOrigins = new WeakSet<OriginalGcpInventoryResource>();
+  const resourceIdentities = new Map<string, string>();
   let retired = false;
   const run = async <T>(operation: () => Promise<T>) => {
     if (retired) throw new Error('Original cloud reader is retired');
@@ -145,11 +157,10 @@ export async function openGcpCloudSerialReader(
     if (!name.test(zone) || !zone.startsWith(`${region}-`) || !name.test(node))
       throw new Error('Original named regional cloud scope required');
   };
-  const retain = async (
+  const retainScoped = async (
     response: GoogleComputeRead,
     kind: string,
-    zone: string,
-    node: string,
+    scope: ReadScope,
     querySha256?: string,
   ): Promise<GcpCloudReadEvidence> => {
     await requireRoot();
@@ -176,8 +187,9 @@ export async function openGcpCloudSerialReader(
           schemaVersion: 1,
           kind,
           project: authentication.project,
-          zone,
-          nodeName: node,
+          ...('target' in scope
+            ? { target: scope.target, selfLink: scope.selfLink }
+            : { zone: scope.zone, nodeName: scope.node }),
           ...evidence,
           status: response.status,
           complete: response.complete,
@@ -204,10 +216,12 @@ export async function openGcpCloudSerialReader(
     if (retained.binding.sha256 !== evidence.sha256) throw new Error('Original retained cloud bytes changed');
     evidenceInputs.set(path, {
       binding: retained.binding,
-      scope: Object.freeze({ project: authentication.project, zone, node }),
+      scope: Object.freeze(scope),
     });
     return issue(evidence);
   };
+  const retain = (response: GoogleComputeRead, kind: string, zone: string, node: string, querySha256?: string) =>
+    retainScoped(response, kind, Object.freeze({ project: authentication.project, zone, node }), querySha256);
   const read = async (operation: () => Promise<GoogleComputeRead>, kind: string, zone: string, node: string) => {
     try {
       return await operation();
@@ -230,7 +244,8 @@ export async function openGcpCloudSerialReader(
       const evidence = await retain(response, 'cloud', zone, node);
       const value = decode(response.raw);
       if (response.status === 404) {
-        const error = object(value.error);
+        const error =
+          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object(value.error) : {};
         if (
           error.code !== 404 ||
           !Array.isArray(error.errors) ||
@@ -523,10 +538,141 @@ export async function openGcpCloudSerialReader(
       return batch;
     });
   };
+  const resource = async (
+    input: GcpInventoryResourceTarget,
+    signal?: AbortSignal,
+  ): Promise<OriginalGcpInventoryResource> => {
+    const compiled = compileGcpInventoryResourceTarget(authentication.project, input);
+    const target = compiled.target;
+    if (
+      (target.kind === 'disk' && !target.zone.startsWith(`${region}-`)) ||
+      (target.kind === 'subnetwork' && target.region !== region)
+    )
+      throw new Error('Original regional Compute inventory scope required');
+    const scope: ResourceReadScope = Object.freeze({
+      project: authentication.project,
+      target,
+      selfLink: compiled.selfLink,
+    });
+    return run(async () => {
+      let response: GoogleComputeRead;
+      try {
+        response = await client.resource(target, signal);
+      } catch (error) {
+        if (error instanceof GoogleComputeReadError) {
+          try {
+            await retainScoped(error.capture, 'inventory', scope);
+          } catch (retention) {
+            throw new AggregateError([error, retention], 'Original inventory transport and retention failed');
+          }
+        }
+        throw error;
+      }
+      const evidence = await retainScoped(response, 'inventory', scope);
+      const value = decode(response.raw);
+      const base = {
+        ...evidence,
+        kind: 'original-compute-inventory-resource' as const,
+        target,
+        selfLink: compiled.selfLink,
+        creationOwnershipQualified: false as const,
+      };
+      let result: OriginalGcpInventoryResource;
+      if (response.status === 404) {
+        const error =
+          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object(value.error) : {};
+        if (
+          error.code !== 404 ||
+          !Array.isArray(error.errors) ||
+          !error.errors.some((entry) => object(entry).reason === 'notFound')
+        )
+          throw new Error('Attributed original inventory absence required');
+        result = Object.freeze({ ...base, present: false as const });
+      } else {
+        const prefix = `https://www.googleapis.com/compute/v1/projects/${authentication.project}`;
+        if (
+          response.status !== 200 ||
+          value.kind !== `compute#${target.kind}` ||
+          !uint64(value.id) ||
+          value.name !== target.name ||
+          value.selfLink !== compiled.selfLink ||
+          typeof value.creationTimestamp !== 'string' ||
+          !isEvidenceRfc3339(value.creationTimestamp) ||
+          (target.kind === 'disk' && value.zone !== `${prefix}/zones/${target.zone}`) ||
+          (target.kind === 'subnetwork' && value.region !== `${prefix}/regions/${target.region}`)
+        )
+          throw new Error('Original numeric inventory resource identity required');
+        const anchor = fingerprint(
+          Object.fromEntries(
+            [
+              'id',
+              'kind',
+              'name',
+              'selfLink',
+              'creationTimestamp',
+              'labels',
+              'zone',
+              'region',
+              'network',
+              'ipCidrRange',
+              'sourceRanges',
+              'destinationRanges',
+              'targetTags',
+              'allowed',
+              'denied',
+              'direction',
+              'disabled',
+              'sourceImage',
+              'sourceImageId',
+              'type',
+              'sizeGb',
+            ]
+              .filter((key) => Object.hasOwn(value, key))
+              .map((key) => [key, value[key]]),
+          ),
+        );
+        const prior = resourceIdentities.get(compiled.selfLink);
+        if (prior && prior !== anchor) throw new Error('Original inventory resource identity changed');
+        resourceIdentities.set(compiled.selfLink, anchor);
+        const freeze = (entry: unknown): void => {
+          if (entry && typeof entry === 'object') {
+            for (const child of Object.values(entry)) freeze(child);
+            Object.freeze(entry);
+          }
+        };
+        freeze(value);
+        result = Object.freeze({ ...base, present: true as const, value: value as Readonly<Json & { id: string }> });
+      }
+      resourceOrigins.add(result);
+      issuedEvidence.add(result);
+      return result;
+    });
+  };
+  const readResourceEvidence = async (evidence: OriginalGcpInventoryResource) => {
+    if (!resourceOrigins.has(evidence)) throw new Error('An original reader-issued inventory resource is required');
+    const binding = evidenceInputs.get(evidence.path);
+    if (!binding || !('target' in binding.scope)) throw new Error('Original inventory resource binding required');
+    const scope = binding.scope;
+    return run(async () => {
+      await authentication.assertOriginal();
+      await requireRoot();
+      const original = await readOwnedInstalledInput(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(binding.binding, original.binding);
+      if (original.binding.sha256 !== evidence.sha256) throw new Error('Original inventory resource bytes changed');
+      await authentication.assertOriginal();
+      await requireRoot();
+      const final = await readOwnedInstalledInput(evidence.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(binding.binding, final.binding);
+      return Object.freeze({ raw: Buffer.from(original.bytes), scope });
+    });
+  };
   const readEvidence = async (evidence: GcpCloudReadEvidence) => {
     if (!issuedEvidence.has(evidence)) throw new Error('An original reader-issued cloud evidence record is required');
     const admittedInput = evidenceInputs.get(evidence.path);
     if (!admittedInput) throw new Error('Original cloud evidence binding unavailable');
+    if ('target' in admittedInput.scope)
+      throw new Error('Original inventory resource requires its dedicated evidence reader');
+    const scope = admittedInput.scope;
     return run(async () => {
       await authentication.assertOriginal();
       await requireRoot();
@@ -541,7 +687,7 @@ export async function openGcpCloudSerialReader(
         throw new Error('Original cloud evidence changed after input checks');
       return Object.freeze({
         raw: Buffer.from(retained.bytes),
-        scope: admittedInput.scope,
+        scope,
         authentication: Object.freeze({
           accountSha256: authentication.accountSha256,
           audienceSha256: authentication.audienceSha256,
@@ -577,7 +723,16 @@ export async function openGcpCloudSerialReader(
       return Object.freeze({ query: Buffer.from(query.bytes), pages: Object.freeze(pages) });
     });
   };
-  return Object.freeze({ instance, serial, insertOperation, insertAudit, readEvidence, readAuditEvidence });
+  return Object.freeze({
+    instance,
+    serial,
+    resource,
+    readResourceEvidence,
+    insertOperation,
+    insertAudit,
+    readEvidence,
+    readAuditEvidence,
+  });
 }
 
 export interface InstalledCloudFinalCapture {

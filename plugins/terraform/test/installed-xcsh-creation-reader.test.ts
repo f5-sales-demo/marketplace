@@ -1649,7 +1649,10 @@ for (const stageCase of [
           publication: { executorFactory: publisherFactory },
         });
         const events: Record<string, unknown>[] = [];
+        let postStartup = false;
         const controller = createInstalledApplyController(context, worker, {
+          clock: () =>
+            postStartup ? Math.max(linuxMonotonicMs(), admission.startupDeadlineMs + 1) : linuxMonotonicMs(),
           persist: async (event) => {
             events.push(event);
           },
@@ -1664,6 +1667,7 @@ for (const stageCase of [
             expect(publications).toBe(0);
           } else {
             await controller.start(admission);
+            postStartup = stageCase === 'ha';
             expect(gets).toBe(0);
             expect(publications).toBe(0);
             allowTargets.resolve();

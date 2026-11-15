@@ -361,3 +361,50 @@ test('offline final reserve captures its clock without accepting a copied reserv
   now = value.finalDeadlineMs;
   await expect(reserveCheck(reserve)).rejects.toThrow('exhausted');
 });
+
+test('original operation lifetime remains valid after startup while release and expiry gates stay fixed', async () => {
+  const { assertOriginalApplyLifetime } = await import('../src/installed-apply-controller');
+  const run = fixture();
+  await run.control.prepare?.(run.context);
+  const admission = run.admission();
+  await run.control.start(admission);
+  const callback = run.callbacks().before;
+  if (!callback) throw new Error('Original callback required');
+  run.setNow(admission.startupDeadlineMs);
+  await expect(assertOriginalApplyCallback(callback)).rejects.toThrow('startup deadline');
+  await assertOriginalApplyLifetime(callback);
+  await expect(assertOriginalApplyLifetime({ ...callback })).rejects.toThrow('Original');
+  run.setNow(run.context.budget.deadline);
+  await expect(assertOriginalApplyLifetime(callback)).rejects.toThrow('budget exhausted');
+});
+
+test('operation lifetime retires at final capture and cannot be obtained from an after callback', async () => {
+  const { assertOriginalApplyLifetime } = await import('../src/installed-apply-controller');
+  const run = fixture();
+  await run.control.prepare?.(run.context);
+  const admission = run.admission();
+  await run.control.start(admission);
+  const before = run.callbacks().before;
+  if (!before) throw new Error('Original callback required');
+  run.setNow(admission.startupDeadlineMs + 1);
+  await assertOriginalApplyLifetime(before);
+  const finished = run.final(admission);
+  const reserve = admitFinalReaderReserve(
+    {
+      identity: run.identity,
+      originalStartMs: run.context.budget.start,
+      originalDeadlineMs: run.context.budget.deadline,
+      finalStartedMs: finished.finalStartedMs,
+      finalDeadlineMs: finished.finalDeadlineMs,
+      assertOriginal: async () => {},
+    },
+    { clock: run.now },
+  );
+  await run.control.finalCapture(finished, reserve);
+  await expect(assertOriginalApplyLifetime(before)).rejects.toThrow('retired');
+  const after = run.callbacks().after;
+  if (!after) throw new Error('Original final callback required');
+  await expect(assertOriginalApplyLifetime(after)).rejects.toThrow('Original');
+  await run.control.closeAfterExecutorExit();
+  await expect(assertOriginalApplyLifetime(before)).rejects.toThrow('retired');
+});

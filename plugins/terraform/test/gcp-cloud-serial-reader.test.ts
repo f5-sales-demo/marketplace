@@ -623,3 +623,215 @@ test('audit query replacement during pagination refuses publication of a complet
   await expect(f.reader.insertAudit('us-central1-a', 'example-node', auditWindow)).rejects.toThrow('changed');
   expect((await readdir(f.root)).filter((name) => name.endsWith('.body.private.bin'))).toHaveLength(2);
 });
+
+const inventoryTargets = [
+  { kind: 'disk' as const, name: 'example-node', zone: 'us-central1-a' },
+  { kind: 'network' as const, name: 'example-network' },
+  { kind: 'subnetwork' as const, name: 'example-subnet', region: 'us-central1' },
+  { kind: 'firewall' as const, name: 'example-firewall' },
+];
+function inventoryPath(target: (typeof inventoryTargets)[number]) {
+  const area =
+    target.kind === 'disk'
+      ? `zones/${target.zone}`
+      : target.kind === 'subnetwork'
+        ? `regions/${target.region}`
+        : 'global';
+  const family = target.kind === 'subnetwork' ? 'subnetworks' : `${target.kind}s`;
+  return `projects/example-project/${area}/${family}/${target.name}`;
+}
+function inventoryValue(target: (typeof inventoryTargets)[number]) {
+  const prefix = 'https://www.googleapis.com/compute/v1/projects/example-project';
+  return {
+    kind: `compute#${target.kind}`,
+    id: '4996011480491275425',
+    name: target.name,
+    selfLink: `https://www.googleapis.com/compute/v1/${inventoryPath(target)}`,
+    creationTimestamp: '2026-11-09T00:00:00Z',
+    labels: { 'xcsh-deployment': 'example-owner' },
+    ...(target.kind === 'disk' ? { zone: `${prefix}/zones/${target.zone}`, sizeGb: '40' } : {}),
+    ...(target.kind === 'subnetwork'
+      ? {
+          region: `${prefix}/regions/${target.region}`,
+          network: `${prefix}/global/networks/example-network`,
+          ipCidrRange: '10.1.0.0/24',
+        }
+      : {}),
+    ...(target.kind === 'firewall'
+      ? {
+          network: `${prefix}/global/networks/example-network`,
+          direction: 'INGRESS',
+          sourceRanges: ['192.0.2.1/32'],
+          allowed: [{ IPProtocol: 'tcp', ports: ['22'] }],
+        }
+      : {}),
+  };
+}
+
+for (const target of inventoryTargets) {
+  test(`original ${target.kind} inventory uses fixed documented scope and retains uint64 bytes`, async () => {
+    const value = inventoryValue(target);
+    const f = await fixture([value]);
+    const evidence = await f.reader.resource(target);
+    expect(evidence.present).toBe(true);
+    if (!evidence.present) throw new Error('Original inventory resource required');
+    expect(evidence.value.id).toBe(value.id);
+    expect(evidence.target).toEqual(target);
+    expect(evidence.creationOwnershipQualified).toBe(false);
+    const last = f.calls.at(-1);
+    if (!last) throw new Error('Original resource request required');
+    expect(new URL(last.url).pathname).toBe(`/compute/v1/${inventoryPath(target)}`);
+    expect(f.calls.at(-1)?.options?.method).toBe('GET');
+    expect(f.calls.at(-1)?.options?.redirect).toBe('error');
+    expect(await readFile(evidence.path, 'utf8')).toBe(JSON.stringify(value));
+    const retained = await f.reader.readResourceEvidence(evidence);
+    expect(retained.raw.toString()).toBe(JSON.stringify(value));
+    expect(retained.scope.target).toEqual(target);
+    retained.raw.fill(0);
+    expect((await f.reader.readResourceEvidence(evidence)).raw.toString()).toBe(JSON.stringify(value));
+    await expect(f.reader.readResourceEvidence({ ...evidence })).rejects.toThrow('original');
+    await expect(f.reader.readEvidence(evidence)).rejects.toThrow('resource');
+  });
+}
+
+test('inventory absence requires an attributed notFound body and does not provide ownership', async () => {
+  const target = inventoryTargets[1];
+  const f = await fixture([Response.json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, { status: 404 })]);
+  const evidence = await f.reader.resource(target);
+  expect(evidence.present).toBe(false);
+  expect((await f.reader.readResourceEvidence(evidence)).scope.target).toEqual(target);
+  const malformed = await fixture([Response.json({}, { status: 404 })]);
+  await expect(malformed.reader.resource(target)).rejects.toThrow('absence');
+  await expect(malformed.reader.resource(target)).rejects.toThrow('retired');
+});
+
+test('foreign or injected resource scopes reject before any Compute request', async () => {
+  const f = await fixture();
+  for (const target of [
+    { kind: 'disk', name: '../foreign', zone: 'us-central1-a' },
+    { kind: 'disk', name: 'example-node', zone: 'us-east1-a' },
+    { kind: 'network', name: 'example-network', project: 'foreign-project' },
+    { kind: 'network', name: 'example-network;id' },
+    { kind: 'subnetwork', name: 'example-subnet', region: 'us-east1' },
+    { kind: 'firewall', name: 'example-firewall', zone: 'us-central1-a' },
+    { kind: 'url', name: 'https://foreign.example.com' },
+  ])
+    await expect(f.reader.resource(target as never)).rejects.toThrow();
+  expect(f.calls).toHaveLength(3);
+});
+
+for (const change of ['id', 'labels', 'network'] as const) {
+  test(`inventory ${change} replacement permanently refuses after retaining changed bytes`, async () => {
+    const target = inventoryTargets[2];
+    const original = inventoryValue(target);
+    const changed = {
+      ...original,
+      ...(change === 'id' ? { id: '4996011480491275426' } : {}),
+      ...(change === 'labels' ? { labels: { 'xcsh-deployment': 'foreign' } } : {}),
+      ...(change === 'network' ? { network: `${original.network}-foreign` } : {}),
+    };
+    const f = await fixture([original, changed]);
+    await f.reader.resource(target);
+    await expect(f.reader.resource(target)).rejects.toThrow('identity changed');
+    expect((await readdir(f.root)).filter((name) => name.endsWith('.body.private.bin'))).toHaveLength(2);
+    await expect(f.reader.resource(target)).rejects.toThrow('retired');
+  });
+}
+
+test('invalid inventory response kind, URL, ID and creation time retain evidence and refuse', async () => {
+  const target = inventoryTargets[0];
+  const original = inventoryValue(target);
+  for (const change of [
+    { kind: 'compute#instance' },
+    { id: Number('4996011480491275425') },
+    { id: '18446744073709551616' },
+    { selfLink: original.selfLink.replace('example-project', 'foreign-project') },
+    { creationTimestamp: '2026-02-30T00:00:00Z' },
+  ]) {
+    const f = await fixture([{ ...original, ...change }]);
+    await expect(f.reader.resource(target)).rejects.toThrow('identity');
+    expect((await readdir(f.root)).filter((name) => name.endsWith('.body.private.bin'))).toHaveLength(1);
+  }
+});
+
+test('resource evidence cannot cross readers, survive input changes or replace its immutable file', async () => {
+  const target = inventoryTargets[1];
+  const f = await fixture([inventoryValue(target)]);
+  const evidence = await f.reader.resource(target);
+  const other = await fixture();
+  await expect(other.reader.readResourceEvidence(evidence)).rejects.toThrow('original');
+  const bytes = await readFile(evidence.path);
+  await rename(evidence.path, `${evidence.path}.original`);
+  await writeFile(evidence.path, bytes, { mode: 0o400 });
+  await expect(f.reader.readResourceEvidence(evidence)).rejects.toThrow();
+  await expect(f.reader.readResourceEvidence(evidence)).rejects.toThrow('retired');
+});
+
+for (const cancelFailure of [false, true]) {
+  test(`inventory interruption retains incomplete bytes and cancellation failure ${cancelFailure}`, async () => {
+    let cancelled = false;
+    const abort = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from('partial-inventory'));
+        setTimeout(() => {
+          if (!cancelled) controller.close();
+        }, 100);
+      },
+      cancel() {
+        cancelled = true;
+        if (cancelFailure) throw new Error('synthetic stream closure failure');
+      },
+    });
+    const f = await fixture([new Response(stream)], () => {
+      setTimeout(() => abort.abort(), 10);
+    });
+    await expect(f.reader.resource(inventoryTargets[1], abort.signal)).rejects.toThrow();
+    const files = await readdir(f.root);
+    const receipt = files.find((name) => name.endsWith('.receipt.private.json'));
+    const body = files.find((name) => name.endsWith('.body.private.bin'));
+    if (!receipt || !body) throw new Error('Partial inventory capture required');
+    expect(JSON.parse(await readFile(join(f.root, receipt), 'utf8')).complete).toBe(false);
+    expect(await readFile(join(f.root, body), 'utf8')).toBe('partial-inventory');
+    expect(cancelled).toBe(true);
+    await expect(f.reader.resource(inventoryTargets[1])).rejects.toThrow('retired');
+  });
+}
+
+test('inventory parameters are copied before validation and cannot change into an injected URL', async () => {
+  const f = await fixture();
+  let reads = 0;
+  const target = {
+    kind: 'network' as const,
+    get name() {
+      return ++reads === 1 ? 'example-network' : '../foreign';
+    },
+  };
+  // Both the retained target and the actual request use the same single copied value.
+  const value = inventoryValue(inventoryTargets[1]);
+  const g = await fixture([value]);
+  const record = await g.reader.resource(target);
+  expect(record.target.name).toBe('example-network');
+  expect(reads).toBe(1);
+  await expect(
+    f.reader.resource({
+      kind: 'network',
+      get name() {
+        return '../foreign';
+      },
+    }),
+  ).rejects.toThrow();
+  expect(f.calls).toHaveLength(3);
+});
+
+test('equivalent inventory label order does not replace the original identity', async () => {
+  const target = inventoryTargets[1];
+  const base = inventoryValue(target);
+  const f = await fixture([
+    { ...base, labels: { a: 'first', b: 'second' } },
+    { ...base, labels: { b: 'second', a: 'first' } },
+  ]);
+  const first = await f.reader.resource(target);
+  const second = await f.reader.resource(target);
+  expect(first.present && second.present && first.value.id === second.value.id).toBe(true);
+});

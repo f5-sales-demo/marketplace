@@ -8,7 +8,11 @@ import {
   collectOriginalGcpPreapplyBootstrap,
   type OriginalGcpPreapplyBootstrapEvidence,
 } from './gcp-preapply-bootstrap';
-import { assertOriginalApplyCallback, type OriginalApplyCallbackContext } from './installed-apply-controller';
+import {
+  assertOriginalApplyCallback,
+  assertOriginalApplyLifetime,
+  type OriginalApplyCallbackContext,
+} from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import type { InstalledGcpCapture } from './installed-runtime';
 import {
@@ -163,7 +167,7 @@ export async function openInstalledBootstrapCapture(
     const now = linuxMonotonicMs();
     if (now < context.budget.start || now >= context.budget.deadline)
       throw new Error('Original bootstrap stage deadline exhausted');
-    if (callback) await assertOriginalApplyCallback(callback);
+    if (callback) await assertOriginalApplyLifetime(callback);
   };
   const retain = async (phase: string, value: Record<string, unknown>) => {
     await store.verify();
@@ -333,6 +337,7 @@ export async function openInstalledBootstrapCapture(
         })();
         pending.catch(() => {});
         await guard();
+        await assertOriginalApplyCallback(originalCallback);
       } catch (error) {
         failure ??= error;
         pending ??= Promise.reject(error);

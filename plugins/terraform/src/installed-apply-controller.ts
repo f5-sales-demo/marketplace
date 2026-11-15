@@ -16,6 +16,13 @@ export interface OriginalApplyCallbackContext {
   assertOriginal(): Promise<void>;
 }
 const callbacks = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
+const lifetimes = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
+/** Ongoing original operation verification; this never authorizes startup release or renews its budget. */
+export async function assertOriginalApplyLifetime(value: OriginalApplyCallbackContext) {
+  const verify = lifetimes.get(value);
+  if (!verify) throw new Error('Original operation lifetime callback required');
+  await verify();
+}
 export async function assertOriginalApplyCallback(value: OriginalApplyCallbackContext) {
   const verify = callbacks.get(value);
   if (!verify) throw new Error('Original apply callback context required');
@@ -112,6 +119,17 @@ export function createInstalledApplyController(
     Object.defineProperty(value, 'original', { value: original, enumerable: false });
     Object.freeze(value);
     callbacks.set(value, verify);
+    if (phase === 'before') {
+      const identity = () => {
+        if (closed || finalStarted || !started || !sameIdentity(execution.identity, started.identity))
+          throw new Error('Original operation lifetime retired or identity changed');
+      };
+      lifetimes.set(value, async () => {
+        identity();
+        await within();
+        identity();
+      });
+    }
     return value;
   };
   return {

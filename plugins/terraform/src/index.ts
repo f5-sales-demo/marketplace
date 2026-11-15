@@ -4,6 +4,7 @@ export {
   readOriginalGcpTerraformBootstrapJwt,
 } from './gcp-bootstrap-evidence';
 export { joinOriginalGcpBootstrapVm } from './gcp-bootstrap-vm-binding';
+export { openGcpCloudSerialReader } from './gcp-cloud-serial-reader';
 export {
   assertOriginalGcpPreapplyBootstrapContext,
   collectOriginalGcpPreapplyBootstrap,
