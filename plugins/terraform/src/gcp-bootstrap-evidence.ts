@@ -50,7 +50,7 @@ export interface OriginalGcpTerraformBootstrapEvidence {
 export interface OriginalGcpTerraformBootstrapEvidenceV2
   extends Omit<OriginalGcpTerraformBootstrapEvidence, 'schemaVersion' | 'xcshProviderVersion'> {
   readonly schemaVersion: 2;
-  readonly xcshProviderVersion: '15.16.2';
+  readonly xcshProviderVersion: '15.17.3';
 }
 type BootstrapEvidence = OriginalGcpTerraformBootstrapEvidence | OriginalGcpTerraformBootstrapEvidenceV2;
 const issued = new WeakMap<
@@ -97,20 +97,20 @@ export async function collectOriginalGcpTerraformBootstrap(
   return evidence;
 }
 
-/** Published 15.16.2 mapping only. This does not migrate a stored deployment or
+/** Published 15.17.3 mapping only. This does not migrate a stored deployment or
  * enable bootstrap execution; original VM joins and one-use checkout still gate it.
  */
 export async function collectOriginalGcpTerraformBootstrapV2(
   input: GcpTerraformBootstrapInput,
 ): Promise<OriginalGcpTerraformBootstrapEvidenceV2> {
-  const evidence = await collectBootstrap(input, '15.16.2');
+  const evidence = await collectBootstrap(input, '15.17.3');
   if (evidence.schemaVersion !== 2) throw new Error('Version 2 bootstrap evidence schema required');
   return evidence;
 }
 
 async function collectBootstrap(
   input: GcpTerraformBootstrapInput,
-  providerVersion: '15.15.7' | '15.16.2',
+  providerVersion: '15.15.7' | '15.17.3',
 ): Promise<BootstrapEvidence> {
   input = { ...input, environment: { ...input.environment } };
   const platform = Object.freeze({ ...input.platform });
@@ -214,7 +214,7 @@ async function collectBootstrap(
   const value: BootstrapEvidence =
     providerVersion === '15.15.7'
       ? Object.freeze({ ...common, schemaVersion: 1, xcshProviderVersion: '15.15.7' })
-      : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.16.2' });
+      : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
   issued.set(value, { bootstrap, platform });
   return value;
 }

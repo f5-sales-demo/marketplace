@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.95 binds original creation-reader and preapply/bootstrap
+  evidence consumers to the authenticated XC provider 15.17.3 binary and lock.
+  Source-issued evidence, original input checks and separate single-use
+  authorization and live qualification gates remain required.
+
 - **`gcloud`** v1.7.52, **`platform`** v6.3.23 and **`terraform`** v2.4.94
   select authenticated XC provider 15.17.3 with Terraform 1.17.2 and Google
   8.11.0. Bind the normal registry lock, installed binary and Site SSH schema;

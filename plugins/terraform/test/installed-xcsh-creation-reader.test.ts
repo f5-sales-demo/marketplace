@@ -144,13 +144,13 @@ async function scoped(
         };
         const providerDirectory = join(
           request.cwd,
-          '.terraform/providers/registry.terraform.io/f5-sales-demo/xcsh/15.16.2/linux_amd64',
+          '.terraform/providers/registry.terraform.io/f5-sales-demo/xcsh/15.17.3/linux_amd64',
         );
         await mkdir(providerDirectory, { recursive: true, mode: 0o700 });
-        const ownedProvider = join(providerDirectory, 'terraform-provider-xcsh_v15.16.2');
+        const ownedProvider = join(providerDirectory, 'terraform-provider-xcsh_v15.17.3');
         const provider = await fakeBinding(
           ownedProvider,
-          '542d99d1905fe03fadce8a889390751b3ad1531f367ef678cf03d97204ef7cc1',
+          '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0',
         );
         const started = linuxMonotonicMs();
         const context = createInstalledCaptureContext({
@@ -177,7 +177,7 @@ async function scoped(
           assertInputs: async () => {},
           assertWithinDeadline: async () => {},
           readProviderInputs: async () => ({
-            'registry.terraform.io/f5-sales-demo/xcsh:terraform-provider-xcsh_v15.16.2': provider,
+            'registry.terraform.io/f5-sales-demo/xcsh:terraform-provider-xcsh_v15.17.3': provider,
           }),
           readOriginalPlanSource: () =>
             readOriginalTerraformPlanSource(request.originalPlanSource, {
@@ -718,7 +718,7 @@ for (const finalWriteFailure of [false, true]) {
           'Original',
         );
         expect(value.schemaVersion).toBe(3);
-        expect(value.xcshProviderVersion).toBe('15.16.2');
+        expect(value.xcshProviderVersion).toBe('15.17.3');
         expect(value.bootstrapOwnershipQualified).toBe(false);
         expect(JSON.stringify(value)).not.toContain(jwt);
         expect(await module.readOriginalGcpPreapplyBootstrapJwt(value)).toBe(jwt);
@@ -764,7 +764,7 @@ for (const finalWriteFailure of [false, true]) {
         };
         const version = {
           terraformVersion: '1.17.2',
-          providerLockSha256: '05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc',
+          providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
         };
         const cloud = await auditJoinFixture(undefined, version, '8.11.0', request, value.planSha256);
         const bound = await vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: value, cloud });

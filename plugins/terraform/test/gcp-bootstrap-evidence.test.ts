@@ -313,19 +313,19 @@ it('missing historical Platform source methods refuse before original state read
   expect(run.calls).toHaveLength(0);
 });
 
-it('preserves legacy bootstrap evidence and versions the published 15.16.2 mapping', async () => {
+it('preserves legacy bootstrap evidence and versions the published 15.17.3 mapping', async () => {
   const legacy = await fixture();
   const old = await collectOriginalGcpTerraformBootstrap(legacy.input);
   expect(old.schemaVersion).toBe(1);
   expect(old.xcshProviderVersion).toBe('15.15.7');
   const latest = await fixture(({ plan }) => {
-    plan.providerLockSha256 = '05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc';
+    plan.providerLockSha256 = 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615';
   });
   latest.input.terraformVersion = '1.17.2';
   await expect(collectOriginalGcpTerraformBootstrap(latest.input)).rejects.toThrow('mapping');
   const current = await collectOriginalGcpTerraformBootstrapV2(latest.input);
   expect(current.schemaVersion).toBe(2);
-  expect(current.xcshProviderVersion).toBe('15.16.2');
+  expect(current.xcshProviderVersion).toBe('15.17.3');
   expect(current.planSha256).toBe(latest.input.receipt.planSha256);
   expect(current.bootstrapOwnershipQualified).toBe(false);
   expect(await readOriginalGcpTerraformBootstrapJwt(current)).toBe(latest.jwt);
@@ -337,7 +337,7 @@ it('preserves legacy bootstrap evidence and versions the published 15.16.2 mappi
 it('latest bootstrap mapping still rejects replacement identities and changed state', async () => {
   for (const target of ['site', 'token'] as const) {
     const run = await fixture((values) => {
-      values.plan.providerLockSha256 = '05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc';
+      values.plan.providerLockSha256 = 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615';
       values[target].system_metadata.uid = 'replacement-creation';
     });
     run.input.terraformVersion = '1.17.2';
@@ -349,7 +349,7 @@ it('version 2 rejects legacy profiles and changing applied state without migrati
   const legacy = await fixture();
   await expect(collectOriginalGcpTerraformBootstrapV2(legacy.input)).rejects.toThrow('mapping');
   const latest = await fixture(({ plan }) => {
-    plan.providerLockSha256 = '05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc';
+    plan.providerLockSha256 = 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615';
   });
   latest.input.terraformVersion = '1.17.2';
   let reads = 0;

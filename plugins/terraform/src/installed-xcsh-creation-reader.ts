@@ -25,7 +25,7 @@ type Identity = ExecutionCaptureAdmission['identity'];
 type Json = Record<string, unknown>;
 const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
 const terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e';
-const providerHash = '542d99d1905fe03fadce8a889390751b3ad1531f367ef678cf03d97204ef7cc1';
+const providerHash = '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0';
 const origins = new WeakMap<object, () => Promise<Buffer>>();
 const openings = new WeakSet<object>();
 const object = (value: unknown): Json => {

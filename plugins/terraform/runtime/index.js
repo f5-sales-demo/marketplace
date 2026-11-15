@@ -155,7 +155,7 @@ async function collectOriginalGcpTerraformBootstrap(input) {
   return evidence;
 }
 async function collectOriginalGcpTerraformBootstrapV2(input) {
-  const evidence = await collectBootstrap(input, '15.16.2');
+  const evidence = await collectBootstrap(input, '15.17.3');
   if (evidence.schemaVersion !== 2) throw new Error('Version 2 bootstrap evidence schema required');
   return evidence;
 }
@@ -262,7 +262,7 @@ async function collectBootstrap(input, providerVersion) {
   const value =
     providerVersion === '15.15.7'
       ? Object.freeze({ ...common, schemaVersion: 1, xcshProviderVersion: '15.15.7' })
-      : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.16.2' });
+      : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
   issued.set(value, { bootstrap, platform });
   return value;
 }
@@ -6279,7 +6279,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
 // plugins/terraform/src/installed-xcsh-creation-reader.ts
 var hash10 = (raw) => createHash14('sha256').update(raw).digest('hex');
 var terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e';
-var providerHash = '542d99d1905fe03fadce8a889390751b3ad1531f367ef678cf03d97204ef7cc1';
+var providerHash = '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0';
 var origins = new WeakMap();
 var openings = new WeakSet();
 var object6 = (value) => {
@@ -6933,7 +6933,7 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
     schemaVersion: 3,
     executor: site.executor,
     kind: 'original-gcp-preapply-bootstrap-candidate',
-    xcshProviderVersion: '15.16.2',
+    xcshProviderVersion: '15.17.3',
     planSha256: site.planSha256,
     readerResultSha256: site.readerResultSha256,
     siteCreationSha256: site.creationIdentitySha256,

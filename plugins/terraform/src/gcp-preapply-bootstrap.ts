@@ -21,7 +21,7 @@ export interface OriginalGcpPreapplyBootstrapEvidence {
   readonly schemaVersion: 3;
   readonly executor: OriginalXcshCreationBodyEvidence['executor'];
   readonly kind: 'original-gcp-preapply-bootstrap-candidate';
-  readonly xcshProviderVersion: '15.16.2';
+  readonly xcshProviderVersion: '15.17.3';
   readonly planSha256: string;
   readonly readerResultSha256: string;
   readonly siteCreationSha256: string;
@@ -108,7 +108,7 @@ export async function collectOriginalGcpPreapplyBootstrap(input: {
     schemaVersion: 3 as const,
     executor: site.executor,
     kind: 'original-gcp-preapply-bootstrap-candidate' as const,
-    xcshProviderVersion: '15.16.2' as const,
+    xcshProviderVersion: '15.17.3' as const,
     planSha256: site.planSha256,
     readerResultSha256: site.readerResultSha256,
     siteCreationSha256: site.creationIdentitySha256,

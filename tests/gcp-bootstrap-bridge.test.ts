@@ -184,13 +184,13 @@ it('compiled version 2 keeps Platform body authority in its issuer and preserves
     terraformVersion: '1.17.2',
     receipt: {
       ...run.input.receipt,
-      providerLockSha256: '05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc',
+      providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
     },
   };
   await expect(run.terraform.collectOriginalGcpTerraformBootstrap(input)).rejects.toThrow('mapping');
   const value = await run.terraform.collectOriginalGcpTerraformBootstrapV2(input);
   expect(value.schemaVersion).toBe(2);
-  expect(value.xcshProviderVersion).toBe('15.16.2');
+  expect(value.xcshProviderVersion).toBe('15.17.3');
   expect(value.bootstrapOwnershipQualified).toBe(false);
   expect(await run.terraform.readOriginalGcpTerraformBootstrapJwt(value)).toBe(run.jwt);
   await expect(
