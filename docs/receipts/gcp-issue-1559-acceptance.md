@@ -1784,3 +1784,14 @@ issuers refuse. Presence provides no creation or bootstrap authority.
 Current upstream versions are already selected. These are source and compiled
 checks; full inventory and built-in capture, original live acceptance, remaining
 installed checks and delivery gates remain open.
+
+## Current development compiler on November 15
+
+The [compiler receipt](gcp-current-development-compiler-20261115.md) records
+TypeScript 7.0.2 for all three GCP plugin typechecks, tar-stream types 3.1.5,
+exact package aliases and an independently preserved qmd peer requirement.
+All strict typechecks, source regressions, compiled checks and inventory validation
+pass after the fresh worktree dependency repair.
+
+These are development-tool checks. Full built-in capture, original live GCP
+acceptance, remaining installed checks and review/CI/merge/publication remain open.

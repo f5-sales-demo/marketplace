@@ -1,15 +1,16 @@
 {
   "name": "@f5-sales-demo/xcsh-terraform",
-  "version": "2.4.104",
+  "version": "2.4.105",
   "description": "Isolated Terraform lifecycle execution with immutable saved plans and deployment ownership",
   "license": "Apache-2.0",
   "main": "src/index.ts",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "bun node_modules/typescript-compiler/bin/tsc --noEmit"
   },
   "xcsh": {
     "name": "Terraform",
-    "version": "2.4.104",
+    "version": "2.4.105",
     "extensions": [
       "extensions/integration.ts",
       "runtime/index.js"
@@ -23,7 +24,9 @@
     "@sinclair/typebox": "^0.34.52",
     "@tobilu/qmd": "2.8.3",
     "@types/bun": "1.4.4",
-    "@types/tar-stream": "3.1.4",
-    "bun-types": "^1.4.4"
+    "@types/tar-stream": "3.1.5",
+    "bun-types": "^1.4.4",
+    "typescript-compiler": "npm:typescript@7.0.2",
+    "typescript": "5.9.3"
   }
 }
