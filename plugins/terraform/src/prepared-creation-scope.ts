@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import { linuxMonotonicMs } from './linux-clock';
@@ -219,6 +219,7 @@ export function prepareOriginalCreationScope(context: InstalledCaptureContext): 
       await privateDirectory(bootstrapBase);
       const bootstrapDirectory = join(bootstrapBase, projection.receipt.planSha256);
       await mkdir(bootstrapDirectory, { mode: 0o700 });
+      await chmod(bootstrapDirectory, 0o700);
       const bootstrapIdentity = await privateDirectory(bootstrapDirectory);
       const keyPair = generateKeyPairSync('ed25519');
       const publicBytes = keyPair.publicKey.export({ format: 'der', type: 'spki' });

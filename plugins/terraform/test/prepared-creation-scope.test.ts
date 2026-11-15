@@ -358,3 +358,16 @@ for (const mutation of ['replacement', 'mode'] as const) {
     });
   });
 }
+
+test('authorization directory has exact private mode under a setgid parent', async () => {
+  await fixture(async (_request, context) => {
+    const parent = join(context.executionDirectory, '.xcsh-original-bootstrap');
+    await mkdir(parent, { mode: 0o700 });
+    await chmod(parent, 0o2700);
+    const packet = await prepareOriginalCreationScope(context);
+    const snapshot = await inspectPreparedCreationScope(packet);
+    if (!snapshot.bootstrapAuthorization) throw new Error('Original authorization directory required');
+    expect((await lstat(snapshot.bootstrapAuthorization.directory)).mode & 0o7777).toBe(0o700);
+    closePreparedCreationScope(packet);
+  });
+});

@@ -39,9 +39,11 @@ test.skipIf(process.platform !== 'linux')(
         const raw = await readFile(join(root, 'stdout.private.log'), 'utf8');
         const cases = [
           ...new Set(
-            [...raw.matchAll(/^(?:FAILED|ERROR) [^\r\n]*\b(test_xcsh_creation_observer\.py)::(test_[a-z0-9_]+)/gm)].map(
-              (match) => `${match[1]}::${match[2]}`,
-            ),
+            [
+              ...raw.matchAll(
+                /^(?:FAILED|ERROR) [^\r\n]*\b(test_xcsh_(?:creation_observer|bootstrap_scope)\.py)::(test_[a-z0-9_]+)/gm,
+              ),
+            ].map((match) => `${match[1]}::${match[2]}`),
           ),
         ];
         console.error(`Safe Python failure diagnostics: ${JSON.stringify(safePythonRegressionDiagnostics(raw))}`);

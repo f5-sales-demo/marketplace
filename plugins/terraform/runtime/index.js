@@ -3908,6 +3908,7 @@ async function openGoogleAdcSession(input, expectedInput) {
 import { createHash as createHash9, generateKeyPairSync } from 'node:crypto';
 import { constants as constants3 } from 'node:fs';
 import {
+  chmod as chmod2,
   lstat as lstat5,
   mkdir as mkdir3,
   open as open3,
@@ -4086,6 +4087,7 @@ function prepareOriginalCreationScope(context) {
       await privateDirectory2(bootstrapBase);
       const bootstrapDirectory = join4(bootstrapBase, projection.receipt.planSha256);
       await mkdir3(bootstrapDirectory, { mode: 448 });
+      await chmod2(bootstrapDirectory, 448);
       const bootstrapIdentity = await privateDirectory2(bootstrapDirectory);
       const keyPair = generateKeyPairSync('ed25519');
       const publicBytes = keyPair.publicKey.export({ format: 'der', type: 'spki' });

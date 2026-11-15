@@ -15,6 +15,7 @@ def scope(tmp_path: Path) -> tuple[Path, Path, dict[str, Any]]:
     directory = tmp_path / "authorization"
     creation.mkdir(mode=0o700)
     directory.mkdir(mode=0o700)
+    directory.chmod(0o700)
     spec = {
         "schema_version": 1,
         "directory": str(directory),
@@ -99,3 +100,11 @@ def test_final_capture_retains_metadata_after_authorization_budget(
         validate_bootstrap_scope(
             data, creation, 7200100, lambda: 7200100, admission=False
         )
+
+
+def test_exact_private_mode_under_inherited_group_directory(tmp_path: Path) -> None:
+    """Fixture and producer use exact private mode even under setgid parents."""
+    tmp_path.chmod(0o2700)
+    creation, directory, data = scope(tmp_path)
+    assert directory.stat().st_mode & 0o7777 == 0o700
+    assert validate_bootstrap_scope(data, creation, 7200100, lambda: 200) is not None

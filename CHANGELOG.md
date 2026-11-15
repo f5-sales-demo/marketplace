@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.98 normalizes new authorization directories to exact
+  private permissions before admitting their identities, including setgid-parent
+  environments. Runtime validation stays strict; CI diagnostics identify the new
+  bootstrap-scope regression family. Live acceptance remains open.
+
 - **`terraform`** v2.4.97 prepares version2 creation scopes with an original
   authorization key, sibling grant directory and unchanged execution budget.
   The observer validates the mapping and retains read-only final evidence after
