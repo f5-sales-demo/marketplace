@@ -200,8 +200,8 @@ it('preserves the complete reviewed instance-type set for live revalidation', ()
   expect(observedInstanceTypeNames(reviewed)).toEqual(['m5.2xlarge', 'm6i.2xlarge']);
 });
 
-for (const format of ['scoped', 'legacy'] as const)
-  it(`${format}: revalidates a persisted observation across BGP convergence but still rejects peer configuration drift`, () => {
+for (const engine of ['native', 'terraform'] as const)
+  it(`${engine}: revalidates a persisted observation across BGP convergence but still rejects peer configuration drift`, () => {
     const peerId = 'tgw-connect-peer-0123456789abcdef0';
     const down = structuredClone(observation);
     down.resources = [
@@ -223,8 +223,7 @@ for (const format of ['scoped', 'legacy'] as const)
         },
       },
     ];
-    const plan = compileAwsCePlan(intent, observation);
-    if (format === 'legacy') delete plan.observationScope;
+    const plan = compileAwsCePlan({ ...intent, engine }, observation);
     const expected = fingerprintObservation(down, [peerId], awsCeObservationRegion(plan));
     const up = structuredClone(down);
     up.resources[0].state = structuredClone(down.resources[0].state);
@@ -526,17 +525,17 @@ describe('execution-region revalidation', () => {
       expect(() => assertAwsObservationFresh(plan, current)).not.toThrow();
     });
 
-    it(`${engine}: historical immutable plans retain their original all-region fingerprint`, () => {
+    it(`${engine}: an unscoped plan is rejected even with a valid immutable digest`, () => {
       const { planned, plan } = fixture(engine);
-      delete plan.observationScope;
-      plan.observationFingerprint = fingerprintObservation(planned, []);
-      const { planId: _planId, planSha256: _planSha256, ...draft } = plan;
-      plan.planSha256 = canonicalSha256(draft);
-      plan.planId = `aws-ce-${plan.planSha256.slice(0, 24)}`;
-      verifyAwsCePlan(plan);
-      const changed = structuredClone(planned);
-      changed.regions[1].vcpuCapacity = { limit: 512, used: 119, reusableOwned: 0 };
-      expect(() => assertAwsObservationFresh(plan, changed)).toThrow('Stale');
+      const { observationScope: _scope, planId: _planId, planSha256: _planSha256, ...draft } = plan;
+      const unscoped = {
+        ...draft,
+        observationFingerprint: fingerprintObservation(planned, []),
+      };
+      const planSha256 = canonicalSha256(unscoped);
+      const persisted = { ...unscoped, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
+      expect(() => verifyAwsCePlan(persisted as typeof plan)).toThrow('execution-region scope');
+      expect(() => assertAwsObservationFresh(persisted as typeof plan, planned)).toThrow('execution-region scope');
     });
 
     it(`${engine}: missing and duplicated execution-region evidence fails closed`, () => {

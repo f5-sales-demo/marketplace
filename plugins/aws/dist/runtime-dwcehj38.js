@@ -12,8 +12,8 @@ import {
   awsEbsVolume,
   normalizeAwsBootstrapKeyPairName,
   observeAwsBootstrapKeyPairs,
-} from './runtime-np6pq61g.js';
-import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './runtime-x2h4t614.js';
+} from './runtime-wf8fjv0g.js';
+import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './runtime-wvre8ba5.js';
 
 // plugins/aws/src/ce/capacity.ts
 async function observeTaggedResourceCapacity(api, region, command, field, idField, limit, ownership) {

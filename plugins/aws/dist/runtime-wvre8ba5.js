@@ -78,9 +78,8 @@ function matchesOwnedResourceFingerprint(expected, resources) {
   return matchesBgpRuntimeVariants(expected, resources, fingerprintOwnedResources);
 }
 function awsCeObservationRegion(plan) {
-  if (plan.observationScope === undefined) return;
   if (
-    plan.observationScope.kind !== 'execution-region-v1' ||
+    plan.observationScope?.kind !== 'execution-region-v1' ||
     !plan.observationScope.region ||
     plan.observationScope.region !== plan.region ||
     plan.region !== plan.intent.region

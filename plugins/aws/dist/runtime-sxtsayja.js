@@ -4,6 +4,8 @@
 // plugins/aws/src/ce/native-creation-reader.ts
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { AWS_CE_PROVIDER_LOCK_SHA256, siteBindings, siteForNode, siteTopology } from './runtime-9wx65fpp.js';
+import { AwsNotFoundError, detectAwsError, execAwsJson, makeExecApi } from './runtime-30f0rzjf.js';
 import {
   evidencePasses,
   powerServiceComponentSha256,
@@ -17,8 +19,9 @@ import {
   validateAwsTerraformPowerReceipt,
   validateAwsTerraformStaticServiceReceipt,
   verifyAwsWholeSitePowerPlan,
-} from './runtime-1hw5rj8f.js';
-import { AWS_CE_PROVIDER_LOCK_SHA256, siteBindings, siteForNode, siteTopology } from './runtime-3pc51xt0.js';
+} from './runtime-9341kvfb.js';
+import { awsPlatformService, observeAwsResources, validateInitialRegistrationRetirement } from './runtime-dwcehj38.js';
+import { scopedAwsApi } from './runtime-fex55vat.js';
 import {
   awsCeRevalidationDiagnostic,
   awsTerraformFoundationDeployment,
@@ -35,19 +38,16 @@ import {
   VerifiedUpgradeContract,
   withAwsNativeOperation,
   withAwsTerraformLifecycle,
-} from './runtime-5bbvatrz.js';
-import { AwsNotFoundError, detectAwsError, execAwsJson, makeExecApi } from './runtime-30f0rzjf.js';
-import { scopedAwsApi } from './runtime-fex55vat.js';
-import { verifyAwsTerraformUpgrade } from './runtime-gn32pwwb.js';
+} from './runtime-qqrc1c7h.js';
+import { verifyAwsTerraformUpgrade } from './runtime-tkg0b09n.js';
 import {
   acquireProcessLock,
   loadAwsCheckpoint,
   loadAwsPlan,
   saveAwsCheckpoint,
   verifyAwsCePlan,
-} from './runtime-np6pq61g.js';
-import { awsPlatformService, observeAwsResources, validateInitialRegistrationRetirement } from './runtime-pv55z3nj.js';
-import { canonicalSha256, safeHexEqual, sha256Hex } from './runtime-x2h4t614.js';
+} from './runtime-wf8fjv0g.js';
+import { canonicalSha256, safeHexEqual, sha256Hex } from './runtime-wvre8ba5.js';
 
 // plugins/aws/src/ce/native-creation-projection.ts
 function projectAwsNativeInitialCreation(plan, checkpoints) {

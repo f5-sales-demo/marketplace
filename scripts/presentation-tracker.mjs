@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -337,8 +338,7 @@ export function renderRetiredTasks(retired) {
     ' |\n' +
     retired
       .map(
-        (t) =>
-          '| ' + retirementFields.map((f) => encode(f === 'removalDelivery' ? `<${t[f]}>` : t[f])).join(' | ') + ' |',
+        (t) => `| ${retirementFields.map((f) => encode(f === 'removalDelivery' ? `<${t[f]}>` : t[f])).join(' | ')} |`,
       )
       .join('\n') +
     '\n\n'
@@ -379,4 +379,20 @@ export function renderTracker(inventory, metadata, tasks, retired = []) {
   text += renderRetiredTasks(retired);
   text += `<!-- tracker-metadata\n${JSON.stringify(metadata, null, 2)}\n-->\n`;
   return text;
+}
+
+// Hash exact shipped bytes after formatting and staging; runtime changes also reopen evidence.
+export function pluginSourceFingerprint(root, source, runtime) {
+  const paths = [
+    ...new Set(
+      execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', source], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+        .split('\0')
+        .filter(Boolean),
+    ),
+  ].sort();
+  const hash = (value) => createHash('sha256').update(value).digest('hex');
+  return hash(`${runtime}\n${paths.map((path) => `${path}\n${hash(readFileSync(join(root, path)))}`).join('\n')}`);
 }

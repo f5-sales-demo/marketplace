@@ -1,7 +1,8 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-import { saveAwsDiscovery } from './runtime-np6pq61g.js';
-import { awsPlatformService, discoverAwsCompute } from './runtime-pv55z3nj.js';
+
+import { awsPlatformService, discoverAwsCompute } from './runtime-dwcehj38.js';
+import { saveAwsDiscovery } from './runtime-wf8fjv0g.js';
 import './runtime-fex55vat.js';
 import { makeExecApi } from './runtime-30f0rzjf.js';
 

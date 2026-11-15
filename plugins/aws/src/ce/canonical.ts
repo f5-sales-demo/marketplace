@@ -84,11 +84,10 @@ export function matchesOwnedResourceFingerprint(expected: string, resources: Aws
   return matchesBgpRuntimeVariants(expected, resources, fingerprintOwnedResources);
 }
 
-/** Absent scope retains the exact fingerprint semantics of historical immutable plans. */
-export function awsCeObservationRegion(plan: AwsCePlan): string | undefined {
-  if (plan.observationScope === undefined) return undefined;
+/** Every executable current plan binds observation freshness to its selected region. */
+export function awsCeObservationRegion(plan: AwsCePlan): string {
   if (
-    plan.observationScope.kind !== 'execution-region-v1' ||
+    plan.observationScope?.kind !== 'execution-region-v1' ||
     !plan.observationScope.region ||
     plan.observationScope.region !== plan.region ||
     plan.region !== plan.intent.region

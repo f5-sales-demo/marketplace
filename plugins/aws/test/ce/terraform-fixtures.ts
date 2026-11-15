@@ -40,7 +40,13 @@ export function foundationPlan(ha = false): AwsCePlan {
     image: { amiId: 'ami-0123456789abcdef0' },
     instance: { type: 'm5.2xlarge', diskGiB: 100 },
   };
-  const draft = { schemaVersion: 2, engine: 'terraform', intent };
+  const draft = {
+    schemaVersion: 2,
+    engine: 'terraform',
+    region: intent.region,
+    observationScope: { kind: 'execution-region-v1', region: intent.region },
+    intent,
+  };
   const planSha256 = canonicalSha256(draft);
   return { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` } as unknown as AwsCePlan;
 }
