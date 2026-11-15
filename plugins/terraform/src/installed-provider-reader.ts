@@ -216,6 +216,35 @@ export async function openInstalledProviderReader(
   let windowReadyOnce = false;
   let parentClosed = false;
   const captures: FinalExecutionCapture[] = [];
+  const attempts: Array<{
+    identity?: Identity;
+    capture?: FinalExecutionCapture;
+    binding?: OriginalInputBinding;
+  }> = [];
+  const pendingReads = new Set<Promise<unknown>>();
+  let closure: Promise<void> | undefined;
+  const freeze = <T>(value: T): T => {
+    if (value && typeof value === 'object') {
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    }
+    return value;
+  };
+  const run = async <T>(operation: () => Promise<T>): Promise<T> => {
+    if (retired) throw new Error('Original installed provider reader is retired');
+    const pending = Promise.resolve().then(operation);
+    pendingReads.add(pending);
+    try {
+      const result = await pending;
+      if (retired) throw new Error('Original installed provider reader is retired');
+      return result;
+    } catch (error) {
+      retired = true;
+      throw error;
+    } finally {
+      pendingReads.delete(pending);
+    }
+  };
   const assertProviderSnapshot = async () => {
     const current = freezeAdmittedCaptureInputs({ ...inputs, ...(await context.readProviderInputs()) });
     if (JSON.stringify(current) !== JSON.stringify(allInputs))
@@ -337,6 +366,7 @@ export async function openInstalledProviderReader(
           let readerIdentity: Identity | undefined;
           let readerStartupDeadline: number | undefined;
           let complete = false;
+          const attempt: (typeof attempts)[number] = {};
           const policy: SignalFreeExecutionPolicy = {
             python: { path: inputs.python.path, sha256: pins.pythonSha256 },
             executable: { path: inputs.python.path, sha256: pins.pythonSha256 },
@@ -346,11 +376,19 @@ export async function openInstalledProviderReader(
             assertOriginal: reserve ? sourceGuard : guard,
             beforeRelease: async (admitted) => {
               readerIdentity = Object.freeze({ ...admitted.identity });
+              attempt.identity = readerIdentity;
+              if (retired) throw new Error('Original installed provider reader is retired');
               readerStartupDeadline = admitted.startupDeadlineMs;
             },
             finalCapture: async (capture) => {
-              captures.push(capture);
-              await persist(join(directory, 'capture.private.json'), Buffer.from(JSON.stringify(capture)));
+              if (attempt.capture) throw new Error('Original provider reader capture already retained');
+              const retained = freeze(structuredClone(capture));
+              attempt.capture = retained;
+              captures.push(retained);
+              attempt.binding = await persist(
+                join(directory, 'capture.private.json'),
+                Buffer.from(JSON.stringify(retained)),
+              );
               if (
                 !equalIdentity(capture.identity, readerIdentity) ||
                 capture.pid !== readerIdentity?.pid ||
@@ -372,6 +410,8 @@ export async function openInstalledProviderReader(
             : reserve
               ? signalFreeFinalReaderExecutor(policy, reserve)
               : signalFreeTerraformExecutor(policy);
+          if (retired) throw new Error('Original installed provider reader is retired');
+          attempts.push(attempt);
           let terminal = false;
           const pending = execute({
             cwd: directory,
@@ -455,6 +495,7 @@ export async function openInstalledProviderReader(
                 evidenceSha256: hash(input.bytes),
               }) as unknown as InstalledProviderWindowReady;
               await guard();
+              if (retired) throw new Error('Original installed provider reader is retired');
               windowReadyOnce = true;
               startup.resolve(windowReady);
             } catch (error) {
@@ -605,51 +646,55 @@ export async function openInstalledProviderReader(
             let clockRefused = false;
             windowClockOrigins.set(window, async () => {
               if (clockRefused) throw new Error('Original window clock correspondence was refused');
-              try {
-                await readOriginalInstalledProviderWindow(window);
-                const samples = [beforeClock, afterClock];
-                for (const sample of samples)
+              return run(async () => {
+                try {
+                  await readOriginalInstalledProviderWindow(window);
+                  const samples = [beforeClock, afterClock];
+                  for (const sample of samples)
+                    if (
+                      !Object.values(sample).every((value) => Number.isSafeInteger(value) && value >= 0) ||
+                      sample.monotonicAfterMs < sample.monotonicBeforeMs ||
+                      sample.monotonicAfterMs - sample.monotonicBeforeMs > 100
+                    )
+                      throw new Error('Original paired window clock sample differs');
+                  const lower = samples.map((sample) => sample.epochMs - sample.monotonicAfterMs);
+                  const upper = samples.map((sample) => sample.epochMs - sample.monotonicBeforeMs);
                   if (
-                    !Object.values(sample).every((value) => Number.isSafeInteger(value) && value >= 0) ||
-                    sample.monotonicAfterMs < sample.monotonicBeforeMs ||
-                    sample.monotonicAfterMs - sample.monotonicBeforeMs > 100
+                    afterClock.monotonicBeforeMs < beforeClock.monotonicAfterMs ||
+                    afterClock.epochMs < beforeClock.epochMs ||
+                    Math.max(...lower) - Math.min(...upper) > 100 ||
+                    window.windowStartedMs < beforeClock.monotonicBeforeMs ||
+                    window.finishedMs > afterClock.monotonicAfterMs
                   )
-                    throw new Error('Original paired window clock sample differs');
-                const lower = samples.map((sample) => sample.epochMs - sample.monotonicAfterMs);
-                const upper = samples.map((sample) => sample.epochMs - sample.monotonicBeforeMs);
-                if (
-                  afterClock.monotonicBeforeMs < beforeClock.monotonicAfterMs ||
-                  afterClock.epochMs < beforeClock.epochMs ||
-                  Math.max(...lower) - Math.min(...upper) > 100 ||
-                  window.windowStartedMs < beforeClock.monotonicBeforeMs ||
-                  window.finishedMs > afterClock.monotonicAfterMs
-                )
-                  throw new Error('Original window clocks changed offset or do not bracket sampling');
-                await readOriginalInstalledProviderWindow(window);
-                return Object.freeze({
-                  before: beforeClock,
-                  after: afterClock,
-                  offsetLowerMs: Math.min(...lower),
-                  offsetUpperMs: Math.max(...upper),
-                });
-              } catch (error) {
-                clockRefused = true;
-                throw error;
-              }
+                    throw new Error('Original window clocks changed offset or do not bracket sampling');
+                  await readOriginalInstalledProviderWindow(window);
+                  return Object.freeze({
+                    before: beforeClock,
+                    after: afterClock,
+                    offsetLowerMs: Math.min(...lower),
+                    offsetUpperMs: Math.max(...upper),
+                  });
+                } catch (error) {
+                  clockRefused = true;
+                  throw error;
+                }
+              });
             });
-            windowOrigins.set(window, async () => {
-              if (retired) throw new Error('Original provider window source retired');
-              await assertOriginal();
-              await assertProviderSnapshot();
-              const current = await readOwnedInstalledInput(path, 65536);
-              assertSameOriginalInput(resultInput.binding, current.binding);
-              if (hash(current.bytes) !== window.evidenceSha256)
-                throw new Error('Original provider window bytes changed');
-              await assertOriginal();
-              const final = await readOwnedInstalledInput(path, 65536);
-              assertSameOriginalInput(resultInput.binding, final.binding);
-              return Buffer.from(current.bytes);
-            });
+            windowOrigins.set(window, () =>
+              run(async () => {
+                if (retired) throw new Error('Original provider window source retired');
+                await assertOriginal();
+                await assertProviderSnapshot();
+                const current = await readOwnedInstalledInput(path, 65536);
+                assertSameOriginalInput(resultInput.binding, current.binding);
+                if (hash(current.bytes) !== window.evidenceSha256)
+                  throw new Error('Original provider window bytes changed');
+                await assertOriginal();
+                const final = await readOwnedInstalledInput(path, 65536);
+                assertSameOriginalInput(resultInput.binding, final.binding);
+                return Buffer.from(current.bytes);
+              }),
+            );
             return window;
           }
           const candidates = (value.candidates as unknown[]).map(candidateFrom);
@@ -687,14 +732,15 @@ export async function openInstalledProviderReader(
   };
   return Object.freeze({
     root,
-    assertOriginal,
+    assertOriginal: () => run(assertOriginal),
     captures: () => Object.freeze([...captures]),
     async read(reserve?: FinalReaderReserve) {
-      const result = await readInternal(reserve);
+      const result = await run(() => readInternal(reserve));
       if (result.kind !== 'original-provider-cohort') throw new Error('Original legacy provider cohort required');
       return result;
     },
     startStderrWindow() {
+      if (retired) throw new Error('Original installed provider reader is retired');
       if (parentClosed) throw new Error('Original provider window parent already closed');
       let resolveReady!: (value: InstalledProviderWindowReady) => void;
       let rejectReady!: (error: unknown) => void;
@@ -702,12 +748,50 @@ export async function openInstalledProviderReader(
         resolveReady = resolve;
         rejectReady = reject;
       });
-      const complete = readInternal(undefined, { resolve: resolveReady, reject: rejectReady }).then((result) => {
-        if (result.kind === 'original-provider-cohort') throw new Error('Original provider window required');
-        return result;
-      });
+      const complete = run(() => readInternal(undefined, { resolve: resolveReady, reject: rejectReady })).then(
+        (result) => {
+          if (result.kind === 'original-provider-cohort') throw new Error('Original provider window required');
+          return result;
+        },
+      );
       complete.catch(rejectReady);
       return Object.freeze({ ready, complete });
+    },
+    close() {
+      if (closure) return closure;
+      retired = true;
+      closure = (async () => {
+        // Existing reader children finish naturally under their original budgets.
+        // Settlement alone is insufficient: verify each original child receipt.
+        while (pendingReads.size) await Promise.allSettled([...pendingReads]);
+        await assertOriginal();
+        await assertProviderSnapshot();
+        if (captures.length !== attempts.length)
+          throw new Error('Original provider reader closure receipt coverage incomplete');
+        for (const attempt of attempts) {
+          const { identity, capture, binding } = attempt;
+          if (
+            !identity ||
+            !capture ||
+            !binding ||
+            identity.pid === admission.identity.pid ||
+            identity.group !== identity.pid ||
+            identity.boot !== admission.identity.boot ||
+            !equalIdentity(capture.identity, identity) ||
+            capture.pid !== identity.pid ||
+            capture.originalGroupClosed !== true ||
+            capture.actualExitCode === null ||
+            !Number.isSafeInteger(capture.actualExitCode) ||
+            capture.signalsSent !== false ||
+            capture.originalDeadlineMs !== admission.originalDeadlineMs
+          )
+            throw new Error('Original provider reader child closure incomplete');
+          assertSameOriginalInput(binding, (await readOwnedInstalledInput(binding.path, 65536)).binding);
+        }
+        await assertOriginal();
+        await assertProviderSnapshot();
+      })();
+      return closure;
     },
   });
 }

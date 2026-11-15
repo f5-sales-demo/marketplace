@@ -404,3 +404,28 @@ it('compiled initial inventory refuses serialized scope before authentication or
   ).rejects.toThrow('Original');
   expect(reads).toBe(0);
 });
+
+it('compiled provider reader closes its original child while retaining evidence and retiring body authority', async () => {
+  const { fixture } = await import('../plugins/terraform/test/installed-provider-reader-fixture');
+  const run = await fixture('1172');
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  const reader = await runtime.openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+  });
+  // Explicit offline ABI fixture; actual installed and cloud acceptance remain separate.
+  expect(typeof reader.close).toBe('function');
+  const pending = reader.startStderrWindow();
+  await pending.ready;
+  run.releaseWindow();
+  const window = await pending.complete;
+  await runtime.readOriginalInstalledProviderWindow(window);
+  expect(window.executorGroupClosed).toBe(false);
+  expect(reader.captures()[0].originalGroupClosed).toBe(true);
+  const close = reader.close();
+  expect(reader.close()).toBe(close);
+  await close;
+  await expect(runtime.readOriginalInstalledProviderWindow(window)).rejects.toThrow('retired');
+  await expect(reader.read()).rejects.toThrow('retired');
+  expect(run.executions()).toBe(1);
+});

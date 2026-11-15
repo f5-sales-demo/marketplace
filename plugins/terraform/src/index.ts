@@ -59,3 +59,9 @@ export default function factory(pi: { events: CeEventBus; setLabel(label: string
 }
 
 export { openInstalledInitialInventory } from './installed-initial-inventory';
+
+export {
+  openInstalledProviderReader,
+  readOriginalInstalledProviderWindow,
+  readOriginalInstalledProviderWindowClock,
+} from './installed-provider-reader';

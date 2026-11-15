@@ -1806,3 +1806,16 @@ receipt/input freshness checks. The graph counts remain 8 for single-node and
 
 Fresh live initial absences, full built-in capture and all original live and
 delivery gates remain required. The stage grants no execution authority.
+
+## Original provider reader closure on November 15
+
+The [reader closure receipt](gcp-provider-reader-closure-20261115.md) records
+source-owned retirement, pending read settlement, immutable original child
+receipts and separate verification of reader and apply-parent closure. Source
+and compiled checks pass. A real zero-resource component probe confirms original
+reader-child closure while the parent remains alive, followed by independent
+group absence and empty local final plan/destroy/state.
+
+The probe does not qualify cloud authentication, guest capture or normal
+installed execution. Full built-in capture and all original live and delivery
+gates remain required.

@@ -112,6 +112,19 @@ function resolveInstalledGcpVersionProfile(input) {
   if (!profile) throw new Error('Original installed GCP runtime version and provider lock profile required');
   return profile;
 }
+function resolveInstalledGcpExecutableProfile(terraformSha256, googleProviderSha256) {
+  const matching = profiles.filter(
+    (profile) =>
+      profile.terraformSha256 === terraformSha256 &&
+      (googleProviderSha256 === undefined || profile.googleProviderSha256 === googleProviderSha256),
+  );
+  const families = new Set(
+    matching.map((profile) => JSON.stringify([profile.googleVersion, profile.googleProviderSha256])),
+  );
+  if (!matching.length || families.size !== 1)
+    throw new Error('Original admitted Terraform and Google executable profile required; ambiguous provider family');
+  return matching[0];
+}
 function isOriginalCreationScopeProfile(profile) {
   return (
     profile ===
@@ -4894,6 +4907,26 @@ async function pinned(binding) {
 }
 function signalFreeTerraformExecutor(input) {
   return originalExecutor(input);
+}
+function signalFreeFinalReaderExecutor(input, reserve) {
+  const original = inspectFinalReaderReserve(reserve);
+  if (input.python.path !== input.executable.path || input.python.sha256 !== input.executable.sha256)
+    throw new Error('Original final readers require the same pinned interpreter');
+  if (input.originalStartMs !== original.originalStartMs || input.originalDeadlineMs !== original.originalDeadlineMs)
+    throw new Error('Original parent reader operation budget differs');
+  if (input.timeoutMs !== undefined && input.timeoutMs > 60000)
+    throw new Error('Final reader commands have a sixty-second limit');
+  const execute = originalExecutor({ ...input, timeoutMs: input.timeoutMs ?? 60000 }, reserve);
+  return async (invocation) => {
+    if (
+      invocation.args.length < 3 ||
+      invocation.args[0] !== '-I' ||
+      invocation.args[1] !== '-B' ||
+      !isAbsolute6(invocation.args[2])
+    )
+      throw new Error('Exact isolated final reader script arguments required');
+    return execute(invocation);
+  };
 }
 function originalExecutor(input, reserve) {
   const policy = { ...input, python: { ...input.python }, executable: { ...input.executable } };
@@ -10455,6 +10488,674 @@ async function openInitialInventory(input, options = {}) {
   });
 }
 
+// plugins/terraform/src/installed-provider-reader.ts
+import { createHash as createHash22, randomUUID as randomUUID11 } from 'node:crypto';
+import { lstat as lstat14, mkdir as mkdir9, open as open11, realpath as realpath13 } from 'node:fs/promises';
+import { dirname as dirname13, join as join20 } from 'node:path';
+
+var windowOrigins = new WeakMap();
+async function readOriginalInstalledProviderWindow(window) {
+  const read = windowOrigins.get(window);
+  if (!read) throw new Error('An original reader-issued provider window is required');
+  return read();
+}
+var windowClockOrigins = new WeakMap();
+async function readOriginalInstalledProviderWindowClock(window) {
+  const read = windowClockOrigins.get(window);
+  if (!read) throw new Error('An original reader-issued window clock is required');
+  return read();
+}
+var hash16 = (raw) => createHash22('sha256').update(raw).digest('hex');
+var equalIdentity = (value, original) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !original) return false;
+  const row = value;
+  return (
+    Object.keys(row).sort().join(',') === 'boot,group,pid,start' &&
+    ['pid', 'group', 'start', 'boot'].every((key) => row[key] === original[key])
+  );
+};
+var object11 = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Malformed original provider reader result');
+  return value;
+};
+async function openInstalledProviderReader(context, input, options = {}) {
+  if (options.clock && !options.executorFactory) throw new Error('Offline clock requires explicit fixture executor');
+  if (options.epochClock && !options.executorFactory)
+    throw new Error('Offline epoch clock requires explicit fixture executor');
+  const clock = options.clock ?? linuxMonotonicMs;
+  const epochClock = options.epochClock ?? Date.now;
+  const captureClock = () => {
+    const monotonicBeforeMs = clock();
+    const epochMs = epochClock();
+    const monotonicAfterMs = clock();
+    return Object.freeze({ monotonicBeforeMs, epochMs, monotonicAfterMs });
+  };
+  if (
+    context.schemaVersion !== 2 ||
+    context.kind !== 'original-installed-gcp-capture-context' ||
+    input.directory !== context.executionDirectory ||
+    input.args[0] !== 'apply' ||
+    input.originalStartMs !== context.budget.start ||
+    input.originalDeadlineMs !== context.budget.deadline ||
+    !Number.isSafeInteger(input.identity.pid) ||
+    input.identity.pid <= 0 ||
+    input.identity.group !== input.identity.pid ||
+    !/^[0-9]+$/.test(input.identity.start) ||
+    !/^[a-f0-9-]{36}$/.test(input.identity.boot)
+  )
+    throw new Error('Trusted original installed apply reader scope required');
+  const admission = Object.freeze({
+    ...input,
+    identity: Object.freeze({ ...input.identity }),
+    args: Object.freeze([...input.args]),
+  });
+  const inputs = freezeAdmittedCaptureInputs(context.inputs);
+  const providers = await context.readProviderInputs();
+  const googleBindings = Object.entries(providers).filter(([name]) =>
+    /^registry\.terraform\.io\/hashicorp\/google:terraform-provider-google_v\d+\.\d+\.\d+_x5$/.test(name),
+  );
+  if (googleBindings.length !== 1) throw new Error('One original Google provider executable binding required');
+  const versionProfile = resolveInstalledGcpExecutableProfile(
+    inputs.terraform?.sha256 ?? '',
+    googleBindings[0][1].sha256,
+  );
+  const windowVersion = ['8.10.0', '8.11.0'].includes(versionProfile.googleVersion) ? 4 : 3;
+  const windowKind =
+    windowVersion === 4 ? 'original-provider-stderr-verified-window' : 'original-provider-stderr-coherent-window';
+  const script = inputs['script:gcp_provider_reader.py'];
+  if (
+    !script ||
+    Object.entries(gcp_capture_source_pins_default.files).some(
+      ([name, expected]) =>
+        inputs[`script:${name}`]?.path !== join20(dirname13(script.path), name) ||
+        inputs[`script:${name}`]?.sha256 !== expected,
+    ) ||
+    inputs.python?.sha256 !== installed_runtime_pins_default.pythonSha256 ||
+    inputs.terraform?.sha256 !== versionProfile.terraformSha256
+  )
+    throw new Error('All original installed provider reader sources and executable pins required');
+  const google =
+    providers[`registry.terraform.io/hashicorp/google:terraform-provider-google_v${versionProfile.googleVersion}_x5`];
+  if (!google || google.sha256 !== versionProfile.googleProviderSha256 || Object.keys(providers).length !== 6)
+    throw new Error('All original qualified installed provider inputs required');
+  const allInputs = freezeAdmittedCaptureInputs({ ...inputs, ...providers });
+  await context.assertInputs();
+  const root = join20(context.executionDirectory, `gcp-provider-readers-${randomUUID11()}`);
+  await mkdir9(root, { mode: 448 });
+  const originalRoot = await lstat14(root, { bigint: true });
+  let retired = false;
+  let windowReadyOnce = false;
+  let parentClosed = false;
+  const captures = [];
+  const attempts = [];
+  const pendingReads = new Set();
+  let closure;
+  const freeze = (value) => {
+    if (value && typeof value === 'object') {
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    }
+    return value;
+  };
+  const run = async (operation) => {
+    if (retired) throw new Error('Original installed provider reader is retired');
+    const pending = Promise.resolve().then(operation);
+    pendingReads.add(pending);
+    try {
+      const result = await pending;
+      if (retired) throw new Error('Original installed provider reader is retired');
+      return result;
+    } catch (error) {
+      retired = true;
+      throw error;
+    } finally {
+      pendingReads.delete(pending);
+    }
+  };
+  const assertProviderSnapshot = async () => {
+    const current = freezeAdmittedCaptureInputs({ ...inputs, ...(await context.readProviderInputs()) });
+    if (JSON.stringify(current) !== JSON.stringify(allInputs))
+      throw new Error('Original provider reader input admission changed');
+  };
+  const assertOriginal = async () => {
+    await context.assertInputs();
+    const actual = await lstat14(root, { bigint: true });
+    if (
+      !actual.isDirectory() ||
+      actual.dev !== originalRoot.dev ||
+      actual.ino !== originalRoot.ino ||
+      actual.uid !== originalRoot.uid ||
+      actual.mode !== originalRoot.mode ||
+      (await realpath13(root)) !== root
+    )
+      throw new Error('Original provider reader directory changed');
+    await context.assertInputs();
+  };
+  const persist = async (path, raw) => {
+    const parent = await lstat14(dirname13(path), { bigint: true });
+    let expectedIdentity;
+    const handle = await open11(path, 'wx', 256);
+    try {
+      await handle.writeFile(raw);
+      await handle.sync();
+      const file = await handle.stat({ bigint: true });
+      const fields = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+      expectedIdentity = Object.fromEntries(fields.map((field) => [field, String(file[field])]));
+    } finally {
+      await handle.close();
+    }
+    const directory = await open11(dirname13(path), 'r');
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+    return {
+      path,
+      sha256: hash16(raw),
+      expectedIdentity,
+      expectedParentIdentity: {
+        dev: String(parent.dev),
+        ino: String(parent.ino),
+        uid: String(parent.uid),
+        mode: String(parent.mode),
+      },
+    };
+  };
+  const readInternal = async (reserve, startup) => {
+    if (retired) throw new Error('Original installed provider reader is retired');
+    let requestMonitor;
+    let readyMonitor;
+    const initialWindow = !windowReadyOnce;
+    const beforeClock = captureClock();
+    let childDirectory;
+    const sourceGuard = async () => {
+      await assertOriginal();
+      if (childDirectory) {
+        const actual = await lstat14(childDirectory.path);
+        const original = childDirectory.identity;
+        if (
+          !actual.isDirectory() ||
+          actual.dev !== original.dev ||
+          actual.ino !== original.ino ||
+          actual.uid !== original.uid ||
+          actual.mode !== original.mode ||
+          (await realpath13(childDirectory.path)) !== childDirectory.path
+        )
+          throw new Error('Original provider execution directory changed');
+      }
+      await requestMonitor?.assertOriginal();
+      await readyMonitor?.assertOriginal();
+    };
+    const guard = async () => {
+      await sourceGuard();
+      if (reserve) {
+        const final = inspectFinalReaderReserve(reserve);
+        if (
+          !equalIdentity(final.identity, admission.identity) ||
+          final.originalStartMs !== context.budget.start ||
+          final.originalDeadlineMs !== context.budget.deadline
+        )
+          throw new Error('Original final reader parent differs');
+        await assertFinalReaderReserve(reserve);
+      } else if (clock() >= context.budget.deadline) throw new Error('Original provider operation deadline exhausted');
+    };
+    try {
+      return await withFinalCheck(
+        async () => {
+          await guard();
+          const directory = join20(root, randomUUID11());
+          await mkdir9(directory, { mode: 448 });
+          childDirectory = { path: directory, identity: await lstat14(directory) };
+          const final = reserve ? inspectFinalReaderReserve(reserve) : undefined;
+          const request = {
+            schemaVersion: startup ? windowVersion : 1,
+            ...(startup ? { kind: windowKind, windowMs: 45000 } : {}),
+            inputs: allInputs,
+            executables: { bootstrap: inputs.python, terraform: inputs.terraform, provider: google },
+            originalStartMs: context.budget.start,
+            deadlineMs: context.budget.deadline,
+            executor: admission.identity,
+            ...(final
+              ? { finalCapture: { finalStartedMs: final.finalStartedMs, finalDeadlineMs: final.finalDeadlineMs } }
+              : {}),
+          };
+          const bytes = Buffer.from(JSON.stringify(request)),
+            requestPath = join20(directory, 'request.private.json');
+          const requestBinding = await persist(requestPath, bytes);
+          requestMonitor = await monitorOriginalInputs({ request: requestBinding });
+          await guard();
+          let readerIdentity;
+          let readerStartupDeadline;
+          let complete = false;
+          const attempt = {};
+          const policy = {
+            python: { path: inputs.python.path, sha256: installed_runtime_pins_default.pythonSha256 },
+            executable: { path: inputs.python.path, sha256: installed_runtime_pins_default.pythonSha256 },
+            originalStartMs: context.budget.start,
+            originalDeadlineMs: context.budget.deadline,
+            timeoutMs: 60000,
+            assertOriginal: reserve ? sourceGuard : guard,
+            beforeRelease: async (admitted) => {
+              readerIdentity = Object.freeze({ ...admitted.identity });
+              attempt.identity = readerIdentity;
+              if (retired) throw new Error('Original installed provider reader is retired');
+              readerStartupDeadline = admitted.startupDeadlineMs;
+            },
+            finalCapture: async (capture) => {
+              if (attempt.capture) throw new Error('Original provider reader capture already retained');
+              const retained = freeze(structuredClone(capture));
+              attempt.capture = retained;
+              captures.push(retained);
+              attempt.binding = await persist(
+                join20(directory, 'capture.private.json'),
+                Buffer.from(JSON.stringify(retained)),
+              );
+              if (
+                !equalIdentity(capture.identity, readerIdentity) ||
+                capture.pid !== readerIdentity?.pid ||
+                capture.reason ||
+                capture.actualExitCode !== 0 ||
+                !capture.originalGroupClosed ||
+                capture.originalDeadlineMs !== context.budget.deadline ||
+                (final &&
+                  (capture.finalStartedMs !== final.finalStartedMs ||
+                    capture.finalDeadlineMs !== final.finalDeadlineMs))
+              )
+                throw new Error('Original provider SDK reader closure incomplete');
+              await guard();
+              complete = true;
+            },
+          };
+          const execute = options.executorFactory
+            ? options.executorFactory(policy, reserve)
+            : reserve
+              ? signalFreeFinalReaderExecutor(policy, reserve)
+              : signalFreeTerraformExecutor(policy);
+          if (retired) throw new Error('Original installed provider reader is retired');
+          attempts.push(attempt);
+          let terminal = false;
+          const pending = execute({
+            cwd: directory,
+            args: ['-I', '-B', script.path, '--request', requestPath, '--sha256', hash16(bytes)],
+            env: { PATH: '/usr/bin:/bin' },
+          });
+          pending.then(
+            () => {
+              terminal = true;
+            },
+            () => {
+              terminal = true;
+            },
+          );
+          let windowReady;
+          let startupFailure;
+          if (startup) {
+            try {
+              const path = join20(directory, 'provider-ready.private.json');
+              while (!(await Bun.file(path).exists())) {
+                await guard();
+                if (terminal) throw new Error('Original provider window ended before readiness');
+                if (
+                  clock() >=
+                  Math.min(
+                    initialWindow ? admission.startupDeadlineMs : context.budget.deadline,
+                    readerStartupDeadline ?? context.budget.deadline,
+                  )
+                )
+                  throw new Error('Original provider window startup exhausted');
+                await Bun.sleep(25);
+              }
+              await guard();
+              const input = await owned(path, 65536);
+              if (!input.binding.expectedIdentity || (BigInt(input.binding.expectedIdentity.mode) & 0o077n) !== 0n)
+                throw new Error('Original private provider readiness required');
+              const value = decodeEvidenceObject(input.bytes);
+              const keys = [
+                'schemaVersion',
+                'kind',
+                'requestSha256',
+                'executor',
+                'reader',
+                'windowStartedMs',
+                'windowDeadlineMs',
+                'applyPhaseQualified',
+                'signalsSent',
+                'cloudSubmissions',
+              ]
+                .sort()
+                .join(',');
+              const originalReader = readerIdentity;
+              const { windowStartedMs: began, windowDeadlineMs: ended } = value;
+              if (
+                !originalReader ||
+                Object.keys(value).sort().join(',') !== keys ||
+                value.schemaVersion !== windowVersion ||
+                value.kind !== 'original-provider-stderr-ready' ||
+                value.requestSha256 !== hash16(bytes) ||
+                !equalIdentity(value.executor, admission.identity) ||
+                !equalIdentity(value.reader, readerIdentity) ||
+                !Number.isSafeInteger(began) ||
+                !Number.isSafeInteger(ended) ||
+                began < context.budget.start ||
+                began > clock() ||
+                clock() - began >= 15000 ||
+                ended !== Math.min(began + 45000, context.budget.deadline) ||
+                (initialWindow && clock() >= admission.startupDeadlineMs) ||
+                value.applyPhaseQualified !== false ||
+                value.signalsSent !== false ||
+                value.cloudSubmissions !== 0
+              )
+                throw new Error('Original provider window readiness attribution differs');
+              readyMonitor = await monitorOriginalInputs({ ready: input.binding });
+              windowReady = Object.freeze({
+                ...value,
+                executor: admission.identity,
+                reader: originalReader,
+                evidencePath: path,
+                evidenceSha256: hash16(input.bytes),
+              });
+              await guard();
+              if (retired) throw new Error('Original installed provider reader is retired');
+              windowReadyOnce = true;
+              startup.resolve(windowReady);
+            } catch (error) {
+              startupFailure = error;
+              startup.reject(error);
+            }
+          }
+          const outcome = await pending;
+          if (startupFailure) throw startupFailure;
+          if (outcome.code !== 0 || !complete) throw new Error('Original provider SDK reader failed');
+          const path = join20(directory, 'provider-result.private.json');
+          const resultInput = await owned(path, 65536);
+          const resultIdentity = resultInput.binding.expectedIdentity;
+          if (!resultIdentity || (BigInt(resultIdentity.mode) & 0o077n) !== 0n)
+            throw new Error('Original private provider result required');
+          const raw = resultInput.bytes;
+          const value = decodeEvidenceObject(raw);
+          const originalReader = readerIdentity;
+          if (!originalReader) throw new Error('Original provider reader identity absent');
+          if (
+            value.schemaVersion !== (startup ? windowVersion : 1) ||
+            value.kind !== (startup ? windowKind : 'original-provider-cohort') ||
+            value.requestSha256 !== hash16(bytes) ||
+            !equalIdentity(value.executor, admission.identity) ||
+            !equalIdentity(value.reader, readerIdentity) ||
+            (!startup && !Array.isArray(value.candidates)) ||
+            typeof value.executorAvailable !== 'boolean' ||
+            typeof value.executorGroupClosed !== 'boolean' ||
+            (value.executorAvailable && value.executorGroupClosed) ||
+            value.applyPhaseQualified !== false ||
+            value.signalsSent !== false ||
+            value.cloudSubmissions !== 0
+          )
+            throw new Error('Original provider result attribution differs');
+          const seen = new Set();
+          const candidateFrom = (rawCandidate) => {
+            const candidate = object11(rawCandidate);
+            if (
+              Object.keys(candidate).sort().join(',') !== 'boot,executable_sha256,group,parent,pid,start' ||
+              !Number.isSafeInteger(candidate.pid) ||
+              candidate.pid <= 0 ||
+              seen.has(candidate.pid) ||
+              candidate.parent !== admission.identity.pid ||
+              candidate.group !== admission.identity.group ||
+              candidate.boot !== admission.identity.boot ||
+              typeof candidate.start !== 'string' ||
+              !/^[0-9]+$/.test(candidate.start) ||
+              candidate.executable_sha256 !== versionProfile.googleProviderSha256
+            )
+              throw new Error('Original provider candidate ownership differs');
+            seen.add(candidate.pid);
+            return Object.freeze(candidate);
+          };
+          if (startup) {
+            const keys = [
+              'schemaVersion',
+              'kind',
+              'requestSha256',
+              'executor',
+              'reader',
+              'executorAvailable',
+              'executorGroupClosed',
+              'applyPhaseQualified',
+              'signalsSent',
+              'cloudSubmissions',
+              'windowStartedMs',
+              'windowDeadlineMs',
+              'finishedMs',
+              'samplingWindowComplete',
+              'observations',
+              ...(windowVersion === 4 ? ['verificationPolicy', 'boundaryAttempts'] : []),
+            ]
+              .sort()
+              .join(',');
+            if (
+              !windowReady ||
+              Object.keys(value).sort().join(',') !== keys ||
+              value.windowStartedMs !== windowReady.windowStartedMs ||
+              value.windowDeadlineMs !== windowReady.windowDeadlineMs ||
+              value.samplingWindowComplete !== true ||
+              (windowVersion === 4 &&
+                (value.verificationPolicy !== 'completed-before-window-end' ||
+                  !Number.isSafeInteger(value.boundaryAttempts) ||
+                  value.boundaryAttempts < 0 ||
+                  value.boundaryAttempts > 1 ||
+                  value.finishedMs - windowReady.windowStartedMs >= 60000 ||
+                  !Array.isArray(value.observations) ||
+                  value.observations.length === 0)) ||
+              !Number.isSafeInteger(value.finishedMs) ||
+              value.finishedMs < windowReady.windowStartedMs ||
+              value.finishedMs > clock() ||
+              (!value.executorGroupClosed && value.finishedMs < windowReady.windowDeadlineMs) ||
+              !Array.isArray(value.observations) ||
+              value.observations.length > 64
+            )
+              throw new Error('Original provider window incomplete or premature');
+            const ready = windowReady;
+            const observations = value.observations.map((rawObservation) => {
+              const observation = object11(rawObservation);
+              if (
+                Object.keys(observation).sort().join(',') !==
+                  'candidate,firstObservedMs,lastObservedMs,presentAtLastSample,stderr' ||
+                !Number.isSafeInteger(observation.firstObservedMs) ||
+                !Number.isSafeInteger(observation.lastObservedMs) ||
+                observation.firstObservedMs < ready.windowStartedMs ||
+                observation.lastObservedMs < observation.firstObservedMs ||
+                observation.lastObservedMs > ready.windowDeadlineMs ||
+                (windowVersion === 4 && observation.lastObservedMs >= ready.windowDeadlineMs) ||
+                typeof observation.presentAtLastSample !== 'boolean'
+              )
+                throw new Error('Original provider window observation differs');
+              const candidate = candidateFrom(observation.candidate),
+                pipe = object11(observation.stderr);
+              if (
+                Object.keys(pipe).sort().join(',') !== 'device,inode,parentFd,parentFlags,providerFd,providerFlags' ||
+                pipe.providerFd !== 2 ||
+                !Number.isSafeInteger(pipe.parentFd) ||
+                pipe.parentFd < 0 ||
+                typeof pipe.device !== 'string' ||
+                !/^(?:0|[1-9][0-9]*)$/.test(pipe.device) ||
+                typeof pipe.inode !== 'string' ||
+                !/^[1-9][0-9]*$/.test(pipe.inode) ||
+                !Number.isSafeInteger(pipe.providerFlags) ||
+                !Number.isSafeInteger(pipe.parentFlags) ||
+                pipe.providerFlags < 0 ||
+                pipe.parentFlags < 0 ||
+                (pipe.providerFlags & 3) !== 1 ||
+                (pipe.parentFlags & 3) !== 0
+              )
+                throw new Error('Original provider stderr FIFO attribution differs');
+              return Object.freeze({
+                ...observation,
+                candidate,
+                stderr: Object.freeze({ ...pipe }),
+              });
+            });
+            await guard();
+            parentClosed = value.executorGroupClosed;
+            const window = Object.freeze({
+              ...value,
+              executor: admission.identity,
+              reader: originalReader,
+              observations: Object.freeze(observations),
+              evidencePath: path,
+              evidenceSha256: hash16(raw),
+            });
+            const afterClock = captureClock();
+            let clockRefused = false;
+            windowClockOrigins.set(window, async () => {
+              if (clockRefused) throw new Error('Original window clock correspondence was refused');
+              return run(async () => {
+                try {
+                  await readOriginalInstalledProviderWindow(window);
+                  const samples = [beforeClock, afterClock];
+                  for (const sample of samples)
+                    if (
+                      !Object.values(sample).every((value) => Number.isSafeInteger(value) && value >= 0) ||
+                      sample.monotonicAfterMs < sample.monotonicBeforeMs ||
+                      sample.monotonicAfterMs - sample.monotonicBeforeMs > 100
+                    )
+                      throw new Error('Original paired window clock sample differs');
+                  const lower = samples.map((sample) => sample.epochMs - sample.monotonicAfterMs);
+                  const upper = samples.map((sample) => sample.epochMs - sample.monotonicBeforeMs);
+                  if (
+                    afterClock.monotonicBeforeMs < beforeClock.monotonicAfterMs ||
+                    afterClock.epochMs < beforeClock.epochMs ||
+                    Math.max(...lower) - Math.min(...upper) > 100 ||
+                    window.windowStartedMs < beforeClock.monotonicBeforeMs ||
+                    window.finishedMs > afterClock.monotonicAfterMs
+                  )
+                    throw new Error('Original window clocks changed offset or do not bracket sampling');
+                  await readOriginalInstalledProviderWindow(window);
+                  return Object.freeze({
+                    before: beforeClock,
+                    after: afterClock,
+                    offsetLowerMs: Math.min(...lower),
+                    offsetUpperMs: Math.max(...upper),
+                  });
+                } catch (error) {
+                  clockRefused = true;
+                  throw error;
+                }
+              });
+            });
+            windowOrigins.set(window, () =>
+              run(async () => {
+                if (retired) throw new Error('Original provider window source retired');
+                await assertOriginal();
+                await assertProviderSnapshot();
+                const current = await owned(path, 65536);
+                assertSameOriginalInput(resultInput.binding, current.binding);
+                if (hash16(current.bytes) !== window.evidenceSha256)
+                  throw new Error('Original provider window bytes changed');
+                await assertOriginal();
+                const final = await owned(path, 65536);
+                assertSameOriginalInput(resultInput.binding, final.binding);
+                return Buffer.from(current.bytes);
+              }),
+            );
+            return window;
+          }
+          const candidates = value.candidates.map(candidateFrom);
+          await guard();
+          return Object.freeze({
+            schemaVersion: 1,
+            kind: 'original-provider-cohort',
+            requestSha256: hash16(bytes),
+            executor: admission.identity,
+            reader: readerIdentity,
+            candidates: Object.freeze(candidates),
+            executorAvailable: value.executorAvailable,
+            executorGroupClosed: value.executorGroupClosed,
+            applyPhaseQualified: false,
+            signalsSent: false,
+            cloudSubmissions: 0,
+            evidencePath: path,
+            evidenceSha256: hash16(raw),
+          });
+        },
+        async () => {
+          await guard();
+          await assertProviderSnapshot();
+        },
+        'Original provider reader and final input verification failed',
+      );
+    } catch (error) {
+      startup?.reject(error);
+      retired = true;
+      throw error;
+    } finally {
+      readyMonitor?.close();
+      requestMonitor?.close();
+    }
+  };
+  return Object.freeze({
+    root,
+    assertOriginal: () => run(assertOriginal),
+    captures: () => Object.freeze([...captures]),
+    async read(reserve) {
+      const result = await run(() => readInternal(reserve));
+      if (result.kind !== 'original-provider-cohort') throw new Error('Original legacy provider cohort required');
+      return result;
+    },
+    startStderrWindow() {
+      if (retired) throw new Error('Original installed provider reader is retired');
+      if (parentClosed) throw new Error('Original provider window parent already closed');
+      let resolveReady;
+      let rejectReady;
+      const ready = new Promise((resolve, reject) => {
+        resolveReady = resolve;
+        rejectReady = reject;
+      });
+      const complete = run(() => readInternal(undefined, { resolve: resolveReady, reject: rejectReady })).then(
+        (result) => {
+          if (result.kind === 'original-provider-cohort') throw new Error('Original provider window required');
+          return result;
+        },
+      );
+      complete.catch(rejectReady);
+      return Object.freeze({ ready, complete });
+    },
+    close() {
+      if (closure) return closure;
+      retired = true;
+      closure = (async () => {
+        while (pendingReads.size) await Promise.allSettled([...pendingReads]);
+        await assertOriginal();
+        await assertProviderSnapshot();
+        if (captures.length !== attempts.length)
+          throw new Error('Original provider reader closure receipt coverage incomplete');
+        for (const attempt of attempts) {
+          const { identity, capture, binding } = attempt;
+          if (
+            !identity ||
+            !capture ||
+            !binding ||
+            identity.pid === admission.identity.pid ||
+            identity.group !== identity.pid ||
+            identity.boot !== admission.identity.boot ||
+            !equalIdentity(capture.identity, identity) ||
+            capture.pid !== identity.pid ||
+            capture.originalGroupClosed !== true ||
+            capture.actualExitCode === null ||
+            !Number.isSafeInteger(capture.actualExitCode) ||
+            capture.signalsSent !== false ||
+            capture.originalDeadlineMs !== admission.originalDeadlineMs
+          )
+            throw new Error('Original provider reader child closure incomplete');
+          assertSameOriginalInput(binding, (await owned(binding.path, 65536)).binding);
+        }
+        await assertOriginal();
+        await assertProviderSnapshot();
+      })();
+      return closure;
+    },
+  });
+}
+
 // plugins/terraform/src/index.ts
 function factory(pi) {
   pi.setLabel('Terraform CE lifecycle execution');
@@ -10502,11 +11203,14 @@ export {
   openGcpCloudSerialReader,
   openInstalledBootstrapCapture,
   openInstalledInitialInventory,
+  openInstalledProviderReader,
   openInstalledXcshCreationReader,
   prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
   readOriginalGcpPreapplyBootstrapJwt,
   readOriginalGcpTerraformBootstrapJwt,
+  readOriginalInstalledProviderWindow,
+  readOriginalInstalledProviderWindowClock,
   readOriginalInstalledXcshCreation,
   readOriginalXcshCreationBody,
 };
