@@ -1,4 +1,5 @@
 export { inspectOriginalGcpBootstrap, readOriginalGcpBootstrapJwt } from './ce/gcp-bootstrap-evidence';
+export { openOriginalGcpBootstrapObservation } from './ce/gcp-bootstrap-observation';
 export { createGcpLifecycleHttpPort } from './ce/gcp-http';
 export { assertOriginalGcpPlatformHttpBody, openGcpLifecycleHttpCapture } from './ce/gcp-http-capture';
 
@@ -49,6 +50,11 @@ const factory: ExtensionFactory = async (pi) => {
         const active = service();
         if (!active.gcpBootstrapSource) throw new Error('Verified Platform bootstrap source unavailable');
         return active.gcpBootstrapSource();
+      },
+      gcpBootstrapObservation: (owner, contextName, binding) => {
+        const active = service();
+        if (!active.gcpBootstrapObservation) throw new Error('Original Platform bootstrap observation unavailable');
+        return active.gcpBootstrapObservation(owner, contextName, binding);
       },
       storage: (owner) => service().storage(owner),
       capabilities: (contextName) => service().capabilities(contextName),

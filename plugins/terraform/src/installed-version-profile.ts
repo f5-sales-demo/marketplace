@@ -97,3 +97,15 @@ export function resolveInstalledGcpExecutableProfile(
     throw new Error('Original admitted Terraform and Google executable profile required; ambiguous provider family');
   return matching[0];
 }
+
+/** Current source mapping only; this predicate grants no live execution acceptance.
+ * Reference identity prevents a copied or mixed artifact tuple from entering it. */
+export function isOriginalCreationScopeProfile(profile: InstalledGcpVersionProfile): boolean {
+  return (
+    profile ===
+    resolveInstalledGcpVersionProfile({
+      terraformVersion: '1.17.2',
+      providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+    })
+  );
+}

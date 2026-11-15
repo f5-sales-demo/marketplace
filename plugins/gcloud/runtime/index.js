@@ -2983,6 +2983,13 @@ var init_gcp_http = __esm(() => {
   init_runtime();
 });
 
+// plugins/platform/src/ce/gcp-bootstrap-observation.ts
+var init_gcp_bootstrap_observation = __esm(() => {
+  init_gcp_http();
+  init_gcp_http_capture();
+  init_security();
+});
+
 // plugins/platform/src/ce/gcp-lifecycle.ts
 var init_gcp_lifecycle = __esm(() => {
   init_discovery();
@@ -4722,6 +4729,7 @@ var init_service = __esm(() => {
   init_discovery();
   init_deployment_store();
   init_gcp_bootstrap_evidence();
+  init_gcp_bootstrap_observation();
   init_gcp_http();
   init_gcp_lifecycle();
   init_gcp_observation();

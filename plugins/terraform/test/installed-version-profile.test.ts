@@ -125,3 +125,19 @@ test('Google-only artifact lookup preserves its historical selection and does no
   expect(value.xcshVersion).toBe('15.15.7');
   expect(value.providerLockSha256).toBe('c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14');
 });
+
+test('only the current original-issued profile enables the installed creation scope', async () => {
+  const { isOriginalCreationScopeProfile } = await import('../src/installed-version-profile');
+  const current = resolveInstalledGcpVersionProfile({
+    terraformVersion: '1.17.2',
+    providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+  });
+  expect(isOriginalCreationScopeProfile(current)).toBe(true);
+  expect(isOriginalCreationScopeProfile({ ...current })).toBe(false);
+  const historical = resolveInstalledGcpVersionProfile({
+    terraformVersion: '1.17.2',
+    providerLockSha256: '05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc',
+  });
+  expect(isOriginalCreationScopeProfile(historical)).toBe(false);
+  expect(isOriginalCreationScopeProfile({ ...current, xcProviderSha256: historical.xcProviderSha256 })).toBe(false);
+});

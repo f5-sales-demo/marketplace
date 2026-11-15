@@ -647,7 +647,7 @@ var init_site_config = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash17, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash18, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -660,7 +660,7 @@ function canonical5(value) {
   return JSON.stringify(value);
 }
 function hash7(value) {
-  return createHash17('sha256').update(canonical5(value)).digest('hex');
+  return createHash18('sha256').update(canonical5(value)).digest('hex');
 }
 function hashesEqual(left, right) {
   if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
@@ -819,7 +819,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash18, randomUUID as randomUUID5 } from 'node:crypto';
+import { createHash as createHash19, randomUUID as randomUUID5 } from 'node:crypto';
 import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute as isAbsolute3, join as join6, resolve, sep } from 'node:path';
@@ -851,7 +851,7 @@ async function storeBootstrapToken(input) {
   await chmod2(sessionDir, 448);
   await mkdir3(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash18('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash19('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,
@@ -5036,13 +5036,100 @@ function createGcpLifecycleHttpPort(apiUrl, credential, fetcher = fetch, capture
   };
 }
 
+// plugins/platform/src/ce/gcp-bootstrap-observation.ts
+init_security();
+var targetKey = (target) => JSON.stringify([target.type_name, target.namespace, target.name]);
+var validTarget = (target) =>
+  target &&
+  Object.keys(target).sort().join(',') === 'name,namespace,type_name' &&
+  ['xcsh_securemesh_site_v2', 'xcsh_token'].includes(target.type_name) &&
+  target.namespace === 'system' &&
+  typeof target.name === 'string' &&
+  /^[a-z][a-z0-9-]{0,62}$/.test(target.name);
+async function openOriginalGcpBootstrapObservation(input, options = {}) {
+  const store = input.store,
+    owner = Object.freeze(structuredClone(store.owner)),
+    directory = store.directory,
+    { origin, credential, assertOriginal: assertInputs } = input;
+  const targets = Object.freeze(input.targets.map((target) => Object.freeze({ ...target })));
+  if (
+    owner.provider !== 'gcp' ||
+    !['native', 'terraform'].includes(owner.engine) ||
+    !targets.length ||
+    targets.length > 128 ||
+    targets.some((target) => !validTarget(target)) ||
+    new Set(targets.map(targetKey)).size !== targets.length ||
+    typeof assertInputs !== 'function' ||
+    typeof credential !== 'string' ||
+    !credential ||
+    containsControlCharacters(credential)
+  )
+    throw new Error('Original bootstrap observation scope required');
+  const parsed = new URL(origin);
+  if (parsed.protocol !== 'https:' || parsed.origin !== origin)
+    throw new Error('Original bootstrap observation origin required');
+  const declared = new Set(targets.map(targetKey));
+  let retired = false;
+  const guard = async () => {
+    if (retired) throw new Error('Original bootstrap observation retired');
+    await assertInputs();
+    await store.verify();
+    if (
+      directory !== store.directory ||
+      ['provider', 'engine', 'account', 'region', 'deploymentId'].some((key) => owner[key] !== store.owner[key])
+    )
+      throw new Error('Original bootstrap observation storage scope changed');
+    if (retired) throw new Error('Original bootstrap observation retired');
+    await assertInputs();
+  };
+  await guard();
+  const capture = await openGcpLifecycleHttpCapture(store, guard, {
+    siteNames: targets.filter((target) => target.type_name === 'xcsh_securemesh_site_v2').map((target) => target.name),
+    tokenNames: targets.filter((target) => target.type_name === 'xcsh_token').map((target) => target.name),
+  });
+  const port = createGcpLifecycleHttpPort(origin, credential, options.fetcher ?? fetch, capture);
+  return Object.freeze({
+    async assertOriginal() {
+      try {
+        await guard();
+      } catch (error) {
+        retired = true;
+        throw error;
+      }
+    },
+    async read(target, signal) {
+      try {
+        await guard();
+        if (!validTarget(target) || !declared.has(targetKey(target)))
+          throw new Error('Original bootstrap target escaped scope');
+        const family =
+          target.type_name === 'xcsh_token'
+            ? 'register/namespaces/system/tokens'
+            : 'config/namespaces/system/securemesh_site_v2s';
+        const response = await port.read(`/api/${family}/${target.name}`, signal);
+        await guard();
+        if (!response) return;
+        const body = await capture.read(capture.evidenceFor(response));
+        await guard();
+        return body;
+      } catch (error) {
+        retired = true;
+        throw error;
+      }
+    },
+    async close() {
+      retired = true;
+    },
+  });
+}
+
 // plugins/platform/src/index.ts
 init_driver();
 
+// plugins/platform/src/ce/service.ts
 // plugins/gcloud/src/ce/contract.ts
 // plugins/gcloud/src/ce/discovery.ts
-import { createHash as createHash8, createHash as createHash10 } from 'node:crypto';
-// plugins/platform/src/ce/service.ts
+import { createHash as createHash8, createHash as createHash10, createHash as createHash17 } from 'node:crypto';
 import { readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join as join5 } from 'node:path';
@@ -9302,6 +9389,60 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
   };
   return {
     gcpBootstrapSource: () => originalGcpBootstrapSource,
+    async gcpBootstrapObservation(originalOwner, contextName, input) {
+      const owner = Object.freeze(structuredClone(originalOwner)),
+        expected = Object.freeze({ origin: input.origin, credentialSha256: input.credentialSha256 }),
+        targets = Object.freeze(input.targets.map((target) => Object.freeze({ ...target }))),
+        assertOriginal = input.assertOriginal;
+      if (
+        owner.provider !== 'gcp' ||
+        owner.engine !== 'terraform' ||
+        !/^[a-f0-9]{64}$/.test(expected.credentialSha256) ||
+        typeof assertOriginal !== 'function'
+      )
+        throw new Error('Original Terraform bootstrap observation scope required');
+      await assertOriginal();
+      const store = await CeDeploymentStore.open(
+        env.XCSH_CE_DEPLOYMENTS_DIR ??
+          join5(env.XDG_STATE_HOME ?? join5(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+        owner,
+      );
+      const saved = await store.read('gcp-terraform-input-identity.json');
+      if (
+        !saved.intent ||
+        saved.intentFingerprint !== fingerprint(saved.intent) ||
+        saved.platformContext !== contextName ||
+        saved.intent.platformContext !== contextName ||
+        saved.intent.project !== owner.account ||
+        saved.intent.region !== owner.region ||
+        saved.intent.deploymentName !== owner.deploymentId ||
+        saved.intent.engine !== owner.engine
+      )
+        throw new Error('Original persisted bootstrap observation intent differs');
+      const savedHash = fingerprint(saved);
+      const credentials = await context(env, contextName);
+      const guard = async () => {
+        await assertOriginal();
+        await store.verify();
+        if (fingerprint(await store.read('gcp-terraform-input-identity.json')) !== savedHash)
+          throw new Error('Original bootstrap observation intent changed');
+        const current = await context(env, contextName);
+        if (
+          new URL(current.url).origin !== expected.origin ||
+          createHash17('sha256').update(current.credential).digest('hex') !== expected.credentialSha256
+        )
+          throw new Error('Original selected bootstrap observation credential differs');
+        await assertOriginal();
+      };
+      await guard();
+      return openOriginalGcpBootstrapObservation({
+        store,
+        origin: expected.origin,
+        credential: credentials.credential,
+        targets,
+        assertOriginal: guard,
+      });
+    },
     async gcpLifecycle(owner, contextName, signal) {
       if (owner.provider !== 'gcp' || owner.engine !== 'native')
         throw new Error('Native GCP lifecycle ownership required');
@@ -9706,6 +9847,11 @@ var factory = async (pi) => {
         if (!active.gcpBootstrapSource) throw new Error('Verified Platform bootstrap source unavailable');
         return active.gcpBootstrapSource();
       },
+      gcpBootstrapObservation: (owner, contextName, binding) => {
+        const active = service();
+        if (!active.gcpBootstrapObservation) throw new Error('Original Platform bootstrap observation unavailable');
+        return active.gcpBootstrapObservation(owner, contextName, binding);
+      },
       storage: (owner) => service().storage(owner),
       capabilities: (contextName) => service().capabilities(contextName),
       runtime: (engine, contextName) => service().runtime(engine, contextName),
@@ -9769,6 +9915,7 @@ export {
   createGcpLifecycleHttpPort,
   inspectOriginalGcpBootstrap,
   openGcpLifecycleHttpCapture,
+  openOriginalGcpBootstrapObservation,
   readOriginalGcpBootstrapJwt,
   src_default as default,
 };

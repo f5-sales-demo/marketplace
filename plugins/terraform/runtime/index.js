@@ -112,6 +112,15 @@ function resolveInstalledGcpVersionProfile(input) {
   if (!profile) throw new Error('Original installed GCP runtime version and provider lock profile required');
   return profile;
 }
+function isOriginalCreationScopeProfile(profile) {
+  return (
+    profile ===
+    resolveInstalledGcpVersionProfile({
+      terraformVersion: '1.17.2',
+      providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+    })
+  );
+}
 
 // plugins/terraform/src/gcp-bootstrap-evidence.ts
 var hash = (value) => createHash('sha256').update(value).digest('hex');
@@ -6378,11 +6387,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
       terraformVersion: versionProfile.terraformVersion,
       backendIdentity: deployment.backendIdentity,
     });
-    const originalCreationQualified =
-      versionProfile.terraformVersion === '1.17.2' &&
-      versionProfile.googleVersion === '8.11.0' &&
-      versionProfile.xcshVersion === '15.16.1' &&
-      versionProfile.xcProviderSha256 === 'd9bdc18d928ac960c72275e0435477f8c98db1ad6e5ce64b8c4e9262ae6ef5d8';
+    const originalCreationQualified = isOriginalCreationScopeProfile(versionProfile);
     let preparedCreationScope;
     let originalPlanSource;
     let compileInvocation;

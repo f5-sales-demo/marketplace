@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +7,7 @@ import { fingerprint } from '../../../gcloud/src/ce/discovery';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import { CeDeploymentStore } from './deployment-store';
 import { type GcpBootstrapEvidenceSource, originalGcpBootstrapSource } from './gcp-bootstrap-evidence';
+import { type GcpBootstrapObservationOpener, openOriginalGcpBootstrapObservation } from './gcp-bootstrap-observation';
 import { createGcpLifecycleHttpPort } from './gcp-http';
 import { GcpPlatformLifecycle } from './gcp-lifecycle';
 import { createGcpPlatformObservations, type GcpPlatformObservations } from './gcp-observation';
@@ -38,6 +40,8 @@ export interface CeCapabilityEvidence {
 export interface CePlatformService {
   /** Optional for historical services; new consumers require the issuing module verifier. */
   gcpBootstrapSource?(): GcpBootstrapEvidenceSource;
+  /** Original GET body issuance remains inside the owning Platform module. */
+  gcpBootstrapObservation?: GcpBootstrapObservationOpener;
   storage(owner: CeOwner): Promise<CeDeploymentStore>;
   capabilities(contextName?: string): Promise<CeCapabilityEvidence>;
   runtime(engine: 'native' | 'terraform', contextName?: string): Promise<CeRuntime>;
@@ -78,6 +82,65 @@ export function createCePlatformService(
   };
   return {
     gcpBootstrapSource: () => originalGcpBootstrapSource,
+    async gcpBootstrapObservation(originalOwner, contextName, input) {
+      const owner = Object.freeze(structuredClone(originalOwner)),
+        expected = Object.freeze({ origin: input.origin, credentialSha256: input.credentialSha256 }),
+        targets = Object.freeze(input.targets.map((target) => Object.freeze({ ...target }))),
+        assertOriginal = input.assertOriginal;
+      if (
+        owner.provider !== 'gcp' ||
+        owner.engine !== 'terraform' ||
+        !/^[a-f0-9]{64}$/.test(expected.credentialSha256) ||
+        typeof assertOriginal !== 'function'
+      )
+        throw new Error('Original Terraform bootstrap observation scope required');
+      await assertOriginal();
+      const store = await CeDeploymentStore.open(
+        env.XCSH_CE_DEPLOYMENTS_DIR ??
+          join(env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+        owner,
+      );
+      const saved = (await store.read('gcp-terraform-input-identity.json')) as {
+        intent: { project: string; region: string; deploymentName: string; engine: string; platformContext: string };
+        intentFingerprint: string;
+        platformContext: string;
+      };
+      if (
+        !saved.intent ||
+        saved.intentFingerprint !== fingerprint(saved.intent) ||
+        saved.platformContext !== contextName ||
+        saved.intent.platformContext !== contextName ||
+        saved.intent.project !== owner.account ||
+        saved.intent.region !== owner.region ||
+        saved.intent.deploymentName !== owner.deploymentId ||
+        saved.intent.engine !== owner.engine
+      )
+        throw new Error('Original persisted bootstrap observation intent differs');
+      const savedHash = fingerprint(saved);
+      const credentials = await context(env, contextName);
+      const guard = async () => {
+        await assertOriginal();
+        await store.verify();
+        if (fingerprint(await store.read('gcp-terraform-input-identity.json')) !== savedHash)
+          throw new Error('Original bootstrap observation intent changed');
+        const current = await context(env, contextName);
+        if (
+          new URL(current.url).origin !== expected.origin ||
+          createHash('sha256').update(current.credential).digest('hex') !== expected.credentialSha256
+        )
+          throw new Error('Original selected bootstrap observation credential differs');
+        await assertOriginal();
+      };
+      await guard();
+      return openOriginalGcpBootstrapObservation({
+        store,
+        origin: expected.origin,
+        credential: credentials.credential,
+        targets,
+        assertOriginal: guard,
+      });
+    },
+
     async gcpLifecycle(owner, contextName, signal) {
       if (owner.provider !== 'gcp' || owner.engine !== 'native')
         throw new Error('Native GCP lifecycle ownership required');

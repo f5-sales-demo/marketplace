@@ -23,7 +23,7 @@ import {
 import { createInstalledGcpInvocationCompiler, selectInstalledGcpEnvironment } from './installed-gcp-invocation';
 import pins from './installed-runtime-pins.json';
 import { resolveInstalledTerraformExecutable } from './installed-terraform-executable';
-import { resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import { isOriginalCreationScopeProfile, resolveInstalledGcpVersionProfile } from './installed-version-profile';
 import { createLegacyInstalledTerraformExecutor } from './legacy-installed-executor';
 import { linuxMonotonicMs } from './linux-clock';
 import {
@@ -370,13 +370,8 @@ export function createInstalledRuntimeResolver(
       terraformVersion: versionProfile.terraformVersion,
       backendIdentity: deployment.backendIdentity,
     });
-    // This producer tuple has independent original process/descriptor qualification.
-    // Other historical profiles retain their original paths and publication holds.
-    const originalCreationQualified =
-      versionProfile.terraformVersion === '1.17.2' &&
-      versionProfile.googleVersion === '8.11.0' &&
-      versionProfile.xcshVersion === '15.16.1' &&
-      versionProfile.xcProviderSha256 === 'd9bdc18d928ac960c72275e0435477f8c98db1ad6e5ce64b8c4e9262ae6ef5d8';
+    // Current source mapping enables scope preparation; installed/live gates remain separate.
+    const originalCreationQualified = isOriginalCreationScopeProfile(versionProfile);
     let preparedCreationScope: PreparedOriginalCreationScope | undefined;
     let originalPlanSource: OriginalTerraformPlanSource | undefined;
     let compileInvocation: ReturnType<typeof createInstalledGcpInvocationCompiler> | undefined;

@@ -171,6 +171,7 @@ it('actual registered Platform service provides the issuing module verifier with
     },
   });
   expect(typeof service?.gcpBootstrapSource).toBe('function');
+  expect(typeof service?.gcpBootstrapObservation).toBe('function');
   const source = service?.gcpBootstrapSource?.();
   expect(source?.assertBody).toBe(run.platform.assertOriginalGcpPlatformHttpBody);
   expect(source?.inspect).toBe(run.platform.inspectOriginalGcpBootstrap);
@@ -215,4 +216,44 @@ it('compiled grant publication refuses serialized authority before checkout or e
     ),
   ).rejects.toThrow('Trusted');
   expect(executions).toBe(0);
+});
+
+it('compiled Platform observation supplies original bodies to the actual compiled Terraform consumer', async () => {
+  const run = await fixture();
+  const root = await mkdtemp(join(tmpdir(), 'compiled-original-observation-'));
+  const owner = run.input.binding.owner;
+  const store = await CeDeploymentStore.open(root, owner);
+  let requests = 0;
+  const observation = await run.platform.openOriginalGcpBootstrapObservation(
+    {
+      store,
+      origin: 'https://tenant.example.test',
+      credential: 'fixture',
+      targets: [
+        { type_name: 'xcsh_securemesh_site_v2', name: 'site-a', namespace: 'system' },
+        { type_name: 'xcsh_token', name: 'node-a-token', namespace: 'system' },
+      ],
+      assertOriginal: async () => {},
+    },
+    {
+      fetcher: async (url: URL) => {
+        requests++;
+        const original = url.pathname.includes('/tokens/') ? run.input.token : run.input.site;
+        return new Response(Buffer.from(original.bytes), { headers: { 'Content-Type': 'application/json' } });
+      },
+    },
+  );
+  try {
+    const site = await observation.read({ type_name: 'xcsh_securemesh_site_v2', name: 'site-a', namespace: 'system' });
+    const token = await observation.read({ type_name: 'xcsh_token', name: 'node-a-token', namespace: 'system' });
+    const candidate = await run.terraform.collectOriginalGcpTerraformBootstrap({ ...run.input, site, token });
+    expect(await run.terraform.readOriginalGcpTerraformBootstrapJwt(candidate)).toBe(run.jwt);
+    expect(candidate.bootstrapOwnershipQualified).toBe(false);
+    expect(requests).toBe(2);
+    await observation.close();
+    await expect(run.terraform.readOriginalGcpTerraformBootstrapJwt(candidate)).rejects.toThrow('retired');
+  } finally {
+    await observation.close();
+    await (await import('node:fs/promises')).rm(root, { recursive: true, force: true });
+  }
 });

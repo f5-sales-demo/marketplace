@@ -1728,3 +1728,14 @@ This is source and offline fixture evidence. Builtin original capture/controller
 composition, live provider grant consumption, all original GCP networking and
 lifecycle acceptance, independent closure/cleanup, remaining installed checks
 and review/CI/merge/publication remain open. No new cloud campaign was submitted.
+
+## Installed original-scope and observation mapping on November 15
+
+The [observation mapping receipt](gcp-installed-bootstrap-observation-20261115.md)
+records the stale installed version predicate repair and Platform-owned GET
+observation source. The actual compiled Terraform consumer accepts original
+Platform-issued bodies and refuses access after observation retirement.
+
+These are source and offline ABI checks. Builtin capture/controller composition,
+actual provider grant consumption, all original live GCP acceptance and cleanup,
+remaining installed checks and review/CI/merge/publication remain required.
