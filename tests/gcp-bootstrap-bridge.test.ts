@@ -343,3 +343,11 @@ it('compiled authenticated inventory retains original disk evidence and rejects 
     await (await import('node:fs/promises')).rm(root, { recursive: true, force: true });
   }
 });
+
+it('compiled inventory scope rejects fabricated packets before exposing targets', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.inspectOriginalGcpInventoryScope).toBe('function');
+  await expect(
+    runtime.inspectOriginalGcpInventoryScope({ schemaVersion: 1, kind: 'original-gcp-inventory-scope' }),
+  ).rejects.toThrow('Original');
+});

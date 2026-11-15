@@ -3036,6 +3036,25 @@ import {
 import { homedir as homedir2 } from 'node:os';
 import { dirname as dirname10, isAbsolute as isAbsolute11, join as join13, resolve as resolve11 } from 'node:path';
 
+// plugins/gcloud/src/ce/types.ts
+var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
+var GCP_CE_OPERATIONS = [
+  'deploy',
+  'reconcile',
+  'start',
+  'stop',
+  'resize',
+  'update-network',
+  'replace-node',
+  'repair',
+  'upgrade',
+  'failover',
+  'teardown',
+];
+
+// plugins/gcloud/src/gcloud/types.ts
+var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
 // plugins/gcloud/src/ce/site-access.ts
 var GCP_SITE_ACCESS_MAPPING = Object.freeze({
   schemaVersion: 1,
@@ -3061,6 +3080,53 @@ var _GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
   version: '15.17.3',
   sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
 });
+class GcpSiteAccessMappingUnavailable extends Error {
+  constructor() {
+    super(
+      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2 or 15.17.3 mapping',
+    );
+  }
+}
+function validateGcpSiteAccess(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
+  const access = value;
+  if (
+    Object.keys(value).sort().join(',') !== 'profile,publicKey,schemaVersion' ||
+    access.schemaVersion !== 1 ||
+    access.profile !== 'site-ssh-sli' ||
+    typeof access.publicKey !== 'string' ||
+    access.publicKey.length > 8192
+  )
+    throw new Error('Site SSH access requires the versioned SLI-only public-key profile');
+  const match = /^ssh-ed25519 ([A-Za-z0-9+/]+={0,2})$/.exec(access.publicKey);
+  if (!match) throw new Error('Site SSH requires one Ed25519 public key without options or comments');
+  const bytes = Buffer.from(match[1], 'base64');
+  if (
+    bytes.length !== 51 ||
+    bytes.toString('base64') !== match[1] ||
+    bytes.readUInt32BE(0) !== 11 ||
+    !bytes.subarray(4, 15).equals(Buffer.from('ssh-ed25519')) ||
+    bytes.readUInt32BE(15) !== 32
+  )
+    throw new Error('Site SSH public key wire format differs');
+}
+function assertGcpSiteAccessProfile(intent) {
+  if (intent.initialAccess === undefined) return;
+  validateGcpSiteAccess(intent.initialAccess);
+  if (
+    intent.engine !== 'terraform' ||
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 3 ||
+    intent.sites[0].nodes.some(
+      (node) => node.interfaces.length !== 2 || node.interfaces[0].role !== 'slo' || node.interfaces[1].role !== 'sli',
+    ) ||
+    intent.egress.mode !== 'external-ip' ||
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new GcpSiteAccessMappingUnavailable();
+}
 
 // plugins/gcloud/src/ce/observer-scope.ts
 var _GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
@@ -3068,6 +3134,206 @@ var _GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
   name: 'ubuntu-2404-noble-amd64-v20261021',
   id: '4996011480491275419',
 });
+function assertGcpTerraformObserverScope(scope, intent) {
+  if (
+    !scope ||
+    typeof scope !== 'object' ||
+    Array.isArray(scope) ||
+    Object.keys(scope).sort().join(',') !== 'profile,publicKey,schemaVersion,sshSourceCidr' ||
+    scope.schemaVersion !== 1 ||
+    scope.profile !== 'original-ha-observer'
+  )
+    throw new Error('Exact versioned original observer scope required');
+  validateGcpSiteAccess({ schemaVersion: 1, profile: 'site-ssh-sli', publicKey: scope.publicKey });
+  assertGcpSiteAccessProfile(intent);
+  if (!intent.initialAccess || intent.initialAccess.publicKey === scope.publicKey)
+    throw new Error('Distinct observer and CE campaign public keys required');
+  if (typeof scope.sshSourceCidr !== 'string') throw new Error('One exact observer SSH source required');
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/32$/.exec(scope.sshSourceCidr);
+  if (
+    !match ||
+    match[0] !== scope.sshSourceCidr ||
+    match.slice(1).some((part) => Number(part) > 255 || String(Number(part)) !== part) ||
+    [0, 127].includes(Number(match[1])) ||
+    Number(match[1]) >= 224 ||
+    (Number(match[1]) === 169 && Number(match[2]) === 254)
+  )
+    throw new Error('Observer SSH requires one canonical unicast IPv4 /32 source');
+}
+function gcpTerraformObserverIdentity(intent) {
+  if (intent.schemaVersion !== 2 || !intent.observer) throw new Error('Versioned observer intent required');
+  assertGcpTerraformObserverScope(intent.observer, intent);
+  const name = `${intent.deploymentName}-observer`,
+    firewallName = `${name}-ssh`;
+  if (firewallName.length > 63 || intent.sites[0].nodes.some((node) => node.name === name))
+    throw new Error('Derived observer identities collide or exceed GCP name limits');
+  const sli = intent.sites[0].nodes[0].interfaces[1];
+  return {
+    name,
+    key: name.replaceAll('-', '_'),
+    firewallName,
+    firewallKey: firewallName.replaceAll('-', '_'),
+    zone: intent.sites[0].nodes[0].zone,
+    network: sli.network,
+    subnet: sli.subnet,
+  };
+}
+
+// plugins/gcloud/src/ce/validation.ts
+var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
+function validateScope(project, region) {
+  if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
+  if (region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(region)) throw new Error('Invalid GCP region');
+}
+function name2(value) {
+  if (typeof value !== 'string' || !NAME.test(value)) throw new Error('Invalid GCP resource name');
+}
+function ipv4Range(cidr) {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(cidr);
+  if (!match) throw new Error('Invalid IPv4 CIDR');
+  const octets = match.slice(1, 5).map(Number);
+  const prefix = Number(match[5]);
+  if (octets.some((value) => value > 255) || prefix > 32) throw new Error('Invalid IPv4 CIDR');
+  const ip = octets.reduce((value, octet) => value * 256 + octet, 0);
+  const size = 2 ** (32 - prefix);
+  if (ip % size !== 0) throw new Error('CIDR must use a network boundary');
+  return [ip, ip + size - 1];
+}
+function validateImage(image) {
+  name2(image.name);
+  if (!/^f5xc-ce(?:-crt|crt)-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
+  const expected = `https://www.googleapis.com/compute/v1/projects/${GCP_CE_IMAGE_PROJECT}/global/images/${image.name}`;
+  if (
+    !/^\d+$/.test(image.id) ||
+    image.selfLink !== expected ||
+    image.status !== 'READY' ||
+    image.architecture !== 'X86_64'
+  )
+    throw new Error('Image must pin an exact ready x86 F5-owned image identity');
+  if (
+    !Array.isArray(image.licenses) ||
+    image.licenses.length === 0 ||
+    image.licenses.some(
+      (license) =>
+        !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/[a-z][a-z0-9-]+\/global\/licenses\/[a-z0-9-]+$/.test(
+          license,
+        ),
+    )
+  )
+    throw new Error('Image must pin its exact license identities');
+}
+function keys2(value, allowed) {
+  if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
+}
+function validateIntent(intent) {
+  if (intent?.schemaVersion !== 1 && intent?.schemaVersion !== 2) throw new Error('Unsupported GCP CE intent version');
+  if (
+    (intent.schemaVersion === 1 && Object.hasOwn(intent, 'observer')) ||
+    (intent.schemaVersion === 2 && !intent.observer)
+  )
+    throw new Error('Observer scope requires its complete version2 intent');
+  keys2(intent, [
+    'schemaVersion',
+    'project',
+    'region',
+    'deploymentName',
+    'platformContext',
+    'engine',
+    'operation',
+    'sites',
+    'machineType',
+    'diskGiB',
+    'image',
+    'ipForwarding',
+    'initialVersions',
+    'initialAccess',
+    ...(intent.schemaVersion === 2 ? ['observer'] : []),
+    'egress',
+    'ingress',
+    'routing',
+  ]);
+  keys2(intent.image, ['id', 'name', 'selfLink', 'licenses', 'architecture', 'status']);
+  keys2(intent.egress, ['mode', 'resource']);
+  keys2(intent.ingress, ['profile']);
+  keys2(intent.routing, ['profile', 'destinationCidrs']);
+  validateScope(intent.project, intent.region);
+  name2(intent.deploymentName);
+  name2(intent.machineType);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(intent.platformContext)) throw new Error('Explicit F5 context required');
+  if (!['native', 'terraform'].includes(intent.engine)) throw new Error('Explicit owning engine required');
+  if (!GCP_CE_OPERATIONS.includes(intent.operation)) throw new Error('Unsupported CE operation');
+  if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
+  if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
+  validateImage(intent.image);
+  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
+  if (intent.initialVersions) {
+    keys2(intent.initialVersions, ['software', 'os']);
+    if (
+      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
+      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
+    )
+      throw new Error('Explicit initial software/OS version pair required');
+  }
+  if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
+    throw new Error('Unsupported egress');
+  if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
+    throw new Error('Explicit egress resource required');
+  if (!['none', 'internal-passthrough-lb'].includes(intent.ingress.profile)) throw new Error('Unsupported ingress');
+  if (!['static-insertion', 'ilb-next-hop', 'ncc-router-appliance'].includes(intent.routing.profile))
+    throw new Error('Unsupported routing');
+  for (const cidr of intent.routing.destinationCidrs) ipv4Range(cidr);
+  if (!Array.isArray(intent.sites) || !intent.sites.length) throw new Error('Explicitly named sites required');
+  const sites = new Set();
+  const nodes = new Set();
+  for (const site of intent.sites) {
+    keys2(site, ['name', 'nodes']);
+    name2(site.name);
+    if (sites.has(site.name)) throw new Error('Independent sites require unique names');
+    sites.add(site.name);
+    if (![1, 3].includes(site.nodes.length)) throw new Error('Sites require one node or three HA nodes');
+    let shape;
+    for (const node of site.nodes) {
+      keys2(node, ['name', 'zone', 'interfaces']);
+      name2(node.name);
+      if (nodes.has(node.name)) throw new Error('Node names must be unique');
+      nodes.add(node.name);
+      if (!new RegExp(`^${intent.region}-[a-z]$`).test(node.zone))
+        throw new Error('Node zone must belong to the explicit region');
+      if (!node.interfaces.length || node.interfaces.length > 8)
+        throw new Error('CE requires 1-8 interfaces; machine limit remains a separate gate');
+      const networks = new Set();
+      const ranges = [];
+      for (const [index, nic] of node.interfaces.entries()) {
+        keys2(nic, ['index', 'role', 'vrf', 'network', 'subnet', 'cidr']);
+        if (nic.index !== index || (index === 0 && nic.role !== 'slo'))
+          throw new Error('Contiguous NIC order must start with SLO');
+        if (!['slo', 'sli', 'management'].includes(nic.role) || (index > 0 && nic.role === 'slo'))
+          throw new Error('Invalid NIC role');
+        name2(nic.vrf);
+        name2(nic.network);
+        name2(nic.subnet);
+        if (networks.has(nic.network)) throw new Error('Each NIC requires a distinct VPC');
+        networks.add(nic.network);
+        const range = ipv4Range(nic.cidr);
+        if (ranges.some(([start, end]) => range[0] <= end && start <= range[1]))
+          throw new Error('NIC subnets must not overlap');
+        ranges.push(range);
+      }
+      const current = JSON.stringify(
+        node.interfaces.map(({ index, role, vrf, network, subnet, cidr }) => [index, role, vrf, network, subnet, cidr]),
+      );
+      if (shape !== undefined && shape !== current)
+        throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
+      shape = current;
+    }
+  }
+  if (intent.schemaVersion === 2) {
+    const observer = intent.observer;
+    if (!observer) throw new Error('Versioned observer scope required');
+    assertGcpTerraformObserverScope(observer, intent);
+    gcpTerraformObserverIdentity(intent);
+  }
+}
 
 // plugins/gcloud/src/ce/discovery.ts
 function fingerprint(value) {
@@ -7905,7 +8171,7 @@ import { lstat as lstat12, mkdir as mkdir7, open as open9, realpath as realpath1
 import { isAbsolute as isAbsolute12, join as join15, resolve as resolve12 } from 'node:path';
 
 var hash14 = (raw) => createHash18('sha256').update(raw).digest('hex');
-var name2 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+var name3 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var numericId = /^[1-9][0-9]{0,19}$/;
 var uint64 = (value) => typeof value === 'string' && numericId.test(value) && BigInt(value) <= 18446744073709551615n;
 var operationName2 = /^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?|[1-9][0-9]{0,19})$/;
@@ -7924,7 +8190,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
     ...input.authentication,
     credentialBytes: Buffer.from(input.authentication.credentialBytes),
   });
-  if (!isAbsolute12(root) || resolve12(root) !== root || !name2.test(region))
+  if (!isAbsolute12(root) || resolve12(root) !== root || !name3.test(region))
     throw new Error('Private original cloud reader scope required');
   await mkdir7(root, { recursive: true, mode: 448 });
   const initial = await lstat12(root, { bigint: true });
@@ -7971,7 +8237,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
     }
   };
   const validate = (zone, node) => {
-    if (!name2.test(zone) || !zone.startsWith(`${region}-`) || !name2.test(node))
+    if (!name3.test(zone) || !zone.startsWith(`${region}-`) || !name3.test(node))
       throw new Error('Original named regional cloud scope required');
   };
   const retainScoped = async (response, kind, scope, querySha256) => {
@@ -8538,7 +8804,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
 import { createHash as createHash19, randomUUID as randomUUID9 } from 'node:crypto';
 
 var sameActor2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
-var name3 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
+var name4 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
 async function openInstalledBootstrapCapture(input, options = {}) {
   const { context, packet, platform, store, platformContext } = input;
   const nodes = Object.freeze(input.nodes.map((node) => Object.freeze({ ...node })));
@@ -8555,7 +8821,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
     nodes.some(
       (node) =>
         Object.keys(node).sort().join(',') !== 'nodeName,siteName,tokenName' ||
-        ![node.siteName, node.tokenName, node.nodeName].every(name3),
+        ![node.siteName, node.tokenName, node.nodeName].every(name4),
     ) ||
     new Set(nodes.map((node) => node.nodeName)).size !== nodes.length ||
     new Set(nodes.map((node) => node.tokenName)).size !== nodes.length
@@ -8889,6 +9155,298 @@ async function openInstalledBootstrapCapture(input, options = {}) {
   });
 }
 
+// plugins/terraform/src/original-gcp-inventory-scope.ts
+import { join as join16 } from 'node:path';
+
+// plugins/gcloud/src/ce/terraform-public-ownership.ts
+function publicTerraformPlatformScope(intent) {
+  return intent.sites.flatMap((site) => [
+    { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
+    ...site.nodes.map((node) => ({
+      address: `xcsh_token.${node.name.replaceAll('-', '_')}`,
+      siteName: site.name,
+      tokenName: `${node.name}-token`,
+    })),
+  ]);
+}
+function publicTerraformCloudScope(intent) {
+  validateIntent(intent);
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  const resources = intent.sites.flatMap((site) =>
+    site.nodes.flatMap((node) => [
+      {
+        kind: 'instance',
+        selfLink: `${prefix}/zones/${node.zone}/instances/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      {
+        kind: 'disk',
+        selfLink: `${prefix}/zones/${node.zone}/disks/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      ...node.interfaces.flatMap((nic) => [
+        { kind: 'network', selfLink: `${prefix}/global/networks/${nic.network}` },
+        { kind: 'subnetwork', selfLink: `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}` },
+      ]),
+    ]),
+  );
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3))
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['ingress', 'egress'])
+        resources.push({
+          kind: 'firewall',
+          selfLink: `${prefix}/global/firewalls/${site.name}-ha-${nic.role}-${direction}`,
+        });
+  if (intent.schemaVersion === 2) {
+    const observer = gcpTerraformObserverIdentity(intent);
+    resources.push(
+      { kind: 'instance', selfLink: `${prefix}/zones/${observer.zone}/instances/${observer.name}` },
+      { kind: 'disk', selfLink: `${prefix}/zones/${observer.zone}/disks/${observer.name}` },
+      { kind: 'firewall', selfLink: `${prefix}/global/firewalls/${observer.firewallName}` },
+    );
+  }
+  return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
+    ...resource,
+    id: '0',
+    project: intent.project,
+    deploymentName: intent.deploymentName,
+    engine: 'terraform',
+  }));
+}
+
+// plugins/terraform/src/original-gcp-inventory-scope.ts
+var issued4 = new WeakMap();
+var pending = new WeakMap();
+var refuse = () => new Error('Original owning GCP inventory scope required');
+function record(packet) {
+  const value = packet && typeof packet === 'object' ? issued4.get(packet) : undefined;
+  if (!value) throw refuse();
+  return value;
+}
+function field(row, name) {
+  const value = row.fields[name];
+  if (value?.status !== 'known' || typeof value.value !== 'string' || !value.value)
+    throw new Error('Known original inventory identity required');
+  return value.value;
+}
+function cloudBindings(intent) {
+  const observer = intent.schemaVersion === 2 ? gcpTerraformObserverIdentity(intent) : undefined;
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}/`;
+  return Object.freeze(
+    publicTerraformCloudScope(intent).map((resource) => {
+      if (!resource.selfLink.startsWith(prefix)) throw refuse();
+      const components = resource.selfLink.slice(prefix.length).split('/');
+      const name = components.at(-1);
+      if (!name) throw refuse();
+      let target;
+      if (
+        (resource.kind === 'instance' || resource.kind === 'disk') &&
+        components.length === 4 &&
+        components[0] === 'zones' &&
+        components[2] === `${resource.kind}s`
+      )
+        target = Object.freeze({ kind: resource.kind, name, zone: components[1] });
+      else if (
+        resource.kind === 'subnetwork' &&
+        components.length === 4 &&
+        components[0] === 'regions' &&
+        components[2] === 'subnetworks'
+      )
+        target = Object.freeze({ kind: 'subnetwork', name, region: components[1] });
+      else if (
+        (resource.kind === 'network' || resource.kind === 'firewall') &&
+        components.length === 3 &&
+        components[0] === 'global' &&
+        components[1] === `${resource.kind}s`
+      )
+        target = Object.freeze({ kind: resource.kind, name });
+      else throw new Error('Original inventory resource mapping unavailable');
+      if (
+        target.kind !== 'instance' &&
+        compileGcpInventoryResourceTarget(intent.project, target).selfLink !== resource.selfLink
+      )
+        throw refuse();
+      const role =
+        observer && [observer.name, observer.firewallName].includes(name)
+          ? 'observer'
+          : resource.nodeName
+            ? 'ce'
+            : 'networking';
+      return Object.freeze({
+        address: `google_compute_${resource.kind}.${name.replaceAll('-', '_')}`,
+        type: `google_compute_${resource.kind}`,
+        selfLink: resource.selfLink,
+        target,
+        role,
+        ...(resource.siteName ? { siteName: resource.siteName } : {}),
+        ...(resource.nodeName ? { nodeName: resource.nodeName } : {}),
+      });
+    }),
+  );
+}
+function prepareOriginalGcpInventoryScope(context, store) {
+  const existing = pending.get(context);
+  if (existing)
+    return existing.then(async (packet) => {
+      await store.verify();
+      if (
+        context.inputs['workspace:gcp-terraform-input-identity.json']?.path !==
+          join16(store.directory, 'gcp-terraform-input-identity.json') ||
+        ['provider', 'engine', 'account', 'region', 'deploymentId'].some(
+          (key) => store.owner[key] !== context.owner[key],
+        )
+      )
+        throw new Error('Original inventory storage scope differs');
+      await assertOriginalGcpInventoryScope(packet);
+      return packet;
+    });
+  const preparation = (async () => {
+    if (context.owner.provider !== 'gcp' || context.owner.engine !== 'terraform' || !context.readOriginalPlanSource)
+      throw refuse();
+    await context.assertWithinDeadline();
+    await context.assertInputs();
+    await store.verify();
+    const originalDirectory = store.directory;
+    const expectedInput = context.inputs['workspace:gcp-terraform-input-identity.json'];
+    const path = join16(originalDirectory, 'gcp-terraform-input-identity.json');
+    if (!expectedInput || expectedInput.path !== path) throw refuse();
+    const input = await owned(path, 65536);
+    assertSameOriginalInput(expectedInput, input.binding);
+    const saved = decodeEvidenceObject(input.bytes);
+    const intent = structuredClone(saved.intent);
+    validateIntent(intent);
+    if (
+      saved.intentFingerprint !== fingerprint(intent) ||
+      saved.platformContext !== intent.platformContext ||
+      intent.engine !== 'terraform' ||
+      intent.operation !== 'deploy' ||
+      intent.project !== context.owner.account ||
+      intent.region !== context.owner.region ||
+      intent.deploymentName !== context.owner.deploymentId
+    )
+      throw new Error('Original inventory deployment intent differs');
+    const readPlan = context.readOriginalPlanSource;
+    const source = await readPlan();
+    await assertOriginalTerraformPlanProjection(source);
+    if (
+      source.directory !== context.executionDirectory ||
+      source.scope.cloud !== 'gcp' ||
+      source.scope.account !== intent.project ||
+      source.scope.region !== intent.region ||
+      source.receipt.engine !== 'terraform' ||
+      source.receipt.deploymentId !== intent.deploymentName ||
+      source.receipt.operation ||
+      source.executionAuthorized !== false
+    )
+      throw refuse();
+    if (
+      source.receipt.configurationSha256 !== context.inputs['workspace:main.tf.json']?.sha256 ||
+      source.receipt.providerLockSha256 !== context.inputs['workspace:.terraform.lock.hcl']?.sha256
+    )
+      throw refuse();
+    const cloud = cloudBindings(intent);
+    const platform = Object.freeze(
+      publicTerraformPlatformScope(intent).map((entry) => {
+        const tokenName = 'tokenName' in entry ? entry.tokenName : undefined;
+        const type = tokenName ? 'xcsh_token' : 'xcsh_securemesh_site_v2';
+        return Object.freeze({
+          address: entry.address,
+          type,
+          target: Object.freeze({ type_name: type, namespace: 'system', name: tokenName ?? entry.siteName }),
+          siteName: entry.siteName,
+        });
+      }),
+    );
+    const expected = new Map([...cloud, ...platform].map((entry) => [entry.address, entry]));
+    if (expected.size !== cloud.length + platform.length) throw refuse();
+    for (const row of source.resources.filter((entry) => entry.mode === 'managed')) {
+      const binding = expected.get(row.address);
+      if (!binding || binding.type !== row.type || row.actions.length !== 1 || row.actions[0] !== 'create')
+        throw new Error('Original inventory plan coverage or creation action differs');
+      if (field(row, 'name') !== binding.target.name) throw new Error('Original inventory planned name differs');
+      if ('selfLink' in binding) {
+        if (
+          field(row, 'project') !== intent.project ||
+          ('zone' in binding.target && field(row, 'zone') !== binding.target.zone) ||
+          ('region' in binding.target && field(row, 'region') !== binding.target.region)
+        )
+          throw new Error('Original inventory planned cloud scope differs');
+      } else if (field(row, 'namespace') !== 'system') throw new Error('Original inventory Platform namespace differs');
+      expected.delete(row.address);
+    }
+    if (expected.size) throw new Error('Original inventory plan resource coverage incomplete');
+    const resources = Object.freeze(
+      [...cloud, ...platform].map((entry) => Object.freeze({ address: entry.address, type: entry.type })),
+    );
+    const monitor = await monitorOriginalInputs({ intent: input.binding });
+    let retired = false;
+    const assertInputs = async () => {
+      if (retired) throw refuse();
+      try {
+        await context.assertInputs();
+        await store.verify();
+        if (
+          store.directory !== originalDirectory ||
+          ['provider', 'engine', 'account', 'region', 'deploymentId'].some(
+            (key) => store.owner[key] !== context.owner[key],
+          )
+        )
+          throw refuse();
+        await monitor.assertOriginal();
+        assertSameOriginalInput(input.binding, (await owned(path, 65536)).binding);
+        await assertOriginalTerraformPlanProjection(source);
+        await monitor.assertOriginal();
+      } catch (error) {
+        retired = true;
+        throw error;
+      }
+    };
+    const assert = async () => {
+      await context.assertWithinDeadline();
+      await assertInputs();
+      if ((await readPlan()) !== source) throw refuse();
+      await context.assertWithinDeadline();
+    };
+    const packet = Object.freeze({ schemaVersion: 1, kind: 'original-gcp-inventory-scope' });
+    issued4.set(packet, {
+      context,
+      view: Object.freeze({
+        planSha256: source.receipt.planSha256,
+        intentFingerprint: saved.intentFingerprint,
+        cloud,
+        platform,
+        resources,
+        executionAuthorized: false,
+      }),
+      assert,
+      assertInputs,
+      close: () => {
+        retired = true;
+        monitor.close();
+      },
+    });
+    await assert();
+    return packet;
+  })();
+  pending.set(context, preparation);
+  return preparation;
+}
+async function assertOriginalGcpInventoryScope(packet) {
+  await record(packet).assert();
+}
+async function inspectOriginalGcpInventoryScope(packet) {
+  await assertOriginalGcpInventoryInputs(packet);
+  return record(packet).view;
+}
+function closeOriginalGcpInventoryScope(packet) {
+  record(packet).close();
+}
+async function assertOriginalGcpInventoryInputs(packet) {
+  await record(packet).assertInputs();
+}
+
 // plugins/terraform/src/gcp-campaign-access.ts
 import {
   createHash as createHash20,
@@ -8899,7 +9457,7 @@ import {
 } from 'node:crypto';
 import { constants as constants8 } from 'node:fs';
 import { lstat as lstat13, mkdir as mkdir8, open as open10, realpath as realpath12 } from 'node:fs/promises';
-import { dirname as dirname12, isAbsolute as isAbsolute13, join as join16, resolve as resolve13 } from 'node:path';
+import { dirname as dirname12, isAbsolute as isAbsolute13, join as join17, resolve as resolve13 } from 'node:path';
 
 var fileKeys2 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var parentKeys4 = ['dev', 'ino', 'uid', 'mode'];
@@ -9129,7 +9687,7 @@ async function prepareOriginalGcpCampaignAccess(store, request) {
   const scope = requestScope(store, request);
   await store.verify();
   await privateDirectory4(store.directory);
-  const root = join16(store.directory, 'gcp-campaign-access');
+  const root = join17(store.directory, 'gcp-campaign-access');
   try {
     await lstat13(root);
     return (await readOriginalGcpCampaignAccess(store, request)).publicAccess;
@@ -9142,7 +9700,7 @@ async function prepareOriginalGcpCampaignAccess(store, request) {
     'gcp-tf-deploy-original-authorization.json',
   ]) {
     try {
-      await lstat13(join16(store.directory, name));
+      await lstat13(join17(store.directory, name));
       throw new Error('Existing deployment cannot mint new campaign keys');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
@@ -9157,12 +9715,12 @@ async function prepareOriginalGcpCampaignAccess(store, request) {
   const ce = generateKey(),
     observer = generateKey();
   const inputs = {
-    ce_key: await persist2(join16(root, 'ce_key'), ce.privateBytes),
-    observer_key: await persist2(join16(root, 'observer_key'), observer.privateBytes),
+    ce_key: await persist2(join17(root, 'ce_key'), ce.privateBytes),
+    observer_key: await persist2(join17(root, 'observer_key'), observer.privateBytes),
   };
   const publicAccess = { schemaVersion: 1, cePublicKey: ce.publicKey, observerPublicKey: observer.publicKey };
   await persist2(
-    join16(root, 'manifest.private.json'),
+    join17(root, 'manifest.private.json'),
     Buffer.from(JSON.stringify({ schemaVersion: 1, ...scope, publicAccess, inputs })),
   );
   return (await readOriginalGcpCampaignAccess(store, request)).publicAccess;
@@ -9171,8 +9729,8 @@ async function readOriginalGcpCampaignAccess(store, request, intentSha256) {
   const scope = requestScope(store, request);
   await store.verify();
   await privateDirectory4(store.directory);
-  const root = join16(store.directory, 'gcp-campaign-access');
-  const manifest = await readOriginal(join16(root, 'manifest.private.json'));
+  const root = join17(store.directory, 'gcp-campaign-access');
+  const manifest = await readOriginal(join17(root, 'manifest.private.json'));
   const saved = JSON.parse(manifest.bytes.toString());
   if (
     saved.schemaVersion !== 1 ||
@@ -9186,7 +9744,7 @@ async function readOriginalGcpCampaignAccess(store, request, intentSha256) {
     throw new Error('Original campaign key scope differs');
   const inputs = { campaign_manifest: manifest.binding };
   for (const name of ['ce_key', 'observer_key']) {
-    const path = join16(root, name),
+    const path = join17(root, name),
       key = await readOriginal(path);
     assertSameOriginalInput(saved.inputs[name], key.binding);
     const publicKey = derivePublic(key.bytes);
@@ -9200,14 +9758,14 @@ async function readOriginalGcpCampaignAccess(store, request, intentSha256) {
     throw new Error('Exact original intent hash required');
   let claim;
   try {
-    await privateDirectory4(join16(root, 'intent-binding-claim'));
-    claim = await lstat13(join16(root, 'intent-binding-claim'));
+    await privateDirectory4(join17(root, 'intent-binding-claim'));
+    claim = await lstat13(join17(root, 'intent-binding-claim'));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
   let binding;
   try {
-    binding = await readOriginal(join16(root, 'intent-binding.private.json'));
+    binding = await readOriginal(join17(root, 'intent-binding.private.json'));
   } catch (error) {
     if (error.code !== 'ENOENT' || claim || intentSha256 !== undefined) throw error;
   }
@@ -9256,8 +9814,8 @@ async function bindOriginalGcpCampaignAccess(store, binding) {
     original.publicAccess.observerPublicKey !== binding.observerPublicKey
   )
     throw new Error('Original campaign intent public keys differ');
-  const path = join16(store.directory, 'gcp-campaign-access', 'intent-binding.private.json');
-  const claimPath = join16(store.directory, 'gcp-campaign-access', 'intent-binding-claim');
+  const path = join17(store.directory, 'gcp-campaign-access', 'intent-binding.private.json');
+  const claimPath = join17(store.directory, 'gcp-campaign-access', 'intent-binding-claim');
   let claimed = false;
   try {
     await mkdir8(claimPath, { mode: 448 });
@@ -9283,7 +9841,7 @@ async function bindOriginalGcpCampaignAccess(store, binding) {
 }
 
 // plugins/terraform/src/service.ts
-import { join as join17 } from 'node:path';
+import { join as join18 } from 'node:path';
 
 // plugins/terraform/src/session-lifetime.ts
 async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
@@ -9341,7 +9899,7 @@ function createCeTerraformService(platform, options = {}) {
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const directory = deployment.stage
-        ? join17(store.directory, 'terraform-stages', deployment.stage)
+        ? join18(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
       const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
         ? freezeRuntime(
@@ -9604,17 +10162,22 @@ function factory(pi) {
 }
 
 export {
+  assertOriginalGcpInventoryInputs,
+  assertOriginalGcpInventoryScope,
   assertOriginalGcpPreapplyBootstrapContext,
   checkoutOriginalGcpPreapplyBootstrap,
+  closeOriginalGcpInventoryScope,
   collectOriginalGcpPreapplyBootstrap,
   collectOriginalGcpTerraformBootstrap,
   collectOriginalGcpTerraformBootstrapV2,
   factory as default,
+  inspectOriginalGcpInventoryScope,
   joinOriginalGcpBootstrapVm,
   joinOriginalXcshCreationBody,
   openGcpCloudSerialReader,
   openInstalledBootstrapCapture,
   openInstalledXcshCreationReader,
+  prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
   readOriginalGcpPreapplyBootstrapJwt,
   readOriginalGcpTerraformBootstrapJwt,

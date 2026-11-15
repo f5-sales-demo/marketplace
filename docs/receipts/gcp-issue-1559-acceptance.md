@@ -1762,3 +1762,14 @@ startup, operation and final-reserve boundaries.
 These are source and offline checks. Full built-in factory composition, original
 insertion/guest capture, all original live acceptance and cleanup/restoration,
 remaining installed and delivery gates remain open.
+
+## Original inventory scope on November 15
+
+The [scope receipt](gcp-original-inventory-scope-20261115.md) records exact owning
+plan and persisted intent coverage for single-node and HA observer graphs. Scope
+references, immutable input identities and cached store ownership remain bound.
+Read-only final inspection does not renew an expired operation.
+
+These are source and offline checks. Initial absences, full built-in capture,
+original insertion/guest capture, all original live acceptance and delivery
+gates remain open.

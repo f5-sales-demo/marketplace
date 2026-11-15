@@ -13,6 +13,13 @@ export {
 export { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
 export { openInstalledBootstrapCapture } from './installed-bootstrap-capture';
 export { openInstalledXcshCreationReader, readOriginalInstalledXcshCreation } from './installed-xcsh-creation-reader';
+export {
+  assertOriginalGcpInventoryInputs,
+  assertOriginalGcpInventoryScope,
+  closeOriginalGcpInventoryScope,
+  inspectOriginalGcpInventoryScope,
+  prepareOriginalGcpInventoryScope,
+} from './original-gcp-inventory-scope';
 export { publishOriginalGcpBootstrapGrant } from './prepared-creation-scope';
 export { joinOriginalXcshCreationBody, readOriginalXcshCreationBody } from './xcsh-creation-body';
 
