@@ -466,8 +466,9 @@ async function bindOriginalExecutionOutput(input) {
         )
           throw new Error('Original private failure directory changed');
         const message = error instanceof Error ? error.message : 'Unknown original capture failure';
+        const cause = error instanceof Error ? error.cause : undefined;
         const payload = JSON.stringify({
-          schemaVersion: 1,
+          schemaVersion: 2,
           kind: 'original-output-capture-failure',
           identity,
           phase,
@@ -476,6 +477,16 @@ async function bindOriginalExecutionOutput(input) {
           message: message.slice(0, 4096),
           messageTruncated: message.length > 4096,
           messageSha256: digest(Buffer.from(message)),
+          cause:
+            cause instanceof Error
+              ? {
+                  errorName: cause.name.slice(0, 64),
+                  code: typeof cause.code === 'string' ? cause.code?.slice(0, 64) : null,
+                  message: cause.message.slice(0, 4096),
+                  messageTruncated: cause.message.length > 4096,
+                  messageSha256: digest(Buffer.from(cause.message)),
+                }
+              : null,
           offsets: { stdout: streams.stdout?.offset ?? 0, stderr: streams.stderr?.offset ?? 0 },
           applyRpcQualified: false,
           originalInsertQualified: false,
@@ -501,9 +512,9 @@ async function bindOriginalExecutionOutput(input) {
   const groupClosed = async () => {
     try {
       return await input.originalGroupClosed();
-    } catch {
+    } catch (error) {
       refused = true;
-      throw new OutputRefusal('Original output group closure unavailable');
+      throw new OutputRefusal('Original output group closure unavailable', { cause: error });
     }
   };
   const waitForOriginalClosingGroup = async () => {

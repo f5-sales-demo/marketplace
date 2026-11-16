@@ -346,7 +346,7 @@ test('failed stream captures retain a bounded private cause before returning the
       await writeFile(path, 'modified\n', { mode: 0o600 });
       await expect(output.read('stdout')).rejects.toThrow('prefix');
       const failure = JSON.parse(await readFile(join(dirname(path), 'output-capture-failure.private.json'), 'utf8'));
-      expect(failure.schemaVersion).toBe(1);
+      expect(failure.schemaVersion).toBe(2);
       expect(failure.kind).toBe('original-output-capture-failure');
       expect(failure.phase).toBe('retained-prefix');
       expect(failure.message).toBe('Original output retained prefix changed');

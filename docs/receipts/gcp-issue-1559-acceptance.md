@@ -1851,3 +1851,17 @@ The additional workspace-binding regression is fixed. Its fresh provider probe
 failed original group-closure capture after Terraform exited successfully.
 Independent cleanup passed, but that capture remains rejected and the hidden
 underlying error remains unresolved. Source failure diagnosis is the next gate.
+
+## Original closure failure cause retention on November 15
+
+The [private cause receipt](gcp-original-closure-cause-20261115.md) records a
+failing-first repair of discarded process-group closure exceptions. Version 2
+private failure records preserve the original type, code and bounded cause.
+Source tests, compiled checks and typecheck pass. Published dependency metadata
+confirms the additional development packages remain current.
+
+The previous live failure's cause remains unknown. Fresh changed-source
+provider read and original output capture passed, followed by independent empty
+cleanup and 26 absent command groups. Full built-in capture, all original live
+acceptance and remaining
+installed/delivery gates remain required.
