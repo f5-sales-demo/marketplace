@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.121 binds final VM/serial handoff to the original
+  identity, source files and actual reserved reader. Reviewed machine/forwarding
+  checks, retirement and fixed deadlines remain mandatory; live gates stay open.
+
 - **`terraform`** v2.4.120 acknowledges later group closure from the original
   completed output and final callback. Durable source checks preserve snapshots,
   single-use failures and fixed deadlines; live qualification remains open.

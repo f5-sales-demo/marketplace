@@ -1939,3 +1939,11 @@ callback and original output completion, preserving the initial snapshot and
 fixed reserve. Durable writes, concurrency, source copies and input mutation
 are covered by [source checks](gcp-original-group-closure-20261116.md). Final VM
 handoff, observer/factory and every live/delivery gate remain open.
+
+### Original final VM and serial handoff, 2026-11-16
+
+Terraform 2.4.121 preserves original identity/source files and the actual final
+reader's reserve across VM/serial handoff. Before packets retire and failed or
+expired evidence cannot renew. Reviewed machine/forwarding fields are enforced.
+See the [source receipt](gcp-final-vm-serial-handoff-20261116.md). Real provider
+refresh, guest/observer/factory and all live/delivery gates remain open.

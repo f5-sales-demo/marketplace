@@ -74,9 +74,14 @@ export {
 export {
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,
+  collectOriginalFinalGcpSerialEvidence,
+  handoffOriginalEarlyGcpVmEvidence,
   joinOriginalGcpVmEvidence,
+  type OriginalFinalGcpVmEvidence,
+  type OriginalFinalGcpVmHandoffInput,
   type OriginalGcpVmJoinInput,
   readOriginalEarlyGcpVmEvidence,
+  readOriginalFinalGcpVmEvidence,
 } from './gcp-vm-evidence';
 export { acknowledgeOriginalApplyGroupClosure } from './installed-apply-controller';
 export {

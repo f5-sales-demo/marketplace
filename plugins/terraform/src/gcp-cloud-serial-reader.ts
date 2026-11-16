@@ -16,6 +16,7 @@ import {
   GoogleComputeReadError,
   openGoogleAdcComputeReader,
 } from './google-adc-authentication';
+import { assertOriginalApplyCallback, type OriginalApplyCallbackContext } from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
@@ -43,6 +44,26 @@ export async function assertOriginalInstalledGcpCloudReader(
   const verify = cloudReaderOrigins.get(reader);
   if (!verify) throw new Error('Original cloud reader source required');
   await verify();
+}
+
+const installedReaderFinals = new WeakMap<object, Readonly<InstalledCloudFinalCapture>>();
+/** Require the reader opened for this actual final callback and its original reserve. */
+export async function assertOriginalInstalledGcpFinalCloudReader(
+  reader: unknown,
+  callback: OriginalApplyCallbackContext,
+): Promise<void> {
+  await assertOriginalApplyCallback(callback);
+  const issued = reader && typeof reader === 'object' ? installedReaderFinals.get(reader) : undefined;
+  if (
+    callback.phase !== 'after' ||
+    !callback.reserve ||
+    !issued ||
+    issued.admission !== callback.execution ||
+    issued.reserve !== callback.reserve
+  )
+    throw new Error('Original installed final cloud reader and callback reserve required');
+  await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+  await assertOriginalApplyCallback(callback);
 }
 
 type Json = Record<string, unknown>;
@@ -321,6 +342,8 @@ export async function openGcpCloudSerialReader(
         prior &&
         (prior.value.id !== original.value.id ||
           prior.value.creationTimestamp !== original.value.creationTimestamp ||
+          prior.value.canIpForward !== original.value.canIpForward ||
+          prior.value.machineType !== original.value.machineType ||
           JSON.stringify(prior.value.metadata) !== JSON.stringify(original.value.metadata) ||
           JSON.stringify(prior.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces) ||
           JSON.stringify(prior.value.labels) !== JSON.stringify(original.value.labels) ||
@@ -343,6 +366,8 @@ export async function openGcpCloudSerialReader(
           !current.present ||
           current.value.id !== original.value.id ||
           current.value.creationTimestamp !== original.value.creationTimestamp ||
+          current.value.canIpForward !== original.value.canIpForward ||
+          current.value.machineType !== original.value.machineType ||
           JSON.stringify(current.value.metadata) !== JSON.stringify(original.value.metadata) ||
           JSON.stringify(current.value.networkInterfaces) !== JSON.stringify(original.value.networkInterfaces) ||
           JSON.stringify(current.value.labels) !== JSON.stringify(original.value.labels) ||
@@ -867,6 +892,11 @@ export async function openInstalledGcpCloudSerialReader(
     fetcher,
   );
   installedReaderContexts.set(reader, context);
+  if (finalCapture)
+    installedReaderFinals.set(
+      reader,
+      Object.freeze({ admission: finalCapture.admission, reserve: finalCapture.reserve }),
+    );
   try {
     await assertOriginalInstalledGcpCloudReader(reader, context);
     return reader;

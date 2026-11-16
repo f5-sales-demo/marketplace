@@ -8,7 +8,11 @@ import type {
   OriginalGcpVm,
   openGcpCloudSerialReader,
 } from './gcp-cloud-serial-reader';
-import { assertOriginalInstalledGcpCloudReader, isInstalledGcpCloudSerialReader } from './gcp-cloud-serial-reader';
+import {
+  assertOriginalInstalledGcpCloudReader,
+  assertOriginalInstalledGcpFinalCloudReader,
+  isInstalledGcpCloudSerialReader,
+} from './gcp-cloud-serial-reader';
 import {
   type OriginalEarlyGcpInsertIdentity,
   type OriginalGcpInsertSourceCandidate,
@@ -22,6 +26,9 @@ import {
   type OriginalApplyGcpInventory,
   readOriginalApplyGcpInventory,
 } from './installed-initial-inventory';
+import { readOwnedInstalledInput } from './installed-runtime';
+import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
+import { inspectFinalReaderReserve } from './reader-final-reserve';
 
 type Json = Record<string, unknown>;
 type Reader = Awaited<ReturnType<typeof openGcpCloudSerialReader>>;
@@ -75,6 +82,30 @@ function resourceLink(value: unknown): string {
     throw new Error('Original interface link scope differs');
   return url.pathname.slice('/compute/v1/'.length);
 }
+function machineResourceLink(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    Array.from(value).some((character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127)
+  )
+    throw new Error('Original reviewed VM machine type link required');
+  const pattern = /^projects\/[a-z0-9-]+\/zones\/[a-z0-9-]+\/machineTypes\/[a-z0-9-]+$/;
+  if (pattern.test(value)) return value;
+  const url = new URL(value);
+  if (
+    url.protocol !== 'https:' ||
+    url.hostname !== 'www.googleapis.com' ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.search ||
+    url.hash ||
+    !url.pathname.startsWith('/compute/v1/') ||
+    !pattern.test(url.pathname.slice('/compute/v1/'.length))
+  )
+    throw new Error('Original reviewed VM machine type link scope differs');
+  return url.pathname.slice('/compute/v1/'.length);
+}
+
 type VmBodySource = Pick<
   OriginalGcpInsertSourceCandidate,
   | 'operationId'
@@ -128,6 +159,13 @@ function corroborateVmBodies(
   )
     throw new Error('Original absence, insert operation and numeric VM incarnation differ');
   const request = decodeEvidenceObject(Buffer.from(requestBody));
+  if (
+    request.canIpForward !== true ||
+    vm.canIpForward !== true ||
+    typeof vm.machineType !== 'string' ||
+    machineResourceLink(vm.machineType) !== machineResourceLink(request.machineType)
+  )
+    throw new Error('Original reviewed VM machine type or forwarding capability differs');
   const items = metadata(vm.metadata);
   if (
     hash(canonical(items)) !== source.metadataSha256 ||
@@ -355,8 +393,49 @@ const earlyVmOrigins = new WeakMap<
   {
     read(): Promise<EarlyVmView>;
     serial(start: string): Promise<Awaited<ReturnType<Reader['serial']>>>;
+    handoff(input: OriginalFinalGcpVmHandoffInput): Promise<OriginalFinalGcpVmEvidence>;
   }
 >();
+export interface OriginalFinalGcpVmEvidence {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-final-gcp-vm-evidence';
+}
+export interface OriginalFinalGcpVmHandoffInput {
+  readonly callback: OriginalApplyCallbackContext;
+  readonly reader: Reader;
+}
+type FinalVmView = Omit<EarlyVmView, 'kind'> &
+  Readonly<{
+    kind: 'original-final-gcp-vm-cloud-candidate';
+    finalStartedMs: number;
+    finalDeadlineMs: number;
+  }>;
+const finalVmOrigins = new WeakMap<
+  OriginalFinalGcpVmEvidence,
+  {
+    read(): Promise<FinalVmView>;
+    serial(start: string): Promise<Awaited<ReturnType<Reader['serial']>>>;
+  }
+>();
+export async function handoffOriginalEarlyGcpVmEvidence(original: unknown, input: OriginalFinalGcpVmHandoffInput) {
+  const source =
+    original && typeof original === 'object' ? earlyVmOrigins.get(original as OriginalEarlyGcpVmEvidence) : undefined;
+  if (!source) throw new Error('Original early VM handoff source required');
+  return source.handoff(input);
+}
+export async function readOriginalFinalGcpVmEvidence(value: unknown): Promise<FinalVmView> {
+  const source =
+    value && typeof value === 'object' ? finalVmOrigins.get(value as OriginalFinalGcpVmEvidence) : undefined;
+  if (!source) throw new Error('Original final VM evidence required');
+  return source.read();
+}
+export async function collectOriginalFinalGcpSerialEvidence(value: unknown, start: string) {
+  const source =
+    value && typeof value === 'object' ? finalVmOrigins.get(value as OriginalFinalGcpVmEvidence) : undefined;
+  if (!source) throw new Error('Original final VM evidence required');
+  return source.serial(start);
+}
+
 export async function readOriginalEarlyGcpVmEvidence(value: unknown): Promise<EarlyVmView> {
   const source =
     value && typeof value === 'object' ? earlyVmOrigins.get(value as OriginalEarlyGcpVmEvidence) : undefined;
@@ -436,8 +515,19 @@ export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpV
     await guard();
     return null;
   }
-  let refused = false;
+  const sealedInputs: OriginalInputBinding[] = [];
+  for (const record of [operation, instance]) {
+    const captured = await readOwnedInstalledInput(record.path, 4 * 1024 * 1024);
+    if (captured.binding.sha256 !== record.sha256) throw new Error('Original VM source bytes differ');
+    sealedInputs.push(captured.binding);
+  }
+  let refused = false,
+    transferred = false;
+  let handoffPromise: Promise<OriginalFinalGcpVmEvidence> | undefined;
+  let handoffCallback: OriginalApplyCallbackContext | undefined;
+  let handoffReader: Reader | undefined;
   const read = async (): Promise<EarlyVmView> => {
+    if (transferred) throw new Error('Original before VM evidence retired after final handoff');
     if (refused) throw new Error('Original early VM evidence retired');
     try {
       const current = await guard();
@@ -507,7 +597,119 @@ export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpV
   });
   earlyVmOrigins.set(packet, {
     read,
+    async handoff(input) {
+      const final = input.callback,
+        finalReader = input.reader;
+      // An unissued caller cannot claim or poison the original packet.
+      await assertOriginalApplyGcpInventoryCallback(baseline, final);
+      await assertOriginalInstalledGcpFinalCloudReader(finalReader, final);
+      if (
+        callback.phase !== 'before' ||
+        final.phase !== 'after' ||
+        final.original !== callback.original ||
+        final.nonce !== callback.nonce
+      )
+        throw new Error('Original before-to-final VM callback differs');
+      if (refused) throw new Error('Original early VM handoff source retired');
+      if (handoffPromise) {
+        if (handoffCallback !== final || handoffReader !== finalReader)
+          throw new Error('Original final VM handoff already claimed');
+        const issued = await handoffPromise;
+        await readOriginalFinalGcpVmEvidence(issued);
+        return issued;
+      }
+      handoffCallback = final;
+      handoffReader = finalReader;
+      handoffPromise = (async () => {
+        let failed = false;
+        const guardFinal = async () => {
+          if (failed || refused) throw new Error('Original final VM handoff retired');
+          await assertOriginalApplyGcpInventoryCallback(baseline, final);
+          await assertOriginalInstalledGcpFinalCloudReader(finalReader, final);
+          await readOriginalEarlyGcpInsertIdentity(identity);
+          for (const binding of sealedInputs)
+            assertSameOriginalInput(binding, (await readOwnedInstalledInput(binding.path, 4 * 1024 * 1024)).binding);
+          await assertOriginalApplyGcpInventoryCallback(baseline, final);
+          await assertOriginalInstalledGcpFinalCloudReader(finalReader, final);
+        };
+        try {
+          await guardFinal();
+          const candidate = await collectOriginalEarlyGcpVmEvidence({
+            identity,
+            baseline,
+            callback: final,
+            reader: finalReader,
+          });
+          if (!candidate) throw new Error('Original VM unavailable during final handoff');
+          const readFinal = async (): Promise<FinalVmView> => {
+            try {
+              await guardFinal();
+              const view = await readOriginalEarlyGcpVmEvidence(candidate);
+              const current = await finalReader.instance(identity.zone, identity.nodeName);
+              if (
+                !current.present ||
+                (
+                  [
+                    'id',
+                    'creationTimestamp',
+                    'metadata',
+                    'networkInterfaces',
+                    'labels',
+                    'serviceAccounts',
+                    'canIpForward',
+                    'machineType',
+                  ] as const
+                ).some((key) => JSON.stringify(current.value[key]) !== JSON.stringify(instance.value[key]))
+              )
+                throw new Error('Original VM identity or ownership changed during final handoff');
+              await guardFinal();
+              if (!final.reserve) throw new Error('Original final VM reserve required');
+              const timing = inspectFinalReaderReserve(final.reserve);
+              return Object.freeze({
+                ...view,
+                kind: 'original-final-gcp-vm-cloud-candidate',
+                finalStartedMs: timing.finalStartedMs,
+                finalDeadlineMs: timing.finalDeadlineMs,
+              });
+            } catch (error) {
+              failed = true;
+              refused = true;
+              throw error;
+            }
+          };
+          await readFinal();
+          const result: OriginalFinalGcpVmEvidence = Object.freeze({
+            schemaVersion: 1,
+            kind: 'original-final-gcp-vm-evidence',
+          });
+          finalVmOrigins.set(result, {
+            read: readFinal,
+            async serial(start) {
+              try {
+                await readFinal();
+                const capture = await collectOriginalEarlyGcpSerialEvidence(candidate, start);
+                await readFinal();
+                return capture;
+              } catch (error) {
+                failed = true;
+                refused = true;
+                throw error;
+              }
+            },
+          });
+          transferred = true;
+          return result;
+        } catch (error) {
+          failed = true;
+          refused = true;
+          throw error;
+        }
+      })();
+      return handoffPromise;
+    },
+
     async serial(start) {
+      if (transferred) throw new Error('Original before VM evidence retired after final handoff');
       if (refused) throw new Error('Original early VM evidence retired');
       try {
         await read();

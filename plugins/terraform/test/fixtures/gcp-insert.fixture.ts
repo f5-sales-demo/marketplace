@@ -292,6 +292,8 @@ export async function vmJoinFixture(
     name: node,
     zone: operationFixture().zone,
     creationTimestamp: created,
+    canIpForward: initial.canIpForward,
+    machineType: initial.machineType,
     labels: initial.labels,
     metadata: { ...initial.metadata, fingerprint: 'example-original-fingerprint' },
     networkInterfaces: initial.networkInterfaces.map((nic, index) => ({

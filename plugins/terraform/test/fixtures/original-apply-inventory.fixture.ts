@@ -17,7 +17,7 @@ import * as inventories from '../../src/installed-initial-inventory';
 import { linuxMonotonicMs } from '../../src/linux-clock';
 import { prepareOriginalGcpInventoryScope } from '../../src/original-gcp-inventory-scope';
 import { admitFinalReaderReserve } from '../../src/reader-final-reserve';
-import { signalFreeTerraformExecutor } from '../../src/signal-free-executor';
+import { type FinalExecutionCapture, signalFreeTerraformExecutor } from '../../src/signal-free-executor';
 import { authInfo, fixture, roots } from '../original-gcp-inventory-fixture';
 
 export async function withApplyInventory(
@@ -33,6 +33,7 @@ export async function withApplyInventory(
     final: OriginalApplyCallbackContext;
   }) => Promise<void>,
   output?: (context: InstalledCaptureContext, store: CeDeploymentStore) => Promise<{ prefix: string; tail: string }>,
+  expectedOutcome?: 'deadline',
 ) {
   await fixture(
     async (context, store, invocation) => {
@@ -102,6 +103,7 @@ export async function withApplyInventory(
       let packet: inventories.OriginalApplyGcpInventory | undefined;
       let check: Promise<void> | undefined;
       let checkError: unknown;
+      let finishedCapture: FinalExecutionCapture | undefined;
       const control = createInstalledApplyController(
         context,
         {
@@ -130,6 +132,8 @@ export async function withApplyInventory(
           await context.assertInputs();
           if (linuxMonotonicMs() >= context.budget.deadline) throw new Error('Original operation budget exhausted');
         },
+        assertOriginalIdentity: context.assertInputs,
+        assertFinalInputs: context.assertInputs,
         beforeRelease: async (admission) => {
           await control.start(admission);
           check = (async () => {
@@ -149,6 +153,7 @@ export async function withApplyInventory(
           })();
         },
         finalCapture: async (finished) => {
+          finishedCapture = finished;
           await check;
           if (checkError) throw checkError;
           if (!finished.identity) throw new Error('Original final identity required');
@@ -170,7 +175,15 @@ export async function withApplyInventory(
           args: ['apply', '-json', '-parallelism=1', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'],
           env: {},
         });
-        if (result.code !== 0) throw new Error('Original fixture execution failed');
+        if (expectedOutcome === 'deadline') {
+          if (
+            result.code !== 1 ||
+            finishedCapture?.reason !== 'deadline' ||
+            !finishedCapture.submitted ||
+            finishedCapture.originalDeadlineMs !== context.budget.deadline
+          )
+            throw new Error('Original fixture deadline refusal required');
+        } else if (result.code !== 0) throw new Error('Original fixture execution failed');
       } catch (error) {
         const index = roots.indexOf(dirname(dirname(invocation.cwd)));
         if (index >= 0) roots.splice(index, 1);

@@ -524,3 +524,15 @@ it('compiled group closure acknowledgement rejects an invented final callback an
     ),
   ).rejects.toThrow('Original');
 });
+
+it('compiled final VM handoff rejects serialized identities and final evidence', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.handoffOriginalEarlyGcpVmEvidence).toBe('function');
+  expect(typeof runtime.readOriginalFinalGcpVmEvidence).toBe('function');
+  expect(typeof runtime.collectOriginalFinalGcpSerialEvidence).toBe('function');
+  await expect(runtime.handoffOriginalEarlyGcpVmEvidence({}, {})).rejects.toThrow('Original');
+  await expect(
+    runtime.readOriginalFinalGcpVmEvidence({ schemaVersion: 1, kind: 'original-final-gcp-vm-evidence' }),
+  ).rejects.toThrow('Original');
+  await expect(runtime.collectOriginalFinalGcpSerialEvidence({}, '0')).rejects.toThrow('Original');
+});
