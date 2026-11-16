@@ -351,7 +351,7 @@ class GuestSession:
             ),
             "-W",
             binding.address + ":22",
-            "observer@" + binding.observer_address,
+            "ubuntu@" + binding.observer_address,
         ]
         argv = [
             str(executable),

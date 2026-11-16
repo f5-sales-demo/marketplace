@@ -294,7 +294,7 @@ def test_token_expiry_during_ownership_read_refuses_before_write(tmp_path, bindi
     assert len(guest.transport.calls) == before
 
 
-def test_documented_observer_route_retains_both_host_pins(tmp_path, binding):
+def test_reviewed_ubuntu_observer_route_retains_both_host_pins(tmp_path, binding):
     guest = session(tmp_path, binding)
     argv = guest.transport.argv
     proxy = next(
@@ -303,7 +303,7 @@ def test_documented_observer_route_retains_both_host_pins(tmp_path, binding):
         if value.startswith("ProxyCommand=")
     )
     inner = shlex.split(proxy)
-    assert inner[-1] == "observer@" + binding.observer_address
+    assert inner[-1] == "ubuntu@" + binding.observer_address
     assert argv[-1] == "admin@" + binding.address
     assert "UserKnownHostsFile=" + str(binding.observer_hosts) in inner
     assert "UserKnownHostsFile=" + str(binding.ce_hosts) in argv

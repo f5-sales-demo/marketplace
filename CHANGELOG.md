@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.123 uses the reviewed observer metadata user
+  `ubuntu` for the guest SSH proxy. Both host pins, the CE `admin` login
+  and fixed capture limits remain enforced; live qualification stays open.
+
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.

@@ -1957,3 +1957,12 @@ fingerprint without rewriting original reasons or receipts. See the
 [source receipt](gcp-observer-insertion-mapping-20261116.md). Fixture checks
 do not establish live acceptance. Built-in factory, real provider refresh,
 guest capture and every original live/runtime/delivery gate remain open.
+
+### Reviewed observer SSH user, 2026-11-16
+
+Terraform 2.4.123 repairs the guest proxy's observer account to match the
+reviewed `ubuntu` metadata key. Actual session construction failed first;
+78 guest Python and 51 capture-runtime regressions passed after the fix.
+See the [source receipt](gcp-observer-ssh-user-20261116.md).
+Source fixtures do not qualify real SSH, host trust, guest behavior or any
+original live/runtime/delivery gate. Built-in factory composition remains open.
