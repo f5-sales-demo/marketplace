@@ -11,7 +11,7 @@ import {
   XCSH_PROVIDER_VERSION,
 } from './runtime-ay1zjq29.js';
 import { canonicalSha256 } from './runtime-wvre8ba5.js';
-import { assessCeUpgradeTransition } from './runtime-y39p0vy5.js';
+import { assessCeUpgradeTransition } from './runtime-zgbq4apm.js';
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

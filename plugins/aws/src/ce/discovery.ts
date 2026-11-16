@@ -4,6 +4,7 @@ import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './canonic
 import { observeStandardVcpuCapacity, observeTaggedResourceCapacity } from './capacity';
 import { awsEbsVolume } from './ebs-retirement';
 import { observeOwnedAwsEipAssociations } from './eip-association-discovery';
+import { observeAwsNetworkQuotas } from './network-quota-observation';
 import { scopedAwsApi } from './scoped-exec';
 import type {
   AwsCeEgressMode,
@@ -431,21 +432,7 @@ async function observeRegion(
       region,
     ]).catch(() => ({})),
     Promise.all(
-      ['ec2', 'vpc', 'elasticloadbalancing'].map(async (serviceCode) => {
-        try {
-          const result = await json<{ Quotas?: Array<Record<string, unknown>> }>(api, [
-            'service-quotas',
-            'list-service-quotas',
-            '--service-code',
-            serviceCode,
-            '--region',
-            region,
-          ]);
-          return { serviceCode, quotas: result.Quotas ?? [], ok: true };
-        } catch {
-          return { serviceCode, quotas: [], ok: false };
-        }
-      }),
+      ['ec2', 'vpc', 'elasticloadbalancing'].map((serviceCode) => observeAwsNetworkQuotas(api, serviceCode, region)),
     ),
     api.exec('aws', ['ec2', 'describe-transit-gateways', '--max-results', '5', '--region', region, '--output', 'json']),
   ]);
@@ -623,6 +610,17 @@ async function observeRegion(
     vpcCapacity,
     internetGatewayCapacity,
     networkQuotas,
+    networkQuotaFailures: networkQuotaResults.flatMap((result) =>
+      result.failure
+        ? [
+            {
+              serviceCode: result.serviceCode,
+              attempts: result.attempts,
+              ...result.failure,
+            },
+          ]
+        : [],
+    ),
     elasticIpCapacity,
     transitGatewaySupported: tgw.exitCode === 0,
     brownfieldProximity: 0,
@@ -875,11 +873,23 @@ export async function discoverAwsCompute(
   input: AwsComputeDiscoveryInput,
   api: AwsExecApi,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<AwsCeObservation> {
+  signal?.throwIfAborted();
   input = { ...input, awsProfile: input.awsProfile ?? 'default' };
-  api = scopedAwsApi(api, input.awsProfile);
+  api = scopedAwsApi(api, input.awsProfile, signal);
+  if (signal) {
+    const originalFetcher = fetcher;
+    fetcher = ((resource, init) => {
+      signal.throwIfAborted();
+      const requestSignal = init?.signal ? AbortSignal.any([signal, init.signal]) : signal;
+      requestSignal.throwIfAborted();
+      return originalFetcher(resource, { ...init, signal: requestSignal });
+    }) as typeof fetch;
+  }
   const instanceTypes = validateInput(input);
   const researchReceipt = await research(fetcher);
+  signal?.throwIfAborted();
   const identity = await json<Record<string, unknown>>(api, ['sts', 'get-caller-identity']);
   if (String(identity.Account) !== input.accountId) throw new Error('AWS CLI returned a different account');
   const arn = String(identity.Arn ?? '');

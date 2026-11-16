@@ -209,6 +209,13 @@ export interface AwsCeRegionObservation {
     requiredAdditional: number;
   };
   networkQuotas: Array<{ serviceCode: string; quotaCode: string; quotaName: string; value: number }>;
+  networkQuotaFailures?: Array<{
+    serviceCode: string;
+    attempts: number;
+    kind: 'command-failed' | 'invalid-response';
+    retryable: boolean;
+    detailSha256: string;
+  }>;
   transitGatewaySupported: boolean;
   brownfieldProximity: number;
 }

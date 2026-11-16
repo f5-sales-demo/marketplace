@@ -11,6 +11,7 @@ import {
   normalizeAwsBootstrapKeyPairName,
   observeAwsBootstrapKeyPairs,
 } from './runtime-2srcqb9f.js';
+import { detectAwsError } from './runtime-30f0rzjf.js';
 import { readAwsEc2Pages, scopedAwsApi } from './runtime-fex55vat.js';
 import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './runtime-wvre8ba5.js';
 
@@ -251,6 +252,92 @@ async function observeOwnedAwsEipAssociations(initial, accountId, observe) {
   if (originalAliases.some((r) => !relationships.some((v) => v.associationId === r.id)))
     throw Error('EIP association changed during discovery');
   return [...resources.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// plugins/aws/src/ce/network-quota-observation.ts
+import { createHash } from 'node:crypto';
+
+var digest = (value) => createHash('sha256').update(value).digest('hex');
+var object = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+var transient = (error) =>
+  error.name === 'AwsThrottlingError' ||
+  (error.name === 'AwsExecError' &&
+    /requesttimeout|serviceunavailable|internalerror|internalfailure|connection (?:reset|closed|was closed)|(?:connect|read) timeout on endpoint|could not connect to the endpoint|endpointconnectionerror/i.test(
+      error.message,
+    ));
+async function observeAwsNetworkQuotas(api, serviceCode, region, options = {}) {
+  if (!['ec2', 'vpc', 'elasticloadbalancing'].includes(serviceCode) || !/^[a-z]{2}(?:-gov)?-[a-z]+-\d$/.test(region))
+    throw new Error('Resolved network quota service and region required');
+  const pause = options.pause ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  for (let attempts = 1; attempts <= 3; attempts++) {
+    let raw;
+    try {
+      raw = await api.exec('aws', [
+        'service-quotas',
+        'list-service-quotas',
+        '--service-code',
+        serviceCode,
+        '--region',
+        region,
+        '--output',
+        'json',
+      ]);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw error;
+      return {
+        serviceCode,
+        quotas: [],
+        ok: false,
+        attempts,
+        failure: { kind: 'command-failed', retryable: false, detailSha256: digest(String(error)) },
+      };
+    }
+    if (raw.exitCode !== 0) {
+      const retryable = transient(detectAwsError(raw.stderr, raw.exitCode));
+      if (retryable && attempts < 3) {
+        await pause(200 * attempts);
+        continue;
+      }
+      return {
+        serviceCode,
+        quotas: [],
+        ok: false,
+        attempts,
+        failure: { kind: 'command-failed', retryable, detailSha256: digest(raw.stderr) },
+      };
+    }
+    let data;
+    try {
+      data = JSON.parse(raw.stdout);
+    } catch {
+      data = undefined;
+    }
+    if (
+      !object(data) ||
+      ['NextToken', 'NextMarker', 'nextToken'].some((key) => Object.hasOwn(data, key)) ||
+      !Array.isArray(data.Quotas) ||
+      !data.Quotas.every(
+        (row) =>
+          object(row) &&
+          typeof row.QuotaCode === 'string' &&
+          !!row.QuotaCode.trim() &&
+          typeof row.QuotaName === 'string' &&
+          !!row.QuotaName.trim() &&
+          typeof row.Value === 'number' &&
+          Number.isFinite(row.Value) &&
+          (row.ServiceCode === undefined || row.ServiceCode === serviceCode),
+      )
+    )
+      return {
+        serviceCode,
+        quotas: [],
+        ok: false,
+        attempts,
+        failure: { kind: 'invalid-response', retryable: false, detailSha256: digest(raw.stdout) },
+      };
+    return { serviceCode, quotas: data.Quotas, ok: true, attempts };
+  }
+  throw new Error('Network quota read exhausted without a result');
 }
 
 // plugins/aws/src/ce/discovery.ts
@@ -612,21 +699,7 @@ async function observeRegion(
       region,
     ]).catch(() => ({})),
     Promise.all(
-      ['ec2', 'vpc', 'elasticloadbalancing'].map(async (serviceCode) => {
-        try {
-          const result = await json(api, [
-            'service-quotas',
-            'list-service-quotas',
-            '--service-code',
-            serviceCode,
-            '--region',
-            region,
-          ]);
-          return { serviceCode, quotas: result.Quotas ?? [], ok: true };
-        } catch {
-          return { serviceCode, quotas: [], ok: false };
-        }
-      }),
+      ['ec2', 'vpc', 'elasticloadbalancing'].map((serviceCode) => observeAwsNetworkQuotas(api, serviceCode, region)),
     ),
     api.exec('aws', ['ec2', 'describe-transit-gateways', '--max-results', '5', '--region', region, '--output', 'json']),
   ]);
@@ -798,6 +871,17 @@ async function observeRegion(
     vpcCapacity,
     internetGatewayCapacity,
     networkQuotas,
+    networkQuotaFailures: networkQuotaResults.flatMap((result) =>
+      result.failure
+        ? [
+            {
+              serviceCode: result.serviceCode,
+              attempts: result.attempts,
+              ...result.failure,
+            },
+          ]
+        : [],
+    ),
     elasticIpCapacity,
     transitGatewaySupported: tgw.exitCode === 0,
     brownfieldProximity: 0,
@@ -1028,11 +1112,22 @@ async function observeAwsResources(api, ids, region, ownership) {
     observeResource(api, id, region, ownership.deploymentName, ownership.planSha256s),
   );
 }
-async function discoverAwsCompute(input, api, fetcher = fetch) {
+async function discoverAwsCompute(input, api, fetcher = fetch, signal) {
+  signal?.throwIfAborted();
   input = { ...input, awsProfile: input.awsProfile ?? 'default' };
-  api = scopedAwsApi(api, input.awsProfile);
+  api = scopedAwsApi(api, input.awsProfile, signal);
+  if (signal) {
+    const originalFetcher = fetcher;
+    fetcher = (resource, init) => {
+      signal.throwIfAborted();
+      const requestSignal = init?.signal ? AbortSignal.any([signal, init.signal]) : signal;
+      requestSignal.throwIfAborted();
+      return originalFetcher(resource, { ...init, signal: requestSignal });
+    };
+  }
   const instanceTypes = validateInput(input);
   const researchReceipt = await research(fetcher);
+  signal?.throwIfAborted();
   const identity = await json(api, ['sts', 'get-caller-identity']);
   if (String(identity.Account) !== input.accountId) throw new Error('AWS CLI returned a different account');
   const arn = String(identity.Arn ?? '');
@@ -1215,14 +1310,14 @@ var keywords = new Set([
   'format',
   'nullable',
 ]);
-function object(value) {
+function object2(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SMSv2 schema is malformed');
   return value;
 }
 function vendorIntegerRanges(source) {
   const key = 'ves.io.schema.rules.uint32.ranges';
   const annotations = ['x-ves-validation-rules', 'x-validation-rules']
-    .map((name) => (source[name] === undefined ? undefined : object(source[name])[key]))
+    .map((name) => (source[name] === undefined ? undefined : object2(source[name])[key]))
     .filter((value) => value !== undefined);
   if (!annotations.length) return;
   if (source.type !== 'integer' || annotations.some((value) => typeof value !== 'string'))
@@ -1254,14 +1349,14 @@ function requestSchema(schemas, root) {
   const referenced = new Set();
   function convert(value) {
     if (typeof value === 'boolean') return value;
-    const source = object(value);
+    const source = object2(value);
     if (source.readOnly === true) return false;
     const result = {};
     for (const [key, item] of Object.entries(source)) {
       if (keywords.has(key)) result[key] = item;
       if (key === 'required' && Array.isArray(item))
         result.required = item.map((name) => {
-          const property = object(source.properties ?? {})[String(name)];
+          const property = object2(source.properties ?? {})[String(name)];
           return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
         });
       if (key === '$ref') {
@@ -1274,8 +1369,8 @@ function requestSchema(schemas, root) {
       }
       if (key === 'properties') {
         result.properties = Object.fromEntries(
-          Object.entries(object(item)).map(([name, schema]) => {
-            const wireName = object(schema)['x-f5xc-wire-name'];
+          Object.entries(object2(item)).map(([name, schema]) => {
+            const wireName = object2(schema)['x-f5xc-wire-name'];
             return [typeof wireName === 'string' ? wireName : name, convert(schema)];
           }),
         );
@@ -1307,7 +1402,7 @@ function requestSchema(schemas, root) {
       if (!Array.isArray(names) || names.some((name) => typeof name !== 'string'))
         throw new Error('Malformed SMSv2 oneof group');
       const wireNames = names.map((name) => {
-        const property = object(source.properties ?? {})[String(name)];
+        const property = object2(source.properties ?? {})[String(name)];
         return typeof property?.['x-f5xc-wire-name'] === 'string' ? property['x-f5xc-wire-name'] : name;
       });
       for (let i = 0; i < wireNames.length; i++)
@@ -1330,10 +1425,10 @@ function createWireValidator(
   const schema = requestSchema(schemas, root);
   if (observedInterfaceIdentityEcho) {
     if (root !== 'securemesh_site_v2ReplaceRequest') throw new Error('Identity echo requires a replacement snapshot');
-    const properties = object(object(schemas.securemesh_site_v2Interface).properties);
-    const projected = object(object(object(schema.definitions).securemesh_site_v2Interface).properties);
+    const properties = object2(object2(schemas.securemesh_site_v2Interface).properties);
+    const projected = object2(object2(object2(schema.definitions).securemesh_site_v2Interface).properties);
     for (const field of ['is_primary', 'is_management']) {
-      const source = object(properties[field]);
+      const source = object2(properties[field]);
       if (source.readOnly !== true || source.type !== 'boolean') throw new Error('Interface identity schema changed');
       projected[field] = { type: 'boolean' };
     }
@@ -1402,7 +1497,7 @@ function firstFailure(schemaValue, value, document) {
   if (typeof schemaValue.$ref === 'string') {
     const prefix = '#/definitions/';
     if (!schemaValue.$ref.startsWith(prefix)) return '$ref';
-    const definition = object(document.definitions)[schemaValue.$ref.slice(prefix.length)];
+    const definition = object2(document.definitions)[schemaValue.$ref.slice(prefix.length)];
     if (definition === undefined) return '$ref';
     const failure = firstFailure(definition, value, document);
     if (failure) return failure;
@@ -1468,7 +1563,7 @@ function firstFailure(schemaValue, value, document) {
       return 'minProperties';
     if (typeof schemaValue.maxProperties === 'number' && entries.length > schemaValue.maxProperties)
       return 'maxProperties';
-    const properties = schemaValue.properties ? object(schemaValue.properties) : undefined;
+    const properties = schemaValue.properties ? object2(schemaValue.properties) : undefined;
     for (const [key, item] of entries) {
       const propertySchema = properties?.[key];
       if (propertySchema !== undefined) {
@@ -1488,7 +1583,7 @@ function firstFailure(schemaValue, value, document) {
 var discoveryLabels = new Set(['domain', 'host-os-version', 'hw-model', 'hw-serial-number', 'hw-vendor', 'hw-version']);
 
 // plugins/platform/src/ce/upgrade-evidence.ts
-function object2(value) {
+function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
 }
@@ -1497,11 +1592,11 @@ function text(value) {
   return value;
 }
 function parseUpgradePrechecks(raw) {
-  const list = object2(raw).checklist;
+  const list = object3(raw).checklist;
   if (!Array.isArray(list) || !list.length) throw new Error('Missing upgrade prechecks');
   const seen = new Set();
   const checks = list.map((value) => {
-    const row = object2(value),
+    const row = object3(value),
       name = text(row.item),
       status = text(row.status);
     if (
@@ -1515,7 +1610,7 @@ function parseUpgradePrechecks(raw) {
   return { checks, passing: checks.every((check) => ['CHECKLIST_PASSED', 'CHECKLIST_WARNING'].includes(check.status)) };
 }
 function parseSoftwareTargets(raw) {
-  const values = object2(raw).sw_versions;
+  const values = object3(raw).sw_versions;
   if (
     !Array.isArray(values) ||
     values.some((value) => typeof value !== 'string' || !/^crt-\d{8}-\d{4}$/.test(value)) ||
@@ -1563,7 +1658,7 @@ class CeApiError extends Error {
 // plugins/platform/src/ce/contract-auth.ts
 import { execFileSync } from 'node:child_process';
 // plugins/platform/src/ce/verified-api-release.ts
-import { createHash } from 'node:crypto';
+import { createHash as createHash2 } from 'node:crypto';
 
 function existingContractCredential(env = process.env) {
   const configured = env.GH_TOKEN || env.GITHUB_TOKEN;
@@ -1610,20 +1705,20 @@ class CeContractFailure extends Error {
 var repository = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v12.3.0';
 var commit = '7f61de00a1048a801c4be6bea9c462803fd1e3ae';
-var digest = 'sha256:91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5';
+var digest2 = 'sha256:91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5';
 var assetUrl = `https://github.com/${repository}/releases/download/${tag}/openapi.json`;
-function object3(value) {
+function object4(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed CE API contract');
   return value;
 }
 function parse(bytes) {
   try {
-    return object3(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    return object4(JSON.parse(Buffer.from(bytes).toString('utf8')));
   } catch {
     throw new Error('Malformed CE API contract JSON');
   }
 }
-var CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest });
+var CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest2 });
 var verifiedSchemas = new WeakMap();
 async function loadPublishedCeApi(fetcher = fetch, signal) {
   signal?.throwIfAborted();
@@ -1680,17 +1775,17 @@ async function verifyPublishedCeApi(fetcher, signal) {
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '12.3.0' || object3(receipt.assets)['openapi.json'] !== digest)
+  if (receipt.commit !== commit || receipt.version !== '12.3.0' || object4(receipt.assets)['openapi.json'] !== digest2)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
-    ? release.assets.map(object3).filter((asset) => asset.name === 'openapi.json')
+    ? release.assets.map(object4).filter((asset) => asset.name === 'openapi.json')
     : [];
-  if (assets.length !== 1 || assets[0].digest !== digest || assets[0].browser_download_url !== assetUrl)
+  if (assets.length !== 1 || assets[0].digest !== digest2 || assets[0].browser_download_url !== assetUrl)
     throw new Error('CE API schema asset binding differs from the pinned contract');
   const resolved = parse(await read(`https://api.github.com/repos/${repository}/commits/${tag}`));
   if (resolved.sha !== commit) throw new Error('CE API release tag moved');
   const bytes = await read(assetUrl, 64 * 1024 * 1024);
-  if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== digest)
+  if (`sha256:${createHash2('sha256').update(bytes).digest('hex')}` !== digest2)
     throw new Error('CE API schema checksum mismatch');
   const api = parse(bytes);
   combined.throwIfAborted();
@@ -1720,14 +1815,14 @@ var REQUIRED_ASSETS = new Set([
 ]);
 
 // plugins/platform/src/ce/wire-replace.ts
-var object4 = (value) => {
+var object5 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed replacement schema');
   return value;
 };
 function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   function shape(value, depth = 0) {
     if (depth > 50) throw new Error('Replacement schema nesting exceeds limit');
-    const schema = object4(value);
+    const schema = object5(value);
     let resolved = {};
     if (schema.$ref) {
       if (typeof schema.$ref !== 'string' || !schema.$ref.startsWith('#/components/schemas/'))
@@ -1748,7 +1843,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     return {
       ...resolved,
       ...schema,
-      ...(schema.properties ? { properties: { ...resolved.properties, ...object4(schema.properties) } } : {}),
+      ...(schema.properties ? { properties: { ...resolved.properties, ...object5(schema.properties) } } : {}),
     };
   }
   function project(value, schemaValue, top = false) {
@@ -1764,12 +1859,12 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     if (value && typeof value === 'object') {
       if (schema.properties === undefined && schema.additionalProperties === undefined) return structuredClone(value);
-      const properties = object4(schema.properties ?? {});
+      const properties = object5(schema.properties ?? {});
       const result = {};
       for (const [key, item] of Object.entries(value)) {
         const canonicalKey = Object.hasOwn(properties, key)
           ? key
-          : Object.keys(properties).find((name) => object4(properties[name])['x-f5xc-wire-name'] === key);
+          : Object.keys(properties).find((name) => object5(properties[name])['x-f5xc-wire-name'] === key);
         if (canonicalKey === undefined) {
           if (top && ignoredRootFields.includes(key)) continue;
           if (schema.additionalProperties === true) {
@@ -1783,7 +1878,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
           }
           throw new Error('GET snapshot contains an unsupported replacement field');
         }
-        const wireName = object4(properties[canonicalKey])['x-f5xc-wire-name'];
+        const wireName = object5(properties[canonicalKey])['x-f5xc-wire-name'];
         const outputKey = typeof wireName === 'string' ? wireName : canonicalKey;
         if (Object.hasOwn(result, outputKey)) throw new Error('Duplicate canonical and wire field aliases');
         const projected = project(item, properties[canonicalKey]);
@@ -1793,7 +1888,7 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
     }
     return structuredClone(value);
   }
-  return object4(project(value, schemas[root], true));
+  return object5(project(value, schemas[root], true));
 }
 
 // plugins/platform/src/ce/verified-contract.ts

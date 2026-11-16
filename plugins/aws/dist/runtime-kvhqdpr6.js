@@ -8,7 +8,7 @@ import { makeExecApi } from './runtime-30f0rzjf.js';
 import { siteBindings, staticAzRoutes } from './runtime-ay1zjq29.js';
 import { readAwsTerraformInstanceBindings, readAwsTerraformWorkflowStatus } from './runtime-d3q0sbwf.js';
 import { scopedAwsApi } from './runtime-fex55vat.js';
-import { awsPlatformService } from './runtime-w4s6e2gy.js';
+import { awsPlatformService } from './runtime-kn70ms9w.js';
 import { canonicalSha256 } from './runtime-wvre8ba5.js';
 import {
   buildAwsWholeSitePowerPlan,
@@ -44,7 +44,7 @@ import {
   loadAwsTerraformBrownfieldBinding,
   readAwsTrafficProbeEvidence,
   withAwsTerraformLifecycle,
-} from './runtime-y39p0vy5.js';
+} from './runtime-zgbq4apm.js';
 
 // plugins/aws/src/ce/whole-site-power-identities.ts
 var object = (value) => {

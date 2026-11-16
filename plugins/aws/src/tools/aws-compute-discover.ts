@@ -63,7 +63,12 @@ export function createAwsComputeDiscoverTool(pi: PluginInterface, makeApi: (cwd:
         if (Object.hasOwn(params, 'f5Capabilities')) throw new Error('Caller-supplied F5 capabilities are unsupported');
         const platform = await awsPlatformService(pi, signal);
         const f5Capabilities = await platform.capabilities(params.platformContext);
-        const observation = await discoverAwsCompute({ ...params, f5Capabilities }, makeApi(ctx.cwd));
+        const observation = await discoverAwsCompute(
+          { ...params, f5Capabilities },
+          makeApi(ctx.cwd),
+          undefined,
+          signal,
+        );
         const artifactId = await saveAwsDiscovery(ctx.sessionManager, observation);
         const regions = observation.regions
           .map(

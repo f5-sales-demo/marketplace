@@ -5,13 +5,13 @@ import { makeExecApi } from './runtime-30f0rzjf.js';
 import { siteBindings, siteForNode } from './runtime-ay1zjq29.js';
 import { readAwsTerraformInstanceBindings, readAwsTerraformWorkflowStatus } from './runtime-d3q0sbwf.js';
 import { collectAwsCeInventory, scopedAwsApi } from './runtime-fex55vat.js';
-import { awsPlatformService } from './runtime-w4s6e2gy.js';
+import { awsPlatformService } from './runtime-kn70ms9w.js';
 import {
   awsTerraformFoundationDeployment,
   awsTerraformService,
   collectAwsNetworkHealth,
   readAwsTrafficProbeEvidence,
-} from './runtime-y39p0vy5.js';
+} from './runtime-zgbq4apm.js';
 
 // plugins/aws/src/ce/status.ts
 async function collectAwsCeStatus(plan, checkpoint, api, runtime, signal, storage) {

@@ -14,8 +14,8 @@ import {
 import { AwsNotFoundError, detectAwsError, execAwsJson, makeExecApi } from './runtime-30f0rzjf.js';
 import { AWS_CE_PROVIDER_LOCK_SHA256, siteBindings, siteForNode, siteTopology } from './runtime-ay1zjq29.js';
 import { scopedAwsApi } from './runtime-fex55vat.js';
-import { verifyAwsTerraformUpgrade } from './runtime-k7zyj3b6.js';
-import { awsPlatformService, observeAwsResources, validateInitialRegistrationRetirement } from './runtime-w4s6e2gy.js';
+import { verifyAwsTerraformUpgrade } from './runtime-jrgjwzvw.js';
+import { awsPlatformService, observeAwsResources, validateInitialRegistrationRetirement } from './runtime-kn70ms9w.js';
 import { canonicalSha256, safeHexEqual, sha256Hex } from './runtime-wvre8ba5.js';
 import {
   evidencePasses,
@@ -47,7 +47,7 @@ import {
   VerifiedUpgradeContract,
   withAwsNativeOperation,
   withAwsTerraformLifecycle,
-} from './runtime-y39p0vy5.js';
+} from './runtime-zgbq4apm.js';
 
 // plugins/aws/src/ce/native-creation-projection.ts
 function projectAwsNativeInitialCreation(plan, checkpoints) {

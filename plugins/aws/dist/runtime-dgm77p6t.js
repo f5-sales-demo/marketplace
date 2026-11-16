@@ -1,7 +1,7 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
 import { saveAwsDiscovery } from './runtime-2srcqb9f.js';
-import { awsPlatformService, discoverAwsCompute } from './runtime-w4s6e2gy.js';
+import { awsPlatformService, discoverAwsCompute } from './runtime-kn70ms9w.js';
 import './runtime-fex55vat.js';
 import { makeExecApi } from './runtime-30f0rzjf.js';
 
@@ -57,7 +57,12 @@ function createAwsComputeDiscoverTool(pi, makeApi = makeExecApi) {
         if (Object.hasOwn(params, 'f5Capabilities')) throw new Error('Caller-supplied F5 capabilities are unsupported');
         const platform = await awsPlatformService(pi, signal);
         const f5Capabilities = await platform.capabilities(params.platformContext);
-        const observation = await discoverAwsCompute({ ...params, f5Capabilities }, makeApi(ctx.cwd));
+        const observation = await discoverAwsCompute(
+          { ...params, f5Capabilities },
+          makeApi(ctx.cwd),
+          undefined,
+          signal,
+        );
         const artifactId = await saveAwsDiscovery(ctx.sessionManager, observation);
         const regions = observation.regions
           .map(

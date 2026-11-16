@@ -4,7 +4,7 @@ import { acquireProcessLock, loadAwsCheckpoint, loadAwsPlan, verifyAwsCePlan } f
 import { makeExecApi } from './runtime-30f0rzjf.js';
 import { siteBindings, siteForNode } from './runtime-ay1zjq29.js';
 import { scopedAwsApi } from './runtime-fex55vat.js';
-import { awsPlatformService } from './runtime-w4s6e2gy.js';
+import { awsPlatformService } from './runtime-kn70ms9w.js';
 import { canonicalSha256, sha256Hex } from './runtime-wvre8ba5.js';
 import {
   assertAwsTerraformDeploymentActive,
@@ -13,7 +13,7 @@ import {
   collectAwsNetworkHealth,
   collectAwsTrafficProbe,
   withAwsTerraformLifecycle,
-} from './runtime-y39p0vy5.js';
+} from './runtime-zgbq4apm.js';
 
 // plugins/aws/src/ce/failover-health.ts
 async function collectAwsFailoverBgpHealth(plan, checkpoint, nodeIndex, phase, api, signal) {
