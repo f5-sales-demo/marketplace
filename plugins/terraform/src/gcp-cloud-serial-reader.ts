@@ -23,6 +23,23 @@ import { assertSameOriginalInput, type OriginalInputBinding } from './original-i
 import { assertFinalReaderReserve, type FinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
 import type { ExecutionCaptureAdmission } from './signal-free-executor';
 
+const cloudReaderOrigins = new WeakMap<object, () => Promise<void>>();
+const installedReaderContexts = new WeakMap<object, InstalledCaptureContext>();
+/** Read-only provenance check for the original installed controller. Neither
+ * copied interfaces nor a matching serialized context can attest cloud evidence. */
+export async function assertOriginalInstalledGcpCloudReader(
+  reader: unknown,
+  context: InstalledCaptureContext,
+): Promise<void> {
+  if (!reader || typeof reader !== 'object' || !installedReaderContexts.has(reader))
+    throw new Error('Original installed cloud reader required');
+  if (installedReaderContexts.get(reader) !== context)
+    throw new Error('Original installed cloud reader context differs');
+  const verify = cloudReaderOrigins.get(reader);
+  if (!verify) throw new Error('Original cloud reader source required');
+  await verify();
+}
+
 type Json = Record<string, unknown>;
 type VmReadScope = Readonly<{ project: string; zone: string; node: string }>;
 type ResourceReadScope = Readonly<{ project: string; target: GcpInventoryResourceTarget; selfLink: string }>;
@@ -733,7 +750,7 @@ export async function openGcpCloudSerialReader(
       return Object.freeze({ query: Buffer.from(query.bytes), pages: Object.freeze(pages) });
     });
   };
-  return Object.freeze({
+  const reader = Object.freeze({
     instance,
     serial,
     resource,
@@ -753,6 +770,15 @@ export async function openGcpCloudSerialReader(
       return closure;
     },
   });
+  cloudReaderOrigins.set(reader, () =>
+    run(async () => {
+      await authentication.assertOriginal();
+      await requireRoot();
+      await authentication.assertOriginal();
+      await requireRoot();
+    }),
+  );
+  return reader;
 }
 
 export interface InstalledCloudFinalCapture {
@@ -820,7 +846,7 @@ export async function openInstalledGcpCloudSerialReader(
   assertSameOriginalInput(context.inputs.adc, originalAdc.binding);
   const bytes = originalAdc.bytes;
   await assertOriginal();
-  return openGcpCloudSerialReader(
+  const reader = await openGcpCloudSerialReader(
     {
       root: join(context.executionDirectory, `gcp-cloud-capture-${randomUUID()}`),
       region: context.owner.region,
@@ -835,4 +861,16 @@ export async function openInstalledGcpCloudSerialReader(
     signal,
     fetcher,
   );
+  installedReaderContexts.set(reader, context);
+  try {
+    await assertOriginalInstalledGcpCloudReader(reader, context);
+    return reader;
+  } catch (error) {
+    try {
+      await reader.close();
+    } catch (closureError) {
+      throw new AggregateError([error, closureError], 'Original installed reader verification and closure failed');
+    }
+    throw error;
+  }
 }

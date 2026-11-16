@@ -8,7 +8,20 @@ import type {
   OriginalGcpVm,
   openGcpCloudSerialReader,
 } from './gcp-cloud-serial-reader';
-import { type OriginalGcpInsertSourceCandidate, readOriginalGcpInsertSourceBodies } from './gcp-insert-evidence';
+import { assertOriginalInstalledGcpCloudReader } from './gcp-cloud-serial-reader';
+import {
+  type OriginalEarlyGcpInsertIdentity,
+  type OriginalGcpInsertSourceCandidate,
+  readOriginalEarlyGcpInsertBodies,
+  readOriginalEarlyGcpInsertIdentity,
+  readOriginalGcpInsertSourceBodies,
+} from './gcp-insert-evidence';
+import type { OriginalApplyCallbackContext } from './installed-apply-controller';
+import {
+  assertOriginalApplyGcpInventoryCallback,
+  type OriginalApplyGcpInventory,
+  readOriginalApplyGcpInventory,
+} from './installed-initial-inventory';
 
 type Json = Record<string, unknown>;
 type Reader = Awaited<ReturnType<typeof openGcpCloudSerialReader>>;
@@ -62,40 +75,30 @@ function resourceLink(value: unknown): string {
     throw new Error('Original interface link scope differs');
   return url.pathname.slice('/compute/v1/'.length);
 }
-export interface OriginalGcpVmJoinInput {
-  readonly source: OriginalGcpInsertSourceCandidate;
-  readonly reader: Reader;
-  readonly absent: GcpCloudReadEvidence & { readonly present: false };
-  readonly operation: GcpInsertOperationCandidate;
-  readonly instance: OriginalGcpVm;
-}
-/** Corroborate cloud identity only. The controller still requires verified source
- * lifetime, audit attribution and Platform bootstrap ownership before acceptance.
- * Raw evidence remains private and every read rechecks its original reader inputs.
- */
-export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
-  const { source, reader, absent, operation, instance } = input;
-  const bodies = readOriginalGcpInsertSourceBodies(source);
-  const records = [absent, operation, instance] as const;
-  const retained = [];
-  for (const record of records) {
-    const read = await reader.readEvidence(record);
-    if (
-      read.scope.project !== source.project ||
-      read.scope.zone !== source.zone ||
-      read.scope.node !== source.nodeName ||
-      !Number.isSafeInteger(record.startedAt) ||
-      !Number.isSafeInteger(record.finishedAt) ||
-      record.finishedAt < record.startedAt ||
-      Date.now() < record.finishedAt ||
-      Date.now() - record.finishedAt > 300000
-    )
-      throw new Error('Fresh original scoped cloud evidence required');
-    retained.push(read);
-  }
-  const initial = decodeEvidenceObject(retained[0].raw),
-    op = decodeEvidenceObject(retained[1].raw),
-    vm = decodeEvidenceObject(retained[2].raw);
+type VmBodySource = Pick<
+  OriginalGcpInsertSourceCandidate,
+  | 'operationId'
+  | 'operationName'
+  | 'nodeName'
+  | 'zone'
+  | 'targetId'
+  | 'metadataSha256'
+  | 'bootstrapSha256'
+  | 'labelsSha256'
+>;
+function corroborateVmBodies(
+  source: VmBodySource,
+  requestBody: string,
+  absent: GcpCloudReadEvidence & { present: false },
+  absentRaw: Buffer,
+  operation: GcpInsertOperationCandidate,
+  opRaw: Buffer,
+  instance: OriginalGcpVm,
+  vmRaw: Buffer,
+) {
+  const initial = decodeEvidenceObject(absentRaw),
+    op = decodeEvidenceObject(opRaw),
+    vm = decodeEvidenceObject(vmRaw);
   const absentError = object(initial.error);
   if (
     absent.present !== false ||
@@ -124,7 +127,7 @@ export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
     (vm.serviceAccounts !== undefined && (!Array.isArray(vm.serviceAccounts) || vm.serviceAccounts.length))
   )
     throw new Error('Original absence, insert operation and numeric VM incarnation differ');
-  const request = decodeEvidenceObject(Buffer.from(bodies.requestBody));
+  const request = decodeEvidenceObject(Buffer.from(requestBody));
   const items = metadata(vm.metadata);
   if (
     hash(canonical(items)) !== source.metadataSha256 ||
@@ -171,6 +174,50 @@ export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
       subnetwork: resourceLink(actual.subnetwork),
     });
   });
+  return { vm, interfaces };
+}
+
+export interface OriginalGcpVmJoinInput {
+  readonly source: OriginalGcpInsertSourceCandidate;
+  readonly reader: Reader;
+  readonly absent: GcpCloudReadEvidence & { readonly present: false };
+  readonly operation: GcpInsertOperationCandidate;
+  readonly instance: OriginalGcpVm;
+}
+/** Corroborate cloud identity only. The controller still requires verified source
+ * lifetime, audit attribution and Platform bootstrap ownership before acceptance.
+ * Raw evidence remains private and every read rechecks its original reader inputs.
+ */
+export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
+  const { source, reader, absent, operation, instance } = input;
+  const bodies = readOriginalGcpInsertSourceBodies(source);
+  const records = [absent, operation, instance] as const;
+  const retained = [];
+  for (const record of records) {
+    const read = await reader.readEvidence(record);
+    if (
+      read.scope.project !== source.project ||
+      read.scope.zone !== source.zone ||
+      read.scope.node !== source.nodeName ||
+      !Number.isSafeInteger(record.startedAt) ||
+      !Number.isSafeInteger(record.finishedAt) ||
+      record.finishedAt < record.startedAt ||
+      Date.now() < record.finishedAt ||
+      Date.now() - record.finishedAt > 300000
+    )
+      throw new Error('Fresh original scoped cloud evidence required');
+    retained.push(read);
+  }
+  const { vm, interfaces } = corroborateVmBodies(
+    source,
+    bodies.requestBody,
+    absent,
+    retained[0].raw,
+    operation,
+    retained[1].raw,
+    instance,
+    retained[2].raw,
+  );
   // Recheck all original bytes and guards after the joins; a successful initial
   // read cannot excuse a changed file, credential or owner during correlation.
   for (const record of records) await reader.readEvidence(record);
@@ -204,4 +251,207 @@ export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
     applyRpcQualified: false as const,
     originalInsertQualified: false as const,
   });
+}
+
+export interface OriginalEarlyGcpVmEvidence {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-early-gcp-vm-evidence';
+}
+export interface OriginalEarlyGcpVmInput {
+  readonly identity: OriginalEarlyGcpInsertIdentity;
+  readonly baseline: OriginalApplyGcpInventory;
+  readonly callback: OriginalApplyCallbackContext;
+  readonly reader: Reader;
+}
+type EarlyVmView = Readonly<{
+  schemaVersion: 1;
+  kind: 'original-early-gcp-vm-cloud-candidate';
+  project: string;
+  zone: string;
+  nodeName: string;
+  instanceId: string;
+  operationId: string;
+  operationName: string;
+  resourceAddress: string;
+  interfaces: Readonly<ReturnType<typeof corroborateVmBodies>['interfaces']>;
+  absenceSha256: string;
+  operationSha256: string;
+  instanceSha256: string;
+  sourceRequestSha256: string;
+  cloudEvidenceCorroborated: true;
+  originalInsertQualified: false;
+  applyRpcQualified: false;
+  executionAuthorized: false;
+}>;
+const earlyVmOrigins = new WeakMap<
+  OriginalEarlyGcpVmEvidence,
+  {
+    read(): Promise<EarlyVmView>;
+    serial(start: string): Promise<Awaited<ReturnType<Reader['serial']>>>;
+  }
+>();
+export async function readOriginalEarlyGcpVmEvidence(value: unknown): Promise<EarlyVmView> {
+  const source =
+    value && typeof value === 'object' ? earlyVmOrigins.get(value as OriginalEarlyGcpVmEvidence) : undefined;
+  if (!source) throw new Error('Original early VM evidence required');
+  return source.read();
+}
+export async function collectOriginalEarlyGcpSerialEvidence(value: unknown, start: string) {
+  const source =
+    value && typeof value === 'object' ? earlyVmOrigins.get(value as OriginalEarlyGcpVmEvidence) : undefined;
+  if (!source) throw new Error('Original early VM evidence required');
+  return source.serial(start);
+}
+function freshCloudEvidence(record: GcpCloudReadEvidence) {
+  if (
+    !Number.isSafeInteger(record.startedAt) ||
+    !Number.isSafeInteger(record.finishedAt) ||
+    record.finishedAt < record.startedAt ||
+    Date.now() < record.finishedAt ||
+    Date.now() - record.finishedAt > 300000
+  )
+    throw new Error('Fresh original scoped cloud evidence required');
+}
+/** Read-only early VM/serial correlation. Pending insertion returns null; no
+ * bootstrap, RPC completion or execution qualification is granted. */
+export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpVmInput) {
+  const { identity, baseline, callback, reader } = input;
+  const guard = async () => {
+    await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+    await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+    await readOriginalEarlyGcpInsertIdentity(identity);
+    const view = await readOriginalApplyGcpInventory(baseline, callback.phase === 'after' ? callback : undefined);
+    if (
+      identity.directory !== callback.execution.directory ||
+      identity.directory !== callback.original.executionDirectory ||
+      identity.planSha256 !== view.planSha256 ||
+      identity.project !== view.owner.account ||
+      !identity.zone.startsWith(`${view.owner.region}-`) ||
+      (['pid', 'group', 'start', 'boot'] as const).some(
+        (key) =>
+          identity.executor[key] !== view.executor[key] || identity.executor[key] !== callback.execution.identity[key],
+      )
+    )
+      throw new Error('Original early VM baseline, executor or plan differs');
+    const matches = view.cloud.filter(
+      (row) =>
+        row.address === identity.address &&
+        row.target.kind === 'instance' &&
+        row.target.zone === identity.zone &&
+        row.target.name === identity.nodeName,
+    );
+    if (matches.length !== 1) throw new Error('Original declared VM absence required');
+    const bodies = await readOriginalEarlyGcpInsertBodies(identity);
+    const request = decodeEvidenceObject(Buffer.from(bodies.requestBody));
+    if (object(request.labels)['xcsh-deployment'] !== view.owner.deploymentId)
+      throw new Error('Original VM deployment ownership differs');
+    await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+    await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+    await readOriginalEarlyGcpInsertIdentity(identity);
+    return { absent: matches[0], bodies };
+  };
+  await guard();
+  const operation = await reader.insertOperation(identity.zone, identity.operationName, identity.nodeName);
+  await reader.readEvidence(operation);
+  freshCloudEvidence(operation);
+  if (
+    operation.operationId !== identity.operationId ||
+    operation.operationName !== identity.operationName ||
+    (identity.targetId !== null && operation.targetId !== identity.targetId)
+  )
+    throw new Error('Original early insert operation differs');
+  if (operation.targetId === null) {
+    await guard();
+    return null;
+  }
+  const instance = await reader.instance(identity.zone, identity.nodeName);
+  if (!instance.present) {
+    await guard();
+    return null;
+  }
+  let refused = false;
+  const read = async (): Promise<EarlyVmView> => {
+    if (refused) throw new Error('Original early VM evidence retired');
+    try {
+      const current = await guard();
+      const op = await reader.readEvidence(operation);
+      const vm = await reader.readEvidence(instance);
+      for (const [record, evidence] of [
+        [operation, op],
+        [instance, vm],
+      ] as const) {
+        freshCloudEvidence(record);
+        if (
+          evidence.scope.project !== identity.project ||
+          evidence.scope.zone !== identity.zone ||
+          evidence.scope.node !== identity.nodeName ||
+          (['accountSha256', 'audienceSha256', 'adcSha256'] as const).some(
+            (key) => evidence.authentication[key] !== current.absent.authentication[key],
+          )
+        )
+          throw new Error('Original independent VM evidence scope or authentication differs');
+      }
+      const absent = { ...current.absent.evidence, present: false as const };
+      const projection = corroborateVmBodies(
+        identity,
+        current.bodies.requestBody,
+        absent,
+        current.absent.raw,
+        operation,
+        op.raw,
+        instance,
+        vm.raw,
+      );
+      const latest = await reader.instance(identity.zone, identity.nodeName);
+      if (!latest.present || latest.value.id !== instance.value.id)
+        throw new Error('Original VM changed during early correlation');
+      await reader.readEvidence(operation);
+      await reader.readEvidence(instance);
+      await guard();
+      return Object.freeze({
+        schemaVersion: 1,
+        kind: 'original-early-gcp-vm-cloud-candidate',
+        project: identity.project,
+        zone: identity.zone,
+        nodeName: identity.nodeName,
+        instanceId: instance.value.id,
+        operationId: operation.operationId,
+        operationName: operation.operationName,
+        resourceAddress: identity.address,
+        interfaces: Object.freeze(projection.interfaces),
+        absenceSha256: absent.sha256,
+        operationSha256: operation.sha256,
+        instanceSha256: instance.sha256,
+        sourceRequestSha256: identity.requestBodySha256,
+        cloudEvidenceCorroborated: true,
+        originalInsertQualified: false,
+        applyRpcQualified: false,
+        executionAuthorized: false,
+      });
+    } catch (error) {
+      refused = true;
+      throw error;
+    }
+  };
+  await read();
+  const packet: OriginalEarlyGcpVmEvidence = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-early-gcp-vm-evidence',
+  });
+  earlyVmOrigins.set(packet, {
+    read,
+    async serial(start) {
+      if (refused) throw new Error('Original early VM evidence retired');
+      try {
+        await read();
+        const captured = await reader.serial(instance, start);
+        await read();
+        return captured;
+      } catch (error) {
+        refused = true;
+        throw error;
+      }
+    },
+  });
+  return packet;
 }

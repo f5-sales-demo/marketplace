@@ -72,6 +72,21 @@ const applyInventories = new WeakMap<
   OriginalApplyGcpInventory,
   (final?: OriginalApplyCallbackContext) => Promise<OriginalApplyGcpInventoryView>
 >();
+const applyInventoryCallbacks = new WeakMap<
+  OriginalApplyGcpInventory,
+  (callback: OriginalApplyCallbackContext) => Promise<void>
+>();
+/** Bind an independent read to the actual original apply or final callback. */
+export async function assertOriginalApplyGcpInventoryCallback(
+  packet: unknown,
+  callback: OriginalApplyCallbackContext,
+): Promise<void> {
+  const verify =
+    packet && typeof packet === 'object' ? applyInventoryCallbacks.get(packet as OriginalApplyGcpInventory) : undefined;
+  if (!verify) throw new Error('Original apply-bound inventory required');
+  await verify(callback);
+}
+
 export async function readOriginalApplyGcpInventory(packet: unknown, final?: OriginalApplyCallbackContext) {
   const read =
     packet && typeof packet === 'object' ? applyInventories.get(packet as OriginalApplyGcpInventory) : undefined;
@@ -509,6 +524,23 @@ async function openInitialInventory(
               }
               throw error;
             }
+          });
+          applyInventoryCallbacks.set(packet, async (current) => {
+            const assertCallback = () =>
+              current.phase === 'before' ? assertOriginalApplyLifetime(current) : assertOriginalApplyCallback(current);
+            await assertCallback();
+            if (
+              !['before', 'after'].includes(current.phase) ||
+              current.original !== context ||
+              current.nonce !== callback.nonce ||
+              current.execution.directory !== context.executionDirectory ||
+              (['pid', 'group', 'start', 'boot'] as const).some(
+                (key) => current.execution.identity[key] !== identity[key],
+              )
+            )
+              throw new Error('Original baseline apply callback differs');
+            await readOriginalApplyGcpInventory(packet, current.phase === 'after' ? current : undefined);
+            await assertCallback();
           });
           applyPacket = packet;
           return packet;

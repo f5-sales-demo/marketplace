@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fingerprint } from '../../gcloud/src/ce/discovery';
+import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from '../../gcloud/src/ce/terraform-public-artifacts';
 import {
   publicTerraformCloudScope,
   publicTerraformPlatformScope,
@@ -137,7 +138,7 @@ export async function fixture(
   if (mutation === 'replacement') rows[0].change.actions = ['delete', 'create'];
   const last = rows.at(-1);
   if (!last) throw new Error('Original fixture row required');
-  if (mutation === 'namespace') last.change.after.namespace = 'foreign';
+  if (mutation === 'namespace') last.change.after.namespace = 'example-foreign-namespace';
   if (mutation === 'platform-name') last.change.after.name = 'foreign-token';
   const deployment: Deployment = {
     schemaVersion: 1,
@@ -146,7 +147,7 @@ export async function fixture(
     scope: { cloud: 'gcp', account: intent.project, region: intent.region },
     terraformVersion: '1.17.2',
     configuration: '{"terraform":{"required_version":"= 1.17.2"}}',
-    providerLock: '# exact offline fixture lock',
+    providerLock: GCP_PUBLIC_TERRAFORM_ARTIFACTS.providerLock,
     backendIdentity: `local:${owner.deploymentId}`,
   };
   const runner = new TerraformRunner(

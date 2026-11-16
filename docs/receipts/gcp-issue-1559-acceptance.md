@@ -1903,3 +1903,13 @@ Source, typecheck and compiled checks pass.
 Exact numeric VM/serial binding, sealed-baseline VM integration, observer
 insertion mapping, built-in capture and every original live, installed and
 delivery gate remain open.
+
+## Original early VM and serial binding on November 16
+
+The [VM and serial receipt](gcp-early-vm-serial-binding-20261116.md) records exact
+original callback/context/baseline/operation/numeric-VM correlation and guarded
+serial reads before RPC completion. Immutable initial absence remains separate
+from current observation freshness. Source and compiled component checks pass.
+
+Observer mapping, full/final capture composition and every original live,
+installed and delivery acceptance gate remain open.

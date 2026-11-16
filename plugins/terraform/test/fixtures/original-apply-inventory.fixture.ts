@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { originalGcpBootstrapSource } from '../../../platform/src/ce/gcp-bootstrap-evidence';
 import {
   type GcpBootstrapObservationSourceBinding,
@@ -11,6 +12,7 @@ import {
   createInstalledApplyController,
   type OriginalApplyCallbackContext,
 } from '../../src/installed-apply-controller';
+import type { InstalledCaptureContext } from '../../src/installed-capture-context';
 import * as inventories from '../../src/installed-initial-inventory';
 import { linuxMonotonicMs } from '../../src/linux-clock';
 import { prepareOriginalGcpInventoryScope } from '../../src/original-gcp-inventory-scope';
@@ -30,6 +32,7 @@ export async function withApplyInventory(
     packet: inventories.OriginalApplyGcpInventory;
     final: OriginalApplyCallbackContext;
   }) => Promise<void>,
+  output?: (context: InstalledCaptureContext, store: CeDeploymentStore) => Promise<{ prefix: string; tail: string }>,
 ) {
   await fixture(
     async (context, store, invocation) => {
@@ -62,6 +65,7 @@ export async function withApplyInventory(
       };
       const stage = await inventories.openInstalledInitialInventory({ context, scope, store, platform }, { fetcher });
       const snapshot = await stage.capture();
+      const trace = await output?.(context, store);
       const startedPath = join(invocation.cwd, 'child-started'),
         releasedPath = join(invocation.cwd, 'child-release');
       const scriptPath = join(invocation.cwd, 'apply');
@@ -69,11 +73,21 @@ export async function withApplyInventory(
         scriptPath,
         `${[
           'import os,time,sys',
+          ...(trace
+            ? [
+                `sys.stderr.buffer.write(bytes.fromhex("${Buffer.from(trace.prefix).toString('hex')}"));sys.stderr.flush()`,
+              ]
+            : []),
           `open(${JSON.stringify(startedPath)},"x").write("started")`,
           'deadline=time.monotonic()+30',
           `while not os.path.exists(${JSON.stringify(releasedPath)}):`,
           ' if time.monotonic()>=deadline: sys.exit(74)',
           ' time.sleep(0.01)',
+          ...(trace
+            ? [
+                `sys.stderr.buffer.write(bytes.fromhex("${Buffer.from(trace.tail).toString('hex')}"));sys.stderr.flush()`,
+              ]
+            : []),
         ].join('\n')}\n`,
         { mode: 0o400 },
       );

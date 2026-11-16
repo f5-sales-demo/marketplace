@@ -4,7 +4,7 @@ export {
   readOriginalGcpTerraformBootstrapJwt,
 } from './gcp-bootstrap-evidence';
 export { joinOriginalGcpBootstrapVm } from './gcp-bootstrap-vm-binding';
-export { openGcpCloudSerialReader } from './gcp-cloud-serial-reader';
+export { assertOriginalInstalledGcpCloudReader, openGcpCloudSerialReader } from './gcp-cloud-serial-reader';
 export {
   assertOriginalGcpPreapplyBootstrapContext,
   collectOriginalGcpPreapplyBootstrap,
@@ -70,7 +70,16 @@ export {
   readOriginalEarlyGcpInsertIdentity,
   readOriginalGcpInsertWitnesses,
 } from './gcp-insert-evidence';
-export { openInstalledInitialInventory, readOriginalApplyGcpInventory } from './installed-initial-inventory';
+export {
+  collectOriginalEarlyGcpSerialEvidence,
+  collectOriginalEarlyGcpVmEvidence,
+  readOriginalEarlyGcpVmEvidence,
+} from './gcp-vm-evidence';
+export {
+  assertOriginalApplyGcpInventoryCallback,
+  openInstalledInitialInventory,
+  readOriginalApplyGcpInventory,
+} from './installed-initial-inventory';
 export {
   openInstalledProviderReader,
   readOriginalInstalledProviderWindow,

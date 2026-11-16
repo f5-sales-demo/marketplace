@@ -489,3 +489,15 @@ it('compiled private early body reader rejects serialized identity before exposi
     runtime.readOriginalEarlyGcpInsertBodies({ schemaVersion: 1, kind: 'original-early-gcp-insert-identity' }),
   ).rejects.toThrow('Original');
 });
+
+it('compiled early VM and installed reader boundaries refuse serialized capabilities', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.assertOriginalInstalledGcpCloudReader).toBe('function');
+  expect(typeof runtime.collectOriginalEarlyGcpVmEvidence).toBe('function');
+  await expect(runtime.assertOriginalInstalledGcpCloudReader({}, {})).rejects.toThrow('Original');
+  await expect(
+    runtime.readOriginalEarlyGcpVmEvidence({ schemaVersion: 1, kind: 'original-early-gcp-vm-evidence' }),
+  ).rejects.toThrow('Original');
+  await expect(runtime.collectOriginalEarlyGcpSerialEvidence({}, '0')).rejects.toThrow('Original');
+  await expect(runtime.assertOriginalApplyGcpInventoryCallback({}, {})).rejects.toThrow('Original');
+});

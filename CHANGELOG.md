@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.117 joins original early insertion, sealed absence,
+  independent numeric VM evidence and guarded serial reads. Copied or replaced
+  sources refuse; current observations stay fresh without renewing baselines.
+  Full factory and live qualification remain open.
+
 - **`terraform`** v2.4.116 exposes verified private early insertion bodies for
   independent VM correlation. Copies and changed sources refuse; failed witness
   fixtures retain executor evidence. Shared validation selects current xcsh
