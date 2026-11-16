@@ -124,11 +124,24 @@ export function renderObservedProviderResource(
 export function renderProviderResource(request: Json, resourceSchema: unknown, resourceType?: string): Json {
   const metadata = object(request.metadata),
     spec = object(request.spec);
-  const convert = (values: Json, schema: Json): Json => {
+  const convert = (values: Json, schema: Json, path: string[] = []): Json => {
     const attributes = schema.attributes === undefined ? {} : object(schema.attributes);
     const blocks = schema.block_types === undefined ? {} : object(schema.block_types);
     const result: Json = {};
-    for (const [key, value] of Object.entries(values)) {
+    for (const [wireKey, value] of Object.entries(values)) {
+      // SMSv2's public wire typo is normalized by the published provider. Limit
+      // this mapping to the verified resource/path and require the actual block.
+      const localServicesAlias =
+        resourceType === 'xcsh_securemesh_site_v2' &&
+        path.length === 1 &&
+        path[0] === 'blocked_services' &&
+        wireKey === 'blocked_sevice';
+      if (localServicesAlias && Object.hasOwn(values, 'blocked_service'))
+        throw new Error('Ambiguous provider local-service fields');
+      const key =
+        localServicesAlias && !attributes[wireKey] && !blocks[wireKey] && blocks.blocked_service
+          ? 'blocked_service'
+          : wireKey;
       if (value === undefined) throw new Error(`Unresolved provider input: ${key}`);
       if (value === null) {
         if (blocks[key]) {
@@ -152,22 +165,22 @@ export function renderProviderResource(request: Json, resourceSchema: unknown, r
           throw new Error(`Read-only provider input: ${key}`);
         const nested = attribute.nested_type === undefined ? undefined : object(attribute.nested_type);
         if (!nested) result[key] = literal(value);
-        else if (nested.nesting_mode === 'single') result[key] = convert(object(value), nested);
+        else if (nested.nesting_mode === 'single') result[key] = convert(object(value), nested, [...path, key]);
         else if (nested.nesting_mode === 'list' || nested.nesting_mode === 'set') {
           if (!Array.isArray(value)) throw new Error(`Provider input must be a collection: ${key}`);
-          result[key] = value.map((row) => convert(object(row), nested));
+          result[key] = value.map((row) => convert(object(row), nested, [...path, key]));
         } else if (nested.nesting_mode === 'map')
           result[key] = Object.fromEntries(
-            Object.entries(object(value)).map(([name, row]) => [name, convert(object(row), nested)]),
+            Object.entries(object(value)).map(([name, row]) => [name, convert(object(row), nested, [...path, key])]),
           );
         else throw new Error(`Unsupported provider nesting: ${key}`);
       } else if (blocks[key]) {
         const block = object(blocks[key]);
         const child = object(block.block);
-        if (block.nesting_mode === 'single') result[key] = [convert(object(value), child)];
+        if (block.nesting_mode === 'single') result[key] = [convert(object(value), child, [...path, key])];
         else if (block.nesting_mode === 'list' || block.nesting_mode === 'set') {
           if (!Array.isArray(value)) throw new Error(`Provider block must be a collection: ${key}`);
-          result[key] = value.map((row) => convert(object(row), child));
+          result[key] = value.map((row) => convert(object(row), child, [...path, key]));
         } else throw new Error(`Unsupported provider block nesting: ${key}`);
       } else if (key === 'description' && value === '') {
       } else throw new Error(`Published provider does not expose request field: ${key}`);

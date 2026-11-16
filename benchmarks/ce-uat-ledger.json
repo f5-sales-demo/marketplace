@@ -15,12 +15,12 @@
     },
     "runtimePeer": "23.10.13",
     "testedRuntimeVersions": ["23.10.13"],
-    "revision": 275,
+    "revision": 276,
     "versions": {
-      "platform": "7.0.0-uat.275",
-      "aws": "3.0.0-uat.275",
-      "azure": "5.0.0-uat.275",
-      "terraform": "3.0.0-uat.275"
+      "platform": "7.0.0-uat.276",
+      "aws": "3.0.0-uat.276",
+      "azure": "5.0.0-uat.276",
+      "terraform": "3.0.0-uat.276"
     },
     "sourceCommit": null,
     "deliverable": false,

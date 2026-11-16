@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { renderObservedProviderResource, renderProviderResource } from '../src/resource-renderer';
+import replacementSchema from './fixtures/securemesh-replacement-provider-schema.json';
 import prebootSchema from './resource-renderer-preboot.fixture.json';
 
 const schema = {
@@ -297,5 +298,67 @@ test('AWS preboot readback preserves explicitly configured defaults and rejects 
   delete observed.spec.aws.not_managed.node_list[0].interface_list[0].priority;
   expect(renderObservedProviderResource(observed, request, prebootSchema, 'xcsh_securemesh_site_v2')).not.toEqual(
     renderProviderResource(request, prebootSchema, 'xcsh_securemesh_site_v2'),
+  );
+});
+
+// The installed 15.12.1 provider schema exposes blocked_service while the
+// published SMSv2 request sends the vendor wire spelling blocked_sevice.
+const localServicesRequest = () => ({
+  metadata: { name: 'sanitized-site', namespace: 'system' },
+  spec: {
+    blocked_services: {
+      blocked_sevice: [
+        { dns: {}, network_type: 'VIRTUAL_NETWORK_SITE_LOCAL' },
+        { ssh: {}, network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' },
+      ],
+    },
+  },
+});
+test('SMSv2 local-service wire spelling maps to the verified provider collection without changing API input', () => {
+  const request = localServicesRequest(),
+    original = structuredClone(request);
+  const rendered = renderProviderResource(request, replacementSchema, 'xcsh_securemesh_site_v2');
+  expect(rendered.blocked_services).toEqual([{ blocked_service: request.spec.blocked_services.blocked_sevice }]);
+  expect(request).toEqual(original);
+  expect(renderObservedProviderResource(request, request, replacementSchema, 'xcsh_securemesh_site_v2')).toEqual(
+    rendered,
+  );
+});
+test('local-service alias collisions fail rather than replacing a configured collection', () => {
+  const request = localServicesRequest();
+  Object.assign(request.spec.blocked_services, { blocked_service: [] });
+  expect(() => renderProviderResource(request, replacementSchema, 'xcsh_securemesh_site_v2')).toThrow('Ambiguous');
+});
+test('local-service translation requires the exact resource and path', () => {
+  expect(() => renderProviderResource(localServicesRequest(), replacementSchema, 'xcsh_origin_pool')).toThrow(
+    'does not expose',
+  );
+  expect(() =>
+    renderProviderResource(
+      { metadata: localServicesRequest().metadata, spec: { blocked_sevice: [] } },
+      replacementSchema,
+      'xcsh_securemesh_site_v2',
+    ),
+  ).toThrow('does not expose');
+});
+test('local-service translation cannot manufacture a missing provider block', () => {
+  const provider = structuredClone(replacementSchema);
+  delete (provider.block.block_types.blocked_services.block.block_types as Record<string, unknown>).blocked_service;
+  expect(() => renderProviderResource(localServicesRequest(), provider, 'xcsh_securemesh_site_v2')).toThrow(
+    'does not expose',
+  );
+});
+test('local-service translation preserves collection and nested field validation', () => {
+  const request = localServicesRequest();
+  expect(() =>
+    renderProviderResource(
+      { ...request, spec: { blocked_services: { blocked_sevice: {} } } },
+      replacementSchema,
+      'xcsh_securemesh_site_v2',
+    ),
+  ).toThrow('collection');
+  Object.assign(request.spec.blocked_services.blocked_sevice[0], { unsupported: true });
+  expect(() => renderProviderResource(request, replacementSchema, 'xcsh_securemesh_site_v2')).toThrow(
+    'does not expose',
   );
 });
