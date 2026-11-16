@@ -287,6 +287,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     let actualExitCode: number | null = null;
     let groupClosed = false;
     let captureClosed = false;
+    let finalCaptureActive = false;
     let captureStartup: Promise<void> | undefined;
     let originalOutput: Awaited<ReturnType<typeof bindOriginalExecutionOutput>> | undefined;
     const fail = (value: Reason) => {
@@ -463,7 +464,13 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
                   assertInputs: async () => {
                     await python.require();
                     await executable.require();
-                    await assertOriginal();
+                    // Final reads retain full original bytes and their own existing
+                    // reserve; the expired operation guard cannot authorize them.
+                    if (finalCaptureActive && policy.assertFinalInputs) {
+                      if (reserve) await assertFinalReaderReserve(reserve);
+                      await policy.assertFinalInputs();
+                      if (reserve) await assertFinalReaderReserve(reserve);
+                    } else await assertOriginal();
                     const readerDeadline =
                       inherited?.finalDeadlineMs ??
                       (finalStarted === undefined ? executionDeadline : finalStarted + 300_000);
@@ -613,8 +620,10 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
             };
             await retainFinalCheck();
             try {
+              finalCaptureActive = true;
               await policy.finalCapture(Object.freeze({ ...capture, ...startupFields() }));
             } finally {
+              finalCaptureActive = false;
               await retainFinalCheck();
             }
           })(),

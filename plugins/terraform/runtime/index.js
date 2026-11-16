@@ -5286,6 +5286,7 @@ function originalExecutor(input, reserve) {
     let actualExitCode = null;
     let groupClosed = false;
     let captureClosed = false;
+    let finalCaptureActive = false;
     let captureStartup;
     let originalOutput;
     const fail = (value) => {
@@ -5452,7 +5453,11 @@ function originalExecutor(input, reserve) {
                   assertInputs: async () => {
                     await python.require();
                     await executable.require();
-                    await assertOriginal();
+                    if (finalCaptureActive && policy.assertFinalInputs) {
+                      if (reserve) await assertFinalReaderReserve(reserve);
+                      await policy.assertFinalInputs();
+                      if (reserve) await assertFinalReaderReserve(reserve);
+                    } else await assertOriginal();
                     const readerDeadline =
                       inherited?.finalDeadlineMs ??
                       (finalStarted === undefined ? executionDeadline : finalStarted + 300000);
@@ -5599,8 +5604,10 @@ function originalExecutor(input, reserve) {
             };
             await retainFinalCheck();
             try {
+              finalCaptureActive = true;
               await policy.finalCapture(Object.freeze({ ...capture, ...startupFields() }));
             } finally {
+              finalCaptureActive = false;
               await retainFinalCheck();
             }
           })(),

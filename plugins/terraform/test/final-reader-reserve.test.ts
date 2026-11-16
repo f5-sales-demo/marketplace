@@ -14,7 +14,7 @@ import {
 const python = process.env.CE_TEST_PYTHON ?? Bun.which('python3') ?? '';
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 let fixtureSequence = 0;
-async function fixture(body = 'print("final-reader-complete")\n') {
+async function fixture(body = 'print("final-reader-complete")\n', parentGuard = async () => {}) {
   fixtureSequence++;
   const identity = Object.freeze({
     pid: 1001 + fixtureSequence,
@@ -40,6 +40,7 @@ async function fixture(body = 'print("final-reader-complete")\n') {
     finalDeadlineMs,
     assertOriginal: async () => {
       guards++;
+      await parentGuard();
     },
   });
   const executable = { path: python, sha256: hash(await readFile(python)) };
@@ -175,3 +176,38 @@ test('changed original guards or an unavailable inherited reserve refuse before 
     admitFinalReaderReserve({ ...values, finalDeadlineMs: values.finalDeadlineMs + 1, assertOriginal: async () => {} }),
   ).toThrow('fixed');
 });
+
+test('final reader output retains its original parent reserve checks during the child final callback', async () => {
+  let parentValid = true;
+  const run = await fixture(undefined, async () => {
+    if (!parentValid) throw new Error('Original parent reserve changed');
+  });
+  let output: import('../src/original-output-stream').OriginalExecutionOutput | undefined;
+  let refused = false;
+  const execute = signalFreeFinalReaderExecutor(
+    {
+      ...run.policy,
+      assertOriginalIdentity: async () => {},
+      assertFinalInputs: async () => {},
+      beforeRelease: async (admission) => {
+        output = admission.output;
+      },
+      finalCapture: async () => {
+        if (!output) throw new Error('Original child output required');
+        parentValid = false;
+        try {
+          await output.read('stdout');
+        } catch {
+          refused = true;
+        }
+        if (!refused) throw new Error('Parent reserve was bypassed');
+        throw new Error('Original parent final reserve refused');
+      },
+    },
+    run.reserve,
+  );
+  await expect(execute({ cwd: run.root, args: ['-I', '-B', run.script], env: {} })).rejects.toThrow(
+    'Original parent final reserve refused',
+  );
+  expect(refused).toBe(true);
+}, 60000);

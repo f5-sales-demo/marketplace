@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.119 preserves full original output checks during the
+  separate final capture window after operation expiry. Final deadlines and
+  failed apply results remain unchanged; live qualification is still open.
+
 - **`terraform`** v2.4.118 binds full VM and audit correlation to the original
   sealed apply baseline. Installed readers refuse raw-absence shortcuts; current
   cloud observations stay fresh. Final capture and live qualification remain open.

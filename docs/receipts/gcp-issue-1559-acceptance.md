@@ -1922,3 +1922,12 @@ and VM evidence remains fresh. Source/type/build regressions passed; see the
 [bounded source receipt](gcp-sealed-full-vm-binding-20261116.md). Final-capture
 handoff, observer mapping, built-in factory and all live/delivery gates remain
 open. No fresh cloud submission or live acceptance is inferred.
+
+### Original final output guard, 2026-11-16
+
+Terraform 2.4.119 uses full original input checks during the actual final
+callback, preserving original executable/output ownership and the fixed reserve
+after operation expiry. Clock tests retain failed apply results and unresolved
+claims. See the [source receipt](gcp-final-output-guard-20261116.md). Final VM
+handoff, late group closure, observer/factory composition and all live/delivery
+gates remain open.
