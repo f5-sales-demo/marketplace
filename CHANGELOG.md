@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.114 bounds process-backed inventory test harnesses
+  independently of production capture clocks. Isolated tests retain adequate time
+  on CI hosts; startup, command, freshness and final-reserve limits stay fixed.
+
 - **`terraform`** v2.4.113 binds fresh initial inventory to the original apply
   callback and retains immutable per-resource absences through the operation and
   separate final reserve. Late receipt or Platform mutations permanently refuse.

@@ -22,7 +22,7 @@ test('apply-bound initial absence remains immutable after its pre-submit freshne
     expect(later.executionAuthorized).toBe(false);
   });
   advance = 0;
-});
+}, 60000);
 
 test('a failed original operation lifetime cannot be revived by clock restoration', async () => {
   advance = 0;
@@ -32,7 +32,7 @@ test('a failed original operation lifetime cannot be revived by clock restoratio
     advance = 0;
     await expect(inventories.readOriginalApplyGcpInventory(packet)).rejects.toThrow('retired');
   });
-});
+}, 60000);
 
 test('only the original final callback exposes the baseline during its separate final reserve', async () => {
   advance = 0;
@@ -61,4 +61,4 @@ test('only the original final callback exposes the baseline during its separate 
       await expect(inventories.readOriginalApplyGcpInventory(packet, final)).rejects.toThrow('retired');
     },
   );
-});
+}, 60000);

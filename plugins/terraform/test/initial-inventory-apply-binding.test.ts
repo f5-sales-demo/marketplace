@@ -17,7 +17,7 @@ test('fresh full initial inventory binds to the actual apply and exposes origina
     await expect(inventories.readOriginalApplyGcpInventory({ ...packet })).rejects.toThrow('Original');
     await expect(stage.bindForApply(snapshot, { ...before })).rejects.toThrow('Original');
   });
-});
+}, 60000);
 
 test('a changed baseline file cannot be restored into apply-bound original inventory', async () => {
   expect(typeof inventories.readOriginalApplyGcpInventory).toBe('function');
@@ -33,16 +33,16 @@ test('a changed baseline file cannot be restored into apply-bound original inven
     await rename(replacement, row.evidence.path);
     await expect(inventories.readOriginalApplyGcpInventory(packet)).rejects.toThrow('retired');
   }, false);
-});
+}, 60000);
 
 import { runIsolatedClockFixture } from './isolated-clock-fixture';
 
 test('apply-bound baseline preserves freshness at submission and the original operation deadline', async () => {
   const result = await runIsolatedClockFixture('initial-inventory-apply-clock.fixture.ts');
   expect(result.exitCode).toBe(0);
-}, 60000);
+}, 180000);
 
 test('late receipt and Platform mutations remain rejected across asynchronous baseline reads', async () => {
   const result = await runIsolatedClockFixture('initial-inventory-late-mutation.fixture.ts');
   expect(result.exitCode).toBe(0);
-}, 60000);
+}, 180000);

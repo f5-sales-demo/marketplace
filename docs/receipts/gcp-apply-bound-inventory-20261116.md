@@ -36,3 +36,10 @@ mapping and built-in capture composition remain open, along with all original
 live networking, lifecycle, recovery, traffic, cleanup, installation and delivery
 gates. Immutable historical artifacts and unresolved failed-executor evidence
 remain preserved.
+
+CI exposed the default five-second Bun test timeout in the process-backed
+inventory fixtures. Child-test interruption also raced fixture cleanup.
+Terraform 2.4.114 gives each process-backed case a bounded harness allowance and
+each isolated parent enough time to collect its child results. Production capture
+clocks remain fixed. The failed CI log is retained; fresh changed-input checks
+and new-head CI must pass before this component is CI-qualified.
