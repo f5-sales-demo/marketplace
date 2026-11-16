@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { originalGcpBootstrapSource } from '../../../platform/src/ce/gcp-bootstrap-evidence';
 import {
@@ -34,6 +35,7 @@ export async function withApplyInventory(
   }) => Promise<void>,
   output?: (context: InstalledCaptureContext, store: CeDeploymentStore) => Promise<{ prefix: string; tail: string }>,
   expectedOutcome?: 'deadline',
+  configuration?: (intent: GcpCeIntent) => string,
 ) {
   await fixture(
     async (context, store, invocation) => {
@@ -202,5 +204,7 @@ export async function withApplyInventory(
     },
     '',
     ha,
+    () => false,
+    configuration,
   );
 }

@@ -33,6 +33,22 @@ export interface OriginalGcpObserverImageEvidence {
   readonly snapshotSha256: string;
   readonly observerExecutionAuthorized: false;
 }
+interface OriginalObserverImageReader {
+  read(): Promise<OriginalGcpObserverImageEvidence>;
+  readEvidence(record: OriginalGcpObserverImageEvidence): Promise<Buffer>;
+}
+const originalReaders = new WeakMap<object, OriginalObserverImageReader>();
+export async function captureOriginalGcpObserverImage(reader: unknown) {
+  const source = reader && typeof reader === 'object' ? originalReaders.get(reader) : undefined;
+  if (!source) throw new Error('Original factory-issued observer image reader required');
+  return source.read();
+}
+export async function readOriginalGcpObserverImageEvidence(reader: unknown, evidence: unknown) {
+  const source = reader && typeof reader === 'object' ? originalReaders.get(reader) : undefined;
+  if (!source) throw new Error('Original factory-issued observer image reader required');
+  return source.readEvidence(evidence as OriginalGcpObserverImageEvidence);
+}
+
 export interface GcpObserverImageReaderOptions {
   readonly root: string;
   readonly authentication: GoogleAdcAuthenticationRequest;
@@ -174,7 +190,7 @@ export async function openGcpObserverImageReader(
     await assertRoot();
     return Buffer.from(body.bytes);
   };
-  return Object.freeze({
+  const reader = Object.freeze({
     async read(): Promise<OriginalGcpObserverImageEvidence> {
       if (retired) throw new Error('original observer image reader retired');
       try {
@@ -254,4 +270,6 @@ export async function openGcpObserverImageReader(
     },
     captures: () => Object.freeze([...retained]),
   });
+  originalReaders.set(reader, reader);
+  return reader;
 }

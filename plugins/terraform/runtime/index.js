@@ -3683,21 +3683,29 @@ var GCP_SITE_ACCESS_MAPPING = Object.freeze({
   sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
   user: 'admin',
 });
-var _GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
+var GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
   ...GCP_SITE_ACCESS_MAPPING,
   version: '15.15.7',
   sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
 });
-var _GCP_XCSH15162_SITE_ACCESS_MAPPING = Object.freeze({
+var GCP_XCSH15162_SITE_ACCESS_MAPPING = Object.freeze({
   ...GCP_SITE_ACCESS_MAPPING,
   version: '15.16.2',
   sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
 });
-var _GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
+var GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
   ...GCP_SITE_ACCESS_MAPPING,
   version: '15.17.3',
   sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
 });
+function resolveGcpSiteAccessMapping(providerVersion) {
+  if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
+  throw new GcpSiteAccessMappingUnavailable();
+}
+
 class GcpSiteAccessMappingUnavailable extends Error {
   constructor() {
     super(
@@ -3745,9 +3753,26 @@ function assertGcpSiteAccessProfile(intent) {
   )
     throw new GcpSiteAccessMappingUnavailable();
 }
+function gcpSiteAccessSpec(intent, providerVersion) {
+  if (intent.initialAccess === undefined) return;
+  assertGcpSiteAccessProfile(intent);
+  resolveGcpSiteAccessMapping(providerVersion);
+  return {
+    admin_user_credentials: { ssh_key: intent.initialAccess.publicKey },
+    blocked_services: {
+      blocked_service: [
+        { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', ssh: {} },
+        ...['VIRTUAL_NETWORK_SITE_LOCAL', 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE'].flatMap((network_type) => [
+          { network_type, dns: {} },
+          { network_type, web_user_interface: {} },
+        ]),
+      ],
+    },
+  };
+}
 
 // plugins/gcloud/src/ce/observer-scope.ts
-var _GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
+var GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
   project: 'ubuntu-os-cloud',
   name: 'ubuntu-2404-noble-amd64-v20261021',
   id: '4996011480491275419',
@@ -11038,6 +11063,262 @@ import { createHash as createHash21, randomUUID as randomUUID10 } from 'node:cry
 // plugins/terraform/src/original-gcp-inventory-scope.ts
 import { join as join17, join as join18 } from 'node:path';
 
+// plugins/gcloud/src/ce/request-reason.ts
+var reasonPattern = /^xcsh-gcp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+function assertGcpTerraformRequestReason(value, intent, googleVersion) {
+  validateIntent(intent);
+  const reason = value;
+  if (
+    !reason ||
+    typeof reason !== 'object' ||
+    Array.isArray(reason) ||
+    Object.keys(reason).sort().join(',') !== 'intentFingerprint,reason,schemaVersion,scope' ||
+    reason.schemaVersion !== 1 ||
+    reason.scope !== 'gcp-terraform-deployment' ||
+    intent.engine !== 'terraform' ||
+    intent.operation !== 'deploy' ||
+    !['8.7.0', '8.10.0', '8.11.0'].includes(googleVersion) ||
+    reason.intentFingerprint !== fingerprint(intent) ||
+    typeof reason.reason !== 'string' ||
+    !reasonPattern.test(reason.reason)
+  )
+    throw new Error('Reviewed original GCP Terraform request reason and provider mapping required');
+}
+
+// plugins/gcloud/src/ce/compute-plan.ts
+function assertComputeOnly(intent) {
+  if (
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new Error('Compute translation cannot configure ingress or destination routes');
+}
+function translateGcpTerraformCompute(intent, googleProviderVersion, requestReason) {
+  validateIntent(intent);
+  if (intent.schemaVersion === 2) throw new Error('Observer intent requires the version3 original configuration');
+  if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
+  if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
+  if (requestReason !== undefined) assertGcpTerraformRequestReason(requestReason, intent, googleProviderVersion);
+  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
+    throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
+  const networks = {},
+    subnets = {},
+    instances = {};
+  const variable = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      for (const nic of node.interfaces) {
+        networks[nic.network.replaceAll('-', '_')] = {
+          name: nic.network,
+          project: intent.project,
+          auto_create_subnetworks: false,
+          routing_mode: 'REGIONAL',
+        };
+        const key = nic.subnet.replaceAll('-', '_');
+        const subnet = {
+          name: nic.subnet,
+          project: intent.project,
+          region: intent.region,
+          ip_cidr_range: nic.cidr,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
+        };
+        if (subnets[key] && fingerprint(subnets[key]) !== fingerprint(subnet))
+          throw new Error('Subnet identity has conflicting intent');
+        subnets[key] = subnet;
+      }
+      const key = node.name.replaceAll('-', '_');
+      variable[`${key}_user_data`] = {
+        type: 'string',
+        sensitive: true,
+        description: 'Restricted node-bound one-use bootstrap; never export as an output',
+      };
+      instances[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        machine_type: intent.machineType,
+        can_ip_forward: true,
+        boot_disk: [
+          {
+            auto_delete: true,
+            initialize_params: [{ image: intent.image.selfLink, size: intent.diskGiB, type: 'pd-balanced' }],
+          },
+        ],
+        network_interface: node.interfaces.map((nic) => ({
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
+          subnetwork: `\${google_compute_subnetwork.${nic.subnet.replaceAll('-', '_')}.id}`,
+          ...(nic.index === 0 ? { access_config: [{}] } : {}),
+        })),
+        labels: {
+          'xcsh-deployment': intent.deploymentName,
+          'xcsh-engine': 'terraform',
+          'xcsh-site': site.name,
+          'xcsh-node': node.name,
+        },
+        metadata: { VmDnsSetting: 'ZonePreferred', 'user-data': `\${var.${key}_user_data}` },
+      };
+    }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_providers: { google: { source: 'hashicorp/google', version: `= ${googleProviderVersion}` } },
+      },
+      provider: {
+        google: [
+          {
+            project: intent.project,
+            region: intent.region,
+            ...(requestReason !== undefined ? { request_reason: requestReason.reason } : {}),
+          },
+        ],
+      },
+      variable,
+      resource: {
+        google_compute_network: networks,
+        google_compute_subnetwork: subnets,
+        google_compute_instance: instances,
+      },
+    },
+  };
+}
+function translateGcpTerraformSiteCompute(intent, versions, requestReason) {
+  for (const version of Object.values(versions))
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
+  const cloud = translateGcpTerraformCompute(intent, versions.google, requestReason);
+  const access = gcpSiteAccessSpec(intent, versions.xcsh);
+  const sites = {};
+  const tokens = {};
+  const instances = cloud.configuration.resource.google_compute_instance;
+  for (const site of intent.sites) {
+    const siteKey = site.name.replaceAll('-', '_');
+    sites[siteKey] = {
+      name: site.name,
+      namespace: 'system',
+      labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
+      gcp: { not_managed: {} },
+      ...(intent.initialVersions
+        ? {
+            software_settings: {
+              sw: { volterra_software_version: intent.initialVersions.software },
+              os: { operating_system_version: intent.initialVersions.os },
+            },
+          }
+        : {}),
+      ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
+      disable_management_network: {},
+      ...(access ?? { block_all_services: {} }),
+      no_network_policy: {},
+      no_forward_proxy: {},
+      f5_proxy: {},
+      no_proxy_bypass: {},
+      logs_streaming_disabled: {},
+      no_s2s_connectivity_sli: {},
+      no_s2s_connectivity_slo: {},
+      disable_url_categorization: {},
+      local_vrf: { default_config: {}, default_sli_config: {} },
+    };
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      if (`${node.name}-token`.length > 63) throw new Error('Node name leaves no space for bound token name');
+      tokens[key] = {
+        name: `${node.name}-token`,
+        namespace: 'system',
+        type: 1,
+        site_name: `\${xcsh_securemesh_site_v2.${siteKey}.name}`,
+        labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-node': node.name, 'xcsh-engine': 'terraform' },
+      };
+      const userData = `#cloud-config
+write_files:
+  - path: /etc/vpm/user_data
+    permissions: "0600"
+    owner: root
+    content: |
+      token: \${xcsh_token.${key}.content}
+`;
+      instances[key].metadata = {
+        VmDnsSetting: 'ZonePreferred',
+        'user-data': `\${sensitive(${JSON.stringify(userData)})}`,
+      };
+    }
+  }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_version: `= ${versions.terraform}`,
+        required_providers: {
+          google: { source: 'hashicorp/google', version: `= ${versions.google}` },
+          xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${versions.xcsh}` },
+        },
+      },
+      provider: { ...cloud.configuration.provider, xcsh: [{}] },
+      resource: { ...cloud.configuration.resource, xcsh_securemesh_site_v2: sites, xcsh_token: tokens },
+    },
+  };
+}
+function translateGcpPublicTerraformSiteCompute(intent, versions, requestReason) {
+  const translated = translateGcpTerraformSiteCompute(intent, versions, requestReason);
+  const disks = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      disks[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        image: intent.image.selfLink,
+        size: intent.diskGiB,
+        type: 'pd-balanced',
+      };
+      const instance = translated.configuration.resource.google_compute_instance[key];
+      instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
+    }
+  const firewalls = {};
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
+    const tag = `${site.name}-ha-peer`;
+    const dependencies = [];
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['INGRESS', 'EGRESS']) {
+        const name = `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`;
+        if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for firewall identity');
+        const key = name.replaceAll('-', '_');
+        firewalls[key] = {
+          name,
+          project: intent.project,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.self_link}`,
+          direction,
+          ...(direction === 'INGRESS' ? { source_ranges: ['0.0.0.0/0'] } : { destination_ranges: ['0.0.0.0/0'] }),
+          target_tags: [tag],
+          allow: [{ protocol: 'all' }],
+        };
+        dependencies.push(`google_compute_firewall.${key}`);
+      }
+    for (const node of site.nodes) {
+      const instance = translated.configuration.resource.google_compute_instance[node.name.replaceAll('-', '_')];
+      instance.tags = [...new Set([...(instance.tags ?? []), tag])];
+      instance.depends_on = dependencies;
+    }
+  }
+  return {
+    ...translated,
+    schemaVersion: 2,
+    configuration: {
+      ...translated.configuration,
+      resource: {
+        ...translated.configuration.resource,
+        google_compute_disk: disks,
+        ...(Object.keys(firewalls).length ? { google_compute_firewall: firewalls } : {}),
+      },
+    },
+  };
+}
 // plugins/gcloud/src/ce/terraform-public-ownership.ts
 function publicTerraformPlatformScope(intent) {
   return intent.sites.flatMap((site) => [
@@ -13636,6 +13917,857 @@ function requestPlatform(bus) {
   });
 }
 
+// plugins/terraform/src/gcp-observer-image.ts
+import { createHash as createHash27, randomUUID as randomUUID12 } from 'node:crypto';
+import { lstat as lstat15, mkdir as mkdir10, open as open12, realpath as realpath14 } from 'node:fs/promises';
+import { isAbsolute as isAbsolute16, join as join21, resolve as resolve16 } from 'node:path';
+
+var hash19 = (raw) => createHash27('sha256').update(raw).digest('hex');
+var fileKeys3 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+var originalReaders = new WeakMap();
+async function captureOriginalGcpObserverImage(reader) {
+  const source = reader && typeof reader === 'object' ? originalReaders.get(reader) : undefined;
+  if (!source) throw new Error('Original factory-issued observer image reader required');
+  return source.read();
+}
+async function readOriginalGcpObserverImageEvidence(reader, evidence) {
+  const source = reader && typeof reader === 'object' ? originalReaders.get(reader) : undefined;
+  if (!source) throw new Error('Original factory-issued observer image reader required');
+  return source.readEvidence(evidence);
+}
+async function openGcpObserverImageReader(input, signal, fetcher = fetch) {
+  const root = input.root;
+  const authentication = Object.freeze({
+    ...input.authentication,
+    credentialBytes: Buffer.from(input.authentication.credentialBytes),
+  });
+  if (!isAbsolute16(root) || resolve16(root) !== root)
+    throw new Error('Canonical private observer image directory required');
+  await mkdir10(root, { recursive: true, mode: 448 });
+  const originalRoot = await lstat15(root, { bigint: true });
+  if (
+    !originalRoot.isDirectory() ||
+    originalRoot.isSymbolicLink() ||
+    originalRoot.uid !== BigInt(process.getuid?.() ?? -1) ||
+    (originalRoot.mode & 0o777n) !== 0o700n ||
+    (await realpath14(root)) !== root
+  )
+    throw new Error('Owned private observer image directory required');
+  const assertRoot = async () => {
+    const current = await lstat15(root, { bigint: true });
+    if (
+      ['dev', 'ino', 'uid', 'mode'].some((key) => current[key] !== originalRoot[key]) ||
+      !current.isDirectory() ||
+      current.isSymbolicLink() ||
+      (await realpath14(root)) !== root
+    )
+      throw new Error('original observer image directory changed');
+  };
+  const assertOriginal = async () => {
+    await assertRoot();
+    try {
+      await authentication.assertOriginal();
+    } catch (error) {
+      throw new Error('original observer image inputs changed', { cause: error });
+    }
+    await assertRoot();
+  };
+  const client = await openGoogleAdcComputeReader({ ...authentication, assertOriginal }, signal, fetcher);
+  const issued = new WeakMap();
+  const retained = [];
+  let retired = false;
+  let originalCreationTimestamp;
+  const persist = async (path, raw) => {
+    await assertRoot();
+    const handle = await open12(path, 'wx', 256);
+    try {
+      await handle.writeFile(raw);
+      await handle.sync();
+      const file = await handle.stat({ bigint: true });
+      return Object.freeze({
+        path,
+        sha256: hash19(raw),
+        expectedIdentity: Object.freeze(Object.fromEntries(fileKeys3.map((key) => [key, String(file[key])]))),
+        expectedParentIdentity: Object.freeze({
+          dev: String(originalRoot.dev),
+          ino: String(originalRoot.ino),
+          uid: String(originalRoot.uid),
+          mode: String(originalRoot.mode),
+        }),
+      });
+    } finally {
+      await handle.close();
+    }
+  };
+  const retain = async (capture) => {
+    const path = join21(root, `observer-image-${randomUUID12()}`);
+    const body = await persist(`${path}.body.private.bin`, capture.raw);
+    const value = Object.freeze({
+      schemaVersion: 1,
+      kind: 'original-gcp-observer-image-read',
+      owningProject: authentication.project,
+      imageProject: GCP_OBSERVER_IMAGE_PIN.project,
+      imageName: GCP_OBSERVER_IMAGE_PIN.name,
+      path: body.path,
+      sha256: body.sha256,
+      startedAt: capture.startedAt,
+      finishedAt: capture.finishedAt,
+      status: capture.status,
+      complete: capture.complete,
+      truncated: capture.truncated,
+      accountSha256: authentication.accountSha256,
+      audienceSha256: authentication.audienceSha256,
+      snapshotSha256: hash19(authentication.credentialBytes),
+      observerExecutionAuthorized: false,
+    });
+    const receipt = await persist(`${path}.receipt.private.json`, Buffer.from(JSON.stringify(value)));
+    const directory = await open12(root, 'r');
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+    await assertRoot();
+    retained.push(value);
+    return { body, receipt, value };
+  };
+  const withinFreshness = (record) => {
+    const now = Date.now();
+    if (
+      !Number.isSafeInteger(record.startedAt) ||
+      !Number.isSafeInteger(record.finishedAt) ||
+      record.startedAt < 0 ||
+      record.finishedAt < record.startedAt ||
+      record.finishedAt - record.startedAt > 60000 ||
+      now < record.finishedAt ||
+      now - record.finishedAt > 300000
+    )
+      throw new Error('original observer image freshness required');
+  };
+  const verifyFiles = async (bindings) => {
+    await assertOriginal();
+    const body = await owned(bindings.body.path, 4 * 1024 * 1024);
+    const receipt = await owned(bindings.receipt.path, 65536);
+    assertSameOriginalInput(bindings.body, body.binding);
+    assertSameOriginalInput(bindings.receipt, receipt.binding);
+    await assertOriginal();
+    const finalBody = await owned(bindings.body.path, 4 * 1024 * 1024);
+    const finalReceipt = await owned(bindings.receipt.path, 65536);
+    assertSameOriginalInput(bindings.body, finalBody.binding);
+    assertSameOriginalInput(bindings.receipt, finalReceipt.binding);
+    await assertRoot();
+    return Buffer.from(body.bytes);
+  };
+  const reader = Object.freeze({
+    async read() {
+      if (retired) throw new Error('original observer image reader retired');
+      try {
+        await assertOriginal();
+        let capture;
+        try {
+          capture = await client.observerImage();
+        } catch (error) {
+          if (error instanceof GoogleComputeReadError) {
+            try {
+              await retain(error.capture);
+            } catch (retention) {
+              throw new AggregateError([error, retention], 'original observer image capture and retention failed');
+            }
+          }
+          throw error;
+        }
+        const saved = await retain(capture);
+        if (capture.status !== 200 || !capture.complete || capture.truncated)
+          throw new Error('complete original observer image response required');
+        withinFreshness(capture);
+        const value = decodeEvidenceObject(capture.raw);
+        if (
+          value.kind !== 'compute#image' ||
+          value.id !== GCP_OBSERVER_IMAGE_PIN.id ||
+          value.name !== GCP_OBSERVER_IMAGE_PIN.name ||
+          value.selfLink !== GCP_OBSERVER_IMAGE_PIN.selfLink ||
+          value.architecture !== GCP_OBSERVER_IMAGE_PIN.architecture ||
+          value.status !== GCP_OBSERVER_IMAGE_PIN.status ||
+          !isEvidenceRfc3339(value.creationTimestamp) ||
+          Date.parse(value.creationTimestamp) > capture.finishedAt ||
+          (originalCreationTimestamp !== undefined && originalCreationTimestamp !== value.creationTimestamp)
+        )
+          throw new Error('original observer image numeric identity, namespace or creation differs');
+        await verifyFiles(saved);
+        withinFreshness(capture);
+        originalCreationTimestamp ??= value.creationTimestamp;
+        const record = Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-gcp-observer-image-candidate',
+          path: saved.body.path,
+          sha256: saved.body.sha256,
+          startedAt: capture.startedAt,
+          finishedAt: capture.finishedAt,
+          owningProject: authentication.project,
+          imageProject: GCP_OBSERVER_IMAGE_PIN.project,
+          imageId: GCP_OBSERVER_IMAGE_PIN.id,
+          imageName: GCP_OBSERVER_IMAGE_PIN.name,
+          selfLink: GCP_OBSERVER_IMAGE_PIN.selfLink,
+          creationTimestamp: value.creationTimestamp,
+          accountSha256: authentication.accountSha256,
+          audienceSha256: authentication.audienceSha256,
+          snapshotSha256: hash19(authentication.credentialBytes),
+          observerExecutionAuthorized: false,
+        });
+        issued.set(record, saved);
+        return record;
+      } catch (error) {
+        retired = true;
+        throw error;
+      }
+    },
+    async readEvidence(record) {
+      const bindings = issued.get(record);
+      if (!bindings) throw new Error('original reader-issued observer image evidence required');
+      if (retired) throw new Error('original observer image reader retired');
+      try {
+        withinFreshness(record);
+        const raw = await verifyFiles(bindings);
+        withinFreshness(record);
+        if (hash19(raw) !== record.sha256) throw new Error('original observer image input bytes differ');
+        return raw;
+      } catch (error) {
+        retired = true;
+        throw error;
+      }
+    },
+    captures: () => Object.freeze([...retained]),
+  });
+  originalReaders.set(reader, reader);
+  return reader;
+}
+
+// plugins/terraform/src/gcp-observer-insert-evidence.ts
+import { createHash as createHash28 } from 'node:crypto';
+import { isIP as isIP2 } from 'node:net';
+
+// plugins/gcloud/src/ce/observer-plan.ts
+function translateGcpTerraformObserverSiteCompute(intent, versions, observer, requestReason) {
+  assertGcpSiteAccessProfile(intent);
+  assertGcpTerraformObserverScope(observer, intent);
+  validateIntent(intent);
+  if (intent.schemaVersion === 2 && fingerprint(observer) !== fingerprint(intent.observer))
+    throw new Error('Original observer scope differs from its versioned intent');
+  if (
+    !['15.15.7', '15.16.2', '15.17.3'].some(
+      (xcsh) => fingerprint(versions) === fingerprint({ terraform: '1.17.2', google: '8.11.0', xcsh }),
+    )
+  )
+    throw new Error('Qualified exact observer Terraform/provider tuple required');
+  const ceIntent = structuredClone(intent);
+  ceIntent.schemaVersion = 1;
+  delete ceIntent.observer;
+  if (requestReason) assertGcpTerraformRequestReason(requestReason, intent, versions.google);
+  const ceReason = requestReason
+    ? Object.freeze({ ...requestReason, intentFingerprint: fingerprint(ceIntent) })
+    : undefined;
+  const base = translateGcpPublicTerraformSiteCompute(ceIntent, versions, ceReason);
+  const site = intent.sites[0];
+  const sli = site.nodes[0].interfaces[1];
+  if (site.nodes.some((node) => fingerprint(node.interfaces[1]) !== fingerprint(sli)))
+    throw new Error('Original HA observer requires one shared SLI network and subnet');
+  const name = `${intent.deploymentName}-observer`;
+  const firewallName = `${name}-ssh`;
+  if (firewallName.length > 63 || site.nodes.some((node) => node.name === name))
+    throw new Error('Derived observer identities collide or exceed GCP name limits');
+  const key = name.replaceAll('-', '_');
+  const firewallKey = firewallName.replaceAll('-', '_');
+  const resources = {};
+  for (const [type, entries] of Object.entries(base.configuration.resource)) {
+    resources[type] = {};
+    for (const [id, value] of Object.entries(entries)) {
+      if (!value || typeof value !== 'object' || Array.isArray(value))
+        throw new Error('Original CE resource object required');
+      resources[type][id] = Object.fromEntries(Object.entries(value));
+    }
+  }
+  const ce = Object.entries(resources)
+    .flatMap(([type, entries]) => Object.keys(entries).map((id) => `${type}.${id}`))
+    .sort();
+  const addresses = [
+    `google_compute_disk.${key}`,
+    `google_compute_firewall.${firewallKey}`,
+    `google_compute_instance.${key}`,
+  ];
+  if (ce.length !== 18 || addresses.some((address) => ce.includes(address)))
+    throw new Error('Exact original 18-resource CE inventory required before adding observer');
+  const labels = { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform', 'xcsh-role': 'observer' };
+  const resource = {
+    ...resources,
+    google_compute_disk: {
+      ...resources.google_compute_disk,
+      [key]: {
+        name,
+        project: intent.project,
+        zone: site.nodes[0].zone,
+        size: 20,
+        type: 'pd-balanced',
+        labels,
+        image: `\${data.google_compute_image.${key}.self_link}`,
+        lifecycle: {
+          precondition: [
+            {
+              condition: `\${data.google_compute_image.${key}.image_id == "${GCP_TERRAFORM_OBSERVER_IMAGE.id}" && data.google_compute_image.${key}.status == "READY"}`,
+              error_message: 'Original pinned Ubuntu observer image identity required',
+            },
+          ],
+        },
+      },
+    },
+    google_compute_firewall: {
+      ...resources.google_compute_firewall,
+      [firewallKey]: {
+        name: firewallName,
+        project: intent.project,
+        network: `\${google_compute_network.${sli.network.replaceAll('-', '_')}.self_link}`,
+        direction: 'INGRESS',
+        source_ranges: [observer.sshSourceCidr],
+        target_tags: [name],
+        allow: [{ protocol: 'tcp', ports: ['22'] }],
+      },
+    },
+    google_compute_instance: {
+      ...resources.google_compute_instance,
+      [key]: {
+        name,
+        project: intent.project,
+        zone: site.nodes[0].zone,
+        machine_type: 'e2-micro',
+        can_ip_forward: false,
+        deletion_protection: false,
+        boot_disk: [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }],
+        network_interface: [
+          {
+            network: `\${google_compute_network.${sli.network.replaceAll('-', '_')}.self_link}`,
+            subnetwork: `\${google_compute_subnetwork.${sli.subnet.replaceAll('-', '_')}.self_link}`,
+            access_config: [{}],
+          },
+        ],
+        metadata: {
+          'ssh-keys': `ubuntu:${observer.publicKey}`,
+          'block-project-ssh-keys': 'TRUE',
+          'enable-oslogin': 'FALSE',
+        },
+        labels,
+        tags: [name],
+        depends_on: [`google_compute_firewall.${firewallKey}`],
+      },
+    },
+  };
+  return {
+    ...base,
+    schemaVersion: 3,
+    inventory: { ce, observer: addresses, all: [...ce, ...addresses].sort() },
+    observerScopeFingerprint: fingerprint({ observer, image: GCP_TERRAFORM_OBSERVER_IMAGE }),
+    configuration: {
+      ...base.configuration,
+      data: {
+        google_compute_image: {
+          [key]: {
+            project: GCP_TERRAFORM_OBSERVER_IMAGE.project,
+            name: GCP_TERRAFORM_OBSERVER_IMAGE.name,
+          },
+        },
+      },
+      resource,
+    },
+  };
+}
+
+// plugins/terraform/src/gcp-observer-insert-evidence.ts
+var hash20 = (value) => createHash28('sha256').update(value).digest('hex');
+var object14 = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Original observer object required');
+  return value;
+};
+var uint643 = (value) =>
+  typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value) && BigInt(value) <= 18446744073709551615n;
+var link2 = (value, path) =>
+  typeof value === 'string' &&
+  [path, `https://www.googleapis.com/compute/v1/${path}`, `https://compute.googleapis.com/compute/v1/${path}`].includes(
+    value,
+  );
+function metadata4(value, allowFingerprint = false) {
+  const raw = object14(value),
+    entries = Object.create(null);
+  if (
+    !Array.isArray(raw.items) ||
+    Object.keys(raw).some((key) => !['items', 'fingerprint'].includes(key)) ||
+    (raw.fingerprint !== undefined &&
+      (typeof raw.fingerprint !== 'string' || (!allowFingerprint && raw.fingerprint !== '')))
+  )
+    throw new Error('Original observer insertion metadata required');
+  for (const item of raw.items) {
+    const row = object14(item);
+    if (
+      Object.keys(row).sort().join(',') !== 'key,value' ||
+      typeof row.key !== 'string' ||
+      typeof row.value !== 'string' ||
+      Object.hasOwn(entries, row.key) ||
+      Buffer.byteLength(row.value) > 262144
+    )
+      throw new Error('Original unique observer metadata required');
+    entries[row.key] = row.value;
+  }
+  return entries;
+}
+var origins2 = new WeakMap();
+async function readOriginalGcpObserverInsertIdentity(value, final) {
+  const source = value && typeof value === 'object' ? origins2.get(value) : undefined;
+  if (!source) throw new Error('Original observer insertion reference required');
+  return source.read(final);
+}
+async function collectOriginalGcpObserverInsertIdentity(input) {
+  const { callback, baseline, response, imageReader, image } = input;
+  if (callback.phase !== 'before') throw new Error('Original observer before callback required');
+  await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+  const context = callback.original;
+  const profile = resolveInstalledGcpVersionProfile(input.binding);
+  if (
+    !isOriginalCreationScopeProfile(profile) ||
+    profile.googleVersion !== '8.11.0' ||
+    context.owner.provider !== 'gcp' ||
+    context.owner.engine !== 'terraform'
+  )
+    throw new Error('Original qualified observer Terraform provider profile required');
+  const intentBinding = context.inputs['workspace:gcp-terraform-input-identity.json'];
+  const configBinding = context.inputs['workspace:main.tf.json'];
+  if (!intentBinding || !configBinding) throw new Error('Original observer intent/configuration inputs required');
+  const intentInput = await owned(intentBinding.path, 65536);
+  const configInput = await owned(configBinding.path, 64 * 1024 * 1024);
+  assertSameOriginalInput(intentBinding, intentInput.binding);
+  assertSameOriginalInput(configBinding, configInput.binding);
+  const saved = decodeEvidenceObject(intentInput.bytes);
+  const intent = structuredClone(saved.intent);
+  validateIntent(intent);
+  if (
+    intent.schemaVersion !== 2 ||
+    !intent.observer ||
+    intent.engine !== 'terraform' ||
+    intent.operation !== 'deploy' ||
+    intent.project !== context.owner.account ||
+    intent.region !== context.owner.region ||
+    intent.deploymentName !== context.owner.deploymentId ||
+    saved.intentFingerprint !== fingerprint(intent) ||
+    saved.platformContext !== intent.platformContext
+  )
+    throw new Error('Original versioned observer intent differs');
+  const plan = await context.readOriginalPlanSource?.();
+  if (
+    !plan ||
+    plan.receipt.configurationSha256 !== configBinding.sha256 ||
+    plan.receipt.providerLockSha256 !== input.binding.providerLockSha256 ||
+    plan.terraformVersion !== input.binding.terraformVersion ||
+    plan.directory !== context.executionDirectory
+  )
+    throw new Error('Original observer owning plan and configuration differ');
+  await assertOriginalTerraformPlanProjection(plan);
+  const configuration = decodeEvidenceObject(configInput.bytes);
+  const providers = object14(configuration.provider).google;
+  const provider = object14(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
+  if (
+    provider.project !== intent.project ||
+    provider.region !== intent.region ||
+    typeof provider.request_reason !== 'string' ||
+    provider.alias !== undefined ||
+    provider.default_labels !== undefined
+  )
+    throw new Error('Original observer provider scope and request reason required');
+  const expected = translateGcpTerraformObserverSiteCompute(
+    intent,
+    { terraform: profile.terraformVersion, google: profile.googleVersion, xcsh: '15.17.3' },
+    intent.observer,
+    {
+      schemaVersion: 1,
+      scope: 'gcp-terraform-deployment',
+      intentFingerprint: fingerprint(intent),
+      reason: provider.request_reason,
+    },
+  );
+  const observer = gcpTerraformObserverIdentity(intent),
+    key = observer.key,
+    firewallKey = observer.firewallName.replaceAll('-', '_');
+  const resource = object14(configuration.resource),
+    wantedResource = object14(expected.configuration.resource);
+  for (const [type, id] of [
+    ['google_compute_instance', key],
+    ['google_compute_disk', key],
+    ['google_compute_firewall', firewallKey],
+  ])
+    if (
+      fingerprint(object14(object14(resource[type])[id])) !== fingerprint(object14(object14(wantedResource[type])[id]))
+    )
+      throw new Error('Original declared observer resource configuration differs');
+  if (
+    fingerprint(object14(object14(configuration.data).google_compute_image)[key]) !==
+    fingerprint(object14(object14(expected.configuration.data).google_compute_image)[key])
+  )
+    throw new Error('Original observer image declaration differs');
+  const originalImage = await readOriginalGcpObserverImageEvidence(imageReader, image);
+  if (
+    image.owningProject !== intent.project ||
+    image.imageId !== GCP_OBSERVER_IMAGE_PIN.id ||
+    image.accountSha256 !== context.authentication.accountSha256 ||
+    image.audienceSha256 !== context.authentication.audienceSha256 ||
+    image.snapshotSha256 !== context.authentication.snapshotSha256 ||
+    hash20(originalImage) !== image.sha256
+  )
+    throw new Error('Original observer image authentication or scope differs');
+  const imageBinding = (await owned(image.path, 4 * 1024 * 1024)).binding;
+  const address = `google_compute_instance.${key}`,
+    diskAddress = `google_compute_disk.${key}`,
+    firewallAddress = `google_compute_firewall.${firewallKey}`;
+  const originalImageTimestamp = image.creationTimestamp;
+  let refused = false;
+  const verify = async (final) => {
+    if (refused) throw new Error('Original observer insertion reference retired');
+    try {
+      const current = final ?? callback;
+      if (final && (final.phase !== 'after' || final.original !== context || final.nonce !== callback.nonce))
+        throw new Error('Original observer final callback differs');
+      await assertOriginalApplyGcpInventoryCallback(baseline, current);
+      const inventory = await readOriginalApplyGcpInventory(baseline, final);
+      if (
+        inventory.planSha256 !== plan.receipt.planSha256 ||
+        inventory.resources.length !== 21 ||
+        [address, diskAddress, firewallAddress].some(
+          (id) => inventory.cloud.filter((row) => row.address === id && row.role === 'observer').length !== 1,
+        )
+      )
+        throw new Error('Original complete 21-resource observer baseline required');
+      await assertOriginalTerraformPlanProjection(plan);
+      const source = await readOriginalGoogleHttpResponseSource(response);
+      if (
+        source.directory !== plan.directory ||
+        source.planSha256 !== plan.receipt.planSha256 ||
+        ['pid', 'group', 'start', 'boot'].some((name) => source.executor[name] !== current.execution.identity[name]) ||
+        response.googleProviderVersion !== profile.googleVersion ||
+        response.rpc !== 'ApplyResourceChange' ||
+        response.resourceType !== 'google_compute_instance' ||
+        response.method !== 'POST' ||
+        response.status !== 200 ||
+        response.url !==
+          `https://compute.googleapis.com/compute/v1/projects/${intent.project}/zones/${observer.zone}/instances?alt=json` ||
+        response.requestReasonSha256 !== hash20(provider.request_reason) ||
+        response.planSha256 !== plan.receipt.planSha256 ||
+        hash20(response.requestBody) !== response.requestBodySha256 ||
+        hash20(response.responseBody) !== response.responseBodySha256
+      )
+        throw new Error('Original observer insertion producer, plan or HTTP scope differs');
+      const request = decodeEvidenceObject(Buffer.from(response.requestBody)),
+        op = decodeEvidenceObject(Buffer.from(response.responseBody));
+      const expectedMetadata = object14(object14(object14(wantedResource.google_compute_instance)[key]).metadata);
+      const labels = object14(request.labels),
+        wantedLabels = object14(object14(object14(wantedResource.google_compute_instance)[key]).labels);
+      if (
+        request.name !== observer.name ||
+        request.canIpForward !== false ||
+        request.deletionProtection !== false ||
+        !link2(request.machineType, `projects/${intent.project}/zones/${observer.zone}/machineTypes/e2-micro`) ||
+        Object.entries(wantedLabels).some(([name, value]) => labels[name] !== value) ||
+        Object.keys(labels).some(
+          (name) =>
+            !Object.hasOwn(wantedLabels, name) && !(name === 'goog-terraform-provisioned' && labels[name] === 'true'),
+        ) ||
+        fingerprint(metadata4(request.metadata)) !== fingerprint(expectedMetadata) ||
+        fingerprint(object14(request.tags).items) !== fingerprint([observer.name]) ||
+        (request.serviceAccounts !== undefined &&
+          (!Array.isArray(request.serviceAccounts) || request.serviceAccounts.length))
+      )
+        throw new Error('Original observer request machine, metadata, labels, tags or account differs');
+      const { disks, networkInterfaces: nics } = request;
+      if (!Array.isArray(disks) || disks.length !== 1 || !Array.isArray(nics) || nics.length !== 1)
+        throw new Error('Original observer single disk and interface required');
+      const disk = object14(disks[0]),
+        nic = object14(nics[0]);
+      if (
+        disk.boot !== true ||
+        (disk.autoDelete !== undefined && disk.autoDelete !== false) ||
+        disk.initializeParams !== undefined ||
+        !link2(disk.source, `projects/${intent.project}/zones/${observer.zone}/disks/${observer.name}`) ||
+        !link2(nic.network, `projects/${intent.project}/global/networks/${observer.network}`) ||
+        !link2(nic.subnetwork, `projects/${intent.project}/regions/${intent.region}/subnetworks/${observer.subnet}`) ||
+        !Array.isArray(nic.accessConfigs) ||
+        nic.accessConfigs.length !== 1 ||
+        object14(nic.accessConfigs[0]).type !== 'ONE_TO_ONE_NAT' ||
+        (object14(nic.accessConfigs[0]).networkTier !== undefined &&
+          object14(nic.accessConfigs[0]).networkTier !== 'PREMIUM') ||
+        object14(nic.accessConfigs[0]).natIP !== undefined ||
+        (nic.networkIP !== undefined && nic.networkIP !== '') ||
+        nic.aliasIpRanges !== undefined
+      )
+        throw new Error('Original observer disk source or network/egress mapping differs');
+      const zonePath = `projects/${intent.project}/zones/${observer.zone}`;
+      if (
+        !uint643(op.id) ||
+        typeof op.name !== 'string' ||
+        !/^[a-z][a-z0-9-]{0,254}$/.test(op.name) ||
+        op.operationType !== 'insert' ||
+        !['PENDING', 'RUNNING', 'DONE'].includes(op.status) ||
+        op.error !== undefined ||
+        !link2(op.zone, zonePath) ||
+        !link2(op.selfLink, `${zonePath}/operations/${op.name}`) ||
+        !link2(op.targetLink, `${zonePath}/instances/${observer.name}`) ||
+        !isEvidenceRfc3339(op.insertTime) ||
+        (op.targetId !== undefined && !uint643(op.targetId))
+      )
+        throw new Error('Original exact observer insertion operation required');
+      const currentImage = await captureOriginalGcpObserverImage(imageReader);
+      await readOriginalGcpObserverImageEvidence(imageReader, currentImage);
+      if (
+        currentImage.creationTimestamp !== originalImageTimestamp ||
+        currentImage.owningProject !== intent.project ||
+        currentImage.snapshotSha256 !== image.snapshotSha256 ||
+        currentImage.accountSha256 !== image.accountSha256 ||
+        currentImage.audienceSha256 !== image.audienceSha256
+      )
+        throw new Error('Original observer image changed during insertion correlation');
+      for (const binding of [intentBinding, configBinding, imageBinding])
+        assertSameOriginalInput(binding, (await owned(binding.path, 64 * 1024 * 1024)).binding);
+      await context.assertInputs();
+      await assertOriginalTerraformPlanProjection(plan);
+      await readOriginalGoogleHttpResponseSource(response);
+      await assertOriginalApplyGcpInventoryCallback(baseline, current);
+      for (const binding of [intentBinding, configBinding, imageBinding])
+        assertSameOriginalInput(binding, (await owned(binding.path, 64 * 1024 * 1024)).binding);
+      return Object.freeze({
+        schemaVersion: 1,
+        kind: 'original-gcp-observer-insert-identity',
+        role: 'observer',
+        project: intent.project,
+        zone: observer.zone,
+        name: observer.name,
+        address,
+        diskAddress,
+        firewallAddress,
+        operationId: op.id,
+        operationName: op.name,
+        targetId: op.targetId === undefined ? null : op.targetId,
+        status: op.status,
+        planSha256: plan.receipt.planSha256,
+        imageId: image.imageId,
+        imageName: image.imageName,
+        requestBodySha256: response.requestBodySha256,
+        responseBodySha256: response.responseBodySha256,
+        metadataSha256: hash20(JSON.stringify(metadata4(request.metadata))),
+        publicKeySha256: hash20(intent.observer?.publicKey ?? ''),
+        observerExecutionAuthorized: false,
+        originalInsertQualified: false,
+      });
+    } catch (error) {
+      refused = true;
+      throw error;
+    }
+  };
+  await verify();
+  const result = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-gcp-observer-insert-reference',
+  });
+  origins2.set(result, { read: verify, context, baseline, requestBody: response.requestBody });
+  return result;
+}
+var vmOrigins = new WeakMap();
+async function readOriginalGcpObserverVmEvidence(value) {
+  const read = value && typeof value === 'object' ? vmOrigins.get(value) : undefined;
+  if (!read) throw new Error('Original observer VM evidence required');
+  return read.read();
+}
+async function collectOriginalGcpObserverSerialEvidence(value, start) {
+  const read = value && typeof value === 'object' ? vmOrigins.get(value) : undefined;
+  if (!read) throw new Error('Original observer VM evidence required');
+  return read.serial(start);
+}
+function fresh(value) {
+  if (
+    !Number.isSafeInteger(value.startedAt) ||
+    !Number.isSafeInteger(value.finishedAt) ||
+    value.finishedAt < value.startedAt ||
+    value.finishedAt - value.startedAt > 60000 ||
+    Date.now() < value.finishedAt ||
+    Date.now() - value.finishedAt > 300000
+  )
+    throw new Error('Fresh original observer cloud observation required');
+}
+async function collectOriginalGcpObserverVmEvidence(input) {
+  const original = origins2.get(input.identity);
+  if (!original) throw new Error('Original observer insertion source required');
+  const { callback, reader } = input;
+  const source = await original.read(callback.phase === 'after' ? callback : undefined);
+  if (callback.original !== original.context) throw new Error('Original observer VM callback context differs');
+  const guard = async () => {
+    await assertOriginalApplyGcpInventoryCallback(original.baseline, callback);
+    if (callback.phase === 'after') await assertOriginalInstalledGcpFinalCloudReader(reader, callback);
+    else await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+    return original.read(callback.phase === 'after' ? callback : undefined);
+  };
+  await guard();
+  const inventory = await readOriginalApplyGcpInventory(
+    original.baseline,
+    callback.phase === 'after' ? callback : undefined,
+  );
+  const diskRow = inventory.cloud.find((row) => row.address === source.diskAddress && row.role === 'observer');
+  const vmRow = inventory.cloud.find((row) => row.address === source.address && row.role === 'observer');
+  if (diskRow?.target.kind !== 'disk' || !vmRow) throw new Error('Original observer VM and disk absences required');
+  const target = diskRow.target;
+  const operation = await reader.insertOperation(source.zone, source.operationName, source.name);
+  const instance = await reader.instance(source.zone, source.name);
+  const disk = await reader.resource(target);
+  if (!instance.present || !disk.present) throw new Error('Original observer VM and disk unavailable');
+  let refused = false;
+  const read = async () => {
+    if (refused) throw new Error('Original observer VM evidence retired');
+    try {
+      const identity = await guard();
+      const opRaw = await reader.readEvidence(operation),
+        vmRaw = await reader.readEvidence(instance),
+        diskRaw = await reader.readResourceEvidence(disk);
+      for (const row of [operation, instance, disk]) fresh(row);
+      for (const row of [opRaw, vmRaw])
+        if (
+          row.scope.project !== identity.project ||
+          row.scope.zone !== identity.zone ||
+          row.scope.node !== identity.name ||
+          row.authentication.accountSha256 !== callback.original.authentication.accountSha256 ||
+          row.authentication.audienceSha256 !== callback.original.authentication.audienceSha256 ||
+          row.authentication.adcSha256 !== callback.original.authentication.snapshotSha256
+        )
+          throw new Error('Original observer cloud scope or authentication differs');
+      const vm = decodeEvidenceObject(vmRaw.raw),
+        d = decodeEvidenceObject(diskRaw.raw),
+        op = decodeEvidenceObject(opRaw.raw),
+        request = decodeEvidenceObject(Buffer.from(original.requestBody));
+      const zonePath = `projects/${identity.project}/zones/${identity.zone}`,
+        diskPath = `${zonePath}/disks/${identity.name}`,
+        vmPath = `${zonePath}/instances/${identity.name}`;
+      const labels = object14(request.labels);
+      if (
+        operation.operationId !== identity.operationId ||
+        operation.operationName !== identity.operationName ||
+        operation.targetId !== vm.id ||
+        (identity.targetId !== null && identity.targetId !== vm.id) ||
+        op.id !== identity.operationId ||
+        op.name !== identity.operationName ||
+        op.error !== undefined ||
+        !isEvidenceRfc3339(op.insertTime) ||
+        !isEvidenceRfc3339(vm.creationTimestamp) ||
+        !isEvidenceRfc3339(d.creationTimestamp) ||
+        Date.parse(op.insertTime) < vmRow.evidence.startedAt ||
+        Date.parse(d.creationTimestamp) < diskRow.evidence.startedAt ||
+        Date.parse(d.creationTimestamp) > Date.parse(vm.creationTimestamp) ||
+        Date.parse(vm.creationTimestamp) < Date.parse(op.insertTime) ||
+        Date.parse(vm.creationTimestamp) > instance.finishedAt ||
+        vm.canIpForward !== false ||
+        vm.deletionProtection !== false ||
+        !link2(vm.machineType, `${zonePath}/machineTypes/e2-micro`) ||
+        (vm.serviceAccounts !== undefined && (!Array.isArray(vm.serviceAccounts) || vm.serviceAccounts.length)) ||
+        fingerprint(object14(vm.labels)) !== fingerprint(labels) ||
+        fingerprint(metadata4(vm.metadata, true)) !== fingerprint(metadata4(request.metadata)) ||
+        fingerprint(object14(vm.tags).items) !== fingerprint([identity.name]) ||
+        !uint643(d.id) ||
+        d.sourceImageId !== GCP_OBSERVER_IMAGE_PIN.id ||
+        !link2(d.sourceImage, GCP_OBSERVER_IMAGE_PIN.selfLink.replace('https://www.googleapis.com/compute/v1/', '')) ||
+        d.sizeGb !== '20' ||
+        !link2(d.type, `${zonePath}/diskTypes/pd-balanced`) ||
+        fingerprint(object14(d.labels)) !== fingerprint(labels) ||
+        !link2(d.zone, zonePath) ||
+        !link2(d.selfLink, diskPath) ||
+        d.sourceSnapshotId !== undefined ||
+        !Array.isArray(d.users) ||
+        d.users.length !== 1 ||
+        !link2(d.users[0], vmPath)
+      )
+        throw new Error('Original observer VM/disk/image/creation ownership differs');
+      const { networkInterfaces: nics, disks } = vm;
+      if (!Array.isArray(nics) || nics.length !== 1 || !Array.isArray(disks) || disks.length !== 1)
+        throw new Error('Original observer single disk and NIC required');
+      const nic = object14(nics[0]),
+        boot = object14(disks[0]),
+        wanted = object14(request.networkInterfaces[0]);
+      if (
+        nic.name !== 'nic0' ||
+        !Array.isArray(nic.accessConfigs) ||
+        nic.accessConfigs.length !== 1 ||
+        !link2(nic.network, String(wanted.network).replace('https://www.googleapis.com/compute/v1/', '')) ||
+        !link2(nic.subnetwork, String(wanted.subnetwork).replace('https://www.googleapis.com/compute/v1/', '')) ||
+        typeof nic.networkIP !== 'string' ||
+        isIP2(nic.networkIP) !== 4 ||
+        boot.boot !== true ||
+        boot.autoDelete !== false ||
+        !link2(boot.source, diskPath)
+      )
+        throw new Error('Original observer VM disk/NIC mapping differs');
+      const external = object14(nic.accessConfigs[0]);
+      if (
+        external.type !== 'ONE_TO_ONE_NAT' ||
+        external.networkTier !== 'PREMIUM' ||
+        typeof external.natIP !== 'string' ||
+        isIP2(external.natIP) !== 4
+      )
+        throw new Error('Original observer external access mapping differs');
+      const currentVm = await reader.instance(identity.zone, identity.name),
+        currentDisk = await reader.resource(target);
+      if (
+        !currentVm.present ||
+        !currentDisk.present ||
+        currentVm.value.id !== instance.value.id ||
+        currentDisk.value.id !== disk.value.id ||
+        fingerprint(currentVm.value.disks) !== fingerprint(instance.value.disks) ||
+        fingerprint(currentDisk.value.users) !== fingerprint(disk.value.users)
+      )
+        throw new Error('Original observer VM or disk changed during capture');
+      await guard();
+      await reader.readEvidence(instance);
+      await reader.readResourceEvidence(disk);
+      return Object.freeze({
+        kind: 'original-gcp-observer-vm-evidence',
+        project: identity.project,
+        zone: identity.zone,
+        name: identity.name,
+        instanceId: instance.value.id,
+        diskId: disk.value.id,
+        imageId: GCP_OBSERVER_IMAGE_PIN.id,
+        interfaceAddress: nic.networkIP,
+        externalAddress: external.natIP,
+        operationId: identity.operationId,
+        instanceSha256: instance.sha256,
+        diskSha256: disk.sha256,
+        observerExecutionAuthorized: false,
+        originalInsertQualified: false,
+      });
+    } catch (error) {
+      refused = true;
+      throw error;
+    }
+  };
+  await read();
+  const result = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-gcp-observer-vm-reference',
+  });
+  vmOrigins.set(result, {
+    read,
+    async serial(start) {
+      if (refused) throw new Error('Original observer VM evidence retired');
+      try {
+        await read();
+        const capture = await reader.serial(instance, start);
+        await read();
+        return capture;
+      } catch (error) {
+        refused = true;
+        throw error;
+      }
+    },
+  });
+  return result;
+}
+
 // plugins/terraform/src/index.ts
 function factory(pi) {
   pi.setLabel('Terraform CE lifecycle execution');
@@ -13674,6 +14806,7 @@ export {
   assertOriginalGcpInventoryScope,
   assertOriginalGcpPreapplyBootstrapContext,
   assertOriginalInstalledGcpCloudReader,
+  captureOriginalGcpObserverImage,
   checkoutOriginalGcpPreapplyBootstrap,
   closeOriginalGcpInventoryScope,
   collectOriginalEarlyGcpInsertIdentity,
@@ -13681,6 +14814,9 @@ export {
   collectOriginalEarlyGcpVmEvidence,
   collectOriginalFinalGcpSerialEvidence,
   collectOriginalGcpInsertWitnesses,
+  collectOriginalGcpObserverInsertIdentity,
+  collectOriginalGcpObserverSerialEvidence,
+  collectOriginalGcpObserverVmEvidence,
   collectOriginalGcpPreapplyBootstrap,
   collectOriginalGcpTerraformBootstrap,
   collectOriginalGcpTerraformBootstrapV2,
@@ -13693,6 +14829,7 @@ export {
   joinOriginalGcpVmEvidence,
   joinOriginalXcshCreationBody,
   openGcpCloudSerialReader,
+  openGcpObserverImageReader,
   openInstalledBootstrapCapture,
   openInstalledInitialInventory,
   openInstalledProviderReader,
@@ -13706,6 +14843,9 @@ export {
   readOriginalExecutionPrefix,
   readOriginalFinalGcpVmEvidence,
   readOriginalGcpInsertWitnesses,
+  readOriginalGcpObserverImageEvidence,
+  readOriginalGcpObserverInsertIdentity,
+  readOriginalGcpObserverVmEvidence,
   readOriginalGcpPreapplyBootstrapJwt,
   readOriginalGcpTerraformBootstrapJwt,
   readOriginalGoogleHttpResponseSource,

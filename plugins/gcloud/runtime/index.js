@@ -11568,7 +11568,11 @@ function translateGcpTerraformObserverSiteCompute(intent, versions, observer, re
   const ceIntent = structuredClone(intent);
   ceIntent.schemaVersion = 1;
   delete ceIntent.observer;
-  const base = translateGcpPublicTerraformSiteCompute(ceIntent, versions, requestReason);
+  if (requestReason) assertGcpTerraformRequestReason(requestReason, intent, versions.google);
+  const ceReason = requestReason
+    ? Object.freeze({ ...requestReason, intentFingerprint: fingerprint(ceIntent) })
+    : undefined;
+  const base = translateGcpPublicTerraformSiteCompute(ceIntent, versions, ceReason);
   const site = intent.sites[0];
   const sli = site.nodes[0].interfaces[1];
   if (site.nodes.some((node) => fingerprint(node.interfaces[1]) !== fingerprint(sli)))
@@ -11684,6 +11688,7 @@ var init_observer_plan = __esm(() => {
   init_compute_plan();
   init_discovery();
   init_observer_scope();
+  init_request_reason();
   init_site_access();
   init_validation();
   init_observer_scope();

@@ -72,6 +72,22 @@ export {
   readOriginalGcpInsertWitnesses,
 } from './gcp-insert-evidence';
 export {
+  captureOriginalGcpObserverImage,
+  openGcpObserverImageReader,
+  readOriginalGcpObserverImageEvidence,
+} from './gcp-observer-image';
+export {
+  collectOriginalGcpObserverInsertIdentity,
+  collectOriginalGcpObserverSerialEvidence,
+  collectOriginalGcpObserverVmEvidence,
+  type OriginalGcpObserverInsertIdentity,
+  type OriginalGcpObserverInsertInput,
+  type OriginalGcpObserverVmEvidence,
+  type OriginalGcpObserverVmInput,
+  readOriginalGcpObserverInsertIdentity,
+  readOriginalGcpObserverVmEvidence,
+} from './gcp-observer-insert-evidence';
+export {
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,
   collectOriginalFinalGcpSerialEvidence,

@@ -5,7 +5,7 @@ import {
   GCP_TERRAFORM_OBSERVER_IMAGE,
   type GcpTerraformObserverScope,
 } from './observer-scope';
-import type { GcpTerraformRequestReason } from './request-reason';
+import { assertGcpTerraformRequestReason, type GcpTerraformRequestReason } from './request-reason';
 import { assertGcpSiteAccessProfile } from './site-access';
 import { validateIntent } from './validation';
 
@@ -34,7 +34,11 @@ export function translateGcpTerraformObserverSiteCompute(
   const ceIntent = structuredClone(intent);
   ceIntent.schemaVersion = 1;
   delete ceIntent.observer;
-  const base = translateGcpPublicTerraformSiteCompute(ceIntent, versions, requestReason);
+  if (requestReason) assertGcpTerraformRequestReason(requestReason, intent, versions.google);
+  const ceReason = requestReason
+    ? Object.freeze({ ...requestReason, intentFingerprint: fingerprint(ceIntent) })
+    : undefined;
+  const base = translateGcpPublicTerraformSiteCompute(ceIntent, versions, ceReason);
   const site = intent.sites[0];
   const sli = site.nodes[0].interfaces[1];
   if (site.nodes.some((node) => fingerprint(node.interfaces[1]) !== fingerprint(sli)))

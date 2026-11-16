@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.122 joins original observer insertion, pinned image,
+  numeric VM/disk identity and guarded serial evidence. Factory provenance,
+  immutable ownership and freshness remain mandatory; live gates stay open.
+- **`gcloud`** v1.7.55 preserves the original observer request reason while
+  deriving the internal CE-only compiler fingerprint.
+
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding
   checks, retirement and fixed deadlines remain mandatory; live gates stay open.

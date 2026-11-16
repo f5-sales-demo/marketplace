@@ -536,3 +536,13 @@ it('compiled final VM handoff rejects serialized identities and final evidence',
   ).rejects.toThrow('Original');
   await expect(runtime.collectOriginalFinalGcpSerialEvidence({}, '0')).rejects.toThrow('Original');
 });
+
+it('compiled observer insertion, VM and image origins refuse invented references', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.readOriginalGcpObserverInsertIdentity).toBe('function');
+  expect(typeof runtime.readOriginalGcpObserverVmEvidence).toBe('function');
+  expect(typeof runtime.readOriginalGcpObserverImageEvidence).toBe('function');
+  await expect(runtime.readOriginalGcpObserverInsertIdentity({})).rejects.toThrow('Original');
+  await expect(runtime.readOriginalGcpObserverVmEvidence({})).rejects.toThrow('Original');
+  await expect(runtime.readOriginalGcpObserverImageEvidence({}, {})).rejects.toThrow('Original');
+});

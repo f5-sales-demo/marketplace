@@ -164,3 +164,23 @@ it('refuses derived names that collide with CE identities or exceed GCP name lim
   long.deploymentName = 'a'.repeat(60);
   expect(() => translateGcpTerraformObserverSiteCompute(long, versions, observer())).toThrow();
 });
+
+it('versioned HA observer plan preserves its original request reason across internal CE translation', async () => {
+  const { createGcpTerraformRequestReason } = await import('../../src/ce/request-reason');
+  const i = fixture();
+  i.schemaVersion = 2;
+  i.observer = observer();
+  const before = JSON.stringify(i);
+  const reason = createGcpTerraformRequestReason(i);
+  const plan = translateGcpTerraformObserverSiteCompute(i, { ...versions, xcsh: '15.17.3' }, i.observer, reason);
+  const google = plan.configuration.provider.google;
+  expect((Array.isArray(google) ? google[0] : google).request_reason).toBe(reason.reason);
+  expect(plan.inventory.all).toHaveLength(21);
+  expect(JSON.stringify(i)).toBe(before);
+  expect(() =>
+    translateGcpTerraformObserverSiteCompute(i, { ...versions, xcsh: '15.17.3' }, i.observer!, {
+      ...reason,
+      intentFingerprint: 'b'.repeat(64),
+    }),
+  ).toThrow('request reason');
+});

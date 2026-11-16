@@ -1947,3 +1947,13 @@ reader's reserve across VM/serial handoff. Before packets retire and failed or
 expired evidence cannot renew. Reviewed machine/forwarding fields are enforced.
 See the [source receipt](gcp-final-vm-serial-handoff-20261116.md). Real provider
 refresh, guest/observer/factory and all live/delivery gates remain open.
+
+### Original observer insertion mapping, 2026-11-16
+
+Terraform 2.4.122 joins separate observer insertion, factory-issued image,
+numeric VM/disk identity and serial ownership to the original plan and sealed
+21-resource baseline. GCloud 1.7.55 repairs the internal observer compiler
+fingerprint without rewriting original reasons or receipts. See the
+[source receipt](gcp-observer-insertion-mapping-20261116.md). Fixture checks
+do not establish live acceptance. Built-in factory, real provider refresh,
+guest capture and every original live/runtime/delivery gate remain open.
