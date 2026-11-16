@@ -1891,3 +1891,15 @@ late receipt or Platform mutations. Source and compiled checks pass.
 These are component checks with explicit offline observations. Early numeric VM
 and serial binding, observer insertion mapping, built-in capture, all original
 live acceptance and remaining installation and delivery gates remain open.
+
+## Original private early insertion bodies on November 16
+
+The [private body receipt](gcp-private-early-insert-bodies-20261116.md) records
+original request/response bytes for later independent VM correlation, immutable
+body views, copied-reference refusal and permanent retirement after mutation.
+Failed witness fixtures preserve their executor roots and private receipts.
+Source, typecheck and compiled checks pass.
+
+Exact numeric VM/serial binding, sealed-baseline VM integration, observer
+insertion mapping, built-in capture and every original live, installed and
+delivery gate remain open.

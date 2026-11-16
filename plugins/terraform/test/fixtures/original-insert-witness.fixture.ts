@@ -244,7 +244,23 @@ export async function withInsertWitnesses(
     undefined,
     'gcp-resource-plan-v1',
   );
-  await runner.prepare(deployment);
-  const plan = await runner.plan({});
-  await runner.apply(plan, {});
+  try {
+    await runner.prepare(deployment);
+    const plan = await runner.plan({});
+    await runner.apply(plan, {});
+  } catch (error) {
+    const index = roots.indexOf(root);
+    if (index >= 0) roots.splice(index, 1);
+    await writeFile(
+      join(witnessParent?.directory ?? root, 'fixture-failure.private.json'),
+      JSON.stringify({
+        retainedRoot: root,
+        errorType: error instanceof Error ? error.name : typeof error,
+        cloudResources: 0,
+        originalInsertQualified: false,
+      }),
+      { flag: 'wx', mode: 0o400 },
+    );
+    throw error;
+  }
 }

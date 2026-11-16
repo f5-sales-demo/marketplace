@@ -66,6 +66,7 @@ export {
 export {
   collectOriginalEarlyGcpInsertIdentity,
   collectOriginalGcpInsertWitnesses,
+  readOriginalEarlyGcpInsertBodies,
   readOriginalEarlyGcpInsertIdentity,
   readOriginalGcpInsertWitnesses,
 } from './gcp-insert-evidence';

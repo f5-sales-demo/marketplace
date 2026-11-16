@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.116 exposes verified private early insertion bodies for
+  independent VM correlation. Copies and changed sources refuse; failed witness
+  fixtures retain executor evidence. Shared validation selects current xcsh
+  23.10.13. VM/serial binding and live acceptance remain open.
+
 - **`terraform`** v2.4.115 fixes the isolated loop-generated inventory test
   allowance and adds an explicit bounded CI latency probe. Production clocks
   remain fixed; fresh CI qualification is required.

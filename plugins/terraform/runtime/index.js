@@ -9772,7 +9772,13 @@ function projectOriginalComputeInsert(input, binding) {
   });
   return candidate;
 }
+var earlyBodyOrigins = new WeakMap();
 var earlyIdentityOrigins = new WeakMap();
+async function readOriginalEarlyGcpInsertBodies(value) {
+  const read = value && typeof value === 'object' ? earlyBodyOrigins.get(value) : undefined;
+  if (!read) throw new Error('Original early insertion identity required');
+  return read();
+}
 async function readOriginalEarlyGcpInsertIdentity(value) {
   const verify = value && typeof value === 'object' ? earlyIdentityOrigins.get(value) : undefined;
   if (!verify) throw new Error('Original early insertion identity required');
@@ -9846,6 +9852,18 @@ async function collectOriginalEarlyGcpInsertIdentity(input) {
   });
   earlyIdentityOrigins.set(candidate, async () => {
     await verify();
+  });
+  earlyBodyOrigins.set(candidate, async () => {
+    await verify();
+    const bodies = Object.freeze({
+      requestBody: response.requestBody,
+      responseBody: response.responseBody,
+      requestBodySha256: response.requestBodySha256,
+      responseBodySha256: response.responseBodySha256,
+      executionAuthorized: false,
+    });
+    await verify();
+    return bodies;
   });
   return candidate;
 }
@@ -13114,6 +13132,7 @@ export {
   prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
   readOriginalApplyGcpInventory,
+  readOriginalEarlyGcpInsertBodies,
   readOriginalEarlyGcpInsertIdentity,
   readOriginalExecutionPrefix,
   readOriginalGcpInsertWitnesses,

@@ -481,3 +481,11 @@ it('compiled apply-bound inventory rejects serialized references before accessin
     runtime.readOriginalApplyGcpInventory({ schemaVersion: 1, kind: 'original-apply-gcp-inventory' }),
   ).rejects.toThrow('Original');
 });
+
+it('compiled private early body reader rejects serialized identity before exposing source bytes', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.readOriginalEarlyGcpInsertBodies).toBe('function');
+  await expect(
+    runtime.readOriginalEarlyGcpInsertBodies({ schemaVersion: 1, kind: 'original-early-gcp-insert-identity' }),
+  ).rejects.toThrow('Original');
+});
