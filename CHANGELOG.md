@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.113 binds fresh initial inventory to the original apply
+  callback and retains immutable per-resource absences through the operation and
+  separate final reserve. Late receipt or Platform mutations permanently refuse.
+  Original VM/serial binding, built-in capture and full live acceptance remain open.
+
 - **`terraform`** v2.4.112 normalizes new authorization directories to exact
   private permissions before admitting their identities, including setgid-parent
   environments. Runtime validation stays strict; CI diagnostics identify the new

@@ -1880,3 +1880,14 @@ local-only cleanup. Twenty-six groups were absent, state/destroy were empty and
 two resumes submitted no commands. GCP insertion and guest behavior remain
 unqualified; full built-in capture and every original live, installed and
 delivery requirement remain open.
+
+## Original apply-bound inventory on November 16
+
+The [apply-bound inventory receipt](gcp-apply-bound-inventory-20261116.md) records
+fresh submission binding, original per-resource absences, immutable baseline
+reads during the original operation and separate final reserve, and refusal of
+late receipt or Platform mutations. Source and compiled checks pass.
+
+These are component checks with explicit offline observations. Early numeric VM
+and serial binding, observer insertion mapping, built-in capture, all original
+live acceptance and remaining installation and delivery gates remain open.

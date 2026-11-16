@@ -473,3 +473,11 @@ it('compiled apply hook parser refuses source authority for plain UI bytes', asy
   expect(parser.finish().applySuccessful).toBe(true);
   await expect(runtime.readOriginalTerraformApplyHookSource(values[0])).rejects.toThrow('Original');
 });
+
+it('compiled apply-bound inventory rejects serialized references before accessing retained files', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.readOriginalApplyGcpInventory).toBe('function');
+  await expect(
+    runtime.readOriginalApplyGcpInventory({ schemaVersion: 1, kind: 'original-apply-gcp-inventory' }),
+  ).rejects.toThrow('Original');
+});

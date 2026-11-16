@@ -12623,6 +12623,12 @@ function requestPlatform(bus) {
 import { createHash as createHash26, randomUUID as randomUUID11 } from 'node:crypto';
 import { join as join20 } from 'node:path';
 
+var applyInventories = new WeakMap();
+async function readOriginalApplyGcpInventory(packet, final) {
+  const read = packet && typeof packet === 'object' ? applyInventories.get(packet) : undefined;
+  if (!read) throw new Error('Original apply-bound inventory required');
+  return read(final);
+}
 var preparations2 = new WeakMap();
 async function openInstalledInitialInventory(input, options = {}) {
   const { context, scope, store, platform } = input;
@@ -12665,6 +12671,9 @@ async function openInitialInventory(input, options = {}) {
   let snapshot;
   let receiptBinding;
   let started = 0;
+  let applyCallback;
+  let applyPacket;
+  let bindingAttempt;
   const guard = async () => {
     if (retired) throw new Error('Original initial inventory retired');
     assertOriginalGcpInventoryContext(scope, context);
@@ -12748,6 +12757,8 @@ async function openInitialInventory(input, options = {}) {
       }
       await guard();
       fresh();
+      assertSameOriginalInput(receiptBinding, (await owned(receiptBinding.path)).binding);
+      if (retired) throw new Error('Original initial inventory retired');
     } catch (error) {
       retired = true;
       if (!closingRequested) {
@@ -12826,6 +12837,200 @@ async function openInitialInventory(input, options = {}) {
         }
       })();
       return pending;
+    },
+    async bindForApply(value, callback) {
+      if (applyPacket) {
+        await assertOriginalApplyLifetime(callback);
+        if (callback !== applyCallback || value !== snapshot)
+          throw new Error('Original inventory already bound to another apply');
+        await readOriginalApplyGcpInventory(applyPacket);
+        return applyPacket;
+      }
+      await assertOriginalApplyCallback(callback);
+      if (
+        callback.phase !== 'before' ||
+        callback.original !== context ||
+        callback.execution.directory !== context.executionDirectory ||
+        value !== snapshot
+      )
+        throw new Error('Original inventory before-apply context differs');
+      if (bindingAttempt) {
+        if (callback !== applyCallback) throw new Error('Original inventory bind already claimed');
+        return bindingAttempt;
+      }
+      applyCallback = callback;
+      bindingAttempt = (async () => {
+        try {
+          await assertSnapshot(value);
+          const prefix = await readOriginalExecutionPrefix(callback.execution.output);
+          const identity = callback.execution.identity;
+          const expectedArgs = [
+            'apply',
+            '-json',
+            '-parallelism=1',
+            '-input=false',
+            '-lock=true',
+            '-lock-timeout=60s',
+            'saved.tfplan',
+          ];
+          if (
+            prefix.directory !== context.executionDirectory ||
+            ['pid', 'group', 'start', 'boot'].some((key) => prefix.identity[key] !== identity[key]) ||
+            callback.execution.args.length !== expectedArgs.length ||
+            callback.execution.args.some((arg, index) => arg !== expectedArgs[index])
+          )
+            throw new Error('Original inventory owning executor differs');
+          const records = [];
+          for (const [index, entry] of cloudEvidence.entries()) {
+            const read = entry.resource
+              ? await cloud.readResourceEvidence(entry.value)
+              : await cloud.readEvidence(entry.value);
+            const retained = await owned(entry.value.path, 4 * 1024 * 1024);
+            if (
+              retained.binding.sha256 !== entry.value.sha256 ||
+              createHash26('sha256').update(read.raw).digest('hex') !== entry.value.sha256
+            )
+              throw new Error('Original inventory absence bytes differ');
+            records.push({ binding: retained.binding, evidence: entry.value, cloud: view.cloud[index] });
+          }
+          const platformBindings = [];
+          for (const presence of platformEvidence) {
+            await observation.assertPresence(presence);
+            await source.assertBody(presence.body);
+            const retained = await owned(presence.body.evidence.bodyPath, 4 * 1024 * 1024);
+            if (retained.binding.sha256 !== presence.body.evidence.bodySha256)
+              throw new Error('Original Platform baseline bytes differ');
+            platformBindings.push(retained.binding);
+          }
+          await assertSnapshot(value);
+          await assertOriginalApplyCallback(callback);
+          const boundMonotonicMs = linuxMonotonicMs();
+          const boundName = `gcp-initial-inventory-${id}-apply-bound.private.json`;
+          await store.write(boundName, {
+            schemaVersion: 2,
+            kind: 'original-apply-bound-inventory-record',
+            owner,
+            planSha256: view.planSha256,
+            intentFingerprint: view.intentFingerprint,
+            executor: identity,
+            callbackNonce: callback.nonce,
+            startedMonotonicMs: started,
+            boundMonotonicMs,
+            resources: rows,
+            executionAuthorized: false,
+            creationOwnershipQualified: false,
+          });
+          const boundReceipt = (await owned(join20(directory, boundName))).binding;
+          await assertSnapshot(value);
+          await assertOriginalApplyCallback(callback);
+          const packet = Object.freeze({
+            schemaVersion: 1,
+            kind: 'original-apply-gcp-inventory',
+          });
+          applyInventories.set(packet, async (final) => {
+            if (retired) throw new Error('Original apply-bound inventory retired');
+            try {
+              if (final) {
+                await assertOriginalApplyCallback(final);
+                if (
+                  final.phase !== 'after' ||
+                  final.original !== context ||
+                  final.nonce !== callback.nonce ||
+                  ['pid', 'group', 'start', 'boot'].some((key) => final.execution.identity[key] !== identity[key])
+                )
+                  throw new Error('Original inventory final callback differs');
+              } else await assertOriginalApplyLifetime(callback);
+              assertOriginalGcpInventoryContext(scope, context);
+              await assertOriginalGcpInventoryInputs(scope);
+              await context.assertInputs();
+              await store.verify();
+              if (
+                store.directory !== directory ||
+                ['provider', 'engine', 'account', 'region', 'deploymentId'].some(
+                  (key) => store.owner[key] !== owner[key],
+                )
+              )
+                throw new Error('Original bound inventory owner changed');
+              for (const input of [receiptBinding, boundReceipt]) {
+                if (!input) throw new Error('Original bound inventory receipt unavailable');
+                assertSameOriginalInput(input, (await owned(input.path)).binding);
+              }
+              const results = [];
+              for (const entry of records) {
+                const current = await owned(entry.binding.path, 4 * 1024 * 1024);
+                assertSameOriginalInput(entry.binding, current.binding);
+                const decoded = decodeEvidenceObject(current.bytes);
+                const error =
+                  decoded.error && typeof decoded.error === 'object' && !Array.isArray(decoded.error)
+                    ? decoded.error
+                    : {};
+                if (error.code !== 404) throw new Error('Original baseline absence differs');
+                results.push(
+                  Object.freeze({
+                    ...entry.cloud,
+                    evidence: entry.evidence,
+                    raw: Buffer.from(current.bytes),
+                    authentication: Object.freeze({
+                      accountSha256: context.authentication.accountSha256,
+                      audienceSha256: context.authentication.audienceSha256,
+                      adcSha256: context.authentication.snapshotSha256,
+                    }),
+                  }),
+                );
+              }
+              for (const binding of platformBindings)
+                assertSameOriginalInput(binding, (await owned(binding.path, 4 * 1024 * 1024)).binding);
+              for (const entry of records)
+                assertSameOriginalInput(entry.binding, (await owned(entry.binding.path, 4 * 1024 * 1024)).binding);
+              await assertOriginalGcpInventoryInputs(scope);
+              await context.assertInputs();
+              if (final) await assertOriginalApplyCallback(final);
+              else await assertOriginalApplyLifetime(callback);
+              for (const input of [
+                receiptBinding,
+                boundReceipt,
+                ...platformBindings,
+                ...records.map((entry) => entry.binding),
+              ]) {
+                if (!input) throw new Error('Original bound inventory receipt unavailable');
+                assertSameOriginalInput(input, (await owned(input.path, 4 * 1024 * 1024)).binding);
+              }
+              if (retired) throw new Error('Original apply-bound inventory retired');
+              return Object.freeze({
+                owner,
+                executor: identity,
+                planSha256: view.planSha256,
+                intentFingerprint: view.intentFingerprint,
+                startedMonotonicMs: started,
+                boundMonotonicMs,
+                resources: view.resources,
+                cloud: Object.freeze(results),
+                creationOwnershipQualified: false,
+                executionAuthorized: false,
+              });
+            } catch (error) {
+              retired = true;
+              try {
+                await retainFailure(error);
+              } catch (retention) {
+                throw new AggregateError([error, retention], 'Original bound inventory refusal and retention failed');
+              }
+              throw error;
+            }
+          });
+          applyPacket = packet;
+          return packet;
+        } catch (error) {
+          retired = true;
+          try {
+            await retainFailure(error);
+          } catch (retention) {
+            throw new AggregateError([error, retention], 'Original inventory bind failure and retention failed');
+          }
+          throw error;
+        }
+      })();
+      return bindingAttempt;
     },
     assertSnapshot,
     async inspect(value) {
@@ -12908,6 +13113,7 @@ export {
   openInstalledXcshCreationReader,
   prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
+  readOriginalApplyGcpInventory,
   readOriginalEarlyGcpInsertIdentity,
   readOriginalExecutionPrefix,
   readOriginalGcpInsertWitnesses,

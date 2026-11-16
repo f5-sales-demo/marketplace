@@ -69,7 +69,7 @@ export {
   readOriginalEarlyGcpInsertIdentity,
   readOriginalGcpInsertWitnesses,
 } from './gcp-insert-evidence';
-export { openInstalledInitialInventory } from './installed-initial-inventory';
+export { openInstalledInitialInventory, readOriginalApplyGcpInventory } from './installed-initial-inventory';
 export {
   openInstalledProviderReader,
   readOriginalInstalledProviderWindow,
