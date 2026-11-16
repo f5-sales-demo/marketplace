@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.125 separates host-trust validation stages and
+  explicitly types and manages fixture resources so full Python CI can check
+  source and tests. Refusal contracts and live qualification gates are preserved.
+
 - **`terraform`** v2.4.124 ships the qualified host-key consistency mapping
   through exact installed source pins. Canonical uint64 identity and finite
   capture clocks refuse malformed evidence; original-serial and live gates

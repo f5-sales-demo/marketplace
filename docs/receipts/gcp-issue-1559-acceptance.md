@@ -1976,3 +1976,13 @@ failures are repaired; 50 parser checks and 218 subtests pass. See the
 establish no original VM provenance. The genuine original-serial/key-scan
 consumer, built-in factory and every original live/runtime/delivery gate remain
 open; frozen source and historical evidence are preserved.
+
+### Host-trust Python CI repair, 2026-11-16
+
+Source `73fd0322` failed Super-Linter Pylint and test Mypy checks. Terraform
+2.4.125 refactors validation and manages/types fixture resources. The same
+50 parser tests and 218 subtests pass with all four source/test files checked
+by Pylint, Ruff and Mypy. See the
+[repair receipt](gcp-host-trust-ci-repair-20261116.md). Fresh CI is required;
+original-serial consumers, built-in capture and all original acceptance gates
+remain open. Attempt 626's failing-first tests are retained separately.

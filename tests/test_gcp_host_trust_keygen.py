@@ -8,7 +8,9 @@ import re
 import subprocess
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -97,14 +99,24 @@ def _refusal_regex(test_name: str) -> str:
 
 
 class KeyGenerationTrustTests(unittest.TestCase):
+    outputs: ClassVar[list[list[str]]]
+    keys: ClassVar[list[str]]
+    fingerprints: ClassVar[list[str]]
+    fixture: ClassVar[str]
+    resources: ClassVar[ExitStack]
+
     @classmethod
     def setUpClass(cls):
-        cls.fixture = tempfile.TemporaryDirectory(prefix="host-trust-offline-")
+        cls.resources = ExitStack()
+        cls.addClassCleanup(cls.resources.close)
+        cls.fixture = cls.resources.enter_context(
+            tempfile.TemporaryDirectory(prefix="host-trust-offline-")
+        )
         cls.outputs = []
         cls.keys = []
         cls.fingerprints = []
         for name in ("first", "other"):
-            directory = Path(cls.fixture.name) / name
+            directory = Path(cls.fixture) / name
             directory.mkdir(mode=448)
             path = directory / "key"
             result = subprocess.run(
@@ -147,10 +159,6 @@ class KeyGenerationTrustTests(unittest.TestCase):
             cls.keys.append("192.0.2.7 " + public[0] + " " + public[1])
             cls.fingerprints.append(fingerprint)
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.fixture.cleanup()
-
     def setUp(self):
         self.expected = {
             "campaign": "guest-offline-v15",
@@ -162,7 +170,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
         self.key = self.keys[0]
         self.fingerprint = self.fingerprints[0]
 
-    def serial(self, rows=None, *, pid="1198", version="24.4-8.el9_8.1", stage="init"):
+    def _serial(self, rows=None, *, pid="1198", version="24.4-8.el9_8.1", stage="init"):
         banner = f"Cloud-init v. {version} running '{stage}' at Mon, 26 Oct 2026 12:00:00 +0000. Up 54.0 seconds."
         return "".join(
             (
@@ -173,7 +181,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
             )
         ).encode()
 
-    def receipt(self, serial):
+    def _receipt(self, serial):
         return {
             **{
                 field: self.expected[field]
@@ -188,17 +196,17 @@ class KeyGenerationTrustTests(unittest.TestCase):
             "sha256": hashlib.sha256(serial).hexdigest(),
         }
 
-    def verify(self, serial=None, *, receipt=None, key=None, now=1002.0):
-        serial = self.serial() if serial is None else serial
+    def _verify(self, serial=None, *, receipt=None, key=None, now=1002.0):
+        serial = self._serial() if serial is None else serial
         return candidate.verify_pin(
             self.expected,
-            self.receipt(serial) if receipt is None else receipt,
+            self._receipt(serial) if receipt is None else receipt,
             serial,
             self.key if key is None else key,
             now=now,
         )
 
-    def legacy(self, fingerprint=None):
+    def _legacy(self, fingerprint=None):
         return (
             "\n".join(
                 [
@@ -213,16 +221,16 @@ class KeyGenerationTrustTests(unittest.TestCase):
         ).encode()
 
     def test_complete_documented_generation_matches_independent_wire_key(self):
-        assert self.verify() == self.fingerprint
+        assert self._verify() == self.fingerprint
 
     def test_unsuffixed_qualified_cloud_init_version_and_lf_are_accepted(self):
         assert (
-            self.verify(self.serial(version="24.4").replace(b"\r\n", b"\n"))
+            self._verify(self._serial(version="24.4").replace(b"\r\n", b"\n"))
             == self.fingerprint
         )
 
     def test_every_generation_row_and_init_banner_are_required(self):
-        for index in range(len(self.outputs[0])):
+        for index, _row in enumerate(self.outputs[0]):
             rows = self.outputs[0][:index] + self.outputs[0][index + 1 :]
             with (
                 self.subTest(index=index),
@@ -233,14 +241,14 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(rows))
+                self._verify(self._serial(rows))
         with pytest.raises(
             ValueError,
             match=_refusal_regex(
                 "test_every_generation_row_and_init_banner_are_required"
             ),
         ):
-            self.verify(b"\n".join(self.serial().splitlines()[1:]) + b"\n")
+            self._verify(b"\n".join(self._serial().splitlines()[1:]) + b"\n")
 
     def test_duplicate_complete_or_dangling_generations_refuse(self):
         for rows in (
@@ -257,7 +265,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(rows))
+                self._verify(self._serial(rows))
 
     def test_private_and_public_paths_are_exact(self):
         for index, text in (
@@ -278,15 +286,15 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     match=_refusal_regex("test_private_and_public_paths_are_exact"),
                 ),
             ):
-                self.verify(self.serial(rows))
+                self._verify(self._serial(rows))
 
     def test_wrong_producer_or_missing_per_row_envelope_refuses(self):
-        rows = self.serial().splitlines()
-        for index in range(len(rows)):
+        rows = self._serial().splitlines()
+        for index, row in enumerate(rows):
             for changed in (
-                rows[index].replace(b"cloud-init[1198]", b"cloud-init[1199]"),
-                rows[index].replace(b"cloud-init[1198]", b"arbitrary-app[1198]"),
-                rows[index].split(b": ", 1)[1],
+                row.replace(b"cloud-init[1198]", b"cloud-init[1199]"),
+                row.replace(b"cloud-init[1198]", b"arbitrary-app[1198]"),
+                row.split(b": ", 1)[1],
             ):
                 altered = rows.copy()
                 altered[index] = changed
@@ -299,7 +307,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                         ),
                     ),
                 ):
-                    self.verify(b"\n".join(altered) + b"\n")
+                    self._verify(b"\n".join(altered) + b"\n")
 
     def test_unqualified_version_stage_and_duplicate_init_producer_refuse(self):
         for version in ("25.3", "24.3", "24.4;execute", "24.4\tspoof"):
@@ -312,7 +320,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(version=version))
+                self._verify(self._serial(version=version))
         for stage in ("init-local", "modules:config", "unknown"):
             with (
                 self.subTest(stage=stage),
@@ -323,20 +331,20 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(stage=stage))
-        serial = self.serial()
+                self._verify(self._serial(stage=stage))
+        serial = self._serial()
         with pytest.raises(
             ValueError,
             match=_refusal_regex(
                 "test_unqualified_version_stage_and_duplicate_init_producer_refuse"
             ),
         ):
-            self.verify(serial.splitlines()[0] + b"\n" + serial)
+            self._verify(serial.splitlines()[0] + b"\n" + serial)
 
     def test_uptime_regression_and_nonfinite_envelopes_refuse(self):
         for replacement in (b"[    1.000000]", b"[         nan]", b"[         inf]"):
-            serial = self.serial().replace(b"[   54.040000]", replacement)
-            assert serial != self.serial()
+            serial = self._serial().replace(b"[   54.040000]", replacement)
+            assert serial != self._serial()
             with (
                 self.subTest(replacement=replacement),
                 pytest.raises(
@@ -346,7 +354,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(serial)
+                self._verify(serial)
 
     def test_init_banner_requires_a_real_utc_calendar_and_weekday(self):
         for timestamp in (
@@ -355,7 +363,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
             b"Tue, 26 Oct 2026 12:00:00 +0000",
             b"Mon, 26 Feb 2026 12:00:00 +0000",
         ):
-            serial = self.serial().replace(
+            serial = self._serial().replace(
                 b"Mon, 26 Oct 2026 12:00:00 +0000", timestamp
             )
             with (
@@ -367,7 +375,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(serial)
+                self._verify(serial)
 
     def test_malformed_24_4_generation_cannot_hide_behind_a_valid_final_section(self):
         for version in ("24.4;execute", "24.4\tspoof"):
@@ -380,7 +388,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(version=version) + self.legacy())
+                self._verify(self._serial(version=version) + self._legacy())
 
     def test_unterminated_generation_frame_remains_incomplete(self):
         with pytest.raises(
@@ -389,11 +397,11 @@ class KeyGenerationTrustTests(unittest.TestCase):
                 "test_unterminated_generation_frame_remains_incomplete"
             ),
         ):
-            self.verify(self.serial().rstrip(b"\r\n"))
+            self._verify(self._serial().rstrip(b"\r\n"))
 
     def test_interleaved_application_output_and_control_injection_refuse(self):
         for injected in (b"arbitrary output\n", b"\x1b[31m", b"\x00", b"\t"):
-            serial = self.serial().replace(
+            serial = self._serial().replace(
                 b"The key fingerprint is:", injected + b"The key fingerprint is:"
             )
             with (
@@ -405,7 +413,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(serial)
+                self._verify(serial)
 
     def test_generator_fingerprint_has_no_listing_bit_count_or_algorithm_suffix(self):
         for text in (
@@ -427,7 +435,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(rows))
+                self._verify(self._serial(rows))
 
     def test_randomart_cannot_replace_fingerprint_or_wire_key(self):
         for index, text in (
@@ -445,14 +453,14 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(rows))
+                self._verify(self._serial(rows))
         with pytest.raises(
             ValueError,
             match=_refusal_regex(
                 "test_randomart_cannot_replace_fingerprint_or_wire_key"
             ),
         ):
-            self.verify(key=self.keys[1])
+            self._verify(key=self.keys[1])
 
     def test_randomart_cells_dimensions_and_sha256_label_match_wire_digest(self):
         for index, text in (
@@ -472,7 +480,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial(rows))
+                self._verify(self._serial(rows))
         rows = self.outputs[0].copy()
         rows[7:16] = self.outputs[1][7:16]
         with pytest.raises(
@@ -481,13 +489,14 @@ class KeyGenerationTrustTests(unittest.TestCase):
                 "test_randomart_cells_dimensions_and_sha256_label_match_wire_digest"
             ),
         ):
-            self.verify(self.serial(rows))
+            self._verify(self._serial(rows))
 
     def test_valid_legacy_section_is_preserved_and_matching_generation_agrees(self):
-        assert self.verify(self.legacy()) == self.fingerprint
-        assert self.verify(self.serial() + self.legacy()) == self.fingerprint
+        assert self._verify(self._legacy()) == self.fingerprint
+        assert self._verify(self._serial() + self._legacy()) == self.fingerprint
         assert (
-            self.verify(self.serial(version="25.3") + self.legacy()) == self.fingerprint
+            self._verify(self._serial(version="25.3") + self._legacy())
+            == self.fingerprint
         )
 
     def test_conflicting_qualified_generation_cannot_hide_behind_legacy_section(self):
@@ -497,14 +506,14 @@ class KeyGenerationTrustTests(unittest.TestCase):
                 "test_conflicting_qualified_generation_cannot_hide_behind_legacy_section"
             ),
         ):
-            self.verify(self.serial(self.outputs[1]) + self.legacy())
+            self._verify(self._serial(self.outputs[1]) + self._legacy())
 
     def test_incomplete_or_conflicting_final_sections_cannot_fall_back_to_keygen(self):
         for final in (
-            self.legacy(self.fingerprints[1]),
+            self._legacy(self.fingerprints[1]),
             candidate.BEGIN.encode(),
             candidate.END.encode(),
-            self.legacy() + self.legacy(),
+            self._legacy() + self._legacy(),
         ):
             with (
                 self.subTest(final=final[:45]),
@@ -515,11 +524,11 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(self.serial() + final)
+                self._verify(self._serial() + final)
 
     def test_freshness_boundary_and_original_ownership_remain_required(self):
-        serial = self.serial()
-        assert self.verify(serial, now=1300.0) == self.fingerprint
+        serial = self._serial()
+        assert self._verify(serial, now=1300.0) == self.fingerprint
         for now in (1300.001, 999.0, float("nan"), float("inf")):
             with (
                 self.subTest(now=now),
@@ -530,7 +539,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(serial, now=now)
+                self._verify(serial, now=now)
         for field, value in (
             ("instanceId", "54321"),
             ("ownershipSha256", "b" * 64),
@@ -550,7 +559,7 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(serial, receipt={**self.receipt(serial), field: value})
+                self._verify(serial, receipt={**self._receipt(serial), field: value})
 
     def test_wire_algorithm_length_encoding_and_address_are_not_relaxed(self):
         fields = self.key.split()
@@ -571,15 +580,15 @@ class KeyGenerationTrustTests(unittest.TestCase):
                     ),
                 ),
             ):
-                self.verify(key=changed)
+                self._verify(key=changed)
 
     def test_new_receipt_names_mapping_without_claiming_live_access(self):
-        serial = self.serial()
+        serial = self._serial()
         with tempfile.TemporaryDirectory() as directory:
             artifact = candidate.write_pin(
                 directory,
                 self.expected,
-                self.receipt(serial),
+                self._receipt(serial),
                 serial,
                 self.key,
                 now=1002.0,

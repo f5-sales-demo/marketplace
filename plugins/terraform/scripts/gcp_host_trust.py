@@ -14,6 +14,7 @@ import json
 import math
 import os
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 from uuid import uuid4
@@ -217,25 +218,8 @@ def _generation_row(line: str) -> tuple[float, str, str]:
     return uptime, row["pid"], row["payload"]
 
 
-def _keygen_block(raw_text: str) -> tuple[str, tuple[str, ...], dict[str, object]]:
-    """Parse documented generation evidence without claiming wire-key trust.
-
-    Keep raw producer framing through validation. A fingerprint and its
-    randomart are related representations, not independent authentication.
-    Only verify_pin joins them to an independently captured original wire key.
-    """
-    if not isinstance(raw_text, str) or not 0 < len(raw_text) <= LIMIT:
-        msg = "Bounded original generation text required"
-        raise ValueError(msg)
-    rows = raw_text.split("\n")
-    starts = [index for index, row in enumerate(rows) if GENERATION_START in row]
-    if len(starts) != 1:
-        msg = "Unique complete Ed25519 generation block required"
-        raise ValueError(msg)
-    start = starts[0]
-    if start + 17 >= len(rows):
-        msg = "Truncated Ed25519 generation block"
-        raise ValueError(msg)
+def _generation_origin(rows: list[str], start: int) -> tuple[float, str, str]:
+    """Validate the original supported init producer and clock."""
     banners = [
         index
         for index, row in enumerate(rows)
@@ -269,6 +253,13 @@ def _keygen_block(raw_text: str) -> tuple[str, tuple[str, ...], dict[str, object
     if not math.isfinite(declared_uptime) or declared_uptime > banner_time:
         msg = "Inconsistent cloud-init init uptime"
         raise ValueError(msg)
+    return banner_time, producer, banner["version"]
+
+
+def _generation_frame(
+    rows: list[str], start: int, producer: str, banner_time: float
+) -> tuple[list[str], list[float]]:
+    """Retain each generation row with the original producer and ordered uptime."""
     block = []
     times = []
     previous = banner_time
@@ -280,6 +271,30 @@ def _keygen_block(raw_text: str) -> tuple[str, tuple[str, ...], dict[str, object
         previous = uptime
         times.append(uptime)
         block.append(payload)
+    return block, times
+
+
+def _keygen_block(raw_text: str) -> tuple[str, tuple[str, ...], dict[str, object]]:
+    """Parse documented generation evidence without claiming wire-key trust.
+
+    Keep raw producer framing through validation. A fingerprint and its
+    randomart are related representations, not independent authentication.
+    Only verify_pin joins them to an independently captured original wire key.
+    """
+    if not isinstance(raw_text, str) or not 0 < len(raw_text) <= LIMIT:
+        msg = "Bounded original generation text required"
+        raise ValueError(msg)
+    rows = raw_text.split("\n")
+    starts = [index for index, row in enumerate(rows) if GENERATION_START in row]
+    if len(starts) != 1:
+        msg = "Unique complete Ed25519 generation block required"
+        raise ValueError(msg)
+    start = starts[0]
+    if start + 17 >= len(rows):
+        msg = "Truncated Ed25519 generation block"
+        raise ValueError(msg)
+    banner_time, producer, version = _generation_origin(rows, start)
+    block, times = _generation_frame(rows, start, producer, banner_time)
     required = {
         0: GENERATION_START,
         1: "Your identification has been saved in /etc/ssh/ssh_host_ed25519_key",
@@ -320,7 +335,7 @@ def _keygen_block(raw_text: str) -> tuple[str, tuple[str, ...], dict[str, object
         randomart,
         {
             "evidenceFormat": GENERATION_FORMAT,
-            "cloudInitVersion": banner["version"],
+            "cloudInitVersion": version,
             "cloudInitProducerPid": producer,
             "generationStartedAtGuestUptime": times[0],
             "generationFinishedAtGuestUptime": times[-1],
@@ -377,14 +392,10 @@ def _finite_timestamp(value: object) -> int | float:
     return number
 
 
-def _verified_pin(
-    expected: dict[str, object],
-    receipt: dict[str, object],
-    serial: bytes,
-    key_line: str,
-    *,
-    now: int | float,
-) -> tuple[str, dict[str, object]]:
+def _original_context_address(
+    expected: Mapping[str, object], receipt: Mapping[str, object]
+) -> str:
+    """Require matching original identities and a canonical IPv4 target."""
     if not isinstance(expected, dict) or not isinstance(receipt, dict):
         msg = "Original capture context required"
         raise TypeError(msg)
@@ -422,8 +433,16 @@ def _verified_pin(
     if receipt.get("transport") != "gcp-original-bound-serial-port-1":
         msg = "Unsupported trust source"
         raise ValueError(msg)
+    return canonical_address
+
+
+def _original_serial_text(
+    receipt: Mapping[str, object], serial: bytes, now: int | float
+) -> str:
+    """Validate complete bounded original serial bytes and their fixed freshness."""
     if (
-        type(receipt.get("exitCode")) is not int
+        not isinstance(receipt.get("exitCode"), int)
+        or isinstance(receipt.get("exitCode"), bool)
         or receipt["exitCode"] != 0
         or receipt.get("truncated") is not False
     ):
@@ -439,7 +458,8 @@ def _verified_pin(
         msg = "Bounded original serial bytes required"
         raise ValueError(msg)
     if (
-        type(receipt.get("retainedBytes")) is not int
+        not isinstance(receipt.get("retainedBytes"), int)
+        or isinstance(receipt.get("retainedBytes"), bool)
         or receipt["retainedBytes"] != len(serial)
         or receipt.get("sha256") != digest(serial)
     ):
@@ -453,6 +473,19 @@ def _verified_pin(
     if "\x00" in raw_text:
         msg = "Malformed serial framing"
         raise ValueError(msg)
+    return raw_text
+
+
+def _verified_pin(
+    expected: Mapping[str, object],
+    receipt: Mapping[str, object],
+    serial: bytes,
+    key_line: str,
+    *,
+    now: int | float,
+) -> tuple[str, dict[str, object]]:
+    address = _original_context_address(expected, receipt)
+    raw_text = _original_serial_text(receipt, serial, now)
     fields, fingerprint = key_fields(key_line, address)
     legacy_text = ANSI.sub(b"", serial).decode("utf-8")
     if BEGIN in legacy_text or END in legacy_text:
@@ -488,8 +521,8 @@ def _verified_pin(
 
 
 def verify_pin(
-    expected: dict[str, object],
-    receipt: dict[str, object],
+    expected: Mapping[str, object],
+    receipt: Mapping[str, object],
     serial: bytes,
     key_line: str,
     *,
@@ -501,8 +534,8 @@ def verify_pin(
 
 def write_pin(
     root: str | Path,
-    expected: dict[str, object],
-    receipt: dict[str, object],
+    expected: Mapping[str, object],
+    receipt: Mapping[str, object],
     serial: bytes,
     key_line: str,
     *,

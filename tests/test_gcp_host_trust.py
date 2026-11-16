@@ -7,7 +7,9 @@ import re
 import subprocess
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -56,10 +58,18 @@ def _refusal_regex(test_name: str) -> str:
 
 
 class HostTrustTests(unittest.TestCase):
+    root: ClassVar[Path]
+    lines: ClassVar[list[str]]
+    fingerprints: ClassVar[list[str]]
+    tmp: ClassVar[str]
+    resources: ClassVar[ExitStack]
+
     @classmethod
     def setUpClass(cls):
-        cls.tmp = tempfile.TemporaryDirectory()
-        cls.root = Path(cls.tmp.name)
+        cls.resources = ExitStack()
+        cls.addClassCleanup(cls.resources.close)
+        cls.tmp = cls.resources.enter_context(tempfile.TemporaryDirectory())
+        cls.root = Path(cls.tmp)
         cls.lines = []
         cls.fingerprints = []
         for number in range(2):
@@ -81,10 +91,6 @@ class HostTrustTests(unittest.TestCase):
                 .rstrip("=")
             )
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.tmp.cleanup()
-
     def setUp(self):
         self.expected = {
             "campaign": "guest-offline-v7",
@@ -94,8 +100,7 @@ class HostTrustTests(unittest.TestCase):
             "ownershipSha256": "a" * 64,
         }
         self.serial = (
-            "-----BEGIN SSH HOST KEY FINGERPRINTS-----\n"
-            "256 "
+            "-----BEGIN SSH HOST KEY FINGERPRINTS-----\n256 "
             + self.fingerprints[0]
             + " root@fixture (ED25519)\n"
             + "-----END SSH HOST KEY FINGERPRINTS-----\n"
