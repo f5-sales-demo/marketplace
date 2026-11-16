@@ -43,3 +43,10 @@ Terraform 2.4.114 gives each process-backed case a bounded harness allowance and
 each isolated parent enough time to collect its child results. Production capture
 clocks remain fixed. The failed CI log is retained; fresh changed-input checks
 and new-head CI must pass before this component is CI-qualified.
+
+The first harness repair missed the formatted loop-generated child cases.
+Fresh CI passed the other cases but still interrupted these three at five
+seconds. Version 2.4.115 explicitly fixes those case allowances; an offline
+5.5-second latency probe verifies that they complete within the original
+operation while exceeding the former harness default. No unchanged CI rerun
+or production-clock extension is used.

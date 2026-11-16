@@ -30,6 +30,8 @@ for (const kind of ['complete', 'apply-bound', 'platform'] as const) {
         packet: unknown;
         before: import('../../src/installed-apply-controller').OriginalApplyCallbackContext;
       }) => {
+        // Explicit offline CI latency probe; production clocks are never changed.
+        if (process.env.CE_TEST_BASELINE_LATENCY === '1') await Bun.sleep(5500);
         const view = await inventories.readOriginalApplyGcpInventory(packet);
         const directory = dirname(before.original.inputs['workspace:gcp-terraform-input-identity.json'].path);
         const names = await readdir(directory);
@@ -62,5 +64,5 @@ for (const kind of ['complete', 'apply-bound', 'platform'] as const) {
         await expect(inventories.readOriginalApplyGcpInventory(packet)).rejects.toThrow('retired');
       },
     );
-  });
+  }, 60000);
 }

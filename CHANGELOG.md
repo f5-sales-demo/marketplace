@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.115 fixes the isolated loop-generated inventory test
+  allowance and adds an explicit bounded CI latency probe. Production clocks
+  remain fixed; fresh CI qualification is required.
+
 - **`terraform`** v2.4.114 bounds process-backed inventory test harnesses
   independently of production capture clocks. Isolated tests retain adequate time
   on CI hosts; startup, command, freshness and final-reserve limits stay fixed.
