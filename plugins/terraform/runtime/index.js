@@ -12358,6 +12358,38 @@ async function joinOriginalGcpVmEvidence(input) {
     originalInsertQualified: false,
   });
 }
+async function projectSerialSource(reader, serial, vm) {
+  const evidence = await reader.readEvidence(serial);
+  freshOriginalSerial(serial);
+  if (
+    serial.finishedAt - serial.startedAt > 60000 ||
+    Date.now() - serial.startedAt > 300000 ||
+    serial.instanceId !== vm.instanceId ||
+    evidence.scope.project !== vm.project ||
+    evidence.scope.zone !== vm.zone ||
+    evidence.scope.node !== vm.nodeName
+  )
+    throw new Error('Original VM serial scope, identity or freshness differs');
+  const body = decodeEvidenceObject(evidence.raw);
+  if (typeof body.contents !== 'string' || typeof body.start !== 'string' || typeof body.next !== 'string')
+    throw new Error('Original complete serial body required');
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-gcp-vm-serial-source',
+    project: vm.project,
+    zone: vm.zone,
+    nodeName: vm.nodeName,
+    instanceId: vm.instanceId,
+    contents: body.contents,
+    start: body.start,
+    next: body.next,
+    sourceSha256: serial.sha256,
+    contentsSha256: hash15(body.contents),
+    startedAt: serial.startedAt,
+    finishedAt: serial.finishedAt,
+    sshTrustQualified: false,
+  });
+}
 var earlyVmOrigins = new WeakMap();
 var finalVmOrigins = new WeakMap();
 async function handoffOriginalEarlyGcpVmEvidence(original, input) {
@@ -12384,6 +12416,21 @@ async function collectOriginalEarlyGcpSerialEvidence(value, start) {
   const source = value && typeof value === 'object' ? earlyVmOrigins.get(value) : undefined;
   if (!source) throw new Error('Original early VM evidence required');
   return source.serial(start);
+}
+async function readOriginalEarlyGcpSerialSource(vm, serial) {
+  const source = vm && typeof vm === 'object' ? earlyVmOrigins.get(vm) : undefined;
+  if (!source) throw new Error('Original early VM serial source required');
+  return source.readSerial(serial);
+}
+async function readOriginalFinalGcpSerialSource(vm, serial) {
+  const source = vm && typeof vm === 'object' ? finalVmOrigins.get(vm) : undefined;
+  if (!source) throw new Error('Original final VM serial source required');
+  return source.readSerial(serial);
+}
+function freshOriginalSerial(record) {
+  freshCloudEvidence(record);
+  if (record.finishedAt - record.startedAt > 60000 || Date.now() - record.startedAt > 300000)
+    throw new Error('Fresh original bounded serial source required');
 }
 function freshCloudEvidence(record) {
   if (
@@ -12530,8 +12577,24 @@ async function collectOriginalEarlyGcpVmEvidence(input) {
     schemaVersion: 1,
     kind: 'original-early-gcp-vm-evidence',
   });
+  const capturedSerials = new WeakSet();
   earlyVmOrigins.set(packet, {
     read,
+    async readSerial(value) {
+      if (!value || typeof value !== 'object' || !capturedSerials.has(value))
+        throw new Error('Original early VM and issued serial pairing required');
+      try {
+        const view = await read();
+        const source = await projectSerialSource(reader, value, view);
+        await read();
+        await reader.readEvidence(value);
+        freshOriginalSerial(value);
+        return source;
+      } catch (error) {
+        refused = true;
+        throw error;
+      }
+    },
     async handoff(input) {
       const { callback: final, reader: finalReader } = input;
       await assertOriginalApplyGcpInventoryCallback(baseline, final);
@@ -12613,13 +12676,29 @@ async function collectOriginalEarlyGcpVmEvidence(input) {
             schemaVersion: 1,
             kind: 'original-final-gcp-vm-evidence',
           });
+          const finalSerials = new WeakSet();
           finalVmOrigins.set(result, {
             read: readFinal,
+            async readSerial(value) {
+              if (!value || typeof value !== 'object' || !finalSerials.has(value))
+                throw new Error('Original final VM and issued serial pairing required');
+              try {
+                await readFinal();
+                const source = await readOriginalEarlyGcpSerialSource(candidate, value);
+                await readFinal();
+                return source;
+              } catch (error) {
+                failed = true;
+                refused = true;
+                throw error;
+              }
+            },
             async serial(start) {
               try {
                 await readFinal();
                 const capture = await collectOriginalEarlyGcpSerialEvidence(candidate, start);
                 await readFinal();
+                finalSerials.add(capture);
                 return capture;
               } catch (error) {
                 failed = true;
@@ -12645,6 +12724,7 @@ async function collectOriginalEarlyGcpVmEvidence(input) {
         await read();
         const captured = await reader.serial(instance, start);
         await read();
+        capturedSerials.add(captured);
         return captured;
       } catch (error) {
         refused = true;
@@ -14584,6 +14664,11 @@ async function collectOriginalGcpObserverSerialEvidence(value, start) {
   if (!read) throw new Error('Original observer VM evidence required');
   return read.serial(start);
 }
+async function readOriginalGcpObserverSerialSource(vm, serial) {
+  const source = vm && typeof vm === 'object' ? vmOrigins.get(vm) : undefined;
+  if (!source) throw new Error('Original observer VM serial source required');
+  return source.readSerial(serial);
+}
 function fresh(value) {
   if (
     !Number.isSafeInteger(value.startedAt) ||
@@ -14751,14 +14836,60 @@ async function collectOriginalGcpObserverVmEvidence(input) {
     schemaVersion: 1,
     kind: 'original-gcp-observer-vm-reference',
   });
+  const capturedSerials = new WeakSet();
   vmOrigins.set(result, {
     read,
+    async readSerial(value) {
+      if (!value || typeof value !== 'object' || !capturedSerials.has(value))
+        throw new Error('Original observer VM and issued serial pairing required');
+      const serial = value;
+      try {
+        const vm = await read();
+        const evidence = await reader.readEvidence(serial);
+        fresh(serial);
+        if (
+          Date.now() - serial.startedAt > 300000 ||
+          serial.instanceId !== vm.instanceId ||
+          evidence.scope.project !== vm.project ||
+          evidence.scope.zone !== vm.zone ||
+          evidence.scope.node !== vm.name
+        )
+          throw new Error('Original observer serial scope, identity or freshness differs');
+        const body = decodeEvidenceObject(evidence.raw);
+        if (typeof body.contents !== 'string' || typeof body.start !== 'string' || typeof body.next !== 'string')
+          throw new Error('Original complete observer serial body required');
+        await read();
+        await reader.readEvidence(serial);
+        fresh(serial);
+        if (Date.now() - serial.startedAt > 300000) throw new Error('Fresh original observer serial source required');
+        return Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-gcp-vm-serial-source',
+          project: vm.project,
+          zone: vm.zone,
+          nodeName: vm.name,
+          instanceId: vm.instanceId,
+          contents: body.contents,
+          start: body.start,
+          next: body.next,
+          sourceSha256: serial.sha256,
+          contentsSha256: hash20(body.contents),
+          startedAt: serial.startedAt,
+          finishedAt: serial.finishedAt,
+          sshTrustQualified: false,
+        });
+      } catch (error) {
+        refused = true;
+        throw error;
+      }
+    },
     async serial(start) {
       if (refused) throw new Error('Original observer VM evidence retired');
       try {
         await read();
         const capture = await reader.serial(instance, start);
         await read();
+        capturedSerials.add(capture);
         return capture;
       } catch (error) {
         refused = true;
@@ -14840,12 +14971,15 @@ export {
   readOriginalApplyGcpInventory,
   readOriginalEarlyGcpInsertBodies,
   readOriginalEarlyGcpInsertIdentity,
+  readOriginalEarlyGcpSerialSource,
   readOriginalEarlyGcpVmEvidence,
   readOriginalExecutionPrefix,
+  readOriginalFinalGcpSerialSource,
   readOriginalFinalGcpVmEvidence,
   readOriginalGcpInsertWitnesses,
   readOriginalGcpObserverImageEvidence,
   readOriginalGcpObserverInsertIdentity,
+  readOriginalGcpObserverSerialSource,
   readOriginalGcpObserverVmEvidence,
   readOriginalGcpPreapplyBootstrapJwt,
   readOriginalGcpTerraformBootstrapJwt,

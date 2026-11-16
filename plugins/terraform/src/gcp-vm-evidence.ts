@@ -388,11 +388,66 @@ type EarlyVmView = Readonly<{
   applyRpcQualified: false;
   executionAuthorized: false;
 }>;
+export interface OriginalGcpSerialSource {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-gcp-vm-serial-source';
+  readonly project: string;
+  readonly zone: string;
+  readonly nodeName: string;
+  readonly instanceId: string;
+  readonly contents: string;
+  readonly start: string;
+  readonly next: string;
+  readonly sourceSha256: string;
+  readonly contentsSha256: string;
+  readonly startedAt: number;
+  readonly finishedAt: number;
+  readonly sshTrustQualified: false;
+}
+type OriginalSerial = Awaited<ReturnType<Reader['serial']>>;
+async function projectSerialSource(
+  reader: Reader,
+  serial: OriginalSerial,
+  vm: EarlyVmView,
+): Promise<OriginalGcpSerialSource> {
+  const evidence = await reader.readEvidence(serial);
+  freshOriginalSerial(serial);
+  if (
+    serial.finishedAt - serial.startedAt > 60000 ||
+    Date.now() - serial.startedAt > 300000 ||
+    serial.instanceId !== vm.instanceId ||
+    evidence.scope.project !== vm.project ||
+    evidence.scope.zone !== vm.zone ||
+    evidence.scope.node !== vm.nodeName
+  )
+    throw new Error('Original VM serial scope, identity or freshness differs');
+  const body = decodeEvidenceObject(evidence.raw);
+  if (typeof body.contents !== 'string' || typeof body.start !== 'string' || typeof body.next !== 'string')
+    throw new Error('Original complete serial body required');
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-gcp-vm-serial-source',
+    project: vm.project,
+    zone: vm.zone,
+    nodeName: vm.nodeName,
+    instanceId: vm.instanceId,
+    contents: body.contents,
+    start: body.start,
+    next: body.next,
+    sourceSha256: serial.sha256,
+    contentsSha256: hash(body.contents),
+    startedAt: serial.startedAt,
+    finishedAt: serial.finishedAt,
+    sshTrustQualified: false,
+  });
+}
+
 const earlyVmOrigins = new WeakMap<
   OriginalEarlyGcpVmEvidence,
   {
     read(): Promise<EarlyVmView>;
     serial(start: string): Promise<Awaited<ReturnType<Reader['serial']>>>;
+    readSerial(value: unknown): Promise<OriginalGcpSerialSource>;
     handoff(input: OriginalFinalGcpVmHandoffInput): Promise<OriginalFinalGcpVmEvidence>;
   }
 >();
@@ -415,6 +470,7 @@ const finalVmOrigins = new WeakMap<
   {
     read(): Promise<FinalVmView>;
     serial(start: string): Promise<Awaited<ReturnType<Reader['serial']>>>;
+    readSerial(value: unknown): Promise<OriginalGcpSerialSource>;
   }
 >();
 export async function handoffOriginalEarlyGcpVmEvidence(original: unknown, input: OriginalFinalGcpVmHandoffInput) {
@@ -447,6 +503,21 @@ export async function collectOriginalEarlyGcpSerialEvidence(value: unknown, star
     value && typeof value === 'object' ? earlyVmOrigins.get(value as OriginalEarlyGcpVmEvidence) : undefined;
   if (!source) throw new Error('Original early VM evidence required');
   return source.serial(start);
+}
+export async function readOriginalEarlyGcpSerialSource(vm: unknown, serial: unknown) {
+  const source = vm && typeof vm === 'object' ? earlyVmOrigins.get(vm as OriginalEarlyGcpVmEvidence) : undefined;
+  if (!source) throw new Error('Original early VM serial source required');
+  return source.readSerial(serial);
+}
+export async function readOriginalFinalGcpSerialSource(vm: unknown, serial: unknown) {
+  const source = vm && typeof vm === 'object' ? finalVmOrigins.get(vm as OriginalFinalGcpVmEvidence) : undefined;
+  if (!source) throw new Error('Original final VM serial source required');
+  return source.readSerial(serial);
+}
+function freshOriginalSerial(record: OriginalSerial) {
+  freshCloudEvidence(record);
+  if (record.finishedAt - record.startedAt > 60000 || Date.now() - record.startedAt > 300000)
+    throw new Error('Fresh original bounded serial source required');
 }
 function freshCloudEvidence(record: GcpCloudReadEvidence) {
   if (
@@ -595,8 +666,24 @@ export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpV
     schemaVersion: 1,
     kind: 'original-early-gcp-vm-evidence',
   });
+  const capturedSerials = new WeakSet<OriginalSerial>();
   earlyVmOrigins.set(packet, {
     read,
+    async readSerial(value) {
+      if (!value || typeof value !== 'object' || !capturedSerials.has(value as OriginalSerial))
+        throw new Error('Original early VM and issued serial pairing required');
+      try {
+        const view = await read();
+        const source = await projectSerialSource(reader, value as OriginalSerial, view);
+        await read();
+        await reader.readEvidence(value as OriginalSerial);
+        freshOriginalSerial(value as OriginalSerial);
+        return source;
+      } catch (error) {
+        refused = true;
+        throw error;
+      }
+    },
     async handoff(input) {
       const final = input.callback,
         finalReader = input.reader;
@@ -682,13 +769,29 @@ export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpV
             schemaVersion: 1,
             kind: 'original-final-gcp-vm-evidence',
           });
+          const finalSerials = new WeakSet<OriginalSerial>();
           finalVmOrigins.set(result, {
             read: readFinal,
+            async readSerial(value) {
+              if (!value || typeof value !== 'object' || !finalSerials.has(value as OriginalSerial))
+                throw new Error('Original final VM and issued serial pairing required');
+              try {
+                await readFinal();
+                const source = await readOriginalEarlyGcpSerialSource(candidate, value);
+                await readFinal();
+                return source;
+              } catch (error) {
+                failed = true;
+                refused = true;
+                throw error;
+              }
+            },
             async serial(start) {
               try {
                 await readFinal();
                 const capture = await collectOriginalEarlyGcpSerialEvidence(candidate, start);
                 await readFinal();
+                finalSerials.add(capture);
                 return capture;
               } catch (error) {
                 failed = true;
@@ -715,6 +818,7 @@ export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpV
         await read();
         const captured = await reader.serial(instance, start);
         await read();
+        capturedSerials.add(captured);
         return captured;
       } catch (error) {
         refused = true;

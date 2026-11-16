@@ -16,6 +16,7 @@ import { type OriginalGoogleHttpResponseObservation, readOriginalGoogleHttpRespo
 import type { OriginalGcpObserverImageEvidence, openGcpObserverImageReader } from './gcp-observer-image';
 import { captureOriginalGcpObserverImage, readOriginalGcpObserverImageEvidence } from './gcp-observer-image';
 import { GCP_OBSERVER_IMAGE_PIN } from './gcp-observer-image-pin';
+import type { OriginalGcpSerialSource } from './gcp-vm-evidence';
 import type { OriginalApplyCallbackContext } from './installed-apply-controller';
 import {
   assertOriginalApplyGcpInventoryCallback,
@@ -408,6 +409,7 @@ const vmOrigins = new WeakMap<
   {
     read(): Promise<Readonly<ObserverVmView>>;
     serial(start: string): Promise<Awaited<ReturnType<CloudReader['serial']>>>;
+    readSerial(value: unknown): Promise<OriginalGcpSerialSource>;
   }
 >();
 export async function readOriginalGcpObserverVmEvidence(value: unknown) {
@@ -419,6 +421,11 @@ export async function collectOriginalGcpObserverSerialEvidence(value: unknown, s
   const read = value && typeof value === 'object' ? vmOrigins.get(value as OriginalGcpObserverVmEvidence) : undefined;
   if (!read) throw new Error('Original observer VM evidence required');
   return read.serial(start);
+}
+export async function readOriginalGcpObserverSerialSource(vm: unknown, serial: unknown) {
+  const source = vm && typeof vm === 'object' ? vmOrigins.get(vm as OriginalGcpObserverVmEvidence) : undefined;
+  if (!source) throw new Error('Original observer VM serial source required');
+  return source.readSerial(serial);
 }
 function fresh(value: { startedAt: number; finishedAt: number }) {
   if (
@@ -588,14 +595,61 @@ export async function collectOriginalGcpObserverVmEvidence(input: OriginalGcpObs
     schemaVersion: 1,
     kind: 'original-gcp-observer-vm-reference',
   });
+  type Serial = Awaited<ReturnType<CloudReader['serial']>>;
+  const capturedSerials = new WeakSet<Serial>();
   vmOrigins.set(result, {
     read,
+    async readSerial(value) {
+      if (!value || typeof value !== 'object' || !capturedSerials.has(value as Serial))
+        throw new Error('Original observer VM and issued serial pairing required');
+      const serial = value as Serial;
+      try {
+        const vm = await read();
+        const evidence = await reader.readEvidence(serial);
+        fresh(serial);
+        if (
+          Date.now() - serial.startedAt > 300000 ||
+          serial.instanceId !== vm.instanceId ||
+          evidence.scope.project !== vm.project ||
+          evidence.scope.zone !== vm.zone ||
+          evidence.scope.node !== vm.name
+        )
+          throw new Error('Original observer serial scope, identity or freshness differs');
+        const body = decodeEvidenceObject(evidence.raw);
+        if (typeof body.contents !== 'string' || typeof body.start !== 'string' || typeof body.next !== 'string')
+          throw new Error('Original complete observer serial body required');
+        await read();
+        await reader.readEvidence(serial);
+        fresh(serial);
+        if (Date.now() - serial.startedAt > 300000) throw new Error('Fresh original observer serial source required');
+        return Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-gcp-vm-serial-source',
+          project: vm.project,
+          zone: vm.zone,
+          nodeName: vm.name,
+          instanceId: vm.instanceId,
+          contents: body.contents,
+          start: body.start,
+          next: body.next,
+          sourceSha256: serial.sha256,
+          contentsSha256: hash(body.contents),
+          startedAt: serial.startedAt,
+          finishedAt: serial.finishedAt,
+          sshTrustQualified: false,
+        });
+      } catch (error) {
+        refused = true;
+        throw error;
+      }
+    },
     async serial(start) {
       if (refused) throw new Error('Original observer VM evidence retired');
       try {
         await read();
         const capture = await reader.serial(instance, start);
         await read();
+        capturedSerials.add(capture);
         return capture;
       } catch (error) {
         refused = true;

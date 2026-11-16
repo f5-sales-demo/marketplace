@@ -1986,3 +1986,12 @@ by Pylint, Ruff and Mypy. See the
 [repair receipt](gcp-host-trust-ci-repair-20261116.md). Fresh CI is required;
 original-serial consumers, built-in capture and all original acceptance gates
 remain open. Attempt 626's failing-first tests are retained separately.
+
+### Original VM serial source binding, 2026-11-16
+
+Terraform 2.4.126 binds privately read serial bytes to their own original early
+or final CE/observer VM capture. Copies, unrelated records, ownership changes
+and stale clocks refuse without renewal. Six source cases and 21 compiled
+checks pass; see the [source receipt](gcp-original-serial-source-20261116.md).
+Wire-key collection, host-trust consumer and built-in factory qualification,
+plus every original live/runtime/delivery gate, remain open.

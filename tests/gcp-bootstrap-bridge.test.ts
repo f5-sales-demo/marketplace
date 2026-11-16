@@ -546,3 +546,15 @@ it('compiled observer insertion, VM and image origins refuse invented references
   await expect(runtime.readOriginalGcpObserverVmEvidence({})).rejects.toThrow('Original');
   await expect(runtime.readOriginalGcpObserverImageEvidence({}, {})).rejects.toThrow('Original');
 });
+
+it('compiled original serial getters reject unissued VM and serial pairs', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  for (const name of [
+    'readOriginalEarlyGcpSerialSource',
+    'readOriginalFinalGcpSerialSource',
+    'readOriginalGcpObserverSerialSource',
+  ] as const) {
+    expect(typeof runtime[name]).toBe('function');
+    await expect(runtime[name]({}, {})).rejects.toThrow('Original');
+  }
+});

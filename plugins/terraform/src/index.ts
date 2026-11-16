@@ -85,6 +85,7 @@ export {
   type OriginalGcpObserverVmEvidence,
   type OriginalGcpObserverVmInput,
   readOriginalGcpObserverInsertIdentity,
+  readOriginalGcpObserverSerialSource,
   readOriginalGcpObserverVmEvidence,
 } from './gcp-observer-insert-evidence';
 export {
@@ -95,8 +96,11 @@ export {
   joinOriginalGcpVmEvidence,
   type OriginalFinalGcpVmEvidence,
   type OriginalFinalGcpVmHandoffInput,
+  type OriginalGcpSerialSource,
   type OriginalGcpVmJoinInput,
+  readOriginalEarlyGcpSerialSource,
   readOriginalEarlyGcpVmEvidence,
+  readOriginalFinalGcpSerialSource,
   readOriginalFinalGcpVmEvidence,
 } from './gcp-vm-evidence';
 export { acknowledgeOriginalApplyGroupClosure } from './installed-apply-controller';
