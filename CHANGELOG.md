@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.111 normalizes new authorization directories to exact
+- **`terraform`** v2.4.112 normalizes new authorization directories to exact
   private permissions before admitting their identities, including setgid-parent
   environments. Runtime validation stays strict; CI diagnostics identify the new
   bootstrap-scope regression family. Live acceptance remains open.

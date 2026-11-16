@@ -5,7 +5,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from '../../../gcloud/src/ce/terraform-public-artifacts';
-import { GoogleHttpRpcTraceParser } from '../../src/gcp-http-rpc-trace';
+import { GoogleHttpRpcTraceParser, type OriginalGoogleHttpResponseObservation } from '../../src/gcp-http-rpc-trace';
 import { inspectOriginalGcpInsertBodies } from '../../src/gcp-insert-evidence';
 import { GoogleProviderLifecycleParser } from '../../src/google-provider-lifecycle';
 import { type InstalledProviderWindow, openInstalledProviderReader } from '../../src/installed-provider-reader';
@@ -32,6 +32,7 @@ afterEach(async () => {
 });
 const hash = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
 export type WitnessInput = {
+  earlyResponse: OriginalGoogleHttpResponseObservation;
   originalPlan: OriginalTerraformPlanProjection;
   configuration: string;
   providerPath: string;
@@ -212,6 +213,8 @@ export async function withInsertWitnesses(
                 httpCandidates.push(...http.pushOriginal(witnessParent.output, chunk));
               }
             }
+          const earlyResponse = http.takeOriginalResponses()[0];
+          if (!earlyResponse) throw new Error('Original early response fixture required');
           const completion = await witnessParent.output.finish();
           ui.finishOriginal(witnessParent.output, completion);
           lifecycle.finishOriginal(witnessParent.output, completion);
@@ -219,6 +222,7 @@ export async function withInsertWitnesses(
           const insert = inspectOriginalGcpInsertBodies(http.consumeBodies(httpCandidates[0]), currentBinding);
           await check(
             {
+              earlyResponse,
               originalPlan,
               configuration,
               providerPath,

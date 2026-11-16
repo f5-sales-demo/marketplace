@@ -3,13 +3,19 @@ import { basename, isAbsolute, resolve } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
 import {
   assertOriginalGoogleHttpRpcBodies,
+  type OriginalGoogleHttpResponseObservation,
   type OriginalGoogleHttpRpcBodies,
+  readOriginalGoogleHttpResponseSource,
   readOriginalGoogleHttpRpcSource,
 } from './gcp-http-rpc-trace';
 import type { GoogleProviderRpcCandidate } from './google-provider-lifecycle';
 import { readOriginalGoogleProviderRpcSource } from './google-provider-lifecycle';
 import type { InstalledProviderWindow } from './installed-provider-reader';
-import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import {
+  type InstalledGcpVersionBinding,
+  isOriginalCreationScopeProfile,
+  resolveInstalledGcpVersionProfile,
+} from './installed-version-profile';
 import { corroborateOriginalGoogleRpcProvider } from './original-google-provider-source';
 import type { PlanReceipt } from './runner';
 import { assertOriginalTerraformPlanProjection, type OriginalTerraformPlanProjection } from './runner';
@@ -132,11 +138,15 @@ export interface OriginalComputeInstanceInsertHttpCandidate {
  * source-issued bodies, not a reviewed action, original VM or create authority.
  * Exact raw body/record hashes remain available for the owning controller join.
  */
-export function inspectOriginalGcpInsertBodies(
-  input: OriginalGoogleHttpRpcBodies,
+type ComputeInsertBodyContent = Omit<OriginalGoogleHttpRpcBodies, 'kind' | 'servedRecordSha256'>;
+type ComputeInsertProjection = Omit<
+  OriginalComputeInstanceInsertHttpCandidate,
+  'schemaVersion' | 'kind' | 'servedRecordSha256'
+>;
+function projectOriginalComputeInsert(
+  input: ComputeInsertBodyContent,
   binding: InstalledGcpVersionBinding,
-): OriginalComputeInstanceInsertHttpCandidate {
-  assertOriginalGoogleHttpRpcBodies(input);
+): ComputeInsertProjection {
   const profile = resolveInstalledGcpVersionProfile(binding);
   if (
     !['8.10.0', '8.11.0'].includes(profile.googleVersion) ||
@@ -214,8 +224,6 @@ export function inspectOriginalGcpInsertBodies(
   )
     throw new Error('Original exact scoped insert operation required');
   const candidate = Object.freeze({
-    schemaVersion: 1 as const,
-    kind: 'original-compute-instance-insert-http-candidate' as const,
     project,
     zone,
     nodeName,
@@ -230,7 +238,6 @@ export function inspectOriginalGcpInsertBodies(
     rpcRequestId: input.rpcRequestId,
     planSha256: input.planSha256,
     receivedRecordSha256: input.receivedRecordSha256,
-    servedRecordSha256: input.servedRecordSha256,
     requestReasonSha256: input.requestReasonSha256,
     ...metadata(request),
     labelsSha256: hash(canonical(labels)),
@@ -241,7 +248,117 @@ export function inspectOriginalGcpInsertBodies(
     applyRpcQualified: false as const,
     originalInsertQualified: false as const,
   });
+  return candidate;
+}
+export function inspectOriginalGcpInsertBodies(
+  input: OriginalGoogleHttpRpcBodies,
+  binding: InstalledGcpVersionBinding,
+): OriginalComputeInstanceInsertHttpCandidate {
+  assertOriginalGoogleHttpRpcBodies(input);
+  const projection = projectOriginalComputeInsert(input, binding);
+  const candidate: OriginalComputeInstanceInsertHttpCandidate = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-compute-instance-insert-http-candidate',
+    ...projection,
+    servedRecordSha256: input.servedRecordSha256,
+  });
   insertOrigins.set(candidate, input);
+  return candidate;
+}
+export type OriginalEarlyGcpInsertIdentity = Readonly<
+  ComputeInsertProjection & {
+    schemaVersion: 1;
+    kind: 'original-early-gcp-insert-identity';
+    address: string;
+    directory: string;
+    executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
+    rpcCompletionQualified: false;
+    executionAuthorized: false;
+  }
+>;
+const earlyIdentityOrigins = new WeakMap<OriginalEarlyGcpInsertIdentity, () => Promise<void>>();
+export async function readOriginalEarlyGcpInsertIdentity(value: unknown): Promise<OriginalEarlyGcpInsertIdentity> {
+  const verify =
+    value && typeof value === 'object' ? earlyIdentityOrigins.get(value as OriginalEarlyGcpInsertIdentity) : undefined;
+  if (!verify) throw new Error('Original early insertion identity required');
+  await verify();
+  return value as OriginalEarlyGcpInsertIdentity;
+}
+/** Scope a read-only original identity before RPC completion. Final producer, audit,
+ * VM/NIC/token ownership and reviewed-plan authorization remain separate gates. */
+export async function collectOriginalEarlyGcpInsertIdentity(input: {
+  originalPlan: OriginalTerraformPlanProjection;
+  response: OriginalGoogleHttpResponseObservation;
+  binding: InstalledGcpVersionBinding;
+}): Promise<OriginalEarlyGcpInsertIdentity> {
+  const originalPlan = input.originalPlan,
+    response = input.response;
+  const binding = Object.freeze({ ...input.binding });
+  let refused = false;
+  const verify = async () => {
+    if (refused) throw new Error('Original early insertion identity refused');
+    try {
+      await assertOriginalTerraformPlanProjection(originalPlan);
+      const source = await readOriginalGoogleHttpResponseSource(response);
+      const profile = resolveInstalledGcpVersionProfile(binding);
+      if (source.directory !== originalPlan.directory)
+        throw new Error('Original early insertion plan directory differs');
+      if (
+        !isOriginalCreationScopeProfile(profile) ||
+        originalPlan.terraformVersion !== binding.terraformVersion ||
+        originalPlan.receipt.providerLockSha256 !== binding.providerLockSha256 ||
+        originalPlan.scope.cloud !== 'gcp' ||
+        originalPlan.receipt.engine !== 'terraform' ||
+        originalPlan.receipt.noChanges ||
+        originalPlan.receipt.operation !== undefined ||
+        source.planSha256 !== originalPlan.receipt.planSha256 ||
+        response.planSha256 !== originalPlan.receipt.planSha256
+      )
+        throw new Error('Original current early insertion plan scope differs');
+      const projection = projectOriginalComputeInsert(response, binding);
+      if (
+        projection.project !== originalPlan.scope.account ||
+        !projection.zone.startsWith(`${originalPlan.scope.region}-`)
+      )
+        throw new Error('Original early insertion project or region differs');
+      const matches = originalPlan.resources.filter((row) => {
+        const known = (key: string, expected: string) => {
+          const field = row.fields[key];
+          return field?.status === 'known' && field.value === expected;
+        };
+        return (
+          row.mode === 'managed' &&
+          row.type === 'google_compute_instance' &&
+          row.actions.includes('create') &&
+          known('name', projection.nodeName) &&
+          known('project', projection.project) &&
+          known('zone', projection.zone)
+        );
+      });
+      if (matches.length !== 1 || !/^google_compute_instance\.[a-z][a-z0-9_]*$/.test(matches[0].address))
+        throw new Error('Original unique declared early VM creation required');
+      await assertOriginalTerraformPlanProjection(originalPlan);
+      await readOriginalGoogleHttpResponseSource(response);
+      return { projection, source, address: matches[0].address };
+    } catch (error) {
+      refused = true;
+      throw error;
+    }
+  };
+  const joined = await verify();
+  const candidate: OriginalEarlyGcpInsertIdentity = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-early-gcp-insert-identity',
+    ...joined.projection,
+    address: joined.address,
+    directory: joined.source.directory,
+    executor: joined.source.executor,
+    rpcCompletionQualified: false,
+    executionAuthorized: false,
+  });
+  earlyIdentityOrigins.set(candidate, async () => {
+    await verify();
+  });
   return candidate;
 }
 

@@ -1865,3 +1865,18 @@ provider read and original output capture passed, followed by independent empty
 cleanup and 26 absent command groups. Full built-in capture, all original live
 acceptance and remaining
 installed/delivery gates remain required.
+
+## Original early insertion response on November 15
+
+The [early response receipt](gcp-original-early-response-20261115.md) records
+original consumed-prefix verification and response availability before RPC
+completion. The early numeric identity consumer joins the owning plan, current
+profile and actual executor directory while preserving final ownership and
+authorization gates. Source tests and compiled boundaries pass.
+
+A fresh real provider read verified prefix capture with the original Terraform
+parent alive, followed by full final output, no-change planning and independent
+local-only cleanup. Twenty-six groups were absent, state/destroy were empty and
+two resumes submitted no commands. GCP insertion and guest behavior remain
+unqualified; full built-in capture and every original live, installed and
+delivery requirement remain open.

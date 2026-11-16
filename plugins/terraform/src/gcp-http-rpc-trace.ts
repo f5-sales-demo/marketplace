@@ -4,10 +4,12 @@ import { isEvidenceRfc3339 } from './evidence-rfc3339';
 import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
 import {
   type OriginalExecutionOutput,
+  type OriginalExecutionPrefix,
   type OriginalOutputChunk,
   type OriginalOutputCompletion,
   readOriginalExecutionChunk,
   readOriginalExecutionCompletion,
+  readOriginalExecutionPrefix,
 } from './original-output-stream';
 
 type Json = Record<string, unknown>;
@@ -62,6 +64,27 @@ export interface OriginalGoogleHttpRpcSource {
   readonly stderrSha256: string;
   readonly applyRpcQualified: false;
   readonly originalInsertQualified: false;
+}
+export interface OriginalGoogleHttpResponseObservation
+  extends Omit<OriginalGoogleHttpRpcBodies, 'kind' | 'servedRecordSha256'> {
+  readonly kind: 'original-google-http-response-observation';
+  readonly rpcCompletionQualified: false;
+}
+export interface OriginalGoogleHttpResponseSource extends Omit<OriginalGoogleHttpRpcSource, 'kind'> {
+  readonly kind: 'original-google-http-response-source';
+  readonly rpcCompletionQualified: false;
+}
+const responseOrigins = new WeakMap<
+  OriginalGoogleHttpResponseObservation,
+  () => Promise<OriginalGoogleHttpResponseSource>
+>();
+export async function readOriginalGoogleHttpResponseSource(value: unknown) {
+  const read =
+    value && typeof value === 'object'
+      ? responseOrigins.get(value as OriginalGoogleHttpResponseObservation)
+      : undefined;
+  if (!read) throw new Error('Original executor-issued HTTP response required');
+  return read();
 }
 const bodyOrigins = new WeakMap<OriginalGoogleHttpRpcBodies, () => Promise<OriginalGoogleHttpRpcSource>>();
 export async function readOriginalGoogleHttpRpcSource(value: OriginalGoogleHttpRpcBodies) {
@@ -172,6 +195,7 @@ export class GoogleHttpRpcTraceParser {
   #pending: HttpRequest | undefined;
   #matched: Transaction | undefined;
   #matches = 0;
+  readonly #responses: OriginalGoogleHttpResponseObservation[] = [];
   #originOutput: OriginalExecutionOutput | undefined;
   #originCompletion: ReturnType<typeof readOriginalExecutionCompletion> | undefined;
   #sourceEnd = 0;
@@ -444,6 +468,75 @@ export class GoogleHttpRpcTraceParser {
       });
     return bodies;
   }
+  takeOriginalResponses(): readonly OriginalGoogleHttpResponseObservation[] {
+    this.#open();
+    if (!this.#originOutput) throw new Error('Original executor descriptor response source required');
+    return Object.freeze(this.#responses.splice(0));
+  }
+  #observeResponse(transaction: Transaction) {
+    const output = this.#originOutput,
+      active = this.#active;
+    if (!output || !active) throw new Error('Original active response descriptor required');
+    const response: OriginalGoogleHttpResponseObservation = Object.freeze({
+      schemaVersion: 1,
+      kind: 'original-google-http-response-observation',
+      rpcRequestId: active.id,
+      rpc: this.#scope.rpc,
+      resourceType: this.#scope.resourceType,
+      method: transaction.request.method,
+      url: transaction.request.url,
+      status: transaction.status,
+      googleProviderVersion: this.#googleVersion,
+      requestReasonSha256: hash(this.#scope.requestReason),
+      requestBodySha256: transaction.request.bodyHash,
+      responseBodySha256: transaction.bodyHash,
+      requestRecordsSha256: transaction.request.recordsHash,
+      responseRecordsSha256: transaction.recordsHash,
+      receivedRecordSha256: active.receivedHash,
+      planSha256: this.#scope.planSha256,
+      requestBody: transaction.request.body,
+      responseBody: transaction.body,
+      rpcCompletionQualified: false,
+      applyRpcQualified: false,
+      originalInsertQualified: false,
+    });
+    let prefix: OriginalExecutionPrefix | undefined;
+    responseOrigins.set(response, async () => {
+      if (this.#failed) throw new Error('Original HTTP response descriptor source failed');
+      try {
+        if (!prefix) {
+          const current = await readOriginalExecutionPrefix(output);
+          if (
+            current.stderr.bytes !== this.#sourceEnd ||
+            current.stderr.sha256 !== this.#sourceHash.copy().digest('hex')
+          )
+            throw new Error('Original HTTP response descriptor prefix differs');
+          prefix = current;
+        } else await readOriginalExecutionPrefix(output, prefix);
+        if (this.#failed) throw new Error('Original HTTP response descriptor source failed during verification');
+        return Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-google-http-response-source',
+          executor: prefix.identity,
+          directory: prefix.directory,
+          planSha256: response.planSha256,
+          rpcRequestId: response.rpcRequestId,
+          stdoutBytes: prefix.stdout.bytes,
+          stdoutSha256: prefix.stdout.sha256,
+          stderrBytes: prefix.stderr.bytes,
+          stderrSha256: prefix.stderr.sha256,
+          rpcCompletionQualified: false,
+          applyRpcQualified: false,
+          originalInsertQualified: false,
+        });
+      } catch (error) {
+        this.#failed = true;
+        if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+        throw error;
+      }
+    });
+    this.#responses.push(response);
+  }
   #completeDump(dump: Dump) {
     const parsed = headers(dump.lines),
       recordsHash = dump.hash.digest('hex');
@@ -478,8 +571,17 @@ export class GoogleHttpRpcTraceParser {
     const status = /^HTTP\/(?:1\.0|1\.1|2\.0) ([1-5][0-9]{2})(?: .*)?$/.exec(dump.lines[0]);
     if (!status || !this.#pending) throw new Error('Original HTTP response identity required');
     const bodyHash = jsonBody(parsed.body, parsed.values.get('content-type')?.[0], true);
-    if (this.#pending.matching)
-      this.#matched = { request: this.#pending, status: Number(status[1]), bodyHash, recordsHash, body: parsed.body };
+    if (this.#pending.matching) {
+      const transaction = {
+        request: this.#pending,
+        status: Number(status[1]),
+        bodyHash,
+        recordsHash,
+        body: parsed.body,
+      };
+      this.#matched = transaction;
+      if (this.#originOutput) this.#observeResponse(transaction);
+    }
     this.#pending = undefined;
   }
   finish() {

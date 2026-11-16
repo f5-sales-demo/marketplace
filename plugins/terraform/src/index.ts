@@ -58,12 +58,22 @@ export default function factory(pi: { events: CeEventBus; setLabel(label: string
   });
 }
 
-export { GoogleHttpRpcTraceParser, readOriginalGoogleHttpRpcSource } from './gcp-http-rpc-trace';
-export { collectOriginalGcpInsertWitnesses, readOriginalGcpInsertWitnesses } from './gcp-insert-evidence';
+export {
+  GoogleHttpRpcTraceParser,
+  readOriginalGoogleHttpResponseSource,
+  readOriginalGoogleHttpRpcSource,
+} from './gcp-http-rpc-trace';
+export {
+  collectOriginalEarlyGcpInsertIdentity,
+  collectOriginalGcpInsertWitnesses,
+  readOriginalEarlyGcpInsertIdentity,
+  readOriginalGcpInsertWitnesses,
+} from './gcp-insert-evidence';
 export { openInstalledInitialInventory } from './installed-initial-inventory';
 export {
   openInstalledProviderReader,
   readOriginalInstalledProviderWindow,
   readOriginalInstalledProviderWindowClock,
 } from './installed-provider-reader';
+export { readOriginalExecutionPrefix } from './original-output-stream';
 export { readOriginalTerraformApplyHookSource, TerraformApplyHookParser } from './terraform-apply-hooks';

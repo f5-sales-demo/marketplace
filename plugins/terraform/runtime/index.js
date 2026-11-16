@@ -408,6 +408,14 @@ var parentKeys = ['dev', 'ino', 'uid', 'mode'];
 var maximumChunk = 65536;
 var maximumRetention = 64 * 1024 * 1024;
 var digest = (value) => createHash2('sha256').update(value).digest('hex');
+var prefixOrigins = new WeakMap();
+var prefixReaders = new WeakMap();
+async function readOriginalExecutionPrefix(output, expected) {
+  const read = prefixReaders.get(output);
+  if (!read || (expected && prefixOrigins.get(expected) !== output))
+    throw new Error('Original executor-issued output prefix required');
+  return read(expected);
+}
 var chunkOrigins = new WeakMap();
 var completionOrigins = new WeakMap();
 function readOriginalExecutionChunk(output, chunk, channel) {
@@ -747,6 +755,40 @@ async function bindOriginalExecutionOutput(input) {
         });
       },
     });
+    prefixReaders.set(output, (expected) =>
+      exclusive(async () => {
+        const result = {};
+        for (const channel of ['stdout', 'stderr']) {
+          const stream = streams[channel];
+          await guard(stream);
+          await verifyPrefix(stream);
+          const bound = expected?.[channel];
+          if (bound) {
+            if (bound.bytes > stream.offset) throw new OutputRefusal('Original prefix is ahead of its consumed output');
+            const hash = createHash2('sha256');
+            for (let offset = 0; offset < bound.bytes; offset += maximumChunk)
+              hash.update(await readAt(stream, offset, Math.min(maximumChunk, bound.bytes - offset)));
+            if (hash.digest('hex') !== bound.sha256) throw new OutputRefusal('Original issued output prefix changed');
+          }
+          await guard(stream);
+          await verifyPrefix(stream);
+          result[channel] = Object.freeze({ bytes: stream.offset, sha256: stream.hash.copy().digest('hex') });
+        }
+        if (expected) return expected;
+        const prefix = Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-execution-output-prefix',
+          identity,
+          directory,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          applyRpcQualified: false,
+          originalInsertQualified: false,
+        });
+        prefixOrigins.set(prefix, output);
+        return prefix;
+      }),
+    );
     return { output, close };
   } catch (error) {
     await close();
@@ -756,6 +798,12 @@ async function bindOriginalExecutionOutput(input) {
 }
 
 // plugins/terraform/src/gcp-http-rpc-trace.ts
+var responseOrigins = new WeakMap();
+async function readOriginalGoogleHttpResponseSource(value) {
+  const read = value && typeof value === 'object' ? responseOrigins.get(value) : undefined;
+  if (!read) throw new Error('Original executor-issued HTTP response required');
+  return read();
+}
 var bodyOrigins = new WeakMap();
 async function readOriginalGoogleHttpRpcSource(value) {
   const read = bodyOrigins.get(value);
@@ -832,6 +880,7 @@ class GoogleHttpRpcTraceParser {
   #pending;
   #matched;
   #matches = 0;
+  #responses = [];
   #originOutput;
   #originCompletion;
   #sourceEnd = 0;
@@ -1115,6 +1164,75 @@ class GoogleHttpRpcTraceParser {
       });
     return bodies;
   }
+  takeOriginalResponses() {
+    this.#open();
+    if (!this.#originOutput) throw new Error('Original executor descriptor response source required');
+    return Object.freeze(this.#responses.splice(0));
+  }
+  #observeResponse(transaction) {
+    const output = this.#originOutput,
+      active = this.#active;
+    if (!output || !active) throw new Error('Original active response descriptor required');
+    const response = Object.freeze({
+      schemaVersion: 1,
+      kind: 'original-google-http-response-observation',
+      rpcRequestId: active.id,
+      rpc: this.#scope.rpc,
+      resourceType: this.#scope.resourceType,
+      method: transaction.request.method,
+      url: transaction.request.url,
+      status: transaction.status,
+      googleProviderVersion: this.#googleVersion,
+      requestReasonSha256: hash2(this.#scope.requestReason),
+      requestBodySha256: transaction.request.bodyHash,
+      responseBodySha256: transaction.bodyHash,
+      requestRecordsSha256: transaction.request.recordsHash,
+      responseRecordsSha256: transaction.recordsHash,
+      receivedRecordSha256: active.receivedHash,
+      planSha256: this.#scope.planSha256,
+      requestBody: transaction.request.body,
+      responseBody: transaction.body,
+      rpcCompletionQualified: false,
+      applyRpcQualified: false,
+      originalInsertQualified: false,
+    });
+    let prefix;
+    responseOrigins.set(response, async () => {
+      if (this.#failed) throw new Error('Original HTTP response descriptor source failed');
+      try {
+        if (!prefix) {
+          const current = await readOriginalExecutionPrefix(output);
+          if (
+            current.stderr.bytes !== this.#sourceEnd ||
+            current.stderr.sha256 !== this.#sourceHash.copy().digest('hex')
+          )
+            throw new Error('Original HTTP response descriptor prefix differs');
+          prefix = current;
+        } else await readOriginalExecutionPrefix(output, prefix);
+        if (this.#failed) throw new Error('Original HTTP response descriptor source failed during verification');
+        return Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-google-http-response-source',
+          executor: prefix.identity,
+          directory: prefix.directory,
+          planSha256: response.planSha256,
+          rpcRequestId: response.rpcRequestId,
+          stdoutBytes: prefix.stdout.bytes,
+          stdoutSha256: prefix.stdout.sha256,
+          stderrBytes: prefix.stderr.bytes,
+          stderrSha256: prefix.stderr.sha256,
+          rpcCompletionQualified: false,
+          applyRpcQualified: false,
+          originalInsertQualified: false,
+        });
+      } catch (error) {
+        this.#failed = true;
+        if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+        throw error;
+      }
+    });
+    this.#responses.push(response);
+  }
   #completeDump(dump) {
     const parsed = headers(dump.lines),
       recordsHash = dump.hash.digest('hex');
@@ -1149,8 +1267,17 @@ class GoogleHttpRpcTraceParser {
     const status = /^HTTP\/(?:1\.0|1\.1|2\.0) ([1-5][0-9]{2})(?: .*)?$/.exec(dump.lines[0]);
     if (!status || !this.#pending) throw new Error('Original HTTP response identity required');
     const bodyHash = jsonBody(parsed.body, parsed.values.get('content-type')?.[0], true);
-    if (this.#pending.matching)
-      this.#matched = { request: this.#pending, status: Number(status[1]), bodyHash, recordsHash, body: parsed.body };
+    if (this.#pending.matching) {
+      const transaction = {
+        request: this.#pending,
+        status: Number(status[1]),
+        bodyHash,
+        recordsHash,
+        body: parsed.body,
+      };
+      this.#matched = transaction;
+      if (this.#originOutput) this.#observeResponse(transaction);
+    }
     this.#pending = undefined;
   }
   finish() {
@@ -9473,11 +9600,22 @@ function readOriginalGcpInsertSourceBodies(source) {
 var insertOrigins = new WeakMap();
 var hash13 = (value) => createHash19('sha256').update(value).digest('hex');
 var name3 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+var uint64 = (value) =>
+  typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value) && BigInt(value) <= 18446744073709551615n;
 var object9 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original Compute insert object required');
   return value;
 };
+function canonical3(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
+  if (value !== null && typeof value === 'object')
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonical3(value[key])}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
 function link(value) {
   if (typeof value !== 'string') throw new Error('Original scoped Compute link required');
   if (value.startsWith('projects/')) {
@@ -9501,6 +9639,215 @@ function link(value) {
 function scopedResource(value, prefix) {
   const path = link(value);
   return path.startsWith(prefix) && name3.test(path.slice(prefix.length));
+}
+function metadata2(request) {
+  const value = object9(request.metadata);
+  if (
+    Object.keys(value).some((key) => !['items', 'fingerprint'].includes(key)) ||
+    (value.fingerprint !== undefined && value.fingerprint !== '') ||
+    !Array.isArray(value.items)
+  )
+    throw new Error('Original creation metadata mapping required');
+  const entries = Object.create(null);
+  let bytes = 0;
+  for (const raw of value.items) {
+    const item = object9(raw);
+    if (
+      Object.keys(item).sort().join(',') !== 'key,value' ||
+      typeof item.key !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,127}$/.test(item.key) ||
+      Object.hasOwn(entries, item.key) ||
+      typeof item.value !== 'string' ||
+      Buffer.byteLength(item.value) > 262144
+    )
+      throw new Error('Original unique bounded metadata entries required');
+    bytes += Buffer.byteLength(item.key) + Buffer.byteLength(item.value);
+    entries[item.key] = item.value;
+  }
+  if (bytes >= 512 * 1024 || !entries['user-data'] || entries.VmDnsSetting !== 'ZonePreferred')
+    throw new Error('Original node bootstrap and DNS metadata required');
+  return { bootstrapSha256: hash13(entries['user-data']), metadataSha256: hash13(canonical3(entries)) };
+}
+function projectOriginalComputeInsert(input, binding) {
+  const profile = resolveInstalledGcpVersionProfile(binding);
+  if (
+    !['8.10.0', '8.11.0'].includes(profile.googleVersion) ||
+    input.googleProviderVersion !== profile.googleVersion ||
+    input.rpc !== 'ApplyResourceChange' ||
+    input.resourceType !== 'google_compute_instance' ||
+    input.method !== 'POST' ||
+    input.status !== 200 ||
+    hash13(input.requestBody) !== input.requestBodySha256 ||
+    hash13(input.responseBody) !== input.responseBodySha256
+  )
+    throw new Error('Original latest Compute insert body profile required');
+  const url = new URL(input.url);
+  const path = /^\/compute\/v1\/projects\/([a-z][a-z0-9-]{4,62})\/zones\/([a-z][a-z0-9-]{0,62})\/instances$/.exec(
+    url.pathname,
+  );
+  if (url.origin !== 'https://compute.googleapis.com' || url.search !== '?alt=json' || url.hash || !path)
+    throw new Error('Original latest zonal insert target required');
+  const [, project, zone] = path;
+  const request = decodeEvidenceObject(Buffer.from(input.requestBody)),
+    operation = decodeEvidenceObject(Buffer.from(input.responseBody));
+  if (
+    typeof request.name !== 'string' ||
+    !name3.test(request.name) ||
+    request.canIpForward !== true ||
+    request.deletionProtection !== false
+  )
+    throw new Error('Original CE instance creation fields required');
+  const nodeName = request.name;
+  if (!scopedResource(request.machineType, `projects/${project}/zones/${zone}/machineTypes/`))
+    throw new Error('Original machine type zone and project required');
+  const labels = object9(request.labels);
+  if (
+    labels['xcsh-engine'] !== 'terraform' ||
+    labels['xcsh-node'] !== nodeName ||
+    typeof labels['xcsh-deployment'] !== 'string' ||
+    !name3.test(labels['xcsh-deployment']) ||
+    typeof labels['xcsh-site'] !== 'string' ||
+    !name3.test(labels['xcsh-site']) ||
+    Object.values(labels).some((value) => typeof value !== 'string')
+  )
+    throw new Error('Original Terraform node ownership labels required');
+  if (
+    request.serviceAccounts !== undefined &&
+    (!Array.isArray(request.serviceAccounts) || request.serviceAccounts.length)
+  )
+    throw new Error('Original request must not attach service accounts');
+  if (
+    !Array.isArray(request.networkInterfaces) ||
+    !request.networkInterfaces.length ||
+    !Array.isArray(request.disks) ||
+    !request.disks.length
+  )
+    throw new Error('Original ordered interfaces and disks required');
+  for (const raw of request.networkInterfaces) {
+    const nic = object9(raw);
+    if (
+      !scopedResource(nic.network, `projects/${project}/global/networks/`) ||
+      !scopedResource(nic.subnetwork, `projects/${project}/regions/${zone.slice(0, -2)}/subnetworks/`)
+    )
+      throw new Error('Original interface project and region required');
+  }
+  const identity = `projects/${project}/zones/${zone}`;
+  if (
+    !uint64(operation.id) ||
+    typeof operation.name !== 'string' ||
+    !/^[a-z][a-z0-9-]{0,254}$/.test(operation.name) ||
+    operation.operationType !== 'insert' ||
+    !['PENDING', 'RUNNING', 'DONE'].includes(operation.status) ||
+    operation.error !== undefined ||
+    link(operation.zone) !== identity ||
+    link(operation.selfLink) !== `${identity}/operations/${operation.name}` ||
+    link(operation.targetLink) !== `${identity}/instances/${nodeName}` ||
+    (operation.targetId !== undefined && !uint64(operation.targetId))
+  )
+    throw new Error('Original exact scoped insert operation required');
+  const candidate = Object.freeze({
+    project,
+    zone,
+    nodeName,
+    operationId: operation.id,
+    operationName: operation.name,
+    targetId: operation.targetId === undefined ? null : operation.targetId,
+    status: operation.status,
+    requestBodySha256: input.requestBodySha256,
+    responseBodySha256: input.responseBodySha256,
+    requestRecordsSha256: input.requestRecordsSha256,
+    responseRecordsSha256: input.responseRecordsSha256,
+    rpcRequestId: input.rpcRequestId,
+    planSha256: input.planSha256,
+    receivedRecordSha256: input.receivedRecordSha256,
+    requestReasonSha256: input.requestReasonSha256,
+    ...metadata2(request),
+    labelsSha256: hash13(canonical3(labels)),
+    interfacesSha256: hash13(canonical3(request.networkInterfaces)),
+    disksSha256: hash13(canonical3(request.disks)),
+    requestProjectionSha256: hash13(canonical3(request)),
+    serviceAccountsRequested: false,
+    applyRpcQualified: false,
+    originalInsertQualified: false,
+  });
+  return candidate;
+}
+var earlyIdentityOrigins = new WeakMap();
+async function readOriginalEarlyGcpInsertIdentity(value) {
+  const verify = value && typeof value === 'object' ? earlyIdentityOrigins.get(value) : undefined;
+  if (!verify) throw new Error('Original early insertion identity required');
+  await verify();
+  return value;
+}
+async function collectOriginalEarlyGcpInsertIdentity(input) {
+  const { originalPlan, response } = input;
+  const binding = Object.freeze({ ...input.binding });
+  let refused = false;
+  const verify = async () => {
+    if (refused) throw new Error('Original early insertion identity refused');
+    try {
+      await assertOriginalTerraformPlanProjection(originalPlan);
+      const source = await readOriginalGoogleHttpResponseSource(response);
+      const profile = resolveInstalledGcpVersionProfile(binding);
+      if (source.directory !== originalPlan.directory)
+        throw new Error('Original early insertion plan directory differs');
+      if (
+        !isOriginalCreationScopeProfile(profile) ||
+        originalPlan.terraformVersion !== binding.terraformVersion ||
+        originalPlan.receipt.providerLockSha256 !== binding.providerLockSha256 ||
+        originalPlan.scope.cloud !== 'gcp' ||
+        originalPlan.receipt.engine !== 'terraform' ||
+        originalPlan.receipt.noChanges ||
+        originalPlan.receipt.operation !== undefined ||
+        source.planSha256 !== originalPlan.receipt.planSha256 ||
+        response.planSha256 !== originalPlan.receipt.planSha256
+      )
+        throw new Error('Original current early insertion plan scope differs');
+      const projection = projectOriginalComputeInsert(response, binding);
+      if (
+        projection.project !== originalPlan.scope.account ||
+        !projection.zone.startsWith(`${originalPlan.scope.region}-`)
+      )
+        throw new Error('Original early insertion project or region differs');
+      const matches = originalPlan.resources.filter((row) => {
+        const known = (key, expected) => {
+          const field = row.fields[key];
+          return field?.status === 'known' && field.value === expected;
+        };
+        return (
+          row.mode === 'managed' &&
+          row.type === 'google_compute_instance' &&
+          row.actions.includes('create') &&
+          known('name', projection.nodeName) &&
+          known('project', projection.project) &&
+          known('zone', projection.zone)
+        );
+      });
+      if (matches.length !== 1 || !/^google_compute_instance\.[a-z][a-z0-9_]*$/.test(matches[0].address))
+        throw new Error('Original unique declared early VM creation required');
+      await assertOriginalTerraformPlanProjection(originalPlan);
+      await readOriginalGoogleHttpResponseSource(response);
+      return { projection, source, address: matches[0].address };
+    } catch (error) {
+      refused = true;
+      throw error;
+    }
+  };
+  const joined = await verify();
+  const candidate = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-early-gcp-insert-identity',
+    ...joined.projection,
+    address: joined.address,
+    directory: joined.source.directory,
+    executor: joined.source.executor,
+    rpcCompletionQualified: false,
+    executionAuthorized: false,
+  });
+  earlyIdentityOrigins.set(candidate, async () => {
+    await verify();
+  });
+  return candidate;
 }
 function joinOriginalGcpInsertSource(input) {
   const { insert, plan, rpc, window, parent, started, completed } = input;
@@ -9817,16 +10164,16 @@ var object10 = (value) => {
     throw new Error('Original VM evidence object required');
   return value;
 };
-function canonical3(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
+function canonical4(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical4).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.keys(value)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical3(value[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${canonical4(value[key])}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
-function metadata2(value) {
+function metadata3(value) {
   const entries = Object.create(null);
   const raw = object10(value);
   if (!Array.isArray(raw.items)) throw new Error('Original VM metadata items required');
@@ -9913,12 +10260,12 @@ async function joinOriginalGcpVmEvidence(input) {
   )
     throw new Error('Original absence, insert operation and numeric VM incarnation differ');
   const request = decodeEvidenceObject(Buffer.from(bodies.requestBody));
-  const items = metadata2(vm.metadata);
+  const items = metadata3(vm.metadata);
   if (
-    hash14(canonical3(items)) !== source.metadataSha256 ||
+    hash14(canonical4(items)) !== source.metadataSha256 ||
     !items['user-data'] ||
     hash14(items['user-data']) !== source.bootstrapSha256 ||
-    hash14(canonical3(object10(vm.labels))) !== source.labelsSha256 ||
+    hash14(canonical4(object10(vm.labels))) !== source.labelsSha256 ||
     !Array.isArray(vm.networkInterfaces) ||
     !Array.isArray(request.networkInterfaces) ||
     vm.networkInterfaces.length !== request.networkInterfaces.length
@@ -9999,12 +10346,12 @@ function object11(value) {
     throw new Error('Original insert audit object required');
   return value;
 }
-function canonical4(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical4).join(',')}]`;
+function canonical5(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.keys(value)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical4(value[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${canonical5(value[key])}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
@@ -10122,7 +10469,7 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
     !['PENDING', 'RUNNING', 'DONE'].includes(response.status) ||
     request.name !== source.nodeName ||
     request.canIpForward !== true ||
-    hash15(canonical4(object11(request.labels))) !== source.labelsSha256
+    hash15(canonical5(object11(request.labels))) !== source.labelsSha256
   )
     throw new Error('Original audit response or requested ownership differs');
   await reader.readAuditEvidence(audit);
@@ -10136,8 +10483,8 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
     auditCorroborated: true,
     auditQuerySha256: audit.querySha256,
     auditPageSha256s: Object.freeze(audit.pages.map((page) => page.sha256)),
-    auditFirstSha256: hash15(canonical4(first)),
-    auditLastSha256: hash15(canonical4(last)),
+    auditFirstSha256: hash15(canonical5(first)),
+    auditLastSha256: hash15(canonical5(last)),
     requestReasonSha256: source.requestReasonSha256,
     applyRpcQualified: false,
     originalInsertQualified: false,
@@ -10245,7 +10592,7 @@ import { isAbsolute as isAbsolute14, join as join16, resolve as resolve14 } from
 var hash17 = (raw) => createHash23('sha256').update(raw).digest('hex');
 var name4 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var numericId = /^[1-9][0-9]{0,19}$/;
-var uint64 = (value) => typeof value === 'string' && numericId.test(value) && BigInt(value) <= 18446744073709551615n;
+var uint642 = (value) => typeof value === 'string' && numericId.test(value) && BigInt(value) <= 18446744073709551615n;
 var operationName2 = /^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?|[1-9][0-9]{0,19})$/;
 var returnedOperationName = /^[a-z][a-z0-9-]{0,254}$/;
 var offset2 = /^(?:0|[1-9][0-9]{0,19})$/;
@@ -10417,7 +10764,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
       if (response.status !== 200) throw new Error('Original cloud read HTTP failure');
       const zoneUrl = `https://www.googleapis.com/compute/v1/projects/${authentication.project}/zones/${zone}`;
       if (
-        !uint64(value.id) ||
+        !uint642(value.id) ||
         value.name !== node ||
         value.zone !== zoneUrl ||
         typeof value.creationTimestamp !== 'string' ||
@@ -10504,7 +10851,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
   const operations = new Map();
   const insertOperation = async (zone, operation, node) => {
     validate(zone, node);
-    if (!operationName2.test(operation) || (/^[0-9]+$/.test(operation) && !uint64(operation)))
+    if (!operationName2.test(operation) || (/^[0-9]+$/.test(operation) && !uint642(operation)))
       throw new Error('Exact named Compute operation scope required');
     return run(async () => {
       const response = await read(() => client.operation(zone, operation), 'insert-operation', zone, node);
@@ -10513,7 +10860,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
       const scope = `https://www.googleapis.com/compute/v1/projects/${authentication.project}/zones/${zone}`;
       if (
         response.status !== 200 ||
-        !uint64(value.id) ||
+        !uint642(value.id) ||
         typeof value.name !== 'string' ||
         !returnedOperationName.test(value.name) ||
         (/^[0-9]+$/.test(operation) ? value.id !== operation : value.name !== operation) ||
@@ -10525,7 +10872,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
         !['PENDING', 'RUNNING', 'DONE'].includes(value.status) ||
         typeof value.insertTime !== 'string' ||
         !isEvidenceRfc3339(value.insertTime) ||
-        (value.targetId !== undefined && !uint64(value.targetId))
+        (value.targetId !== undefined && !uint642(value.targetId))
       )
         throw new Error('Exact scoped Compute insert operation identity required');
       const targetId = value.targetId === undefined ? null : value.targetId;
@@ -10743,7 +11090,7 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
         if (
           response.status !== 200 ||
           value.kind !== `compute#${target.kind}` ||
-          !uint64(value.id) ||
+          !uint642(value.id) ||
           value.name !== target.name ||
           value.selfLink !== compiled.selfLink ||
           typeof value.creationTimestamp !== 'string' ||
@@ -12544,6 +12891,7 @@ export {
   assertOriginalGcpPreapplyBootstrapContext,
   checkoutOriginalGcpPreapplyBootstrap,
   closeOriginalGcpInventoryScope,
+  collectOriginalEarlyGcpInsertIdentity,
   collectOriginalGcpInsertWitnesses,
   collectOriginalGcpPreapplyBootstrap,
   collectOriginalGcpTerraformBootstrap,
@@ -12560,9 +12908,12 @@ export {
   openInstalledXcshCreationReader,
   prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
+  readOriginalEarlyGcpInsertIdentity,
+  readOriginalExecutionPrefix,
   readOriginalGcpInsertWitnesses,
   readOriginalGcpPreapplyBootstrapJwt,
   readOriginalGcpTerraformBootstrapJwt,
+  readOriginalGoogleHttpResponseSource,
   readOriginalGoogleHttpRpcSource,
   readOriginalInstalledProviderWindow,
   readOriginalInstalledProviderWindowClock,

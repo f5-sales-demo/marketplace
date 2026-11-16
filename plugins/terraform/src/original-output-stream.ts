@@ -30,6 +30,28 @@ export interface OriginalExecutionOutput {
   read(channel: Channel): Promise<OriginalOutputChunk | null>;
   finish(): Promise<OriginalOutputCompletion>;
 }
+export interface OriginalExecutionPrefix {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-execution-output-prefix';
+  readonly identity: Identity;
+  readonly directory: string;
+  readonly stdout: Readonly<{ bytes: number; sha256: string }>;
+  readonly stderr: Readonly<{ bytes: number; sha256: string }>;
+  readonly applyRpcQualified: false;
+  readonly originalInsertQualified: false;
+}
+const prefixOrigins = new WeakMap<OriginalExecutionPrefix, OriginalExecutionOutput>();
+const prefixReaders = new WeakMap<
+  OriginalExecutionOutput,
+  (expected?: OriginalExecutionPrefix) => Promise<OriginalExecutionPrefix>
+>();
+/** Verify an issued consumed prefix; never request EOF, advance offsets or adopt a copied interface. */
+export async function readOriginalExecutionPrefix(output: OriginalExecutionOutput, expected?: OriginalExecutionPrefix) {
+  const read = prefixReaders.get(output);
+  if (!read || (expected && prefixOrigins.get(expected) !== output))
+    throw new Error('Original executor-issued output prefix required');
+  return read(expected);
+}
 interface OriginalRecordOrigin {
   directory: string;
   output: OriginalExecutionOutput;
@@ -418,6 +440,40 @@ export async function bindOriginalExecutionOutput(input: {
         });
       },
     });
+    prefixReaders.set(output, (expected) =>
+      exclusive(async () => {
+        const result = {} as Record<Channel, Readonly<{ bytes: number; sha256: string }>>;
+        for (const channel of ['stdout', 'stderr'] as const) {
+          const stream = streams[channel];
+          await guard(stream);
+          await verifyPrefix(stream);
+          const bound = expected?.[channel];
+          if (bound) {
+            if (bound.bytes > stream.offset) throw new OutputRefusal('Original prefix is ahead of its consumed output');
+            const hash = createHash('sha256');
+            for (let offset = 0; offset < bound.bytes; offset += maximumChunk)
+              hash.update(await readAt(stream, offset, Math.min(maximumChunk, bound.bytes - offset)));
+            if (hash.digest('hex') !== bound.sha256) throw new OutputRefusal('Original issued output prefix changed');
+          }
+          await guard(stream);
+          await verifyPrefix(stream);
+          result[channel] = Object.freeze({ bytes: stream.offset, sha256: stream.hash.copy().digest('hex') });
+        }
+        if (expected) return expected;
+        const prefix: OriginalExecutionPrefix = Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-execution-output-prefix',
+          identity,
+          directory,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          applyRpcQualified: false,
+          originalInsertQualified: false,
+        });
+        prefixOrigins.set(prefix, output);
+        return prefix;
+      }),
+    );
     return { output, close };
   } catch (error) {
     await close();
