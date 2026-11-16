@@ -63,6 +63,7 @@ export {
   readOriginalGoogleHttpResponseSource,
   readOriginalGoogleHttpRpcSource,
 } from './gcp-http-rpc-trace';
+export { joinOriginalGcpInsertAuditEvidence, type OriginalGcpInsertAuditJoinInput } from './gcp-insert-audit-evidence';
 export {
   collectOriginalEarlyGcpInsertIdentity,
   collectOriginalGcpInsertWitnesses,
@@ -73,6 +74,8 @@ export {
 export {
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,
+  joinOriginalGcpVmEvidence,
+  type OriginalGcpVmJoinInput,
   readOriginalEarlyGcpVmEvidence,
 } from './gcp-vm-evidence';
 export {

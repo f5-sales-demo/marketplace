@@ -8,7 +8,7 @@ import type {
   OriginalGcpVm,
   openGcpCloudSerialReader,
 } from './gcp-cloud-serial-reader';
-import { assertOriginalInstalledGcpCloudReader } from './gcp-cloud-serial-reader';
+import { assertOriginalInstalledGcpCloudReader, isInstalledGcpCloudSerialReader } from './gcp-cloud-serial-reader';
 import {
   type OriginalEarlyGcpInsertIdentity,
   type OriginalGcpInsertSourceCandidate,
@@ -180,7 +180,10 @@ function corroborateVmBodies(
 export interface OriginalGcpVmJoinInput {
   readonly source: OriginalGcpInsertSourceCandidate;
   readonly reader: Reader;
-  readonly absent: GcpCloudReadEvidence & { readonly present: false };
+  /** Legacy independent absence; installed applies must use their sealed baseline. */
+  readonly absent?: GcpCloudReadEvidence & { readonly present: false };
+  readonly baseline?: OriginalApplyGcpInventory;
+  readonly callback?: OriginalApplyCallbackContext;
   readonly operation: GcpInsertOperationCandidate;
   readonly instance: OriginalGcpVm;
 }
@@ -189,21 +192,74 @@ export interface OriginalGcpVmJoinInput {
  * Raw evidence remains private and every read rechecks its original reader inputs.
  */
 export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
-  const { source, reader, absent, operation, instance } = input;
+  const { source, reader, operation, instance, baseline, callback } = input;
   const bodies = readOriginalGcpInsertSourceBodies(source);
-  const records = [absent, operation, instance] as const;
-  const retained = [];
+  const readAbsence = async () => {
+    if (baseline !== undefined) {
+      if (!callback || input.absent !== undefined)
+        throw new Error('Original sealed baseline and callback required without a raw absence shortcut');
+      await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+      await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+      const view = await readOriginalApplyGcpInventory(baseline, callback.phase === 'after' ? callback : undefined);
+      if (
+        view.planSha256 !== source.planSha256 ||
+        view.owner.account !== source.project ||
+        !source.zone.startsWith(`${view.owner.region}-`) ||
+        view.executor.pid !== source.parentPid ||
+        view.executor.start !== source.parentStart ||
+        view.executor.boot !== source.parentBoot ||
+        view.executor.group !== source.parentPid
+      )
+        throw new Error('Original VM source, sealed baseline or owning executor differs');
+      const rows = view.cloud.filter(
+        (row) =>
+          row.address === source.resourceAddress &&
+          row.target.kind === 'instance' &&
+          row.target.zone === source.zone &&
+          row.target.name === source.nodeName,
+      );
+      if (rows.length !== 1) throw new Error('Original declared VM absence required');
+      const row = rows[0];
+      if (
+        object(decodeEvidenceObject(Buffer.from(bodies.requestBody)).labels)['xcsh-deployment'] !==
+        view.owner.deploymentId
+      )
+        throw new Error('Original VM deployment ownership differs');
+      await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+      await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+      readOriginalGcpInsertSourceBodies(source);
+      return {
+        absent: { ...row.evidence, present: false as const },
+        read: {
+          raw: row.raw,
+          scope: { project: source.project, zone: source.zone, node: source.nodeName },
+          authentication: row.authentication,
+        },
+      };
+    }
+    if (isInstalledGcpCloudSerialReader(reader))
+      throw new Error('Original installed VM correlation requires its sealed apply baseline');
+    if (!input.absent || callback !== undefined)
+      throw new Error('Original independent absence or sealed apply baseline required');
+    const read = await reader.readEvidence(input.absent);
+    freshCloudEvidence(input.absent);
+    if (read.scope.project !== source.project || read.scope.zone !== source.zone || read.scope.node !== source.nodeName)
+      throw new Error('Fresh original scoped cloud evidence required');
+    return { absent: input.absent, read };
+  };
+  const initial = await readAbsence();
+  const retained = [initial.read];
+  const records = [operation, instance] as const;
   for (const record of records) {
     const read = await reader.readEvidence(record);
+    freshCloudEvidence(record);
     if (
       read.scope.project !== source.project ||
       read.scope.zone !== source.zone ||
       read.scope.node !== source.nodeName ||
-      !Number.isSafeInteger(record.startedAt) ||
-      !Number.isSafeInteger(record.finishedAt) ||
-      record.finishedAt < record.startedAt ||
-      Date.now() < record.finishedAt ||
-      Date.now() - record.finishedAt > 300000
+      (['accountSha256', 'audienceSha256', 'adcSha256'] as const).some(
+        (key) => read.authentication[key] !== initial.read.authentication[key],
+      )
     )
       throw new Error('Fresh original scoped cloud evidence required');
     retained.push(read);
@@ -211,19 +267,28 @@ export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
   const { vm, interfaces } = corroborateVmBodies(
     source,
     bodies.requestBody,
-    absent,
-    retained[0].raw,
+    initial.absent,
+    initial.read.raw,
     operation,
     retained[1].raw,
     instance,
     retained[2].raw,
   );
-  // Recheck all original bytes and guards after the joins; a successful initial
-  // read cannot excuse a changed file, credential or owner during correlation.
-  for (const record of records) await reader.readEvidence(record);
+  // The baseline's issuer preserves its original timestamps and bytes. Current
+  // operation and VM observations retain the five-minute freshness requirement.
+  await readAbsence();
+  for (const record of records) {
+    await reader.readEvidence(record);
+    freshCloudEvidence(record);
+  }
   const current = await reader.instance(instance.zone, instance.name);
   if (!current.present || current.value.id !== instance.value.id)
     throw new Error('Original VM changed during final correlation');
+  await readAbsence();
+  for (const record of records) {
+    await reader.readEvidence(record);
+    freshCloudEvidence(record);
+  }
   readOriginalGcpInsertSourceBodies(source);
   return Object.freeze({
     schemaVersion: 1 as const,
@@ -241,7 +306,9 @@ export async function joinOriginalGcpVmEvidence(input: OriginalGcpVmJoinInput) {
     labelsSha256: source.labelsSha256,
     interfaces: Object.freeze(interfaces),
     sourceRequestSha256: source.requestBodySha256,
-    absenceSha256: absent.sha256,
+    absenceSha256: initial.absent.sha256,
+    absenceStartedAt: initial.absent.startedAt,
+    absenceFinishedAt: initial.absent.finishedAt,
     operationSha256: operation.sha256,
     instanceSha256: instance.sha256,
     accountSha256: retained[2].authentication.accountSha256,

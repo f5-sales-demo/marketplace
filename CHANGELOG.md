@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.118 binds full VM and audit correlation to the original
+  sealed apply baseline. Installed readers refuse raw-absence shortcuts; current
+  cloud observations stay fresh. Final capture and live qualification remain open.
+
 - **`terraform`** v2.4.117 joins original early insertion, sealed absence,
   independent numeric VM evidence and guarded serial reads. Copied or replaced
   sources refuse; current observations stay fresh without renewing baselines.

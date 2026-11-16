@@ -1913,3 +1913,12 @@ from current observation freshness. Source and compiled component checks pass.
 
 Observer mapping, full/final capture composition and every original live,
 installed and delivery acceptance gate remain open.
+
+### Sealed full VM correlation, 2026-11-16
+
+Terraform 2.4.118 uses the original apply-bound baseline for full VM and audit
+correlation. Installed readers refuse raw-absence shortcuts; current operation
+and VM evidence remains fresh. Source/type/build regressions passed; see the
+[bounded source receipt](gcp-sealed-full-vm-binding-20261116.md). Final-capture
+handoff, observer mapping, built-in factory and all live/delivery gates remain
+open. No fresh cloud submission or live acceptance is inferred.

@@ -105,7 +105,7 @@ export async function joinOriginalGcpInsertAuditEvidence(input: OriginalGcpInser
       (status.code !== undefined && status.code !== 0) ||
       Object.keys(status).some((key) => key !== 'code') ||
       !isEvidenceRfc3339(entry.timestamp) ||
-      Date.parse(entry.timestamp as string) < input.absent.startedAt ||
+      Date.parse(entry.timestamp as string) < vm.absenceStartedAt ||
       Date.parse(entry.timestamp as string) > Math.max(...audit.pages.map((page) => page.finishedAt))
     )
       throw new Error('Original successful audit operation name, principal or numeric VM differs');

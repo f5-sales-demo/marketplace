@@ -501,3 +501,15 @@ it('compiled early VM and installed reader boundaries refuse serialized capabili
   await expect(runtime.collectOriginalEarlyGcpSerialEvidence({}, '0')).rejects.toThrow('Original');
   await expect(runtime.assertOriginalApplyGcpInventoryCallback({}, {})).rejects.toThrow('Original');
 });
+
+it('compiled full VM and audit joins reject serialized insertion and inventory capabilities', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.joinOriginalGcpVmEvidence).toBe('function');
+  expect(typeof runtime.joinOriginalGcpInsertAuditEvidence).toBe('function');
+  await expect(
+    runtime.joinOriginalGcpVmEvidence({ source: {}, baseline: {}, callback: {}, reader: {} }),
+  ).rejects.toThrow(/[Oo]riginal/);
+  await expect(
+    runtime.joinOriginalGcpInsertAuditEvidence({ source: {}, baseline: {}, callback: {}, reader: {} }),
+  ).rejects.toThrow(/[Oo]riginal/);
+});

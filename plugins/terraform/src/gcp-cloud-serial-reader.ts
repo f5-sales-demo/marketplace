@@ -25,6 +25,11 @@ import type { ExecutionCaptureAdmission } from './signal-free-executor';
 
 const cloudReaderOrigins = new WeakMap<object, () => Promise<void>>();
 const installedReaderContexts = new WeakMap<object, InstalledCaptureContext>();
+/** Factory provenance only; this does not attest liveness or authorize execution. */
+export function isInstalledGcpCloudSerialReader(reader: unknown): boolean {
+  return !!reader && typeof reader === 'object' && installedReaderContexts.has(reader);
+}
+
 /** Read-only provenance check for the original installed controller. Neither
  * copied interfaces nor a matching serialized context can attest cloud evidence. */
 export async function assertOriginalInstalledGcpCloudReader(

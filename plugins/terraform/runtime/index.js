@@ -10181,6 +10181,9 @@ import { isAbsolute as isAbsolute14, join as join16, resolve as resolve14 } from
 
 var cloudReaderOrigins = new WeakMap();
 var installedReaderContexts = new WeakMap();
+function isInstalledGcpCloudSerialReader(reader) {
+  return !!reader && typeof reader === 'object' && installedReaderContexts.has(reader);
+}
 async function assertOriginalInstalledGcpCloudReader(reader, context) {
   if (!reader || typeof reader !== 'object' || !installedReaderContexts.has(reader))
     throw new Error('Original installed cloud reader required');
@@ -11816,21 +11819,74 @@ function corroborateVmBodies(source, requestBody, absent, absentRaw, operation, 
   return { vm, interfaces };
 }
 async function joinOriginalGcpVmEvidence(input) {
-  const { source, reader, absent, operation, instance } = input;
+  const { source, reader, operation, instance, baseline, callback } = input;
   const bodies = readOriginalGcpInsertSourceBodies(source);
-  const records = [absent, operation, instance];
-  const retained = [];
+  const readAbsence = async () => {
+    if (baseline !== undefined) {
+      if (!callback || input.absent !== undefined)
+        throw new Error('Original sealed baseline and callback required without a raw absence shortcut');
+      await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+      await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+      const view = await readOriginalApplyGcpInventory(baseline, callback.phase === 'after' ? callback : undefined);
+      if (
+        view.planSha256 !== source.planSha256 ||
+        view.owner.account !== source.project ||
+        !source.zone.startsWith(`${view.owner.region}-`) ||
+        view.executor.pid !== source.parentPid ||
+        view.executor.start !== source.parentStart ||
+        view.executor.boot !== source.parentBoot ||
+        view.executor.group !== source.parentPid
+      )
+        throw new Error('Original VM source, sealed baseline or owning executor differs');
+      const rows = view.cloud.filter(
+        (row) =>
+          row.address === source.resourceAddress &&
+          row.target.kind === 'instance' &&
+          row.target.zone === source.zone &&
+          row.target.name === source.nodeName,
+      );
+      if (rows.length !== 1) throw new Error('Original declared VM absence required');
+      const row = rows[0];
+      if (
+        object11(decodeEvidenceObject(Buffer.from(bodies.requestBody)).labels)['xcsh-deployment'] !==
+        view.owner.deploymentId
+      )
+        throw new Error('Original VM deployment ownership differs');
+      await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+      await assertOriginalInstalledGcpCloudReader(reader, callback.original);
+      readOriginalGcpInsertSourceBodies(source);
+      return {
+        absent: { ...row.evidence, present: false },
+        read: {
+          raw: row.raw,
+          scope: { project: source.project, zone: source.zone, node: source.nodeName },
+          authentication: row.authentication,
+        },
+      };
+    }
+    if (isInstalledGcpCloudSerialReader(reader))
+      throw new Error('Original installed VM correlation requires its sealed apply baseline');
+    if (!input.absent || callback !== undefined)
+      throw new Error('Original independent absence or sealed apply baseline required');
+    const read = await reader.readEvidence(input.absent);
+    freshCloudEvidence(input.absent);
+    if (read.scope.project !== source.project || read.scope.zone !== source.zone || read.scope.node !== source.nodeName)
+      throw new Error('Fresh original scoped cloud evidence required');
+    return { absent: input.absent, read };
+  };
+  const initial = await readAbsence();
+  const retained = [initial.read];
+  const records = [operation, instance];
   for (const record of records) {
     const read = await reader.readEvidence(record);
+    freshCloudEvidence(record);
     if (
       read.scope.project !== source.project ||
       read.scope.zone !== source.zone ||
       read.scope.node !== source.nodeName ||
-      !Number.isSafeInteger(record.startedAt) ||
-      !Number.isSafeInteger(record.finishedAt) ||
-      record.finishedAt < record.startedAt ||
-      Date.now() < record.finishedAt ||
-      Date.now() - record.finishedAt > 300000
+      ['accountSha256', 'audienceSha256', 'adcSha256'].some(
+        (key) => read.authentication[key] !== initial.read.authentication[key],
+      )
     )
       throw new Error('Fresh original scoped cloud evidence required');
     retained.push(read);
@@ -11838,17 +11894,26 @@ async function joinOriginalGcpVmEvidence(input) {
   const { vm, interfaces } = corroborateVmBodies(
     source,
     bodies.requestBody,
-    absent,
-    retained[0].raw,
+    initial.absent,
+    initial.read.raw,
     operation,
     retained[1].raw,
     instance,
     retained[2].raw,
   );
-  for (const record of records) await reader.readEvidence(record);
+  await readAbsence();
+  for (const record of records) {
+    await reader.readEvidence(record);
+    freshCloudEvidence(record);
+  }
   const current = await reader.instance(instance.zone, instance.name);
   if (!current.present || current.value.id !== instance.value.id)
     throw new Error('Original VM changed during final correlation');
+  await readAbsence();
+  for (const record of records) {
+    await reader.readEvidence(record);
+    freshCloudEvidence(record);
+  }
   readOriginalGcpInsertSourceBodies(source);
   return Object.freeze({
     schemaVersion: 1,
@@ -11866,7 +11931,9 @@ async function joinOriginalGcpVmEvidence(input) {
     labelsSha256: source.labelsSha256,
     interfaces: Object.freeze(interfaces),
     sourceRequestSha256: source.requestBodySha256,
-    absenceSha256: absent.sha256,
+    absenceSha256: initial.absent.sha256,
+    absenceStartedAt: initial.absent.startedAt,
+    absenceFinishedAt: initial.absent.finishedAt,
     operationSha256: operation.sha256,
     instanceSha256: instance.sha256,
     accountSha256: retained[2].authentication.accountSha256,
@@ -12130,7 +12197,7 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
       (status.code !== undefined && status.code !== 0) ||
       Object.keys(status).some((key) => key !== 'code') ||
       !isEvidenceRfc3339(entry.timestamp) ||
-      Date.parse(entry.timestamp) < input.absent.startedAt ||
+      Date.parse(entry.timestamp) < vm.absenceStartedAt ||
       Date.parse(entry.timestamp) > Math.max(...audit.pages.map((page) => page.finishedAt))
     )
       throw new Error('Original successful audit operation name, principal or numeric VM differs');
@@ -13353,6 +13420,8 @@ export {
   GoogleHttpRpcTraceParser,
   inspectOriginalGcpInventoryScope,
   joinOriginalGcpBootstrapVm,
+  joinOriginalGcpInsertAuditEvidence,
+  joinOriginalGcpVmEvidence,
   joinOriginalXcshCreationBody,
   openGcpCloudSerialReader,
   openInstalledBootstrapCapture,
