@@ -4,8 +4,19 @@
 // plugins/aws/src/ce/native-creation-reader.ts
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { AWS_CE_PROVIDER_LOCK_SHA256, siteBindings, siteForNode, siteTopology } from './runtime-9wx65fpp.js';
+import {
+  acquireProcessLock,
+  loadAwsCheckpoint,
+  loadAwsPlan,
+  saveAwsCheckpoint,
+  verifyAwsCePlan,
+} from './runtime-2srcqb9f.js';
 import { AwsNotFoundError, detectAwsError, execAwsJson, makeExecApi } from './runtime-30f0rzjf.js';
+import { AWS_CE_PROVIDER_LOCK_SHA256, siteBindings, siteForNode, siteTopology } from './runtime-ay1zjq29.js';
+import { scopedAwsApi } from './runtime-fex55vat.js';
+import { verifyAwsTerraformUpgrade } from './runtime-k7zyj3b6.js';
+import { awsPlatformService, observeAwsResources, validateInitialRegistrationRetirement } from './runtime-w4s6e2gy.js';
+import { canonicalSha256, safeHexEqual, sha256Hex } from './runtime-wvre8ba5.js';
 import {
   evidencePasses,
   powerServiceComponentSha256,
@@ -19,9 +30,7 @@ import {
   validateAwsTerraformPowerReceipt,
   validateAwsTerraformStaticServiceReceipt,
   verifyAwsWholeSitePowerPlan,
-} from './runtime-9341kvfb.js';
-import { awsPlatformService, observeAwsResources, validateInitialRegistrationRetirement } from './runtime-dwcehj38.js';
-import { scopedAwsApi } from './runtime-fex55vat.js';
+} from './runtime-xttpr1vs.js';
 import {
   awsCeRevalidationDiagnostic,
   awsTerraformFoundationDeployment,
@@ -38,16 +47,7 @@ import {
   VerifiedUpgradeContract,
   withAwsNativeOperation,
   withAwsTerraformLifecycle,
-} from './runtime-qqrc1c7h.js';
-import { verifyAwsTerraformUpgrade } from './runtime-tkg0b09n.js';
-import {
-  acquireProcessLock,
-  loadAwsCheckpoint,
-  loadAwsPlan,
-  saveAwsCheckpoint,
-  verifyAwsCePlan,
-} from './runtime-wf8fjv0g.js';
-import { canonicalSha256, safeHexEqual, sha256Hex } from './runtime-wvre8ba5.js';
+} from './runtime-y39p0vy5.js';
 
 // plugins/aws/src/ce/native-creation-projection.ts
 function projectAwsNativeInitialCreation(plan, checkpoints) {

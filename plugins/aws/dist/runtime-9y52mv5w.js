@@ -1,10 +1,11 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-
-import { siteBindings, siteForNode } from './runtime-9wx65fpp.js';
+import { acquireProcessLock, loadAwsCheckpoint, loadAwsPlan, verifyAwsCePlan } from './runtime-2srcqb9f.js';
 import { makeExecApi } from './runtime-30f0rzjf.js';
-import { awsPlatformService } from './runtime-dwcehj38.js';
+import { siteBindings, siteForNode } from './runtime-ay1zjq29.js';
 import { scopedAwsApi } from './runtime-fex55vat.js';
+import { awsPlatformService } from './runtime-w4s6e2gy.js';
+import { canonicalSha256, sha256Hex } from './runtime-wvre8ba5.js';
 import {
   assertAwsTerraformDeploymentActive,
   awsTerraformFoundationDeployment,
@@ -12,9 +13,7 @@ import {
   collectAwsNetworkHealth,
   collectAwsTrafficProbe,
   withAwsTerraformLifecycle,
-} from './runtime-qqrc1c7h.js';
-import { acquireProcessLock, loadAwsCheckpoint, loadAwsPlan, verifyAwsCePlan } from './runtime-wf8fjv0g.js';
-import { canonicalSha256, sha256Hex } from './runtime-wvre8ba5.js';
+} from './runtime-y39p0vy5.js';
 
 // plugins/aws/src/ce/failover-health.ts
 async function collectAwsFailoverBgpHealth(plan, checkpoint, nodeIndex, phase, api, signal) {

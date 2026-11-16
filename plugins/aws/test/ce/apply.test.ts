@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import {
   assertAwsActionOwnership,
   assertAwsApplyAllowed,
@@ -572,6 +573,24 @@ it('preconfigures single-node DHCP when every guest interface identity is explic
   expect(awsNativePrebootSiteRequired(plan, 3)).toBe(true);
   plan.interfaces[0].addressing.mode = 'static';
   expect(awsNativePrebootSiteRequired(plan, 1)).toBe(true);
+});
+
+it('native preboot site configuration includes scoped administrator SSH services', () => {
+  const raw = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+  const algorithm = Buffer.from('ssh-ed25519');
+  const algorithmSize = Buffer.alloc(4),
+    keySize = Buffer.alloc(4);
+  algorithmSize.writeUInt32BE(algorithm.length);
+  keySize.writeUInt32BE(raw.length);
+  const key = `ssh-ed25519 ${Buffer.concat([algorithmSize, algorithm, keySize, raw]).toString('base64')}`;
+  const plan = compileAwsCePlan({ ...intent, adminSshPublicKey: key }, observation);
+  plan.interfaces[0].guestDevice = 'ens5';
+  const site = buildAwsNativePrebootSiteIntent(plan, [1], { __ENI_1_0_MAC__: '02:00:00:00:00:01' });
+  expect(site.settings.admin_user_credentials).toEqual({ ssh_key: key });
+  const rules = (site.settings.blocked_services as { blocked_sevice: Record<string, unknown>[] }).blocked_sevice;
+  expect(rules).toHaveLength(5);
+  expect(rules.some((rule) => rule.network_type === 'VIRTUAL_NETWORK_SITE_LOCAL' && 'ssh' in rule)).toBe(false);
+  expect(rules.some((rule) => rule.network_type === 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' && 'ssh' in rule)).toBe(true);
 });
 
 it('binds preboot DHCP configuration to captured MACs, explicit devices and MTU before launch', () => {

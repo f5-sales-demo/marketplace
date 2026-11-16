@@ -88,3 +88,9 @@ Marketplace image installs the EC2 key and permits factory SSH requires live qua
 the key-pair API and a successful launch do not establish guest access or CE readiness.
 See the public [DescribeKeyPairs API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeKeyPairs.html)
 and [RunInstances API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_RunInstances.html).
+
+When `adminSshPublicKey` is provided, initial site configuration permits SSH on SLO and
+blocks SSH on SLI. DNS and Web UI remain blocked on both networks. The configured key
+authenticates the `admin` account; an EC2 factory login such as `cloud-user` is a separate
+identity. The provider security group must also permit the intended SSH source. A key in
+the site configuration does not prove that the node has installed it or completed provisioning.

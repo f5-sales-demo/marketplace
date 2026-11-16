@@ -3,15 +3,15 @@
 
 // plugins/terraform/src/ce-upgrade.ts
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { acquireProcessLock, initialSoftwareSettings, verifyAwsCePlan } from './runtime-2srcqb9f.js';
 import {
   AWS_CE_TERRAFORM_VERSION,
   loadXcshProviderLock,
   siteBindings,
   XCSH_PROVIDER_VERSION,
-} from './runtime-9wx65fpp.js';
-import { assessCeUpgradeTransition } from './runtime-qqrc1c7h.js';
-import { acquireProcessLock, initialSoftwareSettings, verifyAwsCePlan } from './runtime-wf8fjv0g.js';
+} from './runtime-ay1zjq29.js';
 import { canonicalSha256 } from './runtime-wvre8ba5.js';
+import { assessCeUpgradeTransition } from './runtime-y39p0vy5.js';
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

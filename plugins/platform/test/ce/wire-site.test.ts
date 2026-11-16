@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildWireSite, type WireSiteIntent } from '../../src/ce/wire-site';
+import nodeLocalServicesAlias from '../fixtures/node-local-services-wire-alias.json';
 import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
 import fixtureCompact from '../fixtures/smsv2-create-schema.json';
 
@@ -88,4 +89,23 @@ test('rejects AWS MAC-only create before wire submission without asserting Azure
   for (const iface of value.nodes[0].interfaces) delete (iface.ethernet_interface as Record<string, unknown>).device;
   expect(() => buildWireSite(value, fixture.schemas)).toThrow('observed AWS guest device');
   expect(() => buildWireSite({ ...value, provider: 'azure' }, fixture.schemas)).not.toThrow();
+});
+
+test('selective local-service policy supersedes block-all and requires the exact wire spelling', () => {
+  const schemas = structuredClone(fixture.schemas);
+  (schemas.fleetBlockedServicesListType.properties.blocked_service as Record<string, unknown>)['x-f5xc-wire-name'] =
+    nodeLocalServicesAlias.wireName;
+  const blocked_sevice = [
+    { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', dns: {} },
+    { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', web_user_interface: {} },
+    { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE', dns: {} },
+    { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE', ssh: {} },
+    { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE', web_user_interface: {} },
+  ];
+  const spec = buildWireSite({ ...intent(), settings: { blocked_services: { blocked_sevice } } }, schemas);
+  expect(spec).not.toHaveProperty('block_all_services');
+  expect(spec.blocked_services).toEqual({ blocked_sevice });
+  expect(() =>
+    buildWireSite({ ...intent(), settings: { blocked_services: { blocked_service: blocked_sevice } } }, schemas),
+  ).toThrow();
 });

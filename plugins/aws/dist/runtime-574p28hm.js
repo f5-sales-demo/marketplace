@@ -3,8 +3,13 @@
 
 // plugins/aws/src/tools/aws-ce-power.ts
 import { randomUUID } from 'node:crypto';
-import { siteBindings, staticAzRoutes } from './runtime-9wx65fpp.js';
+import { acquireProcessLock, loadAwsCheckpoint, loadAwsPlan, verifyAwsCePlan } from './runtime-2srcqb9f.js';
 import { makeExecApi } from './runtime-30f0rzjf.js';
+import { siteBindings, staticAzRoutes } from './runtime-ay1zjq29.js';
+import { readAwsTerraformInstanceBindings, readAwsTerraformWorkflowStatus } from './runtime-d3q0sbwf.js';
+import { scopedAwsApi } from './runtime-fex55vat.js';
+import { awsPlatformService } from './runtime-w4s6e2gy.js';
+import { canonicalSha256 } from './runtime-wvre8ba5.js';
 import {
   buildAwsWholeSitePowerPlan,
   collectAwsPowerBgpServices,
@@ -28,10 +33,7 @@ import {
   validateAwsTerraformStaticServiceReceipt,
   validatePowerServiceInventory,
   verifyAwsWholeSitePowerPlan,
-} from './runtime-9341kvfb.js';
-import { readAwsTerraformInstanceBindings, readAwsTerraformWorkflowStatus } from './runtime-b20mprzb.js';
-import { awsPlatformService } from './runtime-dwcehj38.js';
-import { scopedAwsApi } from './runtime-fex55vat.js';
+} from './runtime-xttpr1vs.js';
 import {
   assertAwsTerraformDeploymentActive,
   awsTerraformFoundationDeployment,
@@ -42,9 +44,7 @@ import {
   loadAwsTerraformBrownfieldBinding,
   readAwsTrafficProbeEvidence,
   withAwsTerraformLifecycle,
-} from './runtime-qqrc1c7h.js';
-import { acquireProcessLock, loadAwsCheckpoint, loadAwsPlan, verifyAwsCePlan } from './runtime-wf8fjv0g.js';
-import { canonicalSha256 } from './runtime-wvre8ba5.js';
+} from './runtime-y39p0vy5.js';
 
 // plugins/aws/src/ce/whole-site-power-identities.ts
 var object = (value) => {

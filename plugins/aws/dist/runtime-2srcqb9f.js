@@ -48,6 +48,15 @@ function awsInitialAdminSettings(intent) {
     ? {}
     : {
         admin_user_credentials: { ssh_key: normalizeAwsAdminSshPublicKey(intent.adminSshPublicKey) },
+        blocked_services: {
+          blocked_sevice: [
+            { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', dns: {} },
+            { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', web_user_interface: {} },
+            { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE', dns: {} },
+            { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE', ssh: {} },
+            { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE', web_user_interface: {} },
+          ],
+        },
       };
 }
 function assertAwsAdminPrebootDevices(intent) {

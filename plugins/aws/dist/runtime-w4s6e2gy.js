@@ -1,7 +1,5 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-
-import { readAwsEc2Pages, scopedAwsApi } from './runtime-fex55vat.js';
 import {
   AWS_CE_F5_GUIDE_URL,
   AWS_CE_MARKETPLACE_PRODUCT_ID,
@@ -12,7 +10,8 @@ import {
   awsEbsVolume,
   normalizeAwsBootstrapKeyPairName,
   observeAwsBootstrapKeyPairs,
-} from './runtime-wf8fjv0g.js';
+} from './runtime-2srcqb9f.js';
+import { readAwsEc2Pages, scopedAwsApi } from './runtime-fex55vat.js';
 import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './runtime-wvre8ba5.js';
 
 // plugins/aws/src/ce/capacity.ts

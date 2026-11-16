@@ -1,21 +1,22 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-import { awsPlatformService } from './runtime-dwcehj38.js';
+
+import { acquireProcessLock, initialSoftwareSettings, loadAwsPlan, verifyAwsCePlan } from './runtime-2srcqb9f.js';
+import { prepareAwsTerraformUpgrade, runAwsTerraformUpgrade, verifyAwsTerraformUpgrade } from './runtime-k7zyj3b6.js';
+import { awsPlatformService } from './runtime-w4s6e2gy.js';
 import {
   assertAwsTerraformDeploymentActive,
   assessCeUpgradeTransition,
   awsTerraformService,
   VerifiedUpgradeContract,
   withAwsTerraformLifecycle,
-} from './runtime-qqrc1c7h.js';
-import { prepareAwsTerraformUpgrade, runAwsTerraformUpgrade, verifyAwsTerraformUpgrade } from './runtime-tkg0b09n.js';
-import { acquireProcessLock, initialSoftwareSettings, loadAwsPlan, verifyAwsCePlan } from './runtime-wf8fjv0g.js';
+} from './runtime-y39p0vy5.js';
 import './runtime-fex55vat.js';
 import './runtime-30f0rzjf.js';
 
 // plugins/platform/src/ce/native-upgrade.ts
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { siteBindings } from './runtime-9wx65fpp.js';
+import { siteBindings } from './runtime-ay1zjq29.js';
 import { canonicalSha256, safeHexEqual } from './runtime-wvre8ba5.js';
 
 function canonical(value) {

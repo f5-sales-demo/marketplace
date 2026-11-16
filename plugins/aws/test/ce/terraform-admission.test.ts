@@ -257,6 +257,12 @@ it('configures the administrator public key before Terraform bootstrap begins', 
     ensureSite: async (...args: Parameters<typeof f.runtime.ensureSite>) => {
       calls.push('site');
       expect(args[1].settings).toMatchObject({ admin_user_credentials: { ssh_key: key } });
+      const rules = (args[1].settings.blocked_services as { blocked_sevice: Record<string, unknown>[] }).blocked_sevice;
+      expect(rules).toHaveLength(5);
+      expect(rules.some((rule) => rule.network_type === 'VIRTUAL_NETWORK_SITE_LOCAL' && 'ssh' in rule)).toBe(false);
+      expect(rules.some((rule) => rule.network_type === 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE' && 'ssh' in rule)).toBe(
+        true,
+      );
       return f.runtime.ensureSite(...args);
     },
     bootstrap: async (...args: Parameters<typeof f.runtime.bootstrap>) => {

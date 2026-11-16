@@ -13,14 +13,14 @@
       "azure": "4.6.0",
       "terraform": "2.3.1"
     },
-    "runtimePeer": "23.8.0",
-    "testedRuntimeVersions": ["23.8.0", "23.9.3"],
-    "revision": 122,
+    "runtimePeer": "23.10.13",
+    "testedRuntimeVersions": ["23.10.13"],
+    "revision": 275,
     "versions": {
-      "platform": "7.0.0-uat.122",
-      "aws": "3.0.0-uat.122",
-      "azure": "5.0.0-uat.122",
-      "terraform": "3.0.0-uat.122"
+      "platform": "7.0.0-uat.275",
+      "aws": "3.0.0-uat.275",
+      "azure": "5.0.0-uat.275",
+      "terraform": "3.0.0-uat.275"
     },
     "sourceCommit": null,
     "deliverable": false,
@@ -1472,6 +1472,12 @@
           }
         }
       }
+    },
+    "previousCurrentCohortSnapshot": {
+      "revision": 122,
+      "sourceCommit": "0f341bee9945ede85b1ee8f95c0a73d56d721c95",
+      "path": "benchmarks/ce-uat-ledger.json",
+      "gitBlob": "36b321a973a21963e75f007c54c701b06082f19f"
     }
   },
   "requiredClouds": ["aws", "azure"],
