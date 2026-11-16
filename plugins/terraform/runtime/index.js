@@ -4435,6 +4435,12 @@ async function assertFinalReaderReserve(reserve) {
 // plugins/terraform/src/installed-apply-controller.ts
 var callbacks = new WeakMap();
 var lifetimes = new WeakMap();
+var groupClosures = new WeakMap();
+async function acknowledgeOriginalApplyGroupClosure(callback, completion) {
+  const acknowledge = callback && typeof callback === 'object' ? groupClosures.get(callback) : undefined;
+  if (!acknowledge) throw new Error('Original final apply callback required for group closure');
+  await acknowledge(completion);
+}
 async function assertOriginalApplyLifetime(value) {
   const verify = lifetimes.get(value);
   if (!verify) throw new Error('Original operation lifetime callback required');
@@ -4522,6 +4528,71 @@ function createInstalledApplyController(original, worker, hooks) {
     Object.defineProperty(value, 'original', { value: original, enumerable: false });
     Object.freeze(value);
     callbacks.set(value, verify);
+    if (phase === 'after') {
+      let claimed;
+      let acknowledgement;
+      const verifyClosure = async (candidate) => {
+        await assertOriginalApplyCallback(value);
+        const completion = candidate;
+        const source = readOriginalExecutionCompletion(execution.output, completion);
+        const prefix = await readOriginalExecutionPrefix(execution.output);
+        if (
+          source.directory !== original.executionDirectory ||
+          prefix.directory !== original.executionDirectory ||
+          !sameIdentity(source.identity, execution.identity) ||
+          !sameIdentity(prefix.identity, execution.identity) ||
+          source.completion.originalGroupClosed !== true ||
+          prefix.stdout.bytes !== source.completion.stdout.bytes ||
+          prefix.stdout.sha256 !== source.completion.stdout.sha256 ||
+          prefix.stderr.bytes !== source.completion.stderr.bytes ||
+          prefix.stderr.sha256 !== source.completion.stderr.sha256
+        )
+          throw new Error('Original final group closure source or complete prefix differs');
+        await assertOriginalApplyCallback(value);
+        readOriginalExecutionCompletion(execution.output, completion);
+        return source;
+      };
+      let verificationQueue = Promise.resolve();
+      const acknowledge = async (candidate) => {
+        await verifyClosure(candidate);
+        if (acknowledgement) {
+          if (claimed !== candidate) throw new Error('Original group closure already claimed by another completion');
+          await acknowledgement;
+          await verifyClosure(candidate);
+          return;
+        }
+        claimed = candidate;
+        acknowledgement = (async () => {
+          try {
+            const source = await verifyClosure(candidate);
+            await record('group-closure-source', {
+              originalGroupClosed: true,
+              sourceStdoutBytes: source.completion.stdout.bytes,
+              sourceStdoutSha256: source.completion.stdout.sha256,
+              sourceStderrBytes: source.completion.stderr.bytes,
+              sourceStderrSha256: source.completion.stderr.sha256,
+            });
+            await verifyClosure(candidate);
+            groupClosed = true;
+          } catch (error) {
+            await refuse('group-closure-failed', error);
+          }
+        })();
+        await acknowledgement;
+      };
+      groupClosures.set(value, (candidate) => {
+        const pending = verificationQueue.then(() => acknowledge(candidate));
+        verificationQueue = pending.then(
+          () => {
+            return;
+          },
+          () => {
+            return;
+          },
+        );
+        return pending;
+      });
+    }
     if (phase === 'before') {
       const identity = () => {
         if (closed || finalStarted || !started || !sameIdentity(execution.identity, started.identity))
@@ -13409,6 +13480,7 @@ function factory(pi) {
 }
 
 export {
+  acknowledgeOriginalApplyGroupClosure,
   assertOriginalApplyGcpInventoryCallback,
   assertOriginalGcpInventoryInputs,
   assertOriginalGcpInventoryScope,

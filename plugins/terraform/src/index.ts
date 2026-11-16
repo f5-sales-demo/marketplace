@@ -78,6 +78,7 @@ export {
   type OriginalGcpVmJoinInput,
   readOriginalEarlyGcpVmEvidence,
 } from './gcp-vm-evidence';
+export { acknowledgeOriginalApplyGroupClosure } from './installed-apply-controller';
 export {
   assertOriginalApplyGcpInventoryCallback,
   openInstalledInitialInventory,

@@ -2,6 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import type { InstalledGcpCapture } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
+import {
+  type OriginalOutputCompletion,
+  readOriginalExecutionCompletion,
+  readOriginalExecutionPrefix,
+} from './original-output-stream';
 import { assertFinalReaderReserve, type FinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
 import type { ExecutionCaptureAdmission } from './signal-free-executor';
 
@@ -17,6 +22,16 @@ export interface OriginalApplyCallbackContext {
 }
 const callbacks = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
 const lifetimes = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
+const groupClosures = new WeakMap<OriginalApplyCallbackContext, (completion: unknown) => Promise<void>>();
+/** Consume the same original output issuer's independent group-closure proof.
+ * This does not renew the final reserve or qualify an apply, guest or insertion. */
+export async function acknowledgeOriginalApplyGroupClosure(callback: unknown, completion: unknown): Promise<void> {
+  const acknowledge =
+    callback && typeof callback === 'object' ? groupClosures.get(callback as OriginalApplyCallbackContext) : undefined;
+  if (!acknowledge) throw new Error('Original final apply callback required for group closure');
+  await acknowledge(completion);
+}
+
 /** Ongoing original operation verification; this never authorizes startup release or renews its budget. */
 export async function assertOriginalApplyLifetime(value: OriginalApplyCallbackContext) {
   const verify = lifetimes.get(value);
@@ -119,6 +134,69 @@ export function createInstalledApplyController(
     Object.defineProperty(value, 'original', { value: original, enumerable: false });
     Object.freeze(value);
     callbacks.set(value, verify);
+    if (phase === 'after') {
+      let claimed: OriginalOutputCompletion | undefined;
+      let acknowledgement: Promise<void> | undefined;
+      const verifyClosure = async (candidate: unknown) => {
+        await assertOriginalApplyCallback(value);
+        const completion = candidate as OriginalOutputCompletion;
+        const source = readOriginalExecutionCompletion(execution.output, completion);
+        const prefix = await readOriginalExecutionPrefix(execution.output);
+        if (
+          source.directory !== original.executionDirectory ||
+          prefix.directory !== original.executionDirectory ||
+          !sameIdentity(source.identity, execution.identity) ||
+          !sameIdentity(prefix.identity, execution.identity) ||
+          source.completion.originalGroupClosed !== true ||
+          prefix.stdout.bytes !== source.completion.stdout.bytes ||
+          prefix.stdout.sha256 !== source.completion.stdout.sha256 ||
+          prefix.stderr.bytes !== source.completion.stderr.bytes ||
+          prefix.stderr.sha256 !== source.completion.stderr.sha256
+        )
+          throw new Error('Original final group closure source or complete prefix differs');
+        await assertOriginalApplyCallback(value);
+        readOriginalExecutionCompletion(execution.output, completion);
+        return source;
+      };
+      let verificationQueue: Promise<void> = Promise.resolve();
+      const acknowledge = async (candidate: unknown) => {
+        await verifyClosure(candidate);
+        if (acknowledgement) {
+          if (claimed !== candidate) throw new Error('Original group closure already claimed by another completion');
+          await acknowledgement;
+          await verifyClosure(candidate);
+          return;
+        }
+        claimed = candidate as OriginalOutputCompletion;
+        acknowledgement = (async () => {
+          try {
+            const source = await verifyClosure(candidate);
+            await record('group-closure-source', {
+              originalGroupClosed: true,
+              sourceStdoutBytes: source.completion.stdout.bytes,
+              sourceStdoutSha256: source.completion.stdout.sha256,
+              sourceStderrBytes: source.completion.stderr.bytes,
+              sourceStderrSha256: source.completion.stderr.sha256,
+            });
+            await verifyClosure(candidate);
+            groupClosed = true;
+          } catch (error) {
+            await refuse('group-closure-failed', error);
+          }
+        })();
+        await acknowledgement;
+      };
+      groupClosures.set(value, (candidate) => {
+        const pending = verificationQueue.then(() => acknowledge(candidate));
+        // Preserve each caller's refusal while serializing subsequent original reads.
+        verificationQueue = pending.then(
+          () => undefined,
+          () => undefined,
+        );
+        return pending;
+      });
+    }
+
     if (phase === 'before') {
       const identity = () => {
         if (closed || finalStarted || !started || !sameIdentity(execution.identity, started.identity))

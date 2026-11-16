@@ -1931,3 +1931,11 @@ after operation expiry. Clock tests retain failed apply results and unresolved
 claims. See the [source receipt](gcp-final-output-guard-20261116.md). Final VM
 handoff, late group closure, observer/factory composition and all live/delivery
 gates remain open.
+
+### Later original group closure, 2026-11-16
+
+Terraform 2.4.120 binds a later closure acknowledgement to the actual final
+callback and original output completion, preserving the initial snapshot and
+fixed reserve. Durable writes, concurrency, source copies and input mutation
+are covered by [source checks](gcp-original-group-closure-20261116.md). Final VM
+handoff, observer/factory and every live/delivery gate remain open.

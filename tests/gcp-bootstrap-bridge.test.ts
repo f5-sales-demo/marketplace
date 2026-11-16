@@ -513,3 +513,14 @@ it('compiled full VM and audit joins reject serialized insertion and inventory c
     runtime.joinOriginalGcpInsertAuditEvidence({ source: {}, baseline: {}, callback: {}, reader: {} }),
   ).rejects.toThrow(/[Oo]riginal/);
 });
+
+it('compiled group closure acknowledgement rejects an invented final callback and completion', async () => {
+  const runtime = await import(join(import.meta.dir, '../plugins/terraform/runtime/index.js'));
+  expect(typeof runtime.acknowledgeOriginalApplyGroupClosure).toBe('function');
+  await expect(
+    runtime.acknowledgeOriginalApplyGroupClosure(
+      { schemaVersion: 1, kind: 'original-installed-apply-callback', phase: 'after' },
+      { originalGroupClosed: true },
+    ),
+  ).rejects.toThrow('Original');
+});

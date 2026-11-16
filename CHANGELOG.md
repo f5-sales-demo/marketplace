@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.120 acknowledges later group closure from the original
+  completed output and final callback. Durable source checks preserve snapshots,
+  single-use failures and fixed deadlines; live qualification remains open.
+
 - **`terraform`** v2.4.119 preserves full original output checks during the
   separate final capture window after operation expiry. Final deadlines and
   failed apply results remain unchanged; live qualification is still open.
