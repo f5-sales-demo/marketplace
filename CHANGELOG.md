@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`terraform`** v2.4.124 ships the qualified host-key consistency mapping
+  through exact installed source pins. Canonical uint64 identity and finite
+  capture clocks refuse malformed evidence; original-serial and live gates
+  remain open.
+
 - **`terraform`** v2.4.123 uses the reviewed observer metadata user
   `ubuntu` for the guest SSH proxy. Both host pins, the CE `admin` login
   and fixed capture limits remain enforced; live qualification stays open.

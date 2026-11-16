@@ -1966,3 +1966,13 @@ reviewed `ubuntu` metadata key. Actual session construction failed first;
 See the [source receipt](gcp-observer-ssh-user-20261116.md).
 Source fixtures do not qualify real SSH, host trust, guest behavior or any
 original live/runtime/delivery gate. Built-in factory composition remains open.
+
+### Installed host-key consistency mapping, 2026-11-16
+
+Terraform 2.4.124 ships the supported wire-key, generation/randomart and
+final-section parser with exact source pins. Canonical uint64 and finite-clock
+failures are repaired; 50 parser checks and 218 subtests pass. See the
+[source receipt](gcp-installed-host-trust-mapping-20261116.md). Supplied receipts
+establish no original VM provenance. The genuine original-serial/key-scan
+consumer, built-in factory and every original live/runtime/delivery gate remain
+open; frozen source and historical evidence are preserved.

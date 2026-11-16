@@ -8,6 +8,7 @@ const captureScripts = [
   '__init__.py',
   'guest_pty.py',
   'gcp_guest_session.py',
+  'gcp_host_trust.py',
   'guest_control.py',
   'guest_worker.py',
   'guest_entrypoint.py',

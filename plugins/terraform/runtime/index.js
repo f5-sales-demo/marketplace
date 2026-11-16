@@ -1350,6 +1350,7 @@ var gcp_capture_source_pins_default = {
     '__init__.py': 'e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb',
     'guest_pty.py': '274de216c148e2a6e267b4082cce552ca04a17adf78a8c8a6dda5ed9579829e3',
     'gcp_guest_session.py': 'f07f68da3da07ffbe2b57152d958e0215356c024ed2da66e30a0c5c3da9d4723',
+    'gcp_host_trust.py': 'cd5baf163c9f77c4bae4e15ed459bb2be18dd918ff93720c652217c7bc6487ad',
     'guest_control.py': '1c04972ed1a4576f450cc71d6e01539e20a9ab3c72d82242f55fcb4e115ed032',
     'guest_worker.py': '8cccbddd35d02ffb64d9c91adbf15c016f6f9ecaf817f9b71c0088257d43a392',
     'guest_entrypoint.py': 'f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151',

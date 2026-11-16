@@ -9,6 +9,7 @@ const names = [
   '__init__.py',
   'guest_pty.py',
   'gcp_guest_session.py',
+  'gcp_host_trust.py',
   'guest_control.py',
   'guest_worker.py',
   'guest_entrypoint.py',
@@ -92,6 +93,15 @@ test('installed source admission refuses a missing or changed xcsh creation entr
   const scripts = await fixture();
   const path = join(scripts, 'xcsh_creation_reader.py');
   await writeFile(path, 'raise RuntimeError("foreign creation reader")\n');
+  await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
+  await rm(path);
+  await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
+});
+
+test('installed source admission refuses a missing or changed host-trust mapping', async () => {
+  const scripts = await fixture();
+  const path = join(scripts, 'gcp_host_trust.py');
+  await writeFile(path, 'raise RuntimeError("foreign host trust")\n');
   await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
   await rm(path);
   await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
