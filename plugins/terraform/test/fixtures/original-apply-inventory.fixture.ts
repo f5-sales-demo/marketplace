@@ -83,7 +83,10 @@ export async function withApplyInventory(
               ]
             : []),
           `open(${JSON.stringify(startedPath)},"x").write("started")`,
-          `deadline=time.monotonic()+${prepareIntent ? 60 : 30}`,
+          // The synthetic apply follows the same original budget as its controller.
+          // Completion is released explicitly in check.finally; an unrelated timer
+          // must not truncate the owning RPC while a bounded capture is still running.
+          `deadline=${context.budget.deadline}/1000`,
           `while not os.path.exists(${JSON.stringify(releasedPath)}):`,
           ' if time.monotonic()>=deadline: sys.exit(74)',
           ' time.sleep(0.01)',
