@@ -186,11 +186,11 @@ test('wire-key reader consumes original descriptors and retires after closure', 
 }, 60000);
 
 for (const [label, text, error] of [
-  ['foreign address', `${line.replace('192.0.2.7', '192.0.2.8')}\n`, 'Original observer address'],
-  ['duplicate keys', `${line}\n${line}\n`, 'One complete original observer wire key'],
-  ['malformed wire fields', '192.0.2.7 ssh-ed25519 AAAA\n', 'Complete canonical original Ed25519'],
-  ['missing keys', '', 'One complete original observer wire key'],
-  ['control characters', `${line}\u0000\n`, 'One complete original observer wire key'],
+  ['foreign address', `${line.replace('192.0.2.7', '192.0.2.8')}\n`, 'Original VM address'],
+  ['duplicate keys', `${line}\n${line}\n`, 'One complete original VM wire key'],
+  ['malformed wire fields', '192.0.2.7 ssh-ed25519 AAAA\n', 'Complete canonical original'],
+  ['missing keys', '', 'One complete original VM wire key'],
+  ['control characters', `${line}\u0000\n`, 'One complete original VM wire key'],
 ] as const)
   test(`${label} remains incomplete with its specific parsing failure`, async () => {
     await withObserverInsert(async (input) => {

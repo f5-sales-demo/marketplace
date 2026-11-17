@@ -1,6 +1,7 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import terraformIntegration, {
   terraformRuntimeInstallArgv,
+  terraformSshClientInstallArgv,
   terraformVerificationArgv,
 } from '../plugins/terraform/extensions/integration';
 
@@ -18,6 +19,31 @@ function definition() {
 }
 
 describe('Terraform lifecycle probe', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'reports unavailable SSH clients after successful CLI and runtime checks',
+    async () => {
+      for (const failure of [
+        { exitCode: 1 },
+        Object.assign(new Error('fixture missing SSH checker'), { code: 'ENOENT' }),
+      ]) {
+        let calls = 0;
+        const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+          if (++calls < 3) return { exitCode: 0 } as ReturnType<typeof Bun.spawnSync>;
+          if (failure instanceof Error) throw failure;
+          return failure as ReturnType<typeof Bun.spawnSync>;
+        });
+        try {
+          expect(await definition().probe()).toEqual({
+            state: 'setup_required',
+            reason: 'ssh_clients_missing_or_unverified',
+          });
+          expect(calls).toBe(3);
+        } finally {
+          spawn.mockRestore();
+        }
+      }
+    },
+  );
   it('reports setup required when the executable is absent', async () => {
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
       throw Object.assign(new Error('fixture missing executable'), { code: 'ENOENT' });
@@ -38,7 +64,9 @@ describe('Terraform lifecycle probe', () => {
       expect(spawn.mock.calls).toEqual([
         [terraformVerificationArgv()],
         [terraformVerificationArgv()],
-        ...(process.platform === 'linux' ? [[[...terraformRuntimeInstallArgv(), '--check']]] : []),
+        ...(process.platform === 'linux'
+          ? [[[...terraformRuntimeInstallArgv(), '--check']], [[...terraformSshClientInstallArgv(), '--check']]]
+          : []),
       ]);
     } finally {
       spawn.mockRestore();

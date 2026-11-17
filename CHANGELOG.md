@@ -10,7 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.127 binds observer SSH trust to original VM, serial and
+- **terraform** binds original CE RSA wire capture to observer client ABI,
+  original VM serial evidence and distinct host-trust references. Capture-start
+  freshness, process-disappearance handling and SSH setup classification are
+  repaired. Live guest, runtime and operational gates remain open.
+
+- **`terraform`** v2.4.128 binds observer SSH trust to original VM, serial and
   wire evidence, delivers verified client bytes through sealed input and
   validates ABI output from original processes. Exact scope, identity, files,
   clocks and single-use checks govern these paths. Live capture and operational
@@ -32,7 +37,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.55 preserves the original observer request reason while
+- **`gcloud`** v1.7.56 preserves the original observer request reason while
   deriving the internal CE-only compiler fingerprint.
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
@@ -122,7 +127,7 @@ and this project adheres to
   ownership, image/account/NIC joins and typed full or partial-disk cleanup.
   Legacy graphs remain unchanged; live qualification and default capture remain open.
 
-- **`platform`** v6.3.26 and **`terraform`** v2.4.85 bundle the versioned
+- **`platform`** v6.3.27 and **`terraform`** v2.4.85 bundle the versioned
   observer input contract while preserving original receipts and execution gates.
 
 - **`gcloud`** v1.7.49 bundles the owning runner read channel while preserving

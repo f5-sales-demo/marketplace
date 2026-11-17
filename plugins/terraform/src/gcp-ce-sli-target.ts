@@ -4,10 +4,13 @@ import { fingerprint } from '../../gcloud/src/ce/discovery';
 import { assertGcpTerraformObserverScope, gcpTerraformObserverIdentity } from '../../gcloud/src/ce/observer-scope';
 import type { GcpCeIntent } from '../../gcloud/src/ce/types';
 import { decodeEvidenceObject } from './evidence-json';
+import { assertOriginalGcpObserverClientAbiContext, type QualifiedGcpObserverClients } from './gcp-observer-client-abi';
 import { assertOriginalVerifiedGcpObserverPeerContext } from './gcp-observer-ssh-peer';
 import {
   assertOriginalGcpVmCaptureCallback,
+  readOriginalEarlyGcpSerialSource,
   readOriginalEarlyGcpVmEvidence,
+  readOriginalFinalGcpSerialSource,
   readOriginalFinalGcpVmEvidence,
 } from './gcp-vm-evidence';
 import type { OriginalApplyCallbackContext } from './installed-apply-controller';
@@ -35,6 +38,7 @@ const origins = new WeakMap<
   OriginalGcpCeSliTarget,
   {
     readonly callback: OriginalApplyCallbackContext;
+    readonly vm: unknown;
     read(): Promise<Readonly<TargetView>>;
   }
 >();
@@ -47,6 +51,22 @@ export async function assertOriginalGcpCeSliTargetContext(value: unknown, callba
   const origin = value && typeof value === 'object' ? origins.get(value as OriginalGcpCeSliTarget) : undefined;
   if (!origin || origin.callback !== callback) throw new Error('Original CE SLI target and actual callback required');
   return origin.read();
+}
+/** Read serial only through this target's exact original VM and callback. */
+export async function readOriginalGcpCeSliSerialSource(
+  value: unknown,
+  serial: unknown,
+  callback: OriginalApplyCallbackContext,
+) {
+  const origin = value && typeof value === 'object' ? origins.get(value as OriginalGcpCeSliTarget) : undefined;
+  if (!origin || origin.callback !== callback) throw new Error('Original CE SLI target serial context required');
+  await origin.read();
+  const source =
+    callback.phase === 'after'
+      ? await readOriginalFinalGcpSerialSource(origin.vm, serial)
+      : await readOriginalEarlyGcpSerialSource(origin.vm, serial);
+  await origin.read();
+  return source;
 }
 /** Resolve the supported reviewed SLI mapping against the original VM/NIC
  * issuer. An address or receipt supplied by a caller cannot mint this target.
@@ -136,7 +156,106 @@ export async function openOriginalGcpCeSliTarget(vm: unknown, callback: Original
     }
   };
   const ref: OriginalGcpCeSliTarget = Object.freeze({ schemaVersion: 1, kind: 'original-gcp-ce-sli-target-reference' });
-  origins.set(ref, { callback, read });
+  origins.set(ref, { callback, vm, read });
+  await read();
+  return ref;
+}
+
+export interface OriginalQualifiedGcpCeObserverScanContext {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-qualified-gcp-ce-observer-scan-context-reference';
+}
+interface QualifiedScanView {
+  readonly callback: OriginalApplyCallbackContext;
+  readonly target: Readonly<TargetView>;
+  readonly targetReference: unknown;
+  readonly observerCommand: unknown;
+  readonly observerPeer: unknown;
+  readonly observerInstanceId: string;
+  readonly clients: Readonly<QualifiedGcpObserverClients>;
+  readonly guestClientQualified: true;
+  readonly sshTrustQualified: false;
+}
+const qualifiedScans = new WeakMap<
+  OriginalQualifiedGcpCeObserverScanContext,
+  {
+    readonly callback: OriginalApplyCallbackContext;
+    read(): Promise<Readonly<QualifiedScanView>>;
+  }
+>();
+export async function readOriginalQualifiedGcpCeObserverScanContext(value: unknown) {
+  const origin =
+    value && typeof value === 'object'
+      ? qualifiedScans.get(value as OriginalQualifiedGcpCeObserverScanContext)
+      : undefined;
+  if (!origin) throw new Error('Original qualified CE observer scan context required');
+  return origin.read();
+}
+export async function assertOriginalQualifiedGcpCeObserverScanContext(
+  value: unknown,
+  callback: OriginalApplyCallbackContext,
+) {
+  const origin =
+    value && typeof value === 'object'
+      ? qualifiedScans.get(value as OriginalQualifiedGcpCeObserverScanContext)
+      : undefined;
+  if (!origin || origin.callback !== callback)
+    throw new Error('Original qualified CE observer context and actual callback required');
+  return origin.read();
+}
+/** Only the same original CE target, authenticated peer and native-qualified
+ * client reference may prepare the observer-assisted wire scan. CE host trust
+ * remains unqualified until its independent original serial/wire join passes. */
+export async function bindOriginalQualifiedGcpCeObserverScanContext(
+  target: unknown,
+  clients: unknown,
+  callback: OriginalApplyCallbackContext,
+) {
+  const originalTarget = await assertOriginalGcpCeSliTargetContext(target, callback);
+  const originalClients = await assertOriginalGcpObserverClientAbiContext(clients, callback);
+  const originalPeer = await assertOriginalVerifiedGcpObserverPeerContext(originalClients.peer, callback);
+  if (
+    originalTarget.instanceId === originalPeer.peer.instanceId ||
+    originalClients.clients.instanceId !== originalPeer.peer.instanceId ||
+    originalClients.clients.guestClientQualified !== true
+  )
+    throw new Error('Original qualified observer and distinct CE VM required');
+  let retired = false;
+  const read = async (): Promise<Readonly<QualifiedScanView>> => {
+    if (retired) throw new Error('Original qualified CE observer scan context retired');
+    try {
+      const currentTarget = await assertOriginalGcpCeSliTargetContext(target, callback);
+      const currentClients = await assertOriginalGcpObserverClientAbiContext(clients, callback);
+      const currentPeer = await assertOriginalVerifiedGcpObserverPeerContext(originalClients.peer, callback);
+      if (
+        currentTarget !== originalTarget ||
+        currentClients.peer !== originalClients.peer ||
+        currentClients.clients.receiptSha256 !== originalClients.clients.receiptSha256 ||
+        currentPeer.command !== originalPeer.command ||
+        currentPeer.peer.instanceId !== originalPeer.peer.instanceId
+      )
+        throw new Error('Original qualified CE/observer/client binding changed');
+      return Object.freeze({
+        callback,
+        target: originalTarget,
+        targetReference: target,
+        observerCommand: originalPeer.command,
+        observerPeer: originalClients.peer,
+        observerInstanceId: originalPeer.peer.instanceId,
+        clients: currentClients.clients,
+        guestClientQualified: true,
+        sshTrustQualified: false,
+      });
+    } catch (error) {
+      retired = true;
+      throw error;
+    }
+  };
+  const ref: OriginalQualifiedGcpCeObserverScanContext = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-qualified-gcp-ce-observer-scan-context-reference',
+  });
+  qualifiedScans.set(ref, { callback, read });
   await read();
   return ref;
 }

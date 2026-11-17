@@ -12,7 +12,7 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
-// plugins/gcloud/src/gcloud/arguments.ts
+// ../gcloud/src/gcloud/arguments.ts
 function jsonArgs(args) {
   const formats = args.flatMap((arg, i) =>
     arg === '--format' ? [args[i + 1] ?? ''] : arg.startsWith('--format=') ? [arg.slice(9)] : [],
@@ -47,7 +47,7 @@ function inventoryArgs(project, deploymentName) {
   ];
 }
 
-// plugins/gcloud/src/tools/gcloud-exec-guard.ts
+// ../gcloud/src/tools/gcloud-exec-guard.ts
 function getPositionals(args) {
   return args.filter((arg) => !arg.startsWith('-'));
 }
@@ -203,11 +203,15 @@ var init_gcloud_exec_guard = __esm(() => {
     'explicitly confirmed path (delegate to the gcloud:cli-operator agent), not gcloud_exec.';
 });
 
-// plugins/platform/src/ce/process-lock.ts
+// ../platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
+function vanishedProcess(error) {
+  const code = error.code;
+  return code === 'ENOENT' || code === 'ESRCH';
+}
 async function processGroup(pid) {
   if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
   const text = await readFile(`/proc/${pid}/stat`, 'utf8');
@@ -272,7 +276,7 @@ async function requirePhysicalGroupClosed(path, owner) {
         if ((await processGroup(Number(name))) === original.row.group)
           throw new Error('Original executor process group remains live');
       } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
+        if (!vanishedProcess(error)) throw error;
       }
     }
   }
@@ -339,7 +343,7 @@ else: sys.exit(2)
     if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
     return start;
   } catch (error) {
-    if (error.code === 'ENOENT') return;
+    if (vanishedProcess(error)) return;
     throw error;
   }
 }
@@ -466,7 +470,7 @@ var init_process_lock = __esm(() => {
   bootPattern = /^[a-f0-9-]{36}$/;
 });
 
-// plugins/gcloud/src/gcloud/exec.ts
+// ../gcloud/src/gcloud/exec.ts
 function detectGcloudError(stderr, exitCode) {
   const lower = stderr.toLowerCase();
   if (
@@ -568,7 +572,7 @@ var init_exec = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/gcloud/command-groups.ts
+// ../gcloud/src/gcloud/command-groups.ts
 import { lstat as lstat2, mkdir as mkdir2, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join as join2 } from 'node:path';
@@ -681,7 +685,7 @@ var init_command_groups = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/tools/shared.ts
+// ../gcloud/src/tools/shared.ts
 function textResult(text, details) {
   return { content: [{ type: 'text', text }], details };
 }
@@ -734,7 +738,7 @@ var init_shared = __esm(() => {
   init_exec();
 });
 
-// plugins/gcloud/src/gcloud/formatters.ts
+// ../gcloud/src/gcloud/formatters.ts
 function basename2(url) {
   const idx = url.lastIndexOf('/');
   return idx === -1 ? url : url.slice(idx + 1);
@@ -829,12 +833,12 @@ function formatBucketTable(buckets) {
 `);
 }
 
-// plugins/gcloud/src/prompts/gcloud-config-list.md
+// ../gcloud/src/prompts/gcloud-config-list.md
 var gcloud_config_list_default =
   '# Show Google Cloud CLI Configuration\n\nShow the active Google Cloud CLI configuration via `gcloud config list`.\n\nReturns the resolved project, account, region, and zone for the current `gcloud` configuration. Use this to confirm which project and identity subsequent commands will target.\n\nTakes no parameters. For richer configuration queries (all properties, named configurations), run `gcloud_exec` with `config list --all` and your own `--filter`/`--format` expressions.\n';
 var init_gcloud_config_list = () => {};
 
-// plugins/gcloud/src/tools/gcloud-config-list.ts
+// ../gcloud/src/tools/gcloud-config-list.ts
 function createGcloudConfigListTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({});
@@ -863,12 +867,12 @@ var init_gcloud_config_list2 = __esm(() => {
   init_shared();
 });
 
-// plugins/gcloud/src/prompts/gcloud-projects-list.md
+// ../gcloud/src/prompts/gcloud-projects-list.md
 var gcloud_projects_list_default =
   '# List Google Cloud Projects\n\nList the Google Cloud projects accessible to the active account via `gcloud projects list`.\n\nReturns a table of project ID, name, number, and lifecycle state.\n\n## Parameters\n\n| Parameter | Description                                                           |\n| --------- | --------------------------------------------------------------------- |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"lifecycleState=ACTIVE"` |\n| `limit`   | Optional positive integer capping the number of results               |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `projects list` and your own `--filter`/`--format` flags.\n';
 var init_gcloud_projects_list = () => {};
 
-// plugins/gcloud/src/tools/gcloud-projects-list.ts
+// ../gcloud/src/tools/gcloud-projects-list.ts
 function createGcloudProjectsListTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -903,7 +907,7 @@ var init_gcloud_projects_list2 = __esm(() => {
   init_shared();
 });
 
-// plugins/gcloud/src/gcloud/types.ts
+// ../gcloud/src/gcloud/types.ts
 var PROJECT_ID_PATTERN, ZONE_PATTERN, HELP_PATH_PATTERN;
 var init_types = __esm(() => {
   PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
@@ -911,12 +915,12 @@ var init_types = __esm(() => {
   HELP_PATH_PATTERN = /^[a-z][a-z0-9 -]*$/;
 });
 
-// plugins/gcloud/src/prompts/gcloud-compute-instances-list.md
+// ../gcloud/src/prompts/gcloud-compute-instances-list.md
 var gcloud_compute_instances_list_default =
   '# List Compute Engine Instances\n\nList Compute Engine virtual machine instances via `gcloud compute instances list`.\n\nReturns a table of instance name, zone, machine type, status, and internal/external IP.\n\n## Parameters\n\n| Parameter | Description                                                                            |\n| --------- | -------------------------------------------------------------------------------------- |\n| `zone`    | Optional zone to restrict results (mapped to gcloud `--zones`), e.g. `"us-central1-a"` |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"status=RUNNING"`                         |\n| `limit`   | Optional positive integer capping the number of results                                |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `compute instances list` and your own `--filter`/`--format` flags.\n';
 var init_gcloud_compute_instances_list = () => {};
 
-// plugins/gcloud/src/tools/gcloud-compute-instances-list.ts
+// ../gcloud/src/tools/gcloud-compute-instances-list.ts
 function createGcloudComputeInstancesListTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -956,12 +960,12 @@ var init_gcloud_compute_instances_list2 = __esm(() => {
   init_shared();
 });
 
-// plugins/gcloud/src/prompts/gcloud-storage-buckets-list.md
+// ../gcloud/src/prompts/gcloud-storage-buckets-list.md
 var gcloud_storage_buckets_list_default =
   '# List Cloud Storage Buckets\n\nList Cloud Storage buckets via `gcloud storage buckets list`.\n\nReturns a table of bucket name, location, storage class, and creation time.\n\n## Parameters\n\n| Parameter | Description                                                 |\n| --------- | ----------------------------------------------------------- |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"location=US"` |\n| `limit`   | Optional positive integer capping the number of results     |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `storage buckets list` and your own `--filter`/`--format` flags.\n';
 var init_gcloud_storage_buckets_list = () => {};
 
-// plugins/gcloud/src/tools/gcloud-storage-buckets-list.ts
+// ../gcloud/src/tools/gcloud-storage-buckets-list.ts
 function createGcloudStorageBucketsListTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -996,7 +1000,7 @@ var init_gcloud_storage_buckets_list2 = __esm(() => {
   init_shared();
 });
 
-// plugins/gcloud/src/prompts/gcloud-exec.md
+// ../gcloud/src/prompts/gcloud-exec.md
 var gcloud_exec_default = `# Execute Google Cloud CLI Commands
 
 Execute any \`gcloud\` CLI command directly.
@@ -1067,7 +1071,7 @@ Shapes *how* the selected resources are rendered locally.
 `;
 var init_gcloud_exec = () => {};
 
-// plugins/gcloud/src/tools/gcloud-exec.ts
+// ../gcloud/src/tools/gcloud-exec.ts
 function createGcloudExecTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -1133,7 +1137,7 @@ var init_gcloud_exec2 = __esm(() => {
   init_shared();
 });
 
-// plugins/gcloud/src/prompts/gcloud-help.md
+// ../gcloud/src/prompts/gcloud-help.md
 var gcloud_help_default = `# View Google Cloud CLI Help
 
 Fetch help documentation for any \`gcloud\` CLI group or command.
@@ -1180,7 +1184,7 @@ Returns the raw \`gcloud <command> --help\` output as plain text, including avai
 `;
 var init_gcloud_help = () => {};
 
-// plugins/gcloud/src/tools/gcloud-help.ts
+// ../gcloud/src/tools/gcloud-help.ts
 function createGcloudHelpTool(pi, makeApi = makeExecApi) {
   const { Type } = pi.typebox;
   const parameters = Type.Object({
@@ -1240,7 +1244,7 @@ var init_gcloud_help2 = __esm(() => {
   init_shared();
 });
 
-// plugins/gcloud/src/ce/types.ts
+// ../gcloud/src/ce/types.ts
 var GCP_CE_POLICY = 'f5xc-ce-automation-policy/v2',
   GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public',
   GCP_CE_OPERATIONS;
@@ -1260,7 +1264,7 @@ var init_types2 = __esm(() => {
   ];
 });
 
-// plugins/gcloud/src/ce/site-access.ts
+// ../gcloud/src/ce/site-access.ts
 function resolveGcpSiteAccessMapping(providerVersion) {
   if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
@@ -1370,7 +1374,7 @@ var init_site_access = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/observer-scope.ts
+// ../gcloud/src/ce/observer-scope.ts
 function assertGcpTerraformObserverScope(scope, intent) {
   if (
     !scope ||
@@ -1425,7 +1429,7 @@ var init_observer_scope = __esm(() => {
   });
 });
 
-// plugins/gcloud/src/ce/validation.ts
+// ../gcloud/src/ce/validation.ts
 function validateScope(project, region) {
   if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
   if (region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(region)) throw new Error('Invalid GCP region');
@@ -1588,7 +1592,7 @@ var init_validation = __esm(() => {
   NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
 });
 
-// plugins/gcloud/src/ce/discovery.ts
+// ../gcloud/src/ce/discovery.ts
 import { createHash } from 'node:crypto';
 
 function fingerprint(value) {
@@ -1714,7 +1718,7 @@ var init_discovery = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/operational-health.ts
+// ../gcloud/src/ce/operational-health.ts
 function safeFingerprint(value) {
   try {
     return fingerprint(value);
@@ -2283,7 +2287,7 @@ var init_operational_health = __esm(() => {
   NAME2 = /^[a-z][a-z0-9-]{0,62}$/;
 });
 
-// plugins/gcloud/src/ce/operational-source-hashes.json
+// ../gcloud/src/ce/operational-source-hashes.json
 var operational_source_hashes_default;
 var init_operational_source_hashes = __esm(() => {
   operational_source_hashes_default = {
@@ -2300,7 +2304,7 @@ var init_operational_source_hashes = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/release-fetch.ts
+// ../gcloud/src/ce/release-fetch.ts
 function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
   return async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -2339,7 +2343,7 @@ function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
 }
 var fetchGcpRelease = async (input, init) => createGcpReleaseFetch()(input, init);
 
-// plugins/gcloud/src/ce/terraform-ha-profile.ts
+// ../gcloud/src/ce/terraform-ha-profile.ts
 function qualifiedGcpTerraformHaProfile(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const p = value;
@@ -2425,7 +2429,7 @@ var init_terraform_ha_profile = __esm(() => {
   init_site_access();
 });
 
-// plugins/gcloud/src/ce/operational-release.ts
+// ../gcloud/src/ce/operational-release.ts
 import { createHash as createHash2 } from 'node:crypto';
 
 async function resolveGcpOperationalRelease(
@@ -2564,7 +2568,7 @@ var init_operational_release = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/contract.ts
+// ../gcloud/src/ce/contract.ts
 import { createHash as createHash3 } from 'node:crypto';
 
 function qualifiedGcpHaObservationMappings(assets) {
@@ -2716,10 +2720,10 @@ var init_contract = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/deployment-store.ts
+// ../platform/src/ce/deployment-store.ts
 var init_deployment_store = () => {};
 
-// plugins/platform/src/ce/evidence-json.ts
+// ../platform/src/ce/evidence-json.ts
 function decodeEvidenceObject(raw) {
   const source = new TextDecoder('utf8', { fatal: true }).decode(raw);
   const value = object2(JSON.parse(source));
@@ -2753,7 +2757,7 @@ var object2 = (value) => {
   return value;
 };
 
-// plugins/platform/src/ce/gcp-http-capture.ts
+// ../platform/src/ce/gcp-http-capture.ts
 import { createHash as createHash4 } from 'node:crypto';
 
 async function assertOriginalGcpPlatformHttpBody(value) {
@@ -2767,7 +2771,7 @@ var init_gcp_http_capture = __esm(() => {
   bodies = new WeakMap();
 });
 
-// plugins/platform/src/ce/security.ts
+// ../platform/src/ce/security.ts
 function containsControlCharacters(value) {
   return Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
@@ -2776,7 +2780,7 @@ function containsControlCharacters(value) {
 }
 var init_security = () => {};
 
-// plugins/platform/src/ce/gcp-bootstrap-evidence.ts
+// ../platform/src/ce/gcp-bootstrap-evidence.ts
 import { createHash as createHash5 } from 'node:crypto';
 
 function object3(value) {
@@ -2931,41 +2935,41 @@ var init_gcp_bootstrap_evidence = __esm(() => {
   });
 });
 
-// plugins/platform/src/ce/bgp-evidence.ts
+// ../platform/src/ce/bgp-evidence.ts
 var init_bgp_evidence = () => {};
 
-// plugins/platform/src/ce/bgp-route-evidence.ts
+// ../platform/src/ce/bgp-route-evidence.ts
 var init_bgp_route_evidence = () => {};
 
-// plugins/platform/src/ce/bootstrap.ts
+// ../platform/src/ce/bootstrap.ts
 var init_bootstrap = () => {};
 
-// plugins/platform/src/ce/ingress-lifecycle.ts
+// ../platform/src/ce/ingress-lifecycle.ts
 var init_ingress_lifecycle = __esm(() => {
   init_process_lock();
   init_runtime();
 });
-// plugins/platform/src/ce/interface-evidence.ts
+// ../platform/src/ce/interface-evidence.ts
 var init_interface_evidence = () => {};
 
-// plugins/platform/src/ce/origin-teardown.ts
+// ../platform/src/ce/origin-teardown.ts
 var init_origin_teardown = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/platform-drain.ts
+// ../platform/src/ce/platform-drain.ts
 var init_platform_drain = __esm(() => {
   init_runtime();
 });
-// plugins/platform/src/ce/teardown-inventory.ts
+// ../platform/src/ce/teardown-inventory.ts
 var init_teardown_inventory = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/upgrade-evidence.ts
+// ../platform/src/ce/upgrade-evidence.ts
 var init_upgrade_evidence = () => {};
 
-// plugins/platform/src/ce/runtime.ts
+// ../platform/src/ce/runtime.ts
 var init_runtime = __esm(() => {
   init_bgp_evidence();
   init_bgp_route_evidence();
@@ -2978,26 +2982,26 @@ var init_runtime = __esm(() => {
   init_upgrade_evidence();
 });
 
-// plugins/platform/src/ce/gcp-http.ts
+// ../platform/src/ce/gcp-http.ts
 var init_gcp_http = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/gcp-bootstrap-observation.ts
+// ../platform/src/ce/gcp-bootstrap-observation.ts
 var init_gcp_bootstrap_observation = __esm(() => {
   init_gcp_http();
   init_gcp_http_capture();
   init_security();
 });
 
-// plugins/platform/src/ce/gcp-lifecycle.ts
+// ../platform/src/ce/gcp-lifecycle.ts
 var init_gcp_lifecycle = __esm(() => {
   init_discovery();
   init_site_access();
   init_validation();
 });
 
-// plugins/gcloud/src/ce/ownership.ts
+// ../gcloud/src/ce/ownership.ts
 function validateGcpResourceIdentity(resource) {
   if (
     !resource ||
@@ -3097,7 +3101,7 @@ var init_ownership = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/interface-identity.ts
+// ../gcloud/src/ce/interface-identity.ts
 function object4(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed GCP interface identity evidence');
@@ -3207,7 +3211,7 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
 }
 
-// plugins/gcloud/src/ce/request-reason.ts
+// ../gcloud/src/ce/request-reason.ts
 import { randomUUID as randomUUID3 } from 'node:crypto';
 
 function createGcpTerraformRequestReason(intent) {
@@ -3247,7 +3251,7 @@ var init_request_reason = __esm(() => {
   reasonPattern = /^xcsh-gcp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 });
 
-// plugins/gcloud/src/ce/compute-plan.ts
+// ../gcloud/src/ce/compute-plan.ts
 function assertComputeOnly(intent) {
   if (
     intent.ingress.profile !== 'none' ||
@@ -3577,7 +3581,7 @@ var init_compute_plan = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/teardown-plan.ts
+// ../gcloud/src/ce/teardown-plan.ts
 function planGcpOwnedTeardown(resources, scope) {
   if (!/^[a-z]+(?:-[a-z]+)+\d$/.test(scope.region)) throw new Error('Explicit teardown region required');
   if (!resources.length) throw new Error('Independent absence verification required for empty teardown inventory');
@@ -3635,7 +3639,7 @@ var init_teardown_plan = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/native-teardown.ts
+// ../gcloud/src/ce/native-teardown.ts
 async function applyGcpNativeTeardown(store, api, plan, approvedHash, signal) {
   const expected = planGcpOwnedTeardown(plan.resources, plan.scope);
   if (plan.scope.engine !== 'native' || approvedHash !== expected.sha256 || plan.sha256 !== expected.sha256)
@@ -3733,7 +3737,7 @@ var init_native_teardown = __esm(() => {
   init_teardown_plan();
 });
 
-// plugins/gcloud/src/ce/deployment-teardown.ts
+// ../gcloud/src/ce/deployment-teardown.ts
 import { join as join3 } from 'node:path';
 
 function assertGcpTeardownProfile(intent, contract, engine = 'native') {
@@ -4075,7 +4079,7 @@ var init_deployment_teardown = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/terraform-public-ownership.ts
+// ../gcloud/src/ce/terraform-public-ownership.ts
 function publicTerraformPlatformScope(intent) {
   return intent.sites.flatMap((site) => [
     { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
@@ -4588,48 +4592,48 @@ var init_terraform_public_ownership = __esm(() => {
   init_validation();
 });
 
-// plugins/platform/src/ce/gcp-operational-binding.ts
+// ../platform/src/ce/gcp-operational-binding.ts
 var init_gcp_operational_binding = __esm(() => {
   init_discovery();
 });
 
-// plugins/platform/src/ce/gcp-runtime-diagnostics.ts
+// ../platform/src/ce/gcp-runtime-diagnostics.ts
 var init_gcp_runtime_diagnostics = __esm(() => {
   init_discovery();
 });
 
-// plugins/platform/src/ce/gcp-operational-command.ts
+// ../platform/src/ce/gcp-operational-command.ts
 var init_gcp_operational_command = __esm(() => {
   init_discovery();
   init_gcp_runtime_diagnostics();
 });
 
-// plugins/platform/src/ce/gcp-operational-placement.ts
+// ../platform/src/ce/gcp-operational-placement.ts
 var init_gcp_operational_placement = __esm(() => {
   init_operational_health();
 });
 
-// plugins/platform/src/ce/gcp-operational-diagnosis.ts
+// ../platform/src/ce/gcp-operational-diagnosis.ts
 var init_gcp_operational_diagnosis = () => {};
 
-// plugins/platform/src/ce/gcp-operational-observation.ts
+// ../platform/src/ce/gcp-operational-observation.ts
 var init_gcp_operational_observation = __esm(() => {
   init_discovery();
   init_operational_health();
 });
 
-// plugins/platform/src/ce/gcp-operational-runtime.ts
+// ../platform/src/ce/gcp-operational-runtime.ts
 var init_gcp_operational_runtime = __esm(() => {
   init_operational_health();
   init_gcp_runtime_diagnostics();
 });
 
-// plugins/platform/src/ce/gcp-operational-site-status.ts
+// ../platform/src/ce/gcp-operational-site-status.ts
 var init_gcp_operational_site_status = __esm(() => {
   init_discovery();
 });
 
-// plugins/platform/src/ce/gcp-operational-source.ts
+// ../platform/src/ce/gcp-operational-source.ts
 var init_gcp_operational_source = __esm(() => {
   init_discovery();
   init_gcp_operational_command();
@@ -4639,7 +4643,7 @@ var init_gcp_operational_source = __esm(() => {
   init_gcp_operational_site_status();
 });
 
-// plugins/platform/src/ce/gcp-owned-operational.ts
+// ../platform/src/ce/gcp-owned-operational.ts
 var init_gcp_owned_operational = __esm(() => {
   init_discovery();
   init_operational_health();
@@ -4653,7 +4657,7 @@ var init_gcp_owned_operational = __esm(() => {
   init_process_lock();
 });
 
-// plugins/platform/src/ce/gcp-observation.ts
+// ../platform/src/ce/gcp-observation.ts
 var init_gcp_observation = __esm(() => {
   init_discovery();
   init_operational_health();
@@ -4663,7 +4667,7 @@ var init_gcp_observation = __esm(() => {
   init_runtime();
 });
 
-// plugins/platform/src/ce/verified-api-release.ts
+// ../platform/src/ce/verified-api-release.ts
 var repository2 = 'f5-sales-demo/api-specs-enriched',
   tag = 'v7.0.1',
   commit = '2513fe498149c98fb737ff2ab207704b8a86fec6',
@@ -4674,7 +4678,7 @@ var init_verified_api_release = __esm(() => {
   _assetUrl = `https://github.com/${repository2}/releases/download/${tag}/openapi.json`;
   _CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest });
 });
-// plugins/platform/src/ce/wire-schema.ts
+// ../platform/src/ce/wire-schema.ts
 var _keywords;
 var init_wire_schema = __esm(() => {
   _keywords = new Set([
@@ -4698,17 +4702,17 @@ var init_wire_schema = __esm(() => {
   ]);
 });
 
-// plugins/platform/src/ce/wire-routing.ts
+// ../platform/src/ce/wire-routing.ts
 var init_wire_routing = __esm(() => {
   init_wire_schema();
 });
 
-// plugins/platform/src/ce/wire-site.ts
+// ../platform/src/ce/wire-site.ts
 var init_wire_site = __esm(() => {
   init_wire_schema();
 });
 
-// plugins/platform/src/ce/verified-contract.ts
+// ../platform/src/ce/verified-contract.ts
 var _publishedAssets;
 var init_verified_contract = __esm(() => {
   init_verified_api_release();
@@ -4722,7 +4726,7 @@ var init_verified_contract = __esm(() => {
   });
 });
 
-// plugins/platform/src/ce/service.ts
+// ../platform/src/ce/service.ts
 var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
 var init_service = __esm(() => {
   init_contract();
@@ -4738,7 +4742,7 @@ var init_service = __esm(() => {
   init_verified_contract();
 });
 
-// plugins/terraform/src/session-lifetime.ts
+// src/session-lifetime.ts
 async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
   const outcome = await (async () => {
     try {
@@ -4766,7 +4770,7 @@ function withTerraformSession(session, operation) {
   );
 }
 
-// plugins/gcloud/skills/gcp-ce/references/byol-vm-contract.json
+// ../gcloud/skills/gcp-ce/references/byol-vm-contract.json
 var byol_vm_contract_default;
 var init_byol_vm_contract = __esm(() => {
   byol_vm_contract_default = {
@@ -4810,7 +4814,7 @@ var init_byol_vm_contract = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/corporate-funding.ts
+// ../gcloud/src/ce/corporate-funding.ts
 import { createHash as createHash6 } from 'node:crypto';
 import { lstat as lstat3, readFile as readFile2 } from 'node:fs/promises';
 import { homedir as homedir2 } from 'node:os';
@@ -4931,7 +4935,7 @@ var init_corporate_funding = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/byol-terms.ts
+// ../gcloud/src/ce/byol-terms.ts
 import { createHash as createHash7 } from 'node:crypto';
 
 async function normalizedGoogleMarketplaceTerms(bytes) {
@@ -5131,7 +5135,7 @@ var init_byol_terms = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/native-operation.ts
+// ../gcloud/src/ce/native-operation.ts
 function targetIdentity(value, binding) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed operation target identity');
@@ -5279,7 +5283,7 @@ var init_native_operation = __esm(() => {
   init_discovery();
 });
 
-// plugins/gcloud/src/ce/native-create-driver.ts
+// ../gcloud/src/ce/native-create-driver.ts
 import { lstat as lstat4, realpath as realpath2, rm as rm2, writeFile as writeFile2 } from 'node:fs/promises';
 import { join as join5 } from 'node:path';
 
@@ -5579,7 +5583,7 @@ var init_native_create_driver = __esm(() => {
   init_ownership();
 });
 
-// plugins/gcloud/src/ce/bootstrap.ts
+// ../gcloud/src/ce/bootstrap.ts
 function formatGcpUserData(binding, now = Date.now()) {
   for (const name of [binding.deploymentName, binding.siteName, binding.nodeName]) {
     if (!/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error('Invalid GCP bootstrap binding');
@@ -5602,7 +5606,7 @@ function formatGcpUserData(binding, now = Date.now()) {
 `);
 }
 
-// plugins/gcloud/src/ce/bootstrap-checkout.ts
+// ../gcloud/src/ce/bootstrap-checkout.ts
 function ownerEqual(a, b) {
   return ['project', 'deploymentName', 'siteName', 'nodeName', 'engine'].every((field) => a[field] === b[field]);
 }
@@ -5656,7 +5660,7 @@ async function checkoutGcpBootstrap(store, owner, now = Date.now()) {
 }
 var init_bootstrap_checkout = () => {};
 
-// plugins/gcloud/src/ce/bootstrap-issue.ts
+// ../gcloud/src/ce/bootstrap-issue.ts
 function token(value, plan) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed bound registration token');
@@ -5752,7 +5756,7 @@ var init_bootstrap_issue = __esm(() => {
   init_discovery();
 });
 
-// plugins/gcloud/src/ce/native-create.ts
+// ../gcloud/src/ce/native-create.ts
 async function applyGcpNativeCreation(store, intent, reviewedHash, driver, signal, beforeInstance) {
   const plan = translateGcpNativeCompute(intent);
   if (reviewedHash !== plan.sha256) throw new Error('Reviewed native creation plan differs');
@@ -5846,7 +5850,7 @@ var init_native_create = __esm(() => {
   init_ownership();
 });
 
-// plugins/gcloud/src/ce/preflight-port.ts
+// ../gcloud/src/ce/preflight-port.ts
 function createGcpPreflightPort(api, project, fetcher = fetch) {
   validateScope(project);
   let credential;
@@ -5956,7 +5960,7 @@ var init_preflight_port = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/qualification-gates.ts
+// ../gcloud/src/ce/qualification-gates.ts
 function assertGcpLaunchGates(gates, reviewedHash) {
   if (
     gates.schemaVersion !== 1 ||
@@ -5992,7 +5996,7 @@ var init_qualification_gates = __esm(() => {
   init_discovery();
 });
 
-// plugins/gcloud/src/ce/native-deploy.ts
+// ../gcloud/src/ce/native-deploy.ts
 import { join as join6 } from 'node:path';
 
 async function applyGcpNativeDeployment(
@@ -6152,7 +6156,7 @@ var init_native_deploy = __esm(() => {
   init_qualification_gates();
 });
 
-// plugins/gcloud/src/ce/planner.ts
+// ../gcloud/src/ce/planner.ts
 function planGcpCe(intent, discovery, now = Date.now(), policyReceipt, preflight, fundingReceipt, byolAuthorization) {
   validateIntent(intent);
   if (fundingReceipt)
@@ -6248,7 +6252,7 @@ var init_planner = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/policy.ts
+// ../gcloud/src/ce/policy.ts
 import { createHash as createHash8 } from 'node:crypto';
 
 function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
@@ -6280,7 +6284,7 @@ var GCP_CE_POLICY_URL =
   'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 var init_policy = () => {};
 
-// plugins/gcloud/src/ce/preflight.ts
+// ../gcloud/src/ce/preflight.ts
 function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed preflight source');
   return value;
@@ -6484,7 +6488,7 @@ var init_preflight = __esm(() => {
   ];
 });
 
-// plugins/gcloud/src/ce/deployment-review.ts
+// ../gcloud/src/ce/deployment-review.ts
 import { join as join7 } from 'node:path';
 
 function createGcpDeploymentSources(platform, api) {
@@ -6794,7 +6798,7 @@ var init_deployment_review = __esm(() => {
   init_terraform_ha_profile();
 });
 
-// plugins/gcloud/src/ce/marketplace-agreement.ts
+// ../gcloud/src/ce/marketplace-agreement.ts
 function validateGcpMarketplaceBinding(binding) {
   if (
     Object.keys(binding).some(
@@ -6920,7 +6924,7 @@ var init_marketplace_agreement = __esm(() => {
   init_discovery();
 });
 
-// plugins/gcloud/src/ce/marketplace-port.ts
+// ../gcloud/src/ce/marketplace-port.ts
 function gcpMarketplacePrerequisiteGuidance(reason) {
   if (reason !== 'cloud_terms_not_accepted') return {};
   return {
@@ -7131,7 +7135,7 @@ var init_marketplace_port = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/health.ts
+// ../gcloud/src/ce/health.ts
 function parseGcpGlobalHealth(value, nodeName) {
   const base = { nodeName, source: 'f5xc-global-health', scope: 'site-global-only' };
   if (!/^[a-z][a-z0-9-]{0,62}$/.test(nodeName)) throw new Error('Invalid expected GCP node');
@@ -7328,7 +7332,7 @@ var init_health = __esm(() => {
   HASH2 = /^sha256:[a-f0-9]{64}$/;
 });
 
-// plugins/gcloud/src/ce/status.ts
+// ../gcloud/src/ce/status.ts
 function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed status observation');
   return value;
@@ -7429,7 +7433,7 @@ var init_status = __esm(() => {
   init_health();
 });
 
-// plugins/gcloud/src/ce/owned-status.ts
+// ../gcloud/src/ce/owned-status.ts
 async function observeGcpOwnedDeployment(store, intent, source, signal) {
   signal?.throwIfAborted();
   validateIntent(intent);
@@ -7665,7 +7669,7 @@ var init_owned_status = __esm(() => {
   init_validation();
 });
 
-// plugins/terraform/src/google-adc-session.ts
+// src/google-adc-session.ts
 import { createHash as createHash9 } from 'node:crypto';
 import { constants, watch } from 'node:fs';
 import { lstat as lstat5, open, realpath as realpath3 } from 'node:fs/promises';
@@ -7861,7 +7865,7 @@ var init_google_adc_session = __esm(() => {
   ]);
 });
 
-// plugins/terraform/src/failure.ts
+// src/failure.ts
 function terraformFailureCategories(text) {
   const plain = Bun.stripANSI(text);
   return patterns.filter(([, pattern]) => pattern.test(plain)).map(([category]) => category);
@@ -7895,7 +7899,7 @@ var init_failure = __esm(() => {
   };
 });
 
-// plugins/terraform/src/installed-capture-context.ts
+// src/installed-capture-context.ts
 import { isAbsolute as isAbsolute3, resolve as resolve2 } from 'node:path';
 
 function canonical(path) {
@@ -7947,7 +7951,7 @@ var init_installed_capture_context = __esm(() => {
   parentKeys = ['dev', 'ino', 'uid', 'mode'];
 });
 
-// plugins/terraform/src/original-input-monitor.ts
+// src/original-input-monitor.ts
 import { createHash as createHash10 } from 'node:crypto';
 import { constants as constants2, watch as watch2 } from 'node:fs';
 import { lstat as lstat6, open as open2, realpath as realpath4 } from 'node:fs/promises';
@@ -8107,7 +8111,7 @@ var init_original_input_monitor = __esm(() => {
   maximum = 256n * 1024n * 1024n;
 });
 
-// plugins/terraform/src/runner.ts
+// src/runner.ts
 import { createHash as createHash11, randomUUID as randomUUID4 } from 'node:crypto';
 import {
   chmod,
@@ -9730,7 +9734,7 @@ var init_runner = __esm(() => {
   executeTerraform = terraformExecutor(undefined, true);
 });
 
-// plugins/terraform/src/service.ts
+// src/service.ts
 import { join as join9 } from 'node:path';
 
 function freezeRuntime(options) {
@@ -9980,7 +9984,7 @@ var init_service2 = __esm(() => {
   init_runner();
 });
 
-// plugins/gcloud/src/ce/runtime-prerequisites.ts
+// ../gcloud/src/ce/runtime-prerequisites.ts
 function requestGcpTerraformService(events, signal) {
   const bus = events;
   return new Promise((resolve, reject) => {
@@ -10016,7 +10020,7 @@ var init_runtime_prerequisites = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/ce/terraform-google-environment.ts
+// ../gcloud/src/ce/terraform-google-environment.ts
 import { isAbsolute as isAbsolute6, resolve as resolve5 } from 'node:path';
 
 async function googleTerraformEnvironment(session, api, intent, ambient, signal) {
@@ -10048,7 +10052,7 @@ var init_terraform_google_environment = __esm(() => {
   init_google_adc_session();
 });
 
-// plugins/gcloud/src/ce/terraform-context.ts
+// ../gcloud/src/ce/terraform-context.ts
 function publicTerraformContextHash(intent, apiUrl) {
   if (!apiUrl) throw new Error('Scoped Terraform context endpoint unavailable');
   const base = new URL(apiUrl);
@@ -10069,7 +10073,7 @@ var init_terraform_context = __esm(() => {
   init_discovery();
 });
 
-// plugins/gcloud/src/ce/terraform-admission.ts
+// ../gcloud/src/ce/terraform-admission.ts
 function admitGcpTerraformTransition(intent, receipt) {
   if (
     receipt.engine !== 'terraform' ||
@@ -10156,7 +10160,7 @@ var init_terraform_admission = __esm(() => {
   init_discovery();
 });
 
-// plugins/gcloud/src/ce/terraform-teardown.ts
+// ../gcloud/src/ce/terraform-teardown.ts
 import { join as join10 } from 'node:path';
 
 function gcpTerraformResourceAddresses(intent) {
@@ -10500,7 +10504,7 @@ var init_terraform_teardown = __esm(() => {
   init_terraform_admission();
 });
 
-// plugins/gcloud/src/ce/terraform-public-teardown.ts
+// ../gcloud/src/ce/terraform-public-teardown.ts
 import { join as join11 } from 'node:path';
 
 async function verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal, allowAbsent = true) {
@@ -10807,7 +10811,7 @@ var init_terraform_public_teardown = __esm(() => {
   init_terraform_teardown();
 });
 
-// plugins/gcloud/src/ce/terraform-public.ts
+// ../gcloud/src/ce/terraform-public.ts
 import { join as join12 } from 'node:path';
 
 async function readOptional(runtime, name) {
@@ -11138,7 +11142,7 @@ var init_terraform_public = __esm(() => {
   init_terraform_teardown();
 });
 
-// plugins/gcloud/src/ce/terraform-public-artifacts.ts
+// ../gcloud/src/ce/terraform-public-artifacts.ts
 function resolveGcpTerraformArtifacts(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Original packaged GCP artifacts required');
@@ -11501,7 +11505,7 @@ provider "registry.terraform.io/hashicorp/google" {
   }
 });
 
-// plugins/gcloud/src/ce/funding-session.ts
+// ../gcloud/src/ce/funding-session.ts
 function billable(receipt) {
   return receipt.changes.some(
     (change) =>
@@ -11552,7 +11556,7 @@ var init_funding_session = __esm(() => {
   init_preflight_port();
 });
 
-// plugins/gcloud/src/ce/observer-plan.ts
+// ../gcloud/src/ce/observer-plan.ts
 function translateGcpTerraformObserverSiteCompute(intent, versions, observer, requestReason) {
   assertGcpSiteAccessProfile(intent);
   assertGcpTerraformObserverScope(observer, intent);
@@ -11694,7 +11698,7 @@ var init_observer_plan = __esm(() => {
   init_observer_scope();
 });
 
-// plugins/gcloud/src/ce/terraform-session.ts
+// ../gcloud/src/ce/terraform-session.ts
 async function openGcpTerraformSession(platform, inputs, resume = false, installedService) {
   inputs = structuredClone(inputs);
   validateIntent(inputs.intent);
@@ -11831,7 +11835,7 @@ var init_terraform_session = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/ce/terraform-public-runtime.ts
+// ../gcloud/src/ce/terraform-public-runtime.ts
 async function openPublicTerraformRuntime(platform, api, intent, signal, installedService) {
   intent = structuredClone(intent);
   validateIntent(intent);
@@ -11935,7 +11939,7 @@ var init_terraform_public_runtime = __esm(() => {
   init_validation();
 });
 
-// plugins/gcloud/src/tools/gcp-ce.ts
+// ../gcloud/src/tools/gcp-ce.ts
 import { join as join13 } from 'node:path';
 
 function result(tool, data, isError = false) {
@@ -12694,7 +12698,7 @@ var init_gcp_ce = __esm(() => {
   };
 });
 
-// plugins/gcloud/src/presentation.ts
+// ../gcloud/src/presentation.ts
 init_gcloud_exec_guard();
 var record = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {});
 var rows = (v) => Array.isArray(v) && v.every((x) => x !== null && typeof x === 'object' && !Array.isArray(x));
@@ -12947,7 +12951,7 @@ function presentTool(tool, p) {
   });
 }
 
-// plugins/gcloud/src/index.ts
+// ../gcloud/src/index.ts
 init_shared();
 function sanitizeHintField(value, maxLen = 200) {
   if (typeof value !== 'string') return '';

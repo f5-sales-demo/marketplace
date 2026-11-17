@@ -8,6 +8,7 @@ import {
   readOriginalGcpKeyScanCommand,
 } from './gcp-keyscan-command';
 import type { OriginalGcpSshClientProfile } from './gcp-ssh-client-profile';
+import { inspectGcpWireHostKey } from './gcp-wire-key';
 import type { OriginalApplyCallbackContext } from './installed-apply-controller';
 import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
 import {
@@ -82,37 +83,6 @@ export interface GcpObserverWireKeyReaderOptions {
     policy: SignalFreeExecutionPolicy,
     command: OriginalGcpKeyScanCommand,
   ) => Executor | Promise<Executor>;
-}
-function key(stdout: Buffer, address: string) {
-  const text = new TextDecoder('utf-8', { fatal: true }).decode(stdout);
-  if (
-    !text.endsWith('\n') ||
-    text.indexOf('\n') !== text.length - 1 ||
-    Array.from(text.slice(0, -1)).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
-  )
-    throw new Error('One complete original observer wire key required');
-  const line = text.slice(0, -1);
-  const fields = line.split(' ');
-  if (
-    fields.length !== 3 ||
-    fields[0] !== address ||
-    fields[1] !== 'ssh-ed25519' ||
-    !/^[A-Za-z0-9+/]+={0,2}$/.test(fields[2])
-  )
-    throw new Error('Original observer address and supported host-key algorithm required');
-  const bytes = Buffer.from(fields[2], 'base64');
-  if (
-    bytes.toString('base64') !== fields[2] ||
-    bytes.length !== 51 ||
-    bytes.readUInt32BE(0) !== 11 ||
-    bytes.subarray(4, 15).toString() !== 'ssh-ed25519' ||
-    bytes.readUInt32BE(15) !== 32
-  )
-    throw new Error('Complete canonical original Ed25519 wire key required');
-  return {
-    knownHostsLine: line,
-    fingerprint: `SHA256:${createHash('sha256').update(bytes).digest('base64').replace(/=+$/, '')}`,
-  };
 }
 /** One read, owned by the original VM/callback/client capability. Wire keys are
  * untrusted until independently joined to that VM's original serial source. */
@@ -372,7 +342,7 @@ export async function openGcpObserverWireKeyReader(
         finishedAt - startedAt > 60000
       )
         throw new Error('Complete successful bounded original wire-key capture required');
-      const parsed = key(stdout, original.vm.externalAddress);
+      const parsed = inspectGcpWireHostKey(stdout, original.vm.externalAddress);
       const source: Readonly<WireKeyView> = Object.freeze({
         project: original.vm.project,
         zone: original.vm.zone,

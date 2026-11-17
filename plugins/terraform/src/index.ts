@@ -64,6 +64,24 @@ export default function factory(pi: { events: CeEventBus; setLabel(label: string
 }
 
 export {
+  closeOriginalGcpCeKeyScanCommand,
+  openOriginalGcpCeKeyScanCommand,
+  readOriginalGcpCeKeyScanCommand,
+} from './gcp-ce-keyscan-command';
+export {
+  bindOriginalQualifiedGcpCeObserverScanContext,
+  openOriginalGcpCeSliTarget,
+  readOriginalGcpCeSliSerialSource,
+  readOriginalGcpCeSliTarget,
+  readOriginalQualifiedGcpCeObserverScanContext,
+} from './gcp-ce-sli-target';
+export {
+  assertOriginalGcpCeWireKeysContext,
+  type OriginalGcpCeWireKeys,
+  openGcpCeWireKeyReader,
+  readOriginalGcpCeWireKeys,
+} from './gcp-ce-wire-key-reader';
+export {
   GoogleHttpRpcTraceParser,
   readOriginalGoogleHttpResponseSource,
   readOriginalGoogleHttpRpcSource,
@@ -76,6 +94,22 @@ export {
   readOriginalEarlyGcpInsertIdentity,
   readOriginalGcpInsertWitnesses,
 } from './gcp-insert-evidence';
+export {
+  assertOriginalGcpObserverClientAbiContext,
+  openGcpObserverClientAbi,
+  readOriginalGcpObserverClientAbi,
+} from './gcp-observer-client-abi';
+export {
+  closeOriginalGcpObserverClientAbiCommand,
+  openOriginalGcpObserverClientAbiCommand,
+} from './gcp-observer-client-abi-command';
+export {
+  assertOriginalGcpCeHostTrustContext,
+  openGcpCeHostTrustReader,
+  openGcpObserverHostTrustReader,
+  readOriginalGcpCeHostTrust,
+  readOriginalGcpObserverHostTrust,
+} from './gcp-observer-host-trust-reader';
 export {
   captureOriginalGcpObserverImage,
   openGcpObserverImageReader,
@@ -93,6 +127,12 @@ export {
   readOriginalGcpObserverSerialSource,
   readOriginalGcpObserverVmEvidence,
 } from './gcp-observer-insert-evidence';
+export {
+  compileOriginalGcpCeTrustMaterial,
+  compileOriginalGcpObserverTrustMaterial,
+  readOriginalGcpCeTrustMaterial,
+  readOriginalGcpObserverTrustMaterial,
+} from './gcp-observer-trust-material';
 export {
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,

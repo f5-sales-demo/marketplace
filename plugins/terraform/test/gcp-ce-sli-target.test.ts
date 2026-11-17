@@ -16,6 +16,19 @@ test('CE scan target joins the reviewed SLI role to the original numeric VM and 
     expect(original.instanceId).toBe(String(input.state.operation.targetId));
     expect(original.callback).toBe(input.callback);
     expect(original.sshTrustQualified).toBe(false);
+    const serial = await ce.collectOriginalEarlyGcpSerialEvidence(vm, '0');
+    const serialSource = await target.readOriginalGcpCeSliSerialSource(ref, serial, input.callback);
+    expect(serialSource.instanceId).toBe(original.instanceId);
+    expect(serialSource.contents).toBe('original-node-serial\n');
+    await expect(target.readOriginalGcpCeSliSerialSource({ ...ref }, serial, input.callback)).rejects.toThrow(
+      'Original',
+    );
+    await expect(target.readOriginalGcpCeSliSerialSource(ref, { ...serial }, input.callback)).rejects.toThrow(
+      'Original',
+    );
+    await expect(target.readOriginalGcpCeSliSerialSource(ref, serial, { ...input.callback })).rejects.toThrow(
+      'Original',
+    );
     await expect(target.readOriginalGcpCeSliTarget({ ...ref })).rejects.toThrow('Original');
     await expect(target.assertOriginalGcpCeSliTargetContext(ref, { ...input.callback })).rejects.toThrow('Original');
     await target.assertOriginalGcpCeSliTargetContext(ref, input.callback);
@@ -34,6 +47,14 @@ test('CE scan target joins the reviewed SLI role to the original numeric VM and 
         input.callback,
       ),
     ).rejects.toThrow('Original verified observer');
+    await target.readOriginalGcpCeSliTarget(ref);
+    await expect(
+      target.bindOriginalQualifiedGcpCeObserverScanContext(
+        ref,
+        { schemaVersion: 1, kind: 'original-gcp-observer-client-abi-reference', guestClientQualified: true },
+        input.callback,
+      ),
+    ).rejects.toThrow('Original');
     await target.readOriginalGcpCeSliTarget(ref);
     const nics = input.state.vm.networkInterfaces as Array<{ networkIP: string }>;
     const address = nics[1].networkIP;
@@ -56,6 +77,10 @@ test('final CE target uses the reserved original final callback and refuses an e
       const original = await target.readOriginalGcpCeSliTarget(ref);
       expect(original.address).toBe('10.2.0.2');
       expect(original.callback).toBe(final.callback);
+      const serial = await ce.collectOriginalFinalGcpSerialEvidence(vm, '0');
+      const serialSource = await target.readOriginalGcpCeSliSerialSource(ref, serial, final.callback);
+      expect(serialSource.contents).toBe('original-node-serial\n');
+      expect(serialSource.instanceId).toBe(original.instanceId);
       await expect(target.openOriginalGcpCeSliTarget(early, final.callback)).rejects.toThrow('Original');
       await expect(target.assertOriginalGcpCeSliTargetContext(ref, { ...final.callback })).rejects.toThrow('Original');
       await target.readOriginalGcpCeSliTarget(ref);
@@ -64,6 +89,9 @@ test('final CE target uses the reserved original final callback and refuses an e
 }, 60000);
 
 test('invented observer peer context cannot release a command or borrow another callback', async () => {
+  const fake = { schemaVersion: 1, kind: 'original-qualified-gcp-ce-observer-scan-context-reference' };
+  await expect(target.readOriginalQualifiedGcpCeObserverScanContext(fake)).rejects.toThrow('Original');
+  await expect(target.assertOriginalQualifiedGcpCeObserverScanContext(fake, {} as never)).rejects.toThrow('Original');
   await expect(
     peer.assertOriginalVerifiedGcpObserverPeerContext(
       {

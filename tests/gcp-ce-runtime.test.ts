@@ -7,6 +7,23 @@ const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true });
 });
+
+it('isolated Terraform bundle retains original CE trust and scan capability refusals', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-capture-runtime-'));
+  roots.push(root);
+  const runtime = join(root, 'terraform.js');
+  await copyFile(new URL('../plugins/terraform/runtime/index.js', import.meta.url), runtime);
+  const module = await import(runtime);
+  const callback = {} as never;
+  await expect(module.openOriginalGcpCeKeyScanCommand({}, callback)).rejects.toThrow('Original');
+  await expect(module.readOriginalGcpCeWireKeys({})).rejects.toThrow('Original');
+  await expect(module.openGcpCeWireKeyReader({})).rejects.toThrow('Original');
+  await expect(module.compileOriginalGcpCeTrustMaterial({}, {}, {}, callback)).rejects.toThrow('Original');
+  await expect(module.openGcpCeHostTrustReader({}, callback)).rejects.toThrow('Original');
+  await expect(module.readOriginalGcpCeHostTrust({})).rejects.toThrow('Original');
+  await expect(module.openOriginalGcpObserverClientAbiCommand({}, callback)).rejects.toThrow('Original');
+  await expect(module.openGcpObserverClientAbi({})).rejects.toThrow('Original');
+});
 it('bundled Platform and Terraform services load from isolated plugin directories without neighboring source', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ce-runtime-'));
   roots.push(root);

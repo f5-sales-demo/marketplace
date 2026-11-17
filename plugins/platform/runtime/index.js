@@ -12,7 +12,7 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
-// plugins/platform/src/ce/security.ts
+// ../platform/src/ce/security.ts
 function containsControlCharacters(value) {
   return Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
@@ -70,7 +70,7 @@ var init_security = __esm(() => {
   PublicCeError = class PublicCeError extends Error {};
 });
 
-// plugins/platform/src/ce/release-contract.ts
+// ../platform/src/ce/release-contract.ts
 import { createHash as createHash7 } from 'node:crypto';
 
 function fail(message) {
@@ -390,7 +390,7 @@ var init_release_contract = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/driver.ts
+// ../platform/src/ce/driver.ts
 import { isAbsolute } from 'node:path';
 
 class HttpCeV2Driver {
@@ -545,7 +545,7 @@ var init_driver = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/site-config.ts
+// ../platform/src/ce/site-config.ts
 import { isIP as isIP7 } from 'node:net';
 
 function assertOrdered(items, label) {
@@ -646,7 +646,7 @@ var init_site_config = __esm(() => {
   };
 });
 
-// plugins/platform/src/tools/f5xc-ce-v2-site.ts
+// ../platform/src/tools/f5xc-ce-v2-site.ts
 import { createHash as createHash18, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
@@ -818,7 +818,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
   init_site_config();
 });
 
-// plugins/platform/src/ce/token-store.ts
+// ../platform/src/ce/token-store.ts
 import { createHash as createHash19, randomUUID as randomUUID5 } from 'node:crypto';
 import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -870,7 +870,7 @@ var init_token_store = __esm(() => {
   SAFE_ID = /^[a-zA-Z0-9._-]{1,128}$/;
 });
 
-// plugins/platform/src/tools/f5xc-ce-v2-bootstrap.ts
+// ../platform/src/tools/f5xc-ce-v2-bootstrap.ts
 function createF5xcCeV2BootstrapTool(pi, makeDriver = createDefaultCeV2Driver, root = defaultBootstrapRoot()) {
   const { Type } = pi.typebox;
   return {
@@ -943,7 +943,7 @@ var init_f5xc_ce_v2_bootstrap = __esm(() => {
   init_token_store();
 });
 
-// plugins/platform/src/tools/f5xc-ce-v2-status.ts
+// ../platform/src/tools/f5xc-ce-v2-status.ts
 function createF5xcCeV2StatusTool(pi) {
   const { Type } = pi.typebox;
   return {
@@ -965,7 +965,7 @@ function createF5xcCeV2StatusTool(pi) {
   };
 }
 
-// plugins/platform/src/tools/f5xc-ce-v2-capabilities.ts
+// ../platform/src/tools/f5xc-ce-v2-capabilities.ts
 function createF5xcCeV2CapabilitiesTool(pi, makeDriver = createDefaultCeV2Driver) {
   const { Type } = pi.typebox;
   return {
@@ -1010,10 +1010,10 @@ var init_f5xc_ce_v2_capabilities = __esm(() => {
   init_release_contract();
 });
 
-// plugins/platform/src/ce/gcp-bootstrap-evidence.ts
+// ../platform/src/ce/gcp-bootstrap-evidence.ts
 import { createHash as createHash2 } from 'node:crypto';
 
-// plugins/platform/src/ce/evidence-json.ts
+// ../platform/src/ce/evidence-json.ts
 var object = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
   return value;
@@ -1047,7 +1047,7 @@ function decodeEvidenceObject(raw) {
   return value;
 }
 
-// plugins/platform/src/ce/gcp-http-capture.ts
+// ../platform/src/ce/gcp-http-capture.ts
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
@@ -1372,7 +1372,7 @@ async function openGcpLifecycleHttpCapture(store, assertInputs, scope) {
   return api;
 }
 
-// plugins/platform/src/ce/gcp-bootstrap-evidence.ts
+// ../platform/src/ce/gcp-bootstrap-evidence.ts
 init_security();
 var hash2 = (value) => createHash2('sha256').update(value).digest('hex');
 var name = /^[a-z][a-z0-9-]{0,62}$/;
@@ -1519,10 +1519,10 @@ var originalGcpBootstrapSource = Object.freeze({
   readJwt: readOriginalGcpBootstrapJwt,
 });
 
-// plugins/platform/src/ce/gcp-http.ts
+// ../platform/src/ce/gcp-http.ts
 import { createHash as createHash6 } from 'node:crypto';
 
-// plugins/platform/src/ce/bgp-evidence.ts
+// ../platform/src/ce/bgp-evidence.ts
 import { isIP } from 'node:net';
 
 var object3 = (value) => {
@@ -1625,7 +1625,7 @@ function parseBgpSessions(response, expected) {
   };
 }
 
-// plugins/platform/src/ce/bgp-route-evidence.ts
+// ../platform/src/ce/bgp-route-evidence.ts
 import { isIP as isIP2 } from 'node:net';
 
 var object4 = (value) => {
@@ -1700,7 +1700,7 @@ function parseBgpRoutes(response, expectedNodes) {
   return { status: 'observed', nodes };
 }
 
-// plugins/platform/src/ce/bootstrap.ts
+// ../platform/src/ce/bootstrap.ts
 function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed bootstrap response');
   return value;
@@ -1731,13 +1731,17 @@ function bindAwsCloudInit(response, jwt) {
   return bound;
 }
 
-// plugins/platform/src/ce/ingress-lifecycle.ts
-// plugins/platform/src/ce/process-lock.ts
+// ../platform/src/ce/ingress-lifecycle.ts
+// ../platform/src/ce/process-lock.ts
 import { createHash as createHash3, randomUUID as randomUUID2 } from 'node:crypto';
 import { lstat as lstat2, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { isIP as isIP3 } from 'node:net';
 import { basename, dirname, join as join2, join as join3 } from 'node:path';
 
+function vanishedProcess(error) {
+  const code = error.code;
+  return code === 'ENOENT' || code === 'ESRCH';
+}
 async function processGroup(pid) {
   if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
   const text = await readFile(`/proc/${pid}/stat`, 'utf8');
@@ -1802,7 +1806,7 @@ async function requirePhysicalGroupClosed(path, owner) {
         if ((await processGroup(Number(name))) === original.row.group)
           throw new Error('Original executor process group remains live');
       } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
+        if (!vanishedProcess(error)) throw error;
       }
     }
   }
@@ -1865,7 +1869,7 @@ else: sys.exit(2)
     if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
     return start;
   } catch (error) {
-    if (error.code === 'ENOENT') return;
+    if (vanishedProcess(error)) return;
     throw error;
   }
 }
@@ -1987,7 +1991,7 @@ async function acquireProcessLock(path, ownerPid = process.pid, options = {}) {
   throw new Error('Operation lock could not be acquired');
 }
 
-// plugins/platform/src/ce/ingress-lifecycle.ts
+// ../platform/src/ce/ingress-lifecycle.ts
 function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress evidence');
   return value;
@@ -2482,7 +2486,7 @@ class CeIngressLifecycle {
   }
 }
 
-// plugins/platform/src/ce/initial-versions.ts
+// ../platform/src/ce/initial-versions.ts
 function initialSoftwareSettings(value) {
   if (
     !value ||
@@ -2498,7 +2502,7 @@ function initialSoftwareSettings(value) {
   return { os: { operating_system_version: value.os }, sw: { volterra_software_version: value.software } };
 }
 
-// plugins/platform/src/ce/interface-evidence.ts
+// ../platform/src/ce/interface-evidence.ts
 import { isIP as isIP4 } from 'node:net';
 
 var object7 = (value) => {
@@ -2649,7 +2653,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
   });
 }
 
-// plugins/platform/src/ce/origin-teardown.ts
+// ../platform/src/ce/origin-teardown.ts
 import { createHash as createHash4 } from 'node:crypto';
 
 function object8(value) {
@@ -2795,7 +2799,7 @@ class CeOriginTeardown {
   }
 }
 
-// plugins/platform/src/ce/platform-drain.ts
+// ../platform/src/ce/platform-drain.ts
 import { createHash as createHash5 } from 'node:crypto';
 
 function canonical3(value) {
@@ -2963,7 +2967,7 @@ async function drainCePlatform(input, store, port, signal) {
   return receipt;
 }
 
-// plugins/platform/src/ce/registration-devices.ts
+// ../platform/src/ce/registration-devices.ts
 var object9 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed registration inventory');
   return value;
@@ -3066,7 +3070,7 @@ function verifyRegisteredInterfaceConfiguration(spec, devices, provider = 'aws')
   }
 }
 
-// plugins/platform/src/ce/teardown-inventory.ts
+// ../platform/src/ce/teardown-inventory.ts
 var object10 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed teardown inventory');
   return value;
@@ -3265,7 +3269,7 @@ async function collectCeTeardownInventory(port, input, namespaces, contracts, si
   }
 }
 
-// plugins/platform/src/ce/upgrade-evidence.ts
+// ../platform/src/ce/upgrade-evidence.ts
 function object11(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed upgrade evidence');
   return value;
@@ -3385,7 +3389,7 @@ function parseUpgradeProgress(raw, siteName) {
   return { status: text3(value.status), version: text3(value.version) };
 }
 
-// plugins/platform/src/ce/runtime.ts
+// ../platform/src/ce/runtime.ts
 class CeApiError extends Error {
   category;
   status;
@@ -4881,7 +4885,7 @@ class CeRuntime {
   }
 }
 
-// plugins/platform/src/ce/gcp-http.ts
+// ../platform/src/ce/gcp-http.ts
 function createGcpLifecycleHttpPort(apiUrl, credential, fetcher = fetch, capture) {
   const base = new URL(apiUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !credential)
@@ -5042,7 +5046,7 @@ function createGcpLifecycleHttpPort(apiUrl, credential, fetcher = fetch, capture
   };
 }
 
-// plugins/platform/src/ce/gcp-bootstrap-observation.ts
+// ../platform/src/ce/gcp-bootstrap-observation.ts
 init_security();
 var targetKey = (target) => JSON.stringify([target.type_name, target.namespace, target.name]);
 var validTarget = (target) =>
@@ -5197,18 +5201,18 @@ async function openOriginalGcpBootstrapObservation(input, options = {}) {
   });
 }
 
-// plugins/platform/src/index.ts
+// ../platform/src/index.ts
 init_driver();
 
-// plugins/platform/src/ce/service.ts
-// plugins/gcloud/src/ce/contract.ts
-// plugins/gcloud/src/ce/discovery.ts
+// ../platform/src/ce/service.ts
+// ../gcloud/src/ce/contract.ts
+// ../gcloud/src/ce/discovery.ts
 import { createHash as createHash8, createHash as createHash10, createHash as createHash17 } from 'node:crypto';
 import { readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join as join5 } from 'node:path';
 
-// plugins/gcloud/src/ce/types.ts
+// ../gcloud/src/ce/types.ts
 var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
 var GCP_CE_OPERATIONS = [
   'deploy',
@@ -5224,10 +5228,10 @@ var GCP_CE_OPERATIONS = [
   'teardown',
 ];
 
-// plugins/gcloud/src/gcloud/types.ts
+// ../gcloud/src/gcloud/types.ts
 var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 
-// plugins/gcloud/src/ce/site-access.ts
+// ../gcloud/src/ce/site-access.ts
 var GCP_SITE_ACCESS_MAPPING = Object.freeze({
   schemaVersion: 1,
   provider: 'f5-sales-demo/xcsh',
@@ -5300,7 +5304,7 @@ function assertGcpSiteAccessProfile(intent) {
     throw new GcpSiteAccessMappingUnavailable();
 }
 
-// plugins/gcloud/src/ce/observer-scope.ts
+// ../gcloud/src/ce/observer-scope.ts
 var _GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
   project: 'ubuntu-os-cloud',
   name: 'ubuntu-2404-noble-amd64-v20261021',
@@ -5351,7 +5355,7 @@ function gcpTerraformObserverIdentity(intent) {
   };
 }
 
-// plugins/gcloud/src/ce/validation.ts
+// ../gcloud/src/ce/validation.ts
 var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
 function validateScope(project, region) {
   if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
@@ -5507,7 +5511,7 @@ function validateIntent(intent) {
   }
 }
 
-// plugins/gcloud/src/ce/discovery.ts
+// ../gcloud/src/ce/discovery.ts
 function fingerprint(value) {
   const stable = (item) =>
     Array.isArray(item)
@@ -5524,10 +5528,10 @@ function fingerprint(value) {
     .digest('hex')}`;
 }
 
-// plugins/gcloud/src/ce/operational-release.ts
+// ../gcloud/src/ce/operational-release.ts
 import { createHash as createHash9 } from 'node:crypto';
 
-// plugins/gcloud/src/ce/operational-health.ts
+// ../gcloud/src/ce/operational-health.ts
 var GCP_OPERATIONAL_CORE_SEED = [
   'argo',
   'asaf',
@@ -5735,7 +5739,7 @@ function qualifiedOperationalRelease(value, pinnedReceiptFingerprint, contractFi
     receipt.repeatedResumeNoSubmission === true
   );
 }
-// plugins/gcloud/src/ce/operational-source-hashes.json
+// ../gcloud/src/ce/operational-source-hashes.json
 var operational_source_hashes_default = {
   'gcp-operational-source': 'sha256:1405b6d0bcdf5d92c9aa4b9e14ca96660b9fdf5872f0d126dc6f5dc903739ad9',
   'gcp-operational-command': 'sha256:e73c188a7b416750834edf33b95ddba931c35cecdee1b885e8c2e88ff53c0846',
@@ -5749,7 +5753,7 @@ var operational_source_hashes_default = {
   evaluator: 'sha256:4f1d71527a8a2b9d91806744c4db47879827fc52ffdb803201a070403fe39b39',
 };
 
-// plugins/gcloud/src/ce/release-fetch.ts
+// ../gcloud/src/ce/release-fetch.ts
 function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
   return async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -5788,7 +5792,7 @@ function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
 }
 var fetchGcpRelease = async (input, init) => createGcpReleaseFetch()(input, init);
 
-// plugins/gcloud/src/ce/terraform-ha-profile.ts
+// ../gcloud/src/ce/terraform-ha-profile.ts
 var hash5 = (v) => typeof v === 'string' && /^sha256:[a-f0-9]{64}$/.test(v);
 function qualifiedGcpTerraformHaProfile(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -5813,7 +5817,7 @@ function qualifiedGcpTerraformHaProfile(value) {
   );
 }
 
-// plugins/gcloud/src/ce/operational-release.ts
+// ../gcloud/src/ce/operational-release.ts
 var GCP_OPERATIONAL_RELEASE_PIN = {
   tag: 'v12.3.1',
   sourceCommit: '0f42f302f85e82675b2b8a4b8637cb89bb3636c3',
@@ -5943,7 +5947,7 @@ async function resolveGcpOperationalRelease(
   };
 }
 
-// plugins/gcloud/src/ce/contract.ts
+// ../gcloud/src/ce/contract.ts
 var GCP_CE_API_RELEASE = {
   repository: 'f5-sales-demo/api-specs-enriched',
   tag: 'v12.1.3',
@@ -6087,7 +6091,7 @@ async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
   };
 }
 
-// plugins/platform/src/ce/deployment-store.ts
+// ../platform/src/ce/deployment-store.ts
 import { createHash as createHash11, randomUUID as randomUUID3 } from 'node:crypto';
 import {
   chmod,
@@ -6226,7 +6230,7 @@ class CeDeploymentStore {
   }
 }
 
-// plugins/platform/src/ce/gcp-lifecycle.ts
+// ../platform/src/ce/gcp-lifecycle.ts
 class GcpPlatformLifecycle {
   store;
   intent;
@@ -6471,10 +6475,10 @@ class GcpPlatformLifecycle {
   }
 }
 
-// plugins/platform/src/ce/gcp-observation.ts
+// ../platform/src/ce/gcp-observation.ts
 import { createHash as createHash14 } from 'node:crypto';
 
-// plugins/gcloud/src/ce/ownership.ts
+// ../gcloud/src/ce/ownership.ts
 var COLLECTIONS = {
   instance: 'instances',
   disk: 'disks',
@@ -6532,10 +6536,10 @@ function sameScope(a, b) {
   return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
 }
 
-// plugins/platform/src/ce/gcp-owned-operational.ts
+// ../platform/src/ce/gcp-owned-operational.ts
 import { createHash as createHash13, randomUUID as randomUUID4 } from 'node:crypto';
 
-// plugins/gcloud/src/ce/interface-identity.ts
+// ../gcloud/src/ce/interface-identity.ts
 function object15(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed GCP interface identity evidence');
@@ -6645,7 +6649,7 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
 }
 
-// plugins/gcloud/src/ce/terraform-public-ownership.ts
+// ../gcloud/src/ce/terraform-public-ownership.ts
 function publicTerraformPlatformScope(intent) {
   return intent.sites.flatMap((site) => [
     { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
@@ -6712,7 +6716,7 @@ function publicTerraformCloudScope(intent) {
   }));
 }
 
-// plugins/platform/src/ce/gcp-operational-binding.ts
+// ../platform/src/ce/gcp-operational-binding.ts
 import { createHash as createHash12 } from 'node:crypto';
 
 var object16 = (value) => {
@@ -6824,7 +6828,7 @@ async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sour
   return expected;
 }
 
-// plugins/platform/src/ce/gcp-runtime-diagnostics.ts
+// ../platform/src/ce/gcp-runtime-diagnostics.ts
 var ID = /^[a-f0-9]{12,64}$/;
 var NAME3 = /^[a-z0-9][a-z0-9_.-]{0,252}$/;
 var NAMESPACE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -6943,7 +6947,7 @@ function gcpRuntimeCommand(node, ownershipFingerprint, selection, now = Date.now
   return ['crictl-inspect', containerId];
 }
 
-// plugins/platform/src/ce/gcp-operational-command.ts
+// ../platform/src/ce/gcp-operational-command.ts
 function createGcpOperationalCommandPort(expected, apiUrl, credential, binding, capture, fetcher = fetch) {
   expected = structuredClone(expected);
   const base = new URL(apiUrl);
@@ -7077,7 +7081,7 @@ function createGcpOperationalCommandPort(expected, apiUrl, credential, binding, 
   };
 }
 
-// plugins/platform/src/ce/gcp-operational-placement.ts
+// ../platform/src/ce/gcp-operational-placement.ts
 function resolveGcpOperationalPlacement(profile, pinnedFingerprint, originals, observations) {
   if (!qualifiedOperationalProfile(profile, pinnedFingerprint) || !profile.placementCounts)
     throw new Error('Frozen placement contract required');
@@ -7165,7 +7169,7 @@ function resolveGcpOperationalPlacement(profile, pinnedFingerprint, originals, o
   return selected;
 }
 
-// plugins/platform/src/ce/gcp-operational-diagnosis.ts
+// ../platform/src/ce/gcp-operational-diagnosis.ts
 var GCP_REQUIRED_OPERATIONAL_DOMAINS = [
   'api.bcti.brightcloud.com',
   'downloads.volterra.io',
@@ -7269,7 +7273,7 @@ function projectGcpOperationalDiagnosis(value, node, originals) {
   };
 }
 
-// plugins/platform/src/ce/gcp-operational-observation.ts
+// ../platform/src/ce/gcp-operational-observation.ts
 var CHECKS = ['registration', 'interfaces', 'siteStatus', 'components', 'inventory', 'runtime', 'diagnostics'];
 async function collectGcpOperationalHealth(port, expected, profile, pinnedFingerprint, signal) {
   if (!qualifiedOperationalProfile(profile, pinnedFingerprint)) throw new Error('Frozen operational profile required');
@@ -7330,7 +7334,7 @@ async function collectGcpOperationalHealth(port, expected, profile, pinnedFinger
   };
 }
 
-// plugins/platform/src/ce/gcp-operational-runtime.ts
+// ../platform/src/ce/gcp-operational-runtime.ts
 async function collectGcpOperationalRuntimeListing(commands, node, ownershipFingerprint, signal) {
   signal?.throwIfAborted();
   node = structuredClone(node);
@@ -7423,7 +7427,7 @@ async function collectGcpOperationalRuntime(...args) {
 }
 var collectGcpOperationalRuntimeEvidence = collectRuntimeEvidence;
 
-// plugins/platform/src/ce/gcp-operational-site-status.ts
+// ../platform/src/ce/gcp-operational-site-status.ts
 var object18 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
 function projectGcpOperationalSiteStatus(value, expected) {
   const site = object18(value);
@@ -7486,7 +7490,7 @@ function projectGcpOperationalSiteStatus(value, expected) {
   };
 }
 
-// plugins/platform/src/ce/gcp-operational-source.ts
+// ../platform/src/ce/gcp-operational-source.ts
 var object19 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational source malformed');
   return value;
@@ -7672,7 +7676,7 @@ function createGcpOperationalSource(
   };
 }
 
-// plugins/platform/src/ce/gcp-owned-operational.ts
+// ../platform/src/ce/gcp-owned-operational.ts
 var object20 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational ownership malformed');
   return value;
@@ -8021,7 +8025,7 @@ async function collectGcpOwnedOperationalHealth(
   }
 }
 
-// plugins/platform/src/ce/gcp-observation.ts
+// ../platform/src/ce/gcp-observation.ts
 async function createGcpPlatformObservations(
   store,
   contextName,
@@ -8389,8 +8393,8 @@ async function createGcpPlatformObservations(
   };
 }
 
-// plugins/platform/src/ce/verified-contract.ts
-// plugins/platform/src/ce/verified-api-release.ts
+// ../platform/src/ce/verified-contract.ts
+// ../platform/src/ce/verified-api-release.ts
 import { createHash as createHash15, createHash as createHash16 } from 'node:crypto';
 
 var repository2 = 'f5-sales-demo/api-specs-enriched';
@@ -8459,7 +8463,7 @@ async function loadPublishedCeApi(fetcher = fetch, signal) {
   return api;
 }
 
-// plugins/platform/src/ce/wire-replace.ts
+// ../platform/src/ce/wire-replace.ts
 var object22 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed replacement schema');
   return value;
@@ -8530,8 +8534,8 @@ function projectReplaceSnapshot(value, schemas, root, ignoredRootFields = []) {
   return object22(project(value, schemas[root], true));
 }
 
-// plugins/platform/src/ce/wire-routing.ts
-// plugins/platform/src/ce/wire-schema.ts
+// ../platform/src/ce/wire-routing.ts
+// ../platform/src/ce/wire-schema.ts
 import { isIP as isIP5, isIP as isIP6 } from 'node:net';
 
 var keywords = new Set([
@@ -8788,7 +8792,7 @@ function firstFailure(schemaValue, value, document) {
   return null;
 }
 
-// plugins/platform/src/ce/wire-routing.ts
+// ../platform/src/ce/wire-routing.ts
 function buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses, validate) {
   const name = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   const interfaceName = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -8989,7 +8993,7 @@ function routingValidators(network, marketplace) {
   return (kind, spec) => validators[kind](spec);
 }
 
-// plugins/platform/src/ce/wire-site.ts
+// ../platform/src/ce/wire-site.ts
 var names2 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var macs = /^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/;
 var defaults = {
@@ -9111,7 +9115,7 @@ function buildWireSite(intent, schemas) {
   return spec;
 }
 
-// plugins/platform/src/ce/verified-contract.ts
+// ../platform/src/ce/verified-contract.ts
 var hash6 = (bytes) => `sha256:${createHash16('sha256').update(bytes).digest('hex')}`;
 var commitPattern = /^[0-9a-f]{40}$/;
 var digestPattern = /^sha256:[0-9a-f]{64}$/;
@@ -9434,7 +9438,7 @@ class VerifiedCeContract {
   }
 }
 
-// plugins/platform/src/ce/service.ts
+// ../platform/src/ce/service.ts
 var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
 async function context(env, contextName) {
   if (contextName) {
@@ -9630,7 +9634,7 @@ function registerCePlatformService(bus, service) {
   });
 }
 
-// plugins/platform/src/presentation.ts
+// ../platform/src/presentation.ts
 var record = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {});
 var rows = (v) => Array.isArray(v) && v.every((x) => x !== null && typeof x === 'object' && !Array.isArray(x));
 var strings = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
@@ -9893,7 +9897,7 @@ function presentTool(tool, p) {
   });
 }
 
-// plugins/platform/src/index.ts
+// ../platform/src/index.ts
 function activeContextEnvironment(pi, settings) {
   const environment = { ...process.env };
   const configured = (settings ?? pi.settings)?.get('bash.environment');

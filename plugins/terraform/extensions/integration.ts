@@ -91,11 +91,16 @@ export default function terraformIntegration(pi: ExtensionApi) {
             throw error;
           }
         }
-        if (
-          process.platform === 'linux' &&
-          Bun.spawnSync([...terraformSshClientInstallArgv(), '--check']).exitCode !== 0
-        )
-          return { state: 'setup_required', reason: 'ssh_clients_missing_or_unverified' };
+        if (process.platform === 'linux') {
+          try {
+            if (Bun.spawnSync([...terraformSshClientInstallArgv(), '--check']).exitCode !== 0)
+              return { state: 'setup_required', reason: 'ssh_clients_missing_or_unverified' };
+          } catch (error) {
+            if ((error as { code?: string } | null)?.code === 'ENOENT')
+              return { state: 'setup_required', reason: 'ssh_clients_missing_or_unverified' };
+            throw error;
+          }
+        }
         return { state: 'ready' };
       } catch (error) {
         if ((error as { code?: string } | null)?.code === 'ENOENT')

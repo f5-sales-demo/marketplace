@@ -18,6 +18,13 @@ export interface ProcessLockOptions {
   trackProcessGroup?: boolean;
 }
 
+// Linux procfs can report either code when a process exits during a read.
+// This applies only to process identity reads, never owned evidence files.
+function vanishedProcess(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'ENOENT' || code === 'ESRCH';
+}
+
 async function processGroup(pid: number): Promise<number> {
   if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
   const text = await readFile(`/proc/${pid}/stat`, 'utf8');
@@ -85,7 +92,7 @@ async function requirePhysicalGroupClosed(path: string, owner: Claim): Promise<v
         if ((await processGroup(Number(name))) === original.row.group)
           throw new Error('Original executor process group remains live');
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if (!vanishedProcess(error)) throw error;
       }
     }
   }
@@ -166,7 +173,7 @@ else: sys.exit(2)
     if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
     return start;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    if (vanishedProcess(error)) return undefined;
     throw error;
   }
 }

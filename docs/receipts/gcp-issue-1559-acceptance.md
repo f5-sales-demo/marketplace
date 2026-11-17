@@ -1995,3 +1995,13 @@ and stale clocks refuse without renewal. Six source cases and 21 compiled
 checks pass; see the [source receipt](gcp-original-serial-source-20261116.md).
 Wire-key collection, host-trust consumer and built-in factory qualification,
 plus every original live/runtime/delivery gate, remain open.
+
+### CE RSA wire and serial source, 2026-11-17
+
+The [source receipt](gcp-ce-wire-serial-source-20261117.md) records original
+CE SLI, observer ABI, native wire capture and independent serial bindings,
+plus repaired capture-start freshness, procfs ESRCH handling and SSH setup
+classification. All 813 Terraform and 1,015 shared cases pass after repair;
+the original failed run remains preserved. No live GCP or installed runtime gate
+is established. Guest capture, proof renewal, default factory and every
+remaining issue1559 acceptance gate remain open.

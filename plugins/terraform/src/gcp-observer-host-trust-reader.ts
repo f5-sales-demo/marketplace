@@ -3,7 +3,11 @@ import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
 import sources from './gcp-capture-source-pins.json';
-import { assertOriginalGcpObserverTrustMaterialContext } from './gcp-observer-trust-material';
+import {
+  assertOriginalGcpCeTrustMaterialContext,
+  assertOriginalGcpObserverTrustMaterialContext,
+  type TrustMaterial,
+} from './gcp-observer-trust-material';
 import {
   assertOriginalApplyCallback,
   assertOriginalApplyLifetime,
@@ -33,6 +37,12 @@ export interface OriginalGcpObserverHostTrust {
   readonly schemaVersion: 1;
   readonly kind: 'original-gcp-observer-host-trust-reference';
 }
+export interface OriginalGcpCeHostTrust {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-gcp-ce-host-trust-reference';
+}
+type TrustFamily = 'observer' | 'ce';
+type TrustReference<K extends TrustFamily> = K extends 'ce' ? OriginalGcpCeHostTrust : OriginalGcpObserverHostTrust;
 interface HostTrustView {
   readonly originalStartMs: number;
   readonly originalDeadlineMs: number;
@@ -47,12 +57,16 @@ interface HostTrustView {
   readonly liveAccessVerified: false;
 }
 const origins = new WeakMap<
-  OriginalGcpObserverHostTrust,
-  { readonly callback: OriginalApplyCallbackContext; read(): Promise<Readonly<HostTrustView>> }
+  OriginalGcpObserverHostTrust | OriginalGcpCeHostTrust,
+  {
+    readonly family: TrustFamily;
+    readonly callback: OriginalApplyCallbackContext;
+    read(): Promise<Readonly<HostTrustView>>;
+  }
 >();
 export async function readOriginalGcpObserverHostTrust(value: unknown) {
   const origin = value && typeof value === 'object' ? origins.get(value as OriginalGcpObserverHostTrust) : undefined;
-  if (!origin) throw new Error('Original observer host trust source required');
+  if (origin?.family !== 'observer') throw new Error('Original observer host trust source required');
   return origin.read();
 }
 export async function assertOriginalGcpObserverHostTrustContext(
@@ -60,14 +74,36 @@ export async function assertOriginalGcpObserverHostTrustContext(
   callback: OriginalApplyCallbackContext,
 ) {
   const origin = value && typeof value === 'object' ? origins.get(value as OriginalGcpObserverHostTrust) : undefined;
-  if (!origin || origin.callback !== callback)
+  if (origin?.family !== 'observer' || origin.callback !== callback)
     throw new Error('Original host trust and actual capture callback required');
   return origin.read();
+}
+export async function readOriginalGcpCeHostTrust(value: unknown) {
+  const origin = value && typeof value === 'object' ? origins.get(value as OriginalGcpCeHostTrust) : undefined;
+  if (origin?.family !== 'ce') throw new Error('Original CE host trust source required');
+  return origin.read();
+}
+export async function assertOriginalGcpCeHostTrustContext(value: unknown, callback: OriginalApplyCallbackContext) {
+  const origin = value && typeof value === 'object' ? origins.get(value as OriginalGcpCeHostTrust) : undefined;
+  if (origin?.family !== 'ce' || origin.callback !== callback)
+    throw new Error('Original CE host trust and actual callback required');
+  return origin.read();
+}
+export async function openGcpCeHostTrustReader(material: unknown, callback: OriginalApplyCallbackContext) {
+  return openOriginalHostTrustReader('ce', material, callback, assertOriginalGcpCeTrustMaterialContext);
 }
 /** Real parser execution over original VM/serial/wire material. A parser's
  * caller-created receipt or matching JSON result cannot mint this capability. */
 export async function openGcpObserverHostTrustReader(material: unknown, callback: OriginalApplyCallbackContext) {
-  const original = await assertOriginalGcpObserverTrustMaterialContext(material, callback);
+  return openOriginalHostTrustReader('observer', material, callback, assertOriginalGcpObserverTrustMaterialContext);
+}
+async function openOriginalHostTrustReader<K extends TrustFamily>(
+  family: K,
+  material: unknown,
+  callback: OriginalApplyCallbackContext,
+  assertContext: (material: unknown, callback: OriginalApplyCallbackContext) => Promise<Readonly<TrustMaterial>>,
+) {
+  const original = await assertContext(material, callback);
   const script = callback.original.inputs['script:gcp_host_trust.py'];
   const python = callback.original.inputs.python;
   if (!script || !python || script.sha256 !== sources.files['gcp_host_trust.py'])
@@ -79,7 +115,7 @@ export async function openGcpObserverHostTrustReader(material: unknown, callback
     used = false,
     producerSeen = false,
     producerClosed = false;
-  let pending: Promise<OriginalGcpObserverHostTrust> | undefined, closure: Promise<void> | undefined;
+  let pending: Promise<TrustReference<K>> | undefined, closure: Promise<void> | undefined;
   const inputMonitor = await monitorOriginalInputs({ script, python });
   let requestMonitor: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
   const retained: Record<string, OriginalInputBinding> = {};
@@ -111,7 +147,7 @@ export async function openGcpObserverHostTrustReader(material: unknown, callback
   };
   const assertMaterial = async () => {
     await assertInputs();
-    const current = await assertOriginalGcpObserverTrustMaterialContext(material, callback);
+    const current = await assertContext(material, callback);
     if (
       !current.serial.equals(original.serial) ||
       !current.wire.equals(original.wire) ||
@@ -143,7 +179,7 @@ export async function openGcpObserverHostTrustReader(material: unknown, callback
     await assertRoot();
     return input.binding;
   };
-  const verifyOnce = async (): Promise<OriginalGcpObserverHostTrust> => {
+  const verifyOnce = async (): Promise<TrustReference<K>> => {
     await assertMaterial();
     retained.serial = await persist('serial.private.bin', original.serial);
     retained.wire = await persist('wire.private.bin', original.wire);
@@ -319,11 +355,11 @@ export async function openGcpObserverHostTrustReader(material: unknown, callback
           throw error;
         }
       };
-      const reference: OriginalGcpObserverHostTrust = Object.freeze({
+      const reference = Object.freeze({
         schemaVersion: 1,
-        kind: 'original-gcp-observer-host-trust-reference',
-      });
-      origins.set(reference, { read, callback });
+        kind: family === 'ce' ? 'original-gcp-ce-host-trust-reference' : 'original-gcp-observer-host-trust-reference',
+      }) as TrustReference<K>;
+      origins.set(reference, { read, callback, family });
       await read();
       return reference;
     } catch (error) {
@@ -346,7 +382,7 @@ export async function openGcpObserverHostTrustReader(material: unknown, callback
     }
   };
   return Object.freeze({
-    verify(): Promise<OriginalGcpObserverHostTrust> {
+    verify(): Promise<TrustReference<K>> {
       if (retired) return Promise.reject(new Error('Original host-trust reader retired'));
       if (used) return Promise.reject(new Error('Original host-trust verification is single-use'));
       used = true;

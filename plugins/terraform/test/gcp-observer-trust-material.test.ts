@@ -87,6 +87,11 @@ async function withMaterialInputs(
 test('original trust material derives exact serial bytes, wire keys and context from the same original VM', async () => {
   await withMaterialInputs(async ({ vm, serial, keys, input }) => {
     const reference = await material.compileOriginalGcpObserverTrustMaterial(vm, serial, keys, input.callback);
+    await expect(material.readOriginalGcpCeTrustMaterial(reference)).rejects.toThrow('Original');
+    await expect(material.assertOriginalGcpCeTrustMaterialContext(reference, input.callback)).rejects.toThrow(
+      'Original',
+    );
+    await expect(trust.openGcpCeHostTrustReader(reference, input.callback)).rejects.toThrow('Original');
     const result = await material.readOriginalGcpObserverTrustMaterial(reference);
     expect(result.serial.toString()).toBe(serialText);
     expect(result.wire.toString()).toBe(`${line}\n`);
@@ -112,6 +117,8 @@ test('original consumer runs the real owned parser and issues a source-bound hos
     const reader = await trust.openGcpObserverHostTrustReader(original, input.callback);
     try {
       const reference = await reader.verify();
+      await expect(trust.readOriginalGcpCeHostTrust(reference)).rejects.toThrow('Original');
+      await expect(trust.assertOriginalGcpCeHostTrustContext(reference, input.callback)).rejects.toThrow('Original');
       const result = await trust.readOriginalGcpObserverHostTrust(reference);
       expect(result.fingerprint).toBe(fingerprint);
       expect(result.instanceId).toBe(String(input.operation.targetId));
