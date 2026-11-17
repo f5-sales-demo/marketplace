@@ -356,6 +356,14 @@ test('failed executors expose only fixed categories and discard potentially sens
     ['VpcLimitExceeded and InsufficientInstanceCapacity', 'unknown'],
     ['API error AccessDenied', 'authorization'],
     ['ExpiredToken: credentials expired', 'expired'],
+    ['No valid credential sources found', 'authentication'],
+    [
+      'refresh cached SSO token\nfailed, unable to refresh SSO token, operation error SSO OIDC: CreateToken, InvalidRequestException',
+      'authentication',
+    ],
+    ['\x1b[31mError:\x1b[0m unable to refresh SSO token', 'authentication'],
+    ['InvalidRequestException: unrelated request failure', 'unknown'],
+    ['unable to refresh SSO token and AccessDenied', 'unknown'],
     ['RequestLimitExceeded', 'throttled'],
     ['Error: Missing block label', 'configuration'],
     ['\x1b[31mError:\x1b[0m Missing block label', 'configuration'],
@@ -386,6 +394,23 @@ test('failed executors expose only fixed categories and discard potentially sens
     stdout: '',
     failureCategory: 'configuration',
   });
+});
+
+test('SSO diagnostics split across stderr chunks expose only fixed authentication metadata', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-tf-sso-chunks-'));
+  directories.push(root);
+  const executable = join(root, 'terraform');
+  await writeFile(
+    executable,
+    "#!/bin/sh\nprintf 'PRIVATE_BOOTSTRAP'\nprintf 'refresh cached SSO' >&2\n/bin/sleep 0.05\nprintf ' token\\nfailed PRIVATE_BOOTSTRAP' >&2\nexit 1\n",
+    { mode: 0o700 },
+  );
+  const result = await terraformExecutor()({ cwd: root, args: ['plan'], env: { PATH: root } });
+  expect(result).toEqual({ code: 1, stdout: '', failureCategory: 'authentication' });
+  const error = new TerraformCommandError('plan', result.code, result.failureCategory);
+  expect(error.category).toBe('authentication');
+  expect(error.message).toBe('Terraform plan failed (authentication); exit code 1');
+  expect(JSON.stringify(result) + error.message).not.toContain('PRIVATE_BOOTSTRAP');
 });
 
 test('runner propagates sanitized failure category without retrying or applying', async () => {
