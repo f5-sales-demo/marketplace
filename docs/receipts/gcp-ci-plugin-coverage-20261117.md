@@ -29,8 +29,15 @@ unchanged. The prior CI log's dangling-process termination and later missing-roo
 error do not qualify natural executor closure or guest evidence.
 
 Failing-first driver and attribution regressions pass. ShellCheck, shell formatting
-and three TypeScript test bundles pass. Final Linux execution, complete source
-gates and fresh current-head CI remain required before accepting this repair.
+and three TypeScript test bundles pass. All three family typechecks pass against
+the declared SDK after materializing the missing fresh-project dependencies.
+Canonical inventory validation passes for 22 plugins, 316 surfaces and 2,686
+active IDs; historical evidence and receipts are preserved. Source dependencies
+were materialized with install hooks disabled. This does not qualify native SDK
+setup, browser installation or ordinary runtime acceptance.
+
+Final Linux execution and fresh current-head CI remain required before accepting
+this repair.
 The separate observer renewal work, original GCP capture, installed Ubuntu runtime,
 lifecycle/network/traffic/cleanup acceptance, review, merge and publication remain
 unfinished. Historical evidence, unresolved locks and v12.3.1 remain preserved.
