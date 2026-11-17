@@ -36,3 +36,9 @@ acceptance is claimed. The default installed capture factory, read-only proof
 renewal, complete VPM/bootstrap/container capture and every remaining issue
 1559 live, cleanup, review, CI, publication and installation gate remain open.
 Historical evidence and immutable v12.3.1 assets are preserved.
+
+Current-head CI initially failed on stale presentation input fingerprints.
+Regeneration preserves all 2,686 task IDs, historical evidence, receipts,
+delivery links and retirement records. It updates 505 input fingerprints
+and reopens their acceptance; ten tracker regressions pass. Fresh CI
+remains required. No installed or live gate is inferred.
