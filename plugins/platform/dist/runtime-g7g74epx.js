@@ -8,7 +8,7 @@ import { chmod, lstat, mkdir, readdir, readFile, realpath, rename, unlink, write
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, join as join2, resolve, sep } from 'node:path';
 import { assertSafeName, PublicCeError, publicFailure } from './runtime-afkskas7.js';
-import { acquireProcessLock, createCePlatformService } from './runtime-d13c8c0b.js';
+import { acquireProcessLock, createCePlatformService } from './runtime-vzfrz4g3.js';
 
 var SAFE_ID = /^[a-zA-Z0-9._-]{1,128}$/;
 function defaultBootstrapRoot() {

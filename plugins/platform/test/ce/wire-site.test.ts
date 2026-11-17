@@ -49,7 +49,12 @@ test('maps independent single-node sites and true HA through both cloud schemas'
         node_list: [1, 2, 3].map((number) => ({
           hostname: `ce-${number}`,
           type: 'Control',
-          interface_list: node(number).interfaces,
+          interface_list: node(number).interfaces.map((iface) => ({
+            ...iface,
+            ...(iface.name === 'slo'
+              ? { site_to_site_connectivity_interface_enabled: {} }
+              : { site_to_site_connectivity_interface_disabled: {} }),
+          })),
         })),
       },
     });

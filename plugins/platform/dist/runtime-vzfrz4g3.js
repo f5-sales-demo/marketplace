@@ -7270,6 +7270,15 @@ function canonical4(value) {
     );
   return JSON.stringify(value);
 }
+function withDefaultConnectivity(item) {
+  const result = structuredClone(item);
+  const choices = ['site_to_site_connectivity_interface_enabled', 'site_to_site_connectivity_interface_disabled'];
+  if (!choices.some((key) => Object.hasOwn(result, key))) {
+    const network = object22(result.network_option);
+    result[Object.hasOwn(network, 'site_local_network') ? choices[0] : choices[1]] = {};
+  }
+  return result;
+}
 function buildWireSite(intent, schemas) {
   if (
     intent.schemaVersion !== 2 ||
@@ -7282,6 +7291,7 @@ function buildWireSite(intent, schemas) {
   const hostnames = new Set();
   const identities = new Set();
   let layout;
+  const wireNodes = [];
   for (const node of intent.nodes) {
     if (!names.test(node.hostname) || hostnames.has(node.hostname))
       throw new Error('SMSv2 hostnames must be unique DNS names');
@@ -7289,7 +7299,8 @@ function buildWireSite(intent, schemas) {
     if (!Array.isArray(node.interfaces) || node.interfaces.length < 1 || node.interfaces.length > 8)
       throw new Error('Unsupported SMSv2 interface count');
     const interfaceNames = new Set();
-    const roles = node.interfaces.map((item) => {
+    const interfaces = node.interfaces.map(withDefaultConnectivity);
+    const roles = interfaces.map((item) => {
       const ethernet = object22(item.ethernet_interface);
       if (typeof ethernet.mac !== 'string' || !macs.test(ethernet.mac) || identities.has(ethernet.mac))
         throw new Error('SMSv2 MAC identity is missing, malformed or duplicated');
@@ -7305,7 +7316,13 @@ function buildWireSite(intent, schemas) {
       const network = object22(item.network_option);
       const addressing = ['dhcp_client', 'static_ip', 'no_ipv4_address'].filter((key) => Object.hasOwn(item, key));
       if (addressing.length !== 1) throw new Error('SMSv2 interface addressing must be explicit');
-      return { name: item.name, network, addressing: addressing[0], mtu: item.mtu ?? null };
+      return {
+        name: item.name,
+        network,
+        addressing: addressing[0],
+        mtu: item.mtu ?? null,
+        connectivity: Object.hasOwn(item, 'site_to_site_connectivity_interface_enabled') ? 'enabled' : 'disabled',
+      };
     });
     if (
       !Object.hasOwn(roles[0].network, 'site_local_network') ||
@@ -7316,6 +7333,7 @@ function buildWireSite(intent, schemas) {
     if (layout !== undefined && layout !== current)
       throw new Error('HA interfaces must have homogeneous order, roles and addressing');
     layout = current;
+    wireNodes.push({ ...node, interfaces });
   }
   const settings = object22(intent.settings);
   const protectedFields = [
@@ -7348,7 +7366,7 @@ function buildWireSite(intent, schemas) {
   }
   spec[intent.provider] = {
     not_managed: {
-      node_list: intent.nodes.map((node) => ({
+      node_list: wireNodes.map((node) => ({
         hostname: node.hostname,
         type: 'Control',
         interface_list: structuredClone(node.interfaces),

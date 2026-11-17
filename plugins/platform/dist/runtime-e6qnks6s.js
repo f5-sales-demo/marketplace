@@ -5,7 +5,7 @@ import {
   CeContractFailure,
   createCePlatformService,
   ReleaseContractFailure,
-} from './runtime-d13c8c0b.js';
+} from './runtime-vzfrz4g3.js';
 
 // plugins/platform/src/tools/f5xc-ce-v2-capabilities.ts
 function createF5xcCeV2CapabilitiesTool(pi, makeService = () => createCePlatformService()) {

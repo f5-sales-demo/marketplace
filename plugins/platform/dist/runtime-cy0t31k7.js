@@ -4,7 +4,7 @@
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { assertSafeName, assertSecretFree, PublicCeError, publicFailure } from './runtime-afkskas7.js';
-import { createCePlatformService } from './runtime-d13c8c0b.js';
+import { createCePlatformService } from './runtime-vzfrz4g3.js';
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

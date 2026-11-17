@@ -1,6 +1,6 @@
 // biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.
 // @bun
-import { createCePlatformService } from './runtime-d13c8c0b.js';
+import { createCePlatformService } from './runtime-vzfrz4g3.js';
 
 // plugins/platform/src/ce/interface-admission.ts
 var name = (v) => typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(v);

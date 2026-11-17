@@ -1,4 +1,7 @@
 import { expect, test } from 'bun:test';
+import { buildWireSite, type WireSiteIntent } from '../../platform/src/ce/wire-site';
+import { resolveCeSchemaFixture } from '../../platform/test/fixtures/resolve-schema-fixture';
+import createSchemaCompact from '../../platform/test/fixtures/smsv2-create-schema.json';
 import { renderObservedProviderResource, renderProviderResource } from '../src/resource-renderer';
 import replacementSchema from './fixtures/securemesh-replacement-provider-schema.json';
 import prebootSchema from './resource-renderer-preboot.fixture.json';
@@ -361,4 +364,40 @@ test('local-service translation preserves collection and nested field validation
   expect(() => renderProviderResource(request, replacementSchema, 'xcsh_securemesh_site_v2')).toThrow(
     'does not expose',
   );
+});
+
+test('new SLO/SLI connectivity choices reach the installed-provider object attributes without computed flags', () => {
+  const intent: WireSiteIntent = {
+    schemaVersion: 2,
+    provider: 'aws',
+    haMode: 'one-node',
+    settings: {},
+    nodes: [
+      {
+        hostname: 'sanitized-node',
+        interfaces: ['slo', 'sli'].map((role, index) => ({
+          name: role,
+          mtu: 1500,
+          dhcp_client: {},
+          ethernet_interface: { mac: `02:00:00:00:00:0${index + 1}`, device: `ens${index + 5}` },
+          network_option: role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
+        })),
+      },
+    ],
+  };
+  const request = {
+    metadata: { name: 'sanitized-site', namespace: 'system' },
+    spec: { aws: buildWireSite(intent, resolveCeSchemaFixture(createSchemaCompact).schemas).aws },
+  };
+  const rendered = renderProviderResource(request, prebootSchema, 'xcsh_securemesh_site_v2');
+  const aws = rendered.aws as Array<{
+    not_managed: Array<{ node_list: Array<{ interface_list: Array<Record<string, unknown>> }> }>;
+  }>;
+  const [slo, sli] = aws[0].not_managed[0].node_list[0].interface_list;
+  expect(slo.site_to_site_connectivity_interface_enabled).toEqual({});
+  expect(sli.site_to_site_connectivity_interface_disabled).toEqual({});
+  for (const iface of [slo, sli]) {
+    expect(iface).not.toHaveProperty('is_primary');
+    expect(iface).not.toHaveProperty('is_management');
+  }
 });
