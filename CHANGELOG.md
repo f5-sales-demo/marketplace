@@ -10,9 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.127 binds private serial source bytes to the original
-  early/final CE or observer VM that issued the capture. Scope, identity,
-  immutable files and clocks are rechecked; SSH trust and live gates stay open.
+- **`terraform`** v2.4.127 binds observer SSH trust to original VM, serial and
+  wire evidence, delivers verified client bytes through sealed input and
+  validates ABI output from original processes. Exact scope, identity, files,
+  clocks and single-use checks govern these paths. Live capture and operational
+  release gates remain open.
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
   explicitly types and manages fixture resources so full Python CI can check
