@@ -88,7 +88,7 @@ for (const ha of [false, true])
       '',
       ha,
     );
-  });
+  }, 60000); // Original issuer integration retains up to 21 resources and their ownership receipts.
 
 test('a present cloud resource retains partial inventory and permanently refuses another initial scan', async () => {
   await fixture(

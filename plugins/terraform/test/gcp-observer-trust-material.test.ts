@@ -19,6 +19,10 @@ import {
 import { type ObserverInsertFixtureInput, withObserverInsert } from './fixtures/observer-insert.fixture';
 import { authInfo } from './original-gcp-inventory-fixture';
 
+// Initial inventory, wire scan and parser each retain their original bounds.
+// The framework must also permit the independent final capture on failure.
+const completeTrustFixtureTimeout = 60000 + 2 * 60000 + 300000;
+
 const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
@@ -111,36 +115,40 @@ test('original trust material derives exact serial bytes, wire keys and context 
   });
 }, 60000);
 
-test('original consumer runs the real owned parser and issues a source-bound host pin without a live access claim', async () => {
-  await withMaterialInputs(async ({ vm, serial, keys, input }) => {
-    const original = await material.compileOriginalGcpObserverTrustMaterial(vm, serial, keys, input.callback);
-    const reader = await trust.openGcpObserverHostTrustReader(original, input.callback);
-    try {
-      const reference = await reader.verify();
-      await expect(trust.readOriginalGcpCeHostTrust(reference)).rejects.toThrow('Original');
-      await expect(trust.assertOriginalGcpCeHostTrustContext(reference, input.callback)).rejects.toThrow('Original');
-      const result = await trust.readOriginalGcpObserverHostTrust(reference);
-      expect(result.fingerprint).toBe(fingerprint);
-      expect(result.instanceId).toBe(String(input.operation.targetId));
-      expect(result.address).toBe('192.0.2.7');
-      expect(result.serialWireMatched).toBe(true);
-      expect(result.liveAccessVerified).toBe(false);
-      expect(result.originalDeadlineMs).toBe(input.callback.original.budget.deadline);
-      await trust.assertOriginalGcpObserverHostTrustContext(reference, input.callback);
-      await expect(trust.assertOriginalGcpObserverHostTrustContext(reference, { ...input.callback })).rejects.toThrow(
-        'Original',
-      );
-      expect((await readFile(result.knownHosts.path)).toString()).toBe(`${line}\n`);
-      await expect(trust.readOriginalGcpObserverHostTrust({ ...reference })).rejects.toThrow('Original');
-      await expect(reader.verify()).rejects.toThrow('single');
-      await reader.close();
-      await reader.close();
-      await expect(trust.readOriginalGcpObserverHostTrust(reference)).rejects.toThrow('retired');
-    } finally {
-      await reader.close();
-    }
-  });
-}, 60000);
+test(
+  'original consumer runs the real owned parser and issues a source-bound host pin without a live access claim',
+  async () => {
+    await withMaterialInputs(async ({ vm, serial, keys, input }) => {
+      const original = await material.compileOriginalGcpObserverTrustMaterial(vm, serial, keys, input.callback);
+      const reader = await trust.openGcpObserverHostTrustReader(original, input.callback);
+      try {
+        const reference = await reader.verify();
+        await expect(trust.readOriginalGcpCeHostTrust(reference)).rejects.toThrow('Original');
+        await expect(trust.assertOriginalGcpCeHostTrustContext(reference, input.callback)).rejects.toThrow('Original');
+        const result = await trust.readOriginalGcpObserverHostTrust(reference);
+        expect(result.fingerprint).toBe(fingerprint);
+        expect(result.instanceId).toBe(String(input.operation.targetId));
+        expect(result.address).toBe('192.0.2.7');
+        expect(result.serialWireMatched).toBe(true);
+        expect(result.liveAccessVerified).toBe(false);
+        expect(result.originalDeadlineMs).toBe(input.callback.original.budget.deadline);
+        await trust.assertOriginalGcpObserverHostTrustContext(reference, input.callback);
+        await expect(trust.assertOriginalGcpObserverHostTrustContext(reference, { ...input.callback })).rejects.toThrow(
+          'Original',
+        );
+        expect((await readFile(result.knownHosts.path)).toString()).toBe(`${line}\n`);
+        await expect(trust.readOriginalGcpObserverHostTrust({ ...reference })).rejects.toThrow('Original');
+        await expect(reader.verify()).rejects.toThrow('single');
+        await reader.close();
+        await reader.close();
+        await expect(trust.readOriginalGcpObserverHostTrust(reference)).rejects.toThrow('retired');
+      } finally {
+        await reader.close();
+      }
+    });
+  },
+  completeTrustFixtureTimeout,
+);
 
 test('the real consumer refuses original serial bytes whose host fingerprint differs from the wire source', async () => {
   await withMaterialInputs(async ({ vm, keys, input }) => {

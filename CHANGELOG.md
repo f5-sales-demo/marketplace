@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.129 binds original CE RSA wire capture to observer
+- **`terraform`** v2.4.130 binds original CE RSA wire capture to observer
   client ABI, original VM serial evidence and distinct host-trust references.
   Capture-start freshness, process-disappearance handling and SSH setup
   classification are repaired. Live guest, runtime and operational gates
