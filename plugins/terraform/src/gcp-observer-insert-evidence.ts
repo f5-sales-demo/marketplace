@@ -398,6 +398,7 @@ interface ObserverVmView {
   readonly imageId: string;
   readonly interfaceAddress: string;
   readonly externalAddress: string;
+  readonly publicKeySha256: string;
   readonly operationId: string;
   readonly instanceSha256: string;
   readonly diskSha256: string;
@@ -407,6 +408,7 @@ interface ObserverVmView {
 const vmOrigins = new WeakMap<
   OriginalGcpObserverVmEvidence,
   {
+    readonly callback: OriginalApplyCallbackContext;
     read(): Promise<Readonly<ObserverVmView>>;
     serial(start: string): Promise<Awaited<ReturnType<CloudReader['serial']>>>;
     readSerial(value: unknown): Promise<OriginalGcpSerialSource>;
@@ -421,6 +423,15 @@ export async function collectOriginalGcpObserverSerialEvidence(value: unknown, s
   const read = value && typeof value === 'object' ? vmOrigins.get(value as OriginalGcpObserverVmEvidence) : undefined;
   if (!read) throw new Error('Original observer VM evidence required');
   return read.serial(start);
+}
+export async function assertOriginalGcpObserverVmCaptureCallback(
+  vm: unknown,
+  callback: OriginalApplyCallbackContext,
+): Promise<Readonly<ObserverVmView>> {
+  const source = vm && typeof vm === 'object' ? vmOrigins.get(vm as OriginalGcpObserverVmEvidence) : undefined;
+  if (!source || source.callback !== callback)
+    throw new Error('Original observer VM and actual capture callback required');
+  return source.read();
 }
 export async function readOriginalGcpObserverSerialSource(vm: unknown, serial: unknown) {
   const source = vm && typeof vm === 'object' ? vmOrigins.get(vm as OriginalGcpObserverVmEvidence) : undefined;
@@ -579,6 +590,7 @@ export async function collectOriginalGcpObserverVmEvidence(input: OriginalGcpObs
         imageId: GCP_OBSERVER_IMAGE_PIN.id,
         interfaceAddress: nic.networkIP,
         externalAddress: external.natIP,
+        publicKeySha256: identity.publicKeySha256,
         operationId: identity.operationId,
         instanceSha256: instance.sha256,
         diskSha256: disk.sha256,
@@ -598,6 +610,7 @@ export async function collectOriginalGcpObserverVmEvidence(input: OriginalGcpObs
   type Serial = Awaited<ReturnType<CloudReader['serial']>>;
   const capturedSerials = new WeakSet<Serial>();
   vmOrigins.set(result, {
+    callback,
     read,
     async readSerial(value) {
       if (!value || typeof value !== 'object' || !capturedSerials.has(value as Serial))

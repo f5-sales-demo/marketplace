@@ -4,6 +4,7 @@ import { translateGcpTerraformObserverSiteCompute } from '../../../gcloud/src/ce
 import { gcpTerraformObserverIdentity } from '../../../gcloud/src/ce/observer-scope';
 import { createGcpTerraformRequestReason } from '../../../gcloud/src/ce/request-reason';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
+import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { openInstalledGcpCloudSerialReader } from '../../src/gcp-cloud-serial-reader';
 import { GoogleHttpRpcTraceParser, type OriginalGoogleHttpResponseObservation } from '../../src/gcp-http-rpc-trace';
 import { type OriginalGcpObserverImageEvidence, openGcpObserverImageReader } from '../../src/gcp-observer-image';
@@ -32,13 +33,14 @@ export interface ObserverInsertFixtureInput {
   cloudReader: Awaited<ReturnType<typeof openInstalledGcpCloudSerialReader>>;
   vm: Json;
   disk: Json;
-  serialHook: { run?: () => void };
+  serialHook: { run?: () => void; contents?: string };
   cloudHook: { run?: (path: string) => void };
 }
 export async function withObserverInsert(
   run: (value: ObserverInsertFixtureInput) => Promise<void>,
   mutateRequest?: (request: Json, operation: Json) => void,
   finalRun?: (callback: OriginalApplyCallbackContext) => Promise<void>,
+  prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
 ) {
   let intent: GcpCeIntent | undefined;
   let reason = '',
@@ -139,7 +141,7 @@ export async function withObserverInsert(
         labels: request.labels,
         users: [`${prefix}/zones/${observer.zone}/instances/${observer.name}`],
       };
-      const serialHook: { run?: () => void } = {};
+      const serialHook: { run?: () => void; contents?: string } = {};
       const cloudHook: { run?: (path: string) => void } = {};
       const cloudReader = await openInstalledGcpCloudSerialReader(before.original, undefined, (async (
         url: string | URL | Request,
@@ -157,7 +159,7 @@ export async function withObserverInsert(
         if (path.endsWith(`/instances/${observer.name}/serialPort`)) {
           serialHook.run?.();
           const start = parsed.searchParams.get('start') ?? '0',
-            contents = 'original-observer-serial\n';
+            contents = serialHook.contents ?? 'original-observer-serial\n';
           return Response.json({
             start,
             next: (BigInt(start) + BigInt(Buffer.byteLength(contents))).toString(),
@@ -265,5 +267,6 @@ export async function withObserverInsert(
         translateGcpTerraformObserverSiteCompute(value, versions, value.observer, correlation).configuration,
       );
     },
+    prepareIntent,
   );
 }

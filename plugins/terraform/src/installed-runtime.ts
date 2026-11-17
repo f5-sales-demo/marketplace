@@ -130,17 +130,19 @@ async function owned(path: string, maximum = 256 * 1024 * 1024) {
     const parent = await lstat(dirname(path), { bigint: true });
     return {
       bytes,
-      binding: {
+      binding: Object.freeze({
         path,
         sha256: hash(bytes),
-        expectedIdentity: Object.fromEntries(keys.map((key) => [key, before[key].toString()])) as OriginalInputIdentity,
-        expectedParentIdentity: {
+        expectedIdentity: Object.freeze(
+          Object.fromEntries(keys.map((key) => [key, before[key].toString()])) as OriginalInputIdentity,
+        ),
+        expectedParentIdentity: Object.freeze({
           dev: parent.dev.toString(),
           ino: parent.ino.toString(),
           uid: parent.uid.toString(),
           mode: parent.mode.toString(),
-        },
-      } satisfies OriginalInputBinding,
+        }),
+      }) satisfies OriginalInputBinding,
     };
   } finally {
     await handle.close();

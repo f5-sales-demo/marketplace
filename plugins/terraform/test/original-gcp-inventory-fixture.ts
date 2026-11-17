@@ -1,6 +1,6 @@
 import { afterEach } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fingerprint } from '../../gcloud/src/ce/discovery';
@@ -15,7 +15,7 @@ import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { createInstalledCaptureContext, type InstalledCaptureContext } from '../src/installed-capture-context';
 import { readOwnedInstalledInput } from '../src/installed-runtime';
 import { linuxMonotonicMs } from '../src/linux-clock';
-import { assertSameOriginalInput } from '../src/original-input-monitor';
+import { assertSameOriginalInput, monitorOriginalInputs } from '../src/original-input-monitor';
 import { type Deployment, type Invocation, readOriginalTerraformPlanSource, TerraformRunner } from '../src/runner';
 
 export const credential = {
@@ -75,6 +75,7 @@ export async function fixture(
   ha = true,
   expired: () => boolean = () => false,
   configuration?: (intent: GcpCeIntent) => string,
+  prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'original-inventory-scope-'));
   roots.push(root);
@@ -87,6 +88,7 @@ export async function fixture(
     deploymentId: intent.deploymentName,
   };
   const store = await CeDeploymentStore.open(root, owner);
+  await prepareIntent?.(intent, store);
   await store.write('gcp-terraform-input-identity.json', {
     intent,
     intentFingerprint: fingerprint(intent),
@@ -162,6 +164,8 @@ export async function fixture(
         await writeFile(adc, JSON.stringify(credential), { mode: 0o400 });
         await writeFile(platformInput, 'original-platform', { mode: 0o400 });
         const files = {
+          'script:gcp_host_trust.py': await realpath(join(import.meta.dir, '../scripts/gcp_host_trust.py')),
+          python: await realpath(process.env.CE_TEST_PYTHON ?? Bun.which('python3') ?? ''),
           adc,
           platform: platformInput,
           'workspace:main.tf.json': join(request.cwd, 'main.tf.json'),
@@ -176,6 +180,7 @@ export async function fixture(
           ),
         );
         const providers: Record<string, (typeof inputs)[string]> = {};
+        const interpreter = await monitorOriginalInputs({ python: inputs.python });
         for (let i = 0; i < 6; i++) {
           const path = join(request.cwd, `synthetic-provider-${i}.private`);
           await writeFile(path, `original-provider-${i}`, { mode: 0o400 });
@@ -198,8 +203,11 @@ export async function fixture(
           },
           inputs,
           assertInputs: async () => {
-            for (const binding of Object.values(inputs))
+            await interpreter.assertOriginalIdentity();
+            for (const [name, binding] of Object.entries(inputs)) {
+              if (name === 'python') continue;
               assertSameOriginalInput(binding, (await readOwnedInstalledInput(binding.path)).binding);
+            }
           },
           assertWithinDeadline: async () => {
             if (expired()) throw new Error('original operation expired');
@@ -215,7 +223,15 @@ export async function fixture(
               backendIdentity: deployment.backendIdentity,
             }),
         });
-        await run(context, store, request);
+        try {
+          await run(context, store, request);
+        } finally {
+          try {
+            await interpreter.assertOriginal();
+          } finally {
+            interpreter.close();
+          }
+        }
       }
       return {
         code: 0,

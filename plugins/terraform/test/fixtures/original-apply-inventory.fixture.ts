@@ -36,6 +36,7 @@ export async function withApplyInventory(
   output?: (context: InstalledCaptureContext, store: CeDeploymentStore) => Promise<{ prefix: string; tail: string }>,
   expectedOutcome?: 'deadline',
   configuration?: (intent: GcpCeIntent) => string,
+  prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
 ) {
   await fixture(
     async (context, store, invocation) => {
@@ -82,7 +83,7 @@ export async function withApplyInventory(
               ]
             : []),
           `open(${JSON.stringify(startedPath)},"x").write("started")`,
-          'deadline=time.monotonic()+30',
+          `deadline=time.monotonic()+${prepareIntent ? 60 : 30}`,
           `while not os.path.exists(${JSON.stringify(releasedPath)}):`,
           ' if time.monotonic()>=deadline: sys.exit(74)',
           ' time.sleep(0.01)',
@@ -206,5 +207,6 @@ export async function withApplyInventory(
     ha,
     () => false,
     configuration,
+    prepareIntent,
   );
 }

@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.126 binds private serial source bytes to the original
+- **`terraform`** v2.4.127 binds private serial source bytes to the original
   early/final CE or observer VM that issued the capture. Scope, identity,
   immutable files and clocks are rechecked; SSH trust and live gates stay open.
 

@@ -445,6 +445,7 @@ async function projectSerialSource(
 const earlyVmOrigins = new WeakMap<
   OriginalEarlyGcpVmEvidence,
   {
+    readonly callback: OriginalApplyCallbackContext;
     read(): Promise<EarlyVmView>;
     serial(start: string): Promise<Awaited<ReturnType<Reader['serial']>>>;
     readSerial(value: unknown): Promise<OriginalGcpSerialSource>;
@@ -468,6 +469,7 @@ type FinalVmView = Omit<EarlyVmView, 'kind'> &
 const finalVmOrigins = new WeakMap<
   OriginalFinalGcpVmEvidence,
   {
+    readonly callback: OriginalApplyCallbackContext;
     read(): Promise<FinalVmView>;
     serial(start: string): Promise<Awaited<ReturnType<Reader['serial']>>>;
     readSerial(value: unknown): Promise<OriginalGcpSerialSource>;
@@ -503,6 +505,17 @@ export async function collectOriginalEarlyGcpSerialEvidence(value: unknown, star
     value && typeof value === 'object' ? earlyVmOrigins.get(value as OriginalEarlyGcpVmEvidence) : undefined;
   if (!source) throw new Error('Original early VM evidence required');
   return source.serial(start);
+}
+export async function assertOriginalGcpVmCaptureCallback(
+  vm: unknown,
+  callback: OriginalApplyCallbackContext,
+): Promise<void> {
+  const source =
+    vm && typeof vm === 'object'
+      ? (earlyVmOrigins.get(vm as OriginalEarlyGcpVmEvidence) ?? finalVmOrigins.get(vm as OriginalFinalGcpVmEvidence))
+      : undefined;
+  if (!source || source.callback !== callback) throw new Error('Original VM and actual capture callback required');
+  await source.read();
 }
 export async function readOriginalEarlyGcpSerialSource(vm: unknown, serial: unknown) {
   const source = vm && typeof vm === 'object' ? earlyVmOrigins.get(vm as OriginalEarlyGcpVmEvidence) : undefined;
@@ -668,6 +681,7 @@ export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpV
   });
   const capturedSerials = new WeakSet<OriginalSerial>();
   earlyVmOrigins.set(packet, {
+    callback,
     read,
     async readSerial(value) {
       if (!value || typeof value !== 'object' || !capturedSerials.has(value as OriginalSerial))
@@ -771,6 +785,7 @@ export async function collectOriginalEarlyGcpVmEvidence(input: OriginalEarlyGcpV
           });
           const finalSerials = new WeakSet<OriginalSerial>();
           finalVmOrigins.set(result, {
+            callback: final,
             read: readFinal,
             async readSerial(value) {
               if (!value || typeof value !== 'object' || !finalSerials.has(value as OriginalSerial))

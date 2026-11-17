@@ -26,6 +26,7 @@ export { joinOriginalXcshCreationBody, readOriginalXcshCreationBody } from './xc
 import type { CeEventBus } from '../../platform/src/ce/service';
 import { bindOriginalGcpCampaignAccess, prepareOriginalGcpCampaignAccess } from './gcp-campaign-access';
 import { assertInstalledRuntime, createInstalledRuntimeResolver } from './installed-runtime';
+import { assertInstalledGcpSshClientSetup } from './installed-ssh-clients';
 import { createCeTerraformService, registerCeTerraformService, requestPlatform } from './service';
 
 export default function factory(pi: { events: CeEventBus; setLabel(label: string): void }): void {
@@ -41,6 +42,7 @@ export default function factory(pi: { events: CeEventBus; setLabel(label: string
       if (owner.provider !== 'gcp' || owner.engine !== 'terraform')
         throw new Error('GCP Terraform access scope required');
       await assertInstalledRuntime();
+      await assertInstalledGcpSshClientSetup();
       const platform = await requestPlatform(pi.events);
       return prepareOriginalGcpCampaignAccess(await platform.storage(owner), request);
     },
@@ -53,7 +55,10 @@ export default function factory(pi: { events: CeEventBus; setLabel(label: string
       await bindOriginalGcpCampaignAccess(await platform.storage(owner), binding);
     },
     assertNewRuntime: async (provider: string) => {
-      if (provider === 'gcp') await assertInstalledRuntime();
+      if (provider === 'gcp') {
+        await assertInstalledRuntime();
+        await assertInstalledGcpSshClientSetup();
+      }
     },
   });
 }

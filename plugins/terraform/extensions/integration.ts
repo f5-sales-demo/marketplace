@@ -31,6 +31,19 @@ export function terraformRuntimeInstallArgv(platform = process.platform): string
   ];
 }
 
+export function terraformSshClientInstallArgv(platform = process.platform): string[] {
+  if (platform !== 'linux') throw new Error('Qualified SSH client runtime requires Linux AMD64');
+  return [
+    'python3',
+    '-I',
+    '-B',
+    join(import.meta.dir, '../scripts/install_ssh_clients.py'),
+    ...(process.env.XCSH_TERRAFORM_SSH_CLIENTS_DIR
+      ? ['--clients-dir', process.env.XCSH_TERRAFORM_SSH_CLIENTS_DIR]
+      : []),
+  ];
+}
+
 export default function terraformIntegration(pi: ExtensionApi) {
   pi.integrations.register({
     id: 'terraform',
@@ -48,13 +61,19 @@ export default function terraformIntegration(pi: ExtensionApi) {
           timeoutMs: 300_000,
         },
         ...(process.platform === 'linux'
-          ? [{ kind: 'install', argv: terraformRuntimeInstallArgv(), timeoutMs: 300_000 }]
+          ? [
+              { kind: 'install', argv: terraformRuntimeInstallArgv(), timeoutMs: 300_000 },
+              { kind: 'install', argv: terraformSshClientInstallArgv(), timeoutMs: 30_000 },
+            ]
           : []),
       ],
       verification: [
         { argv: terraformVerificationArgv(), timeoutMs: 30_000 },
         ...(process.platform === 'linux'
-          ? [{ argv: [...terraformRuntimeInstallArgv(), '--check'], timeoutMs: 30_000 }]
+          ? [
+              { argv: [...terraformRuntimeInstallArgv(), '--check'], timeoutMs: 30_000 },
+              { argv: [...terraformSshClientInstallArgv(), '--check'], timeoutMs: 30_000 },
+            ]
           : []),
       ],
     },
@@ -72,6 +91,11 @@ export default function terraformIntegration(pi: ExtensionApi) {
             throw error;
           }
         }
+        if (
+          process.platform === 'linux' &&
+          Bun.spawnSync([...terraformSshClientInstallArgv(), '--check']).exitCode !== 0
+        )
+          return { state: 'setup_required', reason: 'ssh_clients_missing_or_unverified' };
         return { state: 'ready' };
       } catch (error) {
         if ((error as { code?: string } | null)?.code === 'ENOENT')

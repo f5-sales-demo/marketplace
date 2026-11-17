@@ -1,11 +1,26 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, watch } from 'node:fs';
-import { lstat, mkdir, open, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, open, readFile, readlink, realpath, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { acquireProcessLock, assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import { type TerraformFailureCategory, terraformFailureCategories } from './failure';
+import { type OriginalGcpKeyScanCommand, readOriginalGcpKeyScanCommand } from './gcp-keyscan-command';
+import {
+  assertOriginalGcpObserverClientDeliveryIdentity,
+  assertOriginalGcpObserverClientDeliveryInputs,
+  checkoutOriginalGcpObserverClientDeliveryCommand,
+  readOriginalGcpObserverClientDeliveryCommand,
+} from './gcp-observer-client-delivery-command';
+import {
+  assertOriginalGcpObserverSshCommandIdentity,
+  assertOriginalGcpObserverSshCommandInputs,
+  readOriginalGcpObserverSshCommand,
+} from './gcp-observer-ssh-command';
+import { freezeAdmittedCaptureInputs } from './installed-capture-context';
 import { originalLoaderAlternatives } from './installed-gcp-invocation';
+import { readOwnedInstalledInput } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
+import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import { bindOriginalExecutionOutput, type OriginalExecutionOutput } from './original-output-stream';
 import {
   assertFinalReaderReserve,
@@ -16,7 +31,19 @@ import {
 import type { Executor } from './runner';
 
 type Reason = 'startup' | 'deadline' | 'cancelled' | 'input-changed' | 'output-limit';
+export interface OriginalExecutionStdinSnapshot {
+  readonly schemaVersion: 1;
+  readonly kind: 'sealed-original-file-stdin';
+  readonly path: string;
+  readonly sha256: string;
+  readonly bytes: number;
+  readonly sealed: true;
+  readonly snapshotFd: number;
+  readonly dev: string;
+  readonly ino: string;
+}
 export interface ExecutionCaptureAdmission {
+  readonly stdin?: OriginalExecutionStdinSnapshot;
   readonly output: OriginalExecutionOutput;
   readonly directory: string;
   readonly args: readonly string[];
@@ -34,6 +61,7 @@ export interface StartupFailureEvidence {
   readonly sha256: string;
 }
 export interface FinalExecutionCapture {
+  readonly stdin?: OriginalExecutionStdinSnapshot;
   readonly inheritedReaderReserve?: FinalReaderReserveSnapshot;
   readonly identity?: ExecutionCaptureAdmission['identity'];
   invocationStartedMs: number;
@@ -57,6 +85,9 @@ interface ExecutableBinding {
   sha256: string;
 }
 export interface SignalFreeExecutionPolicy {
+  /** Server-owned, complete original input binding. Command data never shares
+   * the release-control stream and cannot be selected through tool arguments. */
+  readonly stdin?: OriginalInputBinding;
   python: ExecutableBinding;
   executable: ExecutableBinding;
   originalStartMs: number;
@@ -83,8 +114,12 @@ export interface SignalFreeExecutionPolicy {
 const hash = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
 const now = linuxMonotonicMs;
 const pause = () => Bun.sleep(25);
-export const signalFreeBootstrapSource = `import hashlib,json,os,sys,time
+export const signalFreeBootstrapSource = `import fcntl,hashlib,json,os,stat,sys,time
 import psutil
+# Stable Linux UAPI: linux/fcntl.h, F_LINUX_SPECIFIC_BASE (1024) + 9/+10.
+LINUX_F_ADD_SEALS=1033
+LINUX_F_GET_SEALS=1034
+LINUX_ALL_INPUT_SEALS=0x0001|0x0002|0x0004|0x0008
 os.umask(0o077)
 os.setsid()
 pid=os.getpid()
@@ -98,7 +133,54 @@ btime=int(next(line.split()[1] for line in open('/proc/stat') if line.startswith
 birth=btime+int(fields[19])/ticks
 if process.pid!=pid or process.ppid()!=int(fields[1]) or process.uids().real!=os.getuid() or abs(process.create_time()-birth)>1/ticks:
  raise RuntimeError('Independent original process identity differs')
+snapshot_fd=None
+stdin_value=None
+stdin_spec=sys.argv[1]+'.stdin-binding.json'
+if os.path.lexists(stdin_spec):
+ meta=os.lstat(stdin_spec)
+ if not stat.S_ISREG(meta.st_mode) or meta.st_uid!=os.getuid() or meta.st_nlink!=1 or meta.st_mode&0o777!=0o400 or not 0<meta.st_size<=65536:
+  raise RuntimeError('Original stdin metadata ownership differs')
+ with open(stdin_spec,'rb') as source:
+  binding=json.load(source)
+ path=binding['path']
+ expected=binding['expectedIdentity']
+ parent_expected=binding['expectedParentIdentity']
+ if not os.path.isabs(path) or os.path.realpath(path)!=path:
+  raise RuntimeError('Canonical original stdin file required')
+ parent=os.stat(os.path.dirname(path))
+ if any(str(getattr(parent,'st_'+key))!=parent_expected[key] for key in ('dev','ino','uid','mode')):
+  raise RuntimeError('Original stdin parent differs')
+ source_fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+ try:
+  source_stat=os.fstat(source_fd)
+  def same_source(value):
+   fields={'dev':value.st_dev,'ino':value.st_ino,'uid':value.st_uid,'nlink':value.st_nlink,'mode':value.st_mode,'size':value.st_size,'mtimeNs':value.st_mtime_ns,'ctimeNs':value.st_ctime_ns}
+   return all(str(fields[key])==expected[key] for key in fields)
+  if not stat.S_ISREG(source_stat.st_mode) or source_stat.st_uid!=os.getuid() or source_stat.st_nlink!=1 or source_stat.st_mode&0o777!=0o400 or not 0<source_stat.st_size<=16777216 or not same_source(source_stat):
+   raise RuntimeError('Original stdin file identity differs')
+  snapshot_fd=os.memfd_create('xcsh-original-stdin',os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING)
+  digest=hashlib.sha256()
+  total=0
+  while chunk:=os.read(source_fd,65536):
+   total+=len(chunk)
+   if total>16777216: raise RuntimeError('Original stdin snapshot exceeds bound')
+   digest.update(chunk)
+   offset=0
+   while offset<len(chunk): offset+=os.write(snapshot_fd,chunk[offset:])
+  parent_after=os.stat(os.path.dirname(path))
+  if total!=source_stat.st_size or digest.hexdigest()!=binding['sha256'] or not same_source(os.fstat(source_fd)) or not same_source(os.lstat(path)) or any(str(getattr(parent_after,'st_'+key))!=parent_expected[key] for key in ('dev','ino','uid','mode')):
+   raise RuntimeError('Original stdin bytes or parent changed during snapshot')
+  seals=LINUX_ALL_INPUT_SEALS
+  fcntl.fcntl(snapshot_fd,LINUX_F_ADD_SEALS,seals)
+  if fcntl.fcntl(snapshot_fd,LINUX_F_GET_SEALS)!=seals:
+   raise RuntimeError('Original stdin snapshot is not sealed')
+  os.lseek(snapshot_fd,0,os.SEEK_SET)
+  snapshot_stat=os.fstat(snapshot_fd)
+  stdin_value={'schemaVersion':1,'kind':'sealed-original-file-stdin','path':path,'sha256':digest.hexdigest(),'bytes':total,'sealed':True,'snapshotFd':snapshot_fd,'dev':str(snapshot_stat.st_dev),'ino':str(snapshot_stat.st_ino)}
+ finally:
+  os.close(source_fd)
 value={'pid':pid,'group':int(fields[2]),'start':fields[19],'boot':boot,'ppid':int(fields[1]),'pythonSha256':hashlib.sha256(open(exe,'rb').read()).hexdigest(),'sdkCreateTime':process.create_time(),'monotonicMs':time.monotonic_ns()//1000000}
+if stdin_value is not None: value['stdin']=stdin_value
 partial=sys.argv[1]+'.partial'
 with open(partial,'x') as out:
  json.dump(value,out);out.flush();os.fsync(out.fileno())
@@ -106,6 +188,9 @@ os.chmod(partial,0o400)
 os.link(partial,sys.argv[1])
 os.unlink(partial)
 if sys.stdin.buffer.readline(4)!=b'go\\n' or sys.stdin.buffer.read(1)!=b'': sys.exit(73)
+if snapshot_fd is not None:
+ os.dup2(snapshot_fd,0,inheritable=True)
+ os.close(snapshot_fd)
 os.execve(sys.argv[2],[sys.argv[2],*sys.argv[3:]],dict(os.environ))
 `;
 
@@ -170,11 +255,266 @@ export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): E
   return originalExecutor(input);
 }
 
+/** Original guest delivery only. Caller arguments never select another
+ * executable, target, input, clock or original submission. */
+export async function signalFreeGcpObserverClientDeliveryExecutor(
+  input: SignalFreeExecutionPolicy,
+  command: unknown,
+): Promise<Executor> {
+  const source = await readOriginalGcpObserverClientDeliveryCommand(command);
+  if (
+    input.python.path !== source.python.path ||
+    input.python.sha256 !== source.python.sha256 ||
+    input.executable.path !== source.executable.path ||
+    input.executable.sha256 !== source.executable.sha256 ||
+    input.originalStartMs !== source.callback.original.budget.start ||
+    input.originalDeadlineMs !== source.callback.original.budget.deadline
+  )
+    throw new Error('Original observer delivery executable or operation budget differs');
+  if (
+    (input.timeoutMs ?? 60000) > 60000 ||
+    (input.startupTimeoutMs ?? 15000) > 15000 ||
+    (input.maxOutputBytes ?? 65536) > 65536
+  )
+    throw new Error('Original observer delivery limits cannot be extended');
+  if (input.stdin) assertSameOriginalInput(source.stdin, input.stdin);
+  return async (invocation) => {
+    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+      throw new Error('Original observer delivery arguments differ');
+    await checkoutOriginalGcpObserverClientDeliveryCommand(command);
+    const remaining = source.sourceDeadlineMs - now();
+    if (remaining <= 0) throw new Error('Original observer delivery deadline exhausted');
+    const policy: SignalFreeExecutionPolicy = {
+      ...input,
+      stdin: source.stdin,
+      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+      maxOutputBytes: input.maxOutputBytes ?? 65536,
+      assertOriginal: async () => {
+        await readOriginalGcpObserverClientDeliveryCommand(command);
+        await input.assertOriginal();
+      },
+      assertOriginalIdentity: async () => {
+        await assertOriginalGcpObserverClientDeliveryIdentity(command);
+        await (input.assertOriginalIdentity ?? input.assertOriginal)();
+      },
+      assertFinalInputs: async () => {
+        await assertOriginalGcpObserverClientDeliveryInputs(command);
+        await (input.assertFinalInputs ?? input.assertOriginal)();
+      },
+      beforeRelease: async (admission) => {
+        await readOriginalGcpObserverClientDeliveryCommand(command);
+        if (
+          !admission.stdin ||
+          admission.stdin.path !== source.stdin.path ||
+          admission.stdin.sha256 !== source.stdin.sha256
+        )
+          throw new Error('Original observer delivery sealed stdin admission differs');
+        await input.beforeRelease?.(admission);
+      },
+      finalCapture: async (capture) => {
+        const failures: unknown[] = [];
+        try {
+          await assertOriginalGcpObserverClientDeliveryInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await input.finalCapture(capture);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await assertOriginalGcpObserverClientDeliveryInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        if (failures.length)
+          throw new AggregateError(failures, 'Original observer delivery final capture or input retention failed');
+      },
+    };
+    let reserve: FinalReaderReserve | undefined;
+    if (source.callback.phase === 'after') {
+      reserve = source.callback.reserve;
+      if (!reserve) throw new Error('Original final observer delivery reserve required');
+      await assertFinalReaderReserve(reserve);
+    }
+    const execute = originalExecutor(policy, reserve);
+    const result = await execute(invocation);
+    await assertOriginalGcpObserverClientDeliveryInputs(command);
+    return result;
+  };
+}
+
+/** Only the original, fixed observer proof command may consume this native
+ * SSH mapping. It cannot renew a reserve or execute a caller remote command. */
+export async function signalFreeGcpObserverSshExecutor(
+  input: SignalFreeExecutionPolicy,
+  command: unknown,
+): Promise<Executor> {
+  if (input.stdin !== undefined) throw new Error('Fixed observer proof does not accept command stdin');
+  const source = await readOriginalGcpObserverSshCommand(command);
+  if (
+    input.python.path !== source.python.path ||
+    input.python.sha256 !== source.python.sha256 ||
+    input.executable.path !== source.executable.path ||
+    input.executable.sha256 !== source.executable.sha256 ||
+    input.originalStartMs !== source.callback.original.budget.start ||
+    input.originalDeadlineMs !== source.callback.original.budget.deadline
+  )
+    throw new Error('Original observer SSH executable and operation bindings required');
+  if (
+    (input.timeoutMs ?? 60000) > 60000 ||
+    (input.startupTimeoutMs ?? 15000) > 15000 ||
+    (input.maxOutputBytes ?? 65536) > 65536
+  )
+    throw new Error('Original observer SSH command limits required');
+  const policy = {
+    ...input,
+    timeoutMs: input.timeoutMs ?? 60000,
+    startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+    maxOutputBytes: input.maxOutputBytes ?? 65536,
+    assertOriginal: async () => {
+      await assertOriginalGcpObserverSshCommandInputs(command);
+      await input.assertOriginal();
+    },
+    assertOriginalIdentity: async () => {
+      await assertOriginalGcpObserverSshCommandIdentity(command);
+      await (input.assertOriginalIdentity ?? input.assertOriginal)();
+    },
+    assertFinalInputs: async () => {
+      await assertOriginalGcpObserverSshCommandInputs(command);
+      await (input.assertFinalInputs ?? input.assertOriginal)();
+    },
+    beforeRelease: async (admission: ExecutionCaptureAdmission) => {
+      await readOriginalGcpObserverSshCommand(command);
+      await input.beforeRelease?.(admission);
+    },
+    finalCapture: async (capture: FinalExecutionCapture) => {
+      const errors: unknown[] = [];
+      try {
+        await readOriginalGcpObserverSshCommand(command);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await input.finalCapture(capture);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await readOriginalGcpObserverSshCommand(command);
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length) throw new AggregateError(errors, 'Original SSH final ownership or capture failed');
+    },
+  };
+  const reserve = source.callback.phase === 'after' ? source.callback.reserve : undefined;
+  if (source.callback.phase === 'after' && !reserve) throw new Error('Original observer SSH final reserve required');
+  if (reserve) {
+    const inherited = inspectFinalReaderReserve(reserve);
+    if (
+      inherited.originalStartMs !== input.originalStartMs ||
+      inherited.originalDeadlineMs !== input.originalDeadlineMs ||
+      (['pid', 'group', 'start', 'boot'] as const).some(
+        (key) => inherited.identity[key] !== source.callback.execution.identity[key],
+      )
+    )
+      throw new Error('Original observer SSH parent reserve differs');
+  }
+  const execute = originalExecutor(policy, reserve);
+  return async (invocation) => {
+    if (
+      JSON.stringify(invocation.args) !== JSON.stringify(source.args) ||
+      Object.keys(invocation.env).length !== 1 ||
+      invocation.env.LC_ALL !== 'C'
+    )
+      throw new Error('Exact original observer SSH arguments and environment required');
+    return execute(invocation);
+  };
+}
+
+/** Specific native read mapping. Only an original VM/client/callback-bound
+ * command can consume its actual final reserve. Python reader admission stays
+ * unchanged; this cannot execute authentication, a caller target or Terraform. */
+export async function signalFreeGcpKeyScanExecutor(
+  input: SignalFreeExecutionPolicy,
+  command: OriginalGcpKeyScanCommand,
+): Promise<Executor> {
+  if (input.stdin !== undefined) throw new Error('Fixed key scan does not accept command stdin');
+  const original = await readOriginalGcpKeyScanCommand(command);
+  const callback = original.callback;
+  const python = callback.original.inputs.python;
+  const sameBinding = (left: ExecutableBinding, right: ExecutableBinding) =>
+    left?.path === right?.path && left?.sha256 === right?.sha256;
+  if (!python || !sameBinding(input.python, python) || !sameBinding(input.executable, original.executable))
+    throw new Error('Original key-scan executable and interpreter bindings required');
+  if (
+    input.originalStartMs !== callback.original.budget.start ||
+    input.originalDeadlineMs !== callback.original.budget.deadline
+  )
+    throw new Error('Original key-scan operation clocks differ');
+  if (
+    (input.timeoutMs ?? 60000) > 60000 ||
+    (input.startupTimeoutMs ?? 15000) > 15000 ||
+    (input.maxOutputBytes ?? 65536) > 65536
+  )
+    throw new Error('Original key-scan sixty-second command, fifteen-second startup and output bounds required');
+  const policy = {
+    ...input,
+    timeoutMs: input.timeoutMs ?? 60000,
+    startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+    maxOutputBytes: input.maxOutputBytes ?? 65536,
+    assertOriginal: async () => {
+      await readOriginalGcpKeyScanCommand(command);
+      await input.assertOriginal();
+    },
+    assertOriginalIdentity: async () => {
+      await readOriginalGcpKeyScanCommand(command);
+      await (input.assertOriginalIdentity ?? input.assertOriginal)();
+    },
+    assertFinalInputs: async () => {
+      await readOriginalGcpKeyScanCommand(command);
+      await (input.assertFinalInputs ?? input.assertOriginal)();
+    },
+  };
+  const reserve = callback.phase === 'after' ? callback.reserve : undefined;
+  if (callback.phase === 'after' && !reserve) throw new Error('Original final key-scan reserve required');
+  if (reserve) {
+    const inherited = inspectFinalReaderReserve(reserve);
+    if (
+      inherited.originalStartMs !== input.originalStartMs ||
+      inherited.originalDeadlineMs !== input.originalDeadlineMs ||
+      ['pid', 'group', 'start', 'boot'].some(
+        (key) =>
+          inherited.identity[key as keyof typeof inherited.identity] !==
+          callback.execution.identity[key as keyof typeof callback.execution.identity],
+      )
+    )
+      throw new Error('Original final key-scan parent reserve differs');
+  }
+  const execute = originalExecutor(policy, reserve);
+  return async (invocation) => {
+    await readOriginalGcpKeyScanCommand(command);
+    if (
+      invocation.args.length !== original.args.length ||
+      invocation.args.some((value, index) => value !== original.args[index])
+    )
+      throw new Error('Exact original VM-bound key-scan arguments required');
+    if (Object.keys(invocation.env).length !== 1 || invocation.env.LC_ALL !== 'C')
+      throw new Error('Exact credential-free key-scan environment required');
+    return execute(invocation);
+  };
+}
+
 /** Only isolated Python readers can consume an already admitted parent's final reserve.
  * The caller must bind its shipped reader sources and request through assertOriginal.
  * This is a compiled capture adapter, never a Terraform tool argument or budget renewal.
  */
 export function signalFreeFinalReaderExecutor(input: SignalFreeExecutionPolicy, reserve: FinalReaderReserve): Executor {
+  if (input.stdin !== undefined) throw new Error('Isolated final reader does not accept command stdin');
   const original = inspectFinalReaderReserve(reserve);
   if (input.python.path !== input.executable.path || input.python.sha256 !== input.executable.sha256)
     throw new Error('Original final readers require the same pinned interpreter');
@@ -196,14 +536,15 @@ export function signalFreeFinalReaderExecutor(input: SignalFreeExecutionPolicy, 
 }
 
 function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReaderReserve): Executor {
-  const policy = { ...input, python: { ...input.python }, executable: { ...input.executable } };
+  const stdin = input.stdin === undefined ? undefined : freezeAdmittedCaptureInputs({ stdin: input.stdin }).stdin;
+  const policy = { ...input, stdin, python: { ...input.python }, executable: { ...input.executable } };
   const inherited = reserve ? inspectFinalReaderReserve(reserve) : undefined;
   const executionDeadline = inherited?.finalDeadlineMs ?? policy.originalDeadlineMs;
-  const assertOriginal = async () => {
+  const assertOriginalPolicy = async () => {
     await policy.assertOriginal();
     if (reserve) await assertFinalReaderReserve(reserve);
   };
-  const assertOriginalIdentity = async () => {
+  const assertOriginalIdentityPolicy = async () => {
     await (policy.assertOriginalIdentity ?? policy.assertOriginal)();
     if (reserve) await assertFinalReaderReserve(reserve);
   };
@@ -228,6 +569,16 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
   if (![timeout, startup, maximum].every((value) => Number.isSafeInteger(value) && value > 0) || startup > 15_000)
     throw new Error('Bounded original execution limits required');
   return async ({ cwd, args: inputArgs, env: inputEnvironment, signal }) => {
+    let generatedInputs: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
+    const assertOriginal = async () => {
+      await generatedInputs?.assertOriginal();
+      await assertOriginalPolicy();
+    };
+    const assertOriginalIdentity = async () => {
+      await generatedInputs?.assertOriginalIdentity();
+      await assertOriginalIdentityPolicy();
+    };
+    let stdinSnapshot: OriginalExecutionStdinSnapshot | undefined;
     const args = [...inputArgs];
     const env = { ...inputEnvironment };
     if (originalLoaderAlternatives.some((key) => env[key] !== undefined))
@@ -260,6 +611,25 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     const script = join(root, 'gate.py');
     const bootstrap = join(root, 'bootstrap.json');
     await writeFile(script, signalFreeBootstrapSource, { flag: 'wx', mode: 0o400 });
+    const generatedBindings: Record<string, OriginalInputBinding> = {};
+    const gate = await readOwnedInstalledInput(script);
+    if (gate.binding.sha256 !== hash(Buffer.from(signalFreeBootstrapSource)))
+      throw new Error('Original generated gate bytes changed before admission');
+    generatedBindings.gate = gate.binding;
+    if (stdin) {
+      const source = await readOwnedInstalledInput(stdin.path, 16 * 1024 * 1024);
+      assertSameOriginalInput(stdin, source.binding);
+      if ((BigInt(source.binding.expectedIdentity?.mode ?? '-1') & 0o777n) !== 0o400n)
+        throw new Error('Original command stdin must be a read-only owned file');
+      generatedBindings.stdin = source.binding;
+      const metadata = JSON.stringify(stdin);
+      const path = `${bootstrap}.stdin-binding.json`;
+      await writeFile(path, metadata, { flag: 'wx', mode: 0o400 });
+      const control = await readOwnedInstalledInput(path);
+      if (control.binding.sha256 !== hash(Buffer.from(metadata)))
+        throw new Error('Original stdin metadata bytes changed before admission');
+      generatedBindings.stdinControl = control.binding;
+    }
     const stdoutPath = join(root, 'stdout.private');
     const stderrPath = join(root, 'stderr.private');
     const stdout = await open(
@@ -398,6 +768,8 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
       }
     };
     try {
+      generatedInputs = await monitorOriginalInputs(generatedBindings);
+      await generatedInputs.assertOriginal();
       child = Bun.spawn([policy.python.path, '-I', '-B', script, bootstrap, policy.executable.path, ...args], {
         cwd,
         env: { ...env },
@@ -423,7 +795,36 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
           start: string;
           boot: string;
           monotonicMs: number;
+          stdin?: OriginalExecutionStdinSnapshot;
         };
+        if (stdin) {
+          const snapshot = evidence.stdin;
+          if (
+            snapshot?.schemaVersion !== 1 ||
+            snapshot.kind !== 'sealed-original-file-stdin' ||
+            snapshot.path !== stdin.path ||
+            snapshot.sha256 !== stdin.sha256 ||
+            snapshot.bytes !== Number(stdin.expectedIdentity?.size) ||
+            snapshot.sealed !== true ||
+            !Number.isSafeInteger(snapshot.snapshotFd) ||
+            snapshot.snapshotFd < 3 ||
+            !/^\d+$/.test(snapshot.dev) ||
+            !/^\d+$/.test(snapshot.ino)
+          )
+            throw new Error('Original stdin snapshot admission differs');
+          const descriptor = `/proc/${child.pid}/fd/${snapshot.snapshotFd}`;
+          const metadata = await stat(descriptor, { bigint: true });
+          if (
+            (await readlink(descriptor)) !== '/memfd:xcsh-original-stdin (deleted)' ||
+            metadata.dev.toString() !== snapshot.dev ||
+            metadata.ino.toString() !== snapshot.ino ||
+            metadata.uid !== BigInt(process.getuid?.() ?? -1) ||
+            metadata.size !== BigInt(snapshot.bytes) ||
+            hash(await readFile(descriptor)) !== stdin.sha256
+          )
+            throw new Error('Original stdin descriptor or sealed bytes differ');
+          stdinSnapshot = Object.freeze({ ...snapshot });
+        } else if (evidence.stdin !== undefined) throw new Error('Unexpected original command stdin snapshot');
         const raw = await readFile(`/proc/${child.pid}/stat`, 'utf8');
         const fields = raw
           .slice(raw.lastIndexOf(') ') + 2)
@@ -464,6 +865,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
                   assertInputs: async () => {
                     await python.require();
                     await executable.require();
+                    await generatedInputs?.assertOriginal();
                     // Final reads retain full original bytes and their own existing
                     // reserve; the expired operation guard cannot authorize them.
                     if (finalCaptureActive && policy.assertFinalInputs) {
@@ -489,6 +891,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
                   },
                 });
                 const admission: ExecutionCaptureAdmission = Object.freeze({
+                  ...(stdinSnapshot ? { stdin: stdinSnapshot } : {}),
                   output: originalOutput.output,
                   directory: cwd,
                   args: Object.freeze([...args]),
@@ -549,6 +952,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
             originalDeadlineMs: policy.originalDeadlineMs,
             args,
             executable: policy.executable,
+            ...(stdinSnapshot ? { stdin: stdinSnapshot } : {}),
           }),
           { mode: 0o400, flag: 'wx' },
         );
@@ -578,6 +982,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
       } else if (!release && actualExitCode !== null) groupClosed = true;
       const capture: FinalExecutionCapture = {
         ...startupFields(),
+        ...(stdinSnapshot ? { stdin: stdinSnapshot } : {}),
         invocationStartedMs: began,
         finalStartedMs: inherited?.finalStartedMs ?? finalStarted,
         finalDeadlineMs: inherited?.finalDeadlineMs ?? finalStarted + 300_000,
@@ -613,6 +1018,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
             if (now() >= capture.finalDeadlineMs) throw new Error('Original final capture deadline exhausted');
             const retainFinalCheck = async () => {
               try {
+                await generatedInputs?.assertOriginal();
                 await policy.assertFinalInputs?.();
               } catch (error) {
                 finalErrors.push(error);
@@ -634,7 +1040,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
             );
           }),
         ]);
-        captureClosed = policy.assertFinalInputs ? finalErrors.length === 0 : true;
+        captureClosed = finalErrors.length === 0;
       } catch (error) {
         finalErrors.push(error);
       } finally {
@@ -735,8 +1141,99 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
       await originalOutput?.close();
       await stdout.close();
       await stderr.close();
+      generatedInputs?.close();
       python.close();
       executable.close();
     }
+  };
+}
+
+import {
+  assertOriginalGcpObserverClientAbiIdentity,
+  assertOriginalGcpObserverClientAbiInputs,
+  checkoutOriginalGcpObserverClientAbiCommand,
+  readOriginalGcpObserverClientAbiCommand,
+} from './gcp-observer-client-abi-command';
+
+export async function signalFreeGcpObserverClientAbiExecutor(
+  input: SignalFreeExecutionPolicy,
+  command: unknown,
+): Promise<Executor> {
+  const source = await readOriginalGcpObserverClientAbiCommand(command);
+  if (
+    input.python.path !== source.python.path ||
+    input.python.sha256 !== source.python.sha256 ||
+    input.executable.path !== source.executable.path ||
+    input.executable.sha256 !== source.executable.sha256 ||
+    input.originalStartMs !== source.callback.original.budget.start ||
+    input.originalDeadlineMs !== source.callback.original.budget.deadline
+  )
+    throw new Error('Original observer ABI executable or operation budget differs');
+  if (
+    (input.timeoutMs ?? 60000) > 60000 ||
+    (input.startupTimeoutMs ?? 15000) > 15000 ||
+    (input.maxOutputBytes ?? 65536) > 65536
+  )
+    throw new Error('Original observer ABI limits cannot be extended');
+  if (input.stdin !== undefined) throw new Error('Original observer ABI command does not accept stdin');
+  return async (invocation) => {
+    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+      throw new Error('Original observer ABI arguments differ');
+    await checkoutOriginalGcpObserverClientAbiCommand(command);
+    const remaining = source.sourceDeadlineMs - now();
+    if (remaining <= 0) throw new Error('Original observer ABI deadline exhausted');
+    const policy: SignalFreeExecutionPolicy = {
+      ...input,
+      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+      maxOutputBytes: input.maxOutputBytes ?? 65536,
+      assertOriginal: async () => {
+        await readOriginalGcpObserverClientAbiCommand(command);
+        await input.assertOriginal();
+      },
+      assertOriginalIdentity: async () => {
+        await assertOriginalGcpObserverClientAbiIdentity(command);
+        await (input.assertOriginalIdentity ?? input.assertOriginal)();
+      },
+      assertFinalInputs: async () => {
+        await assertOriginalGcpObserverClientAbiInputs(command);
+        await (input.assertFinalInputs ?? input.assertOriginal)();
+      },
+      beforeRelease: async (admission) => {
+        await readOriginalGcpObserverClientAbiCommand(command);
+        if (admission.stdin !== undefined) throw new Error('Original observer ABI stdin admission differs');
+        await input.beforeRelease?.(admission);
+      },
+      finalCapture: async (capture) => {
+        const failures: unknown[] = [];
+        try {
+          await assertOriginalGcpObserverClientAbiInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await input.finalCapture(capture);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await assertOriginalGcpObserverClientAbiInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        if (failures.length)
+          throw new AggregateError(failures, 'Original observer ABI final capture or input retention failed');
+      },
+    };
+    let reserve: FinalReaderReserve | undefined;
+    if (source.callback.phase === 'after') {
+      reserve = source.callback.reserve;
+      if (!reserve) throw new Error('Original final observer ABI reserve required');
+      await assertFinalReaderReserve(reserve);
+    }
+    const execute = originalExecutor(policy, reserve);
+    const result = await execute(invocation);
+    await assertOriginalGcpObserverClientAbiInputs(command);
+    return result;
   };
 }

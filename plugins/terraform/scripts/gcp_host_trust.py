@@ -14,6 +14,10 @@ import json
 import math
 import os
 import re
+import stat
+import sys
+import time
+import traceback
 from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
@@ -578,3 +582,290 @@ def write_pin(
             stream.flush()
             os.fsync(stream.fileno())
     return artifact
+
+
+CLI_ASCII_MIN = 32
+CLI_ASCII_DELETE = 127
+CLI_DIRECTORY_MODE = 0o700
+CLI_FILE_MODE = 0o400
+CLI_FILE_FIELDS = {"dev", "ino", "uid", "nlink", "mode", "size", "mtimeNs", "ctimeNs"}
+CLI_PARENT_FIELDS = {"dev", "ino", "uid", "mode"}
+CLI_REQUEST_LIMIT = 65536
+CLI_ARGUMENT_COUNT = 4
+CLI_OPERATION_MS = 7200000
+CLI_FINAL_MS = 300000
+
+
+def _cli_identity(value: os.stat_result) -> dict[str, str]:
+    """Retain exact original decimal metadata through a descriptor read."""
+    return {
+        "dev": str(value.st_dev),
+        "ino": str(value.st_ino),
+        "uid": str(value.st_uid),
+        "nlink": str(value.st_nlink),
+        "mode": str(value.st_mode),
+        "size": str(value.st_size),
+        "mtimeNs": str(value.st_mtime_ns),
+        "ctimeNs": str(value.st_ctime_ns),
+    }
+
+
+def _cli_canonical(value: object) -> Path:
+    """Refuse aliases and controls; this never selects an SSH target."""
+    if not isinstance(value, str) or any(
+        ord(char) < CLI_ASCII_MIN or ord(char) == CLI_ASCII_DELETE for char in value
+    ):
+        msg = "Canonical original parser input required"
+        raise ValueError(msg)
+    path = Path(value)
+    if not path.is_absolute() or path.resolve(strict=True) != path:
+        msg = "Canonical original parser input required"
+        raise ValueError(msg)
+    return path
+
+
+def _cli_root(path: Path) -> dict[str, str]:
+    """Require the same owned private directory for request and evidence."""
+    value = path.lstat()
+    if (
+        not stat.S_ISDIR(value.st_mode)
+        or value.st_uid != os.getuid()
+        or value.st_mode & 0o777 != CLI_DIRECTORY_MODE
+    ):
+        msg = "Original private parser directory required"
+        raise ValueError(msg)
+    identity = _cli_identity(value)
+    return {key: identity[key] for key in CLI_PARENT_FIELDS}
+
+
+def _cli_read(path: Path, maximum: int) -> bytes:
+    """Read an owned immutable single-link file without following a path alias."""
+    before = path.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_uid != os.getuid()
+        or before.st_nlink != 1
+        or before.st_mode & 0o777 != CLI_FILE_MODE
+        or not 0 < before.st_size <= maximum
+    ):
+        msg = "Original bounded private parser file required"
+        raise ValueError(msg)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        if _cli_identity(os.fstat(descriptor)) != _cli_identity(before):
+            msg = "Original parser descriptor changed"
+            raise ValueError(msg)
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            raw = stream.read(maximum + 1)
+        if len(raw) != before.st_size or _cli_identity(
+            os.fstat(descriptor)
+        ) != _cli_identity(before):
+            msg = "Original parser input changed during read"
+            raise ValueError(msg)
+    finally:
+        os.close(descriptor)
+    if _cli_identity(path.lstat()) != _cli_identity(before):
+        msg = "Original parser path changed during read"
+        raise ValueError(msg)
+    return raw
+
+
+def _cli_object(raw: bytes) -> dict[str, object]:
+    """Decode one UTF-8 object with unique fields at every nesting level."""
+
+    def pairs(rows: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for name, value in rows:
+            if name in result:
+                msg = "Duplicate parser request field"
+                raise ValueError(msg)
+            result[name] = value
+        return result
+
+    value = json.loads(raw.decode("utf-8", errors="strict"), object_pairs_hook=pairs)
+    if not isinstance(value, dict):
+        msg = "Original parser request object required"
+        raise TypeError(msg)
+    return value
+
+
+def _cli_bound_file(value: object, root: Path, role: str) -> bytes:
+    """Validate the server-owned file binding; consistency alone is not provenance."""
+    if not isinstance(value, dict) or set(value) != {
+        "path",
+        "sha256",
+        "expectedIdentity",
+        "expectedParentIdentity",
+    }:
+        msg = "Original parser input binding required"
+        raise ValueError(msg)
+    path = _cli_canonical(value["path"])
+    if (
+        path != root / (role + ".private.bin")
+        or not isinstance(value["sha256"], str)
+        or not re.fullmatch(r"[a-f0-9]{64}", value["sha256"])
+    ):
+        msg = "Original parser role or digest differs"
+        raise ValueError(msg)
+    for name, fields in (
+        ("expectedIdentity", CLI_FILE_FIELDS),
+        ("expectedParentIdentity", CLI_PARENT_FIELDS),
+    ):
+        expected = value[name]
+        if (
+            not isinstance(expected, dict)
+            or set(expected) != fields
+            or any(
+                not isinstance(item, str)
+                or not re.fullmatch(r"(?:0|[1-9][0-9]*)", item)
+                for item in expected.values()
+            )
+        ):
+            msg = "Exact original parser metadata required"
+            raise ValueError(msg)
+    parent = _cli_root(root)
+    if (
+        _cli_identity(path.lstat()) != value["expectedIdentity"]
+        or parent != value["expectedParentIdentity"]
+    ):
+        msg = "Original parser file or parent identity differs"
+        raise ValueError(msg)
+    raw = _cli_read(path, LIMIT if role == "serial" else KNOWN_HOSTS_LINE_LIMIT)
+    if (
+        digest(raw) != value["sha256"]
+        or _cli_identity(path.lstat()) != value["expectedIdentity"]
+        or _cli_root(root) != parent
+    ):
+        msg = "Original parser input bytes or identity changed"
+        raise ValueError(msg)
+    return raw
+
+
+def _cli_budget(value: object) -> dict[str, int]:
+    """Preserve the fixed original operation and optional existing final window."""
+    fields = {"originalStartMs", "originalDeadlineMs"}
+    if not isinstance(value, dict) or set(value) not in (
+        fields,
+        fields | {"finalStartedMs", "finalDeadlineMs"},
+    ):
+        msg = "Original parser operation budget required"
+        raise ValueError(msg)
+    if any(
+        not isinstance(item, int) or isinstance(item, bool) for item in value.values()
+    ):
+        msg = "Exact original parser clock fields required"
+        raise ValueError(msg)
+    budget = cast("dict[str, int]", value)
+    if (
+        budget["originalStartMs"] < 0
+        or budget["originalDeadlineMs"] - budget["originalStartMs"] != CLI_OPERATION_MS
+    ):
+        msg = "Original parser operation budget differs"
+        raise ValueError(msg)
+    if "finalDeadlineMs" in budget and (
+        budget["finalStartedMs"] < budget["originalStartMs"]
+        or budget["finalDeadlineMs"] - budget["finalStartedMs"] != CLI_FINAL_MS
+    ):
+        msg = "Original parser final window differs"
+        raise ValueError(msg)
+    current = time.monotonic_ns() // 1000000
+    start = budget.get("finalStartedMs", budget["originalStartMs"])
+    deadline = budget.get("finalDeadlineMs", budget["originalDeadlineMs"])
+    if not start <= current < deadline:
+        msg = "Original parser budget exhausted or unavailable"
+        raise ValueError(msg)
+    return budget
+
+
+def run_owned_request(arguments: list[str]) -> dict[str, object]:
+    """Parse owned material; the compiled consumer must verify GCP provenance."""
+    if (
+        len(arguments) != CLI_ARGUMENT_COUNT
+        or arguments[0] != "--request"
+        or arguments[2] != "--sha256"
+        or not re.fullmatch(r"[a-f0-9]{64}", arguments[3])
+    ):
+        msg = "Exact original parser arguments required"
+        raise ValueError(msg)
+    path = _cli_canonical(arguments[1])
+    root = path.parent
+    parent = _cli_root(root)
+    raw = _cli_read(path, CLI_REQUEST_LIMIT)
+    if digest(raw) != arguments[3]:
+        msg = "Original parser request hash differs"
+        raise ValueError(msg)
+    request = _cli_object(raw)
+    if (
+        set(request)
+        != {"schemaVersion", "kind", "inputs", "expected", "receipt", "budget"}
+        or not isinstance(request["schemaVersion"], int)
+        or isinstance(request["schemaVersion"], bool)
+        or request["schemaVersion"] != 1
+        or request["kind"] != "original-gcp-observer-trust-parser-request"
+    ):
+        msg = "Original parser request schema required"
+        raise ValueError(msg)
+    budget = _cli_budget(request["budget"])
+    inputs = request["inputs"]
+    if not isinstance(inputs, dict) or set(inputs) != {"serial", "wire"}:
+        msg = "Exact original parser evidence inputs required"
+        raise ValueError(msg)
+    serial = _cli_bound_file(inputs["serial"], root, "serial")
+    wire = _cli_bound_file(inputs["wire"], root, "wire")
+    text = wire.decode("utf-8", errors="strict")
+    if not text.endswith("\n") or text.count("\n") != 1:
+        msg = "One complete original parser wire key required"
+        raise ValueError(msg)
+    expected, receipt = request["expected"], request["receipt"]
+    if not isinstance(expected, dict) or not isinstance(receipt, dict):
+        msg = "Original parser context and receipt required"
+        raise TypeError(msg)
+    fingerprint = verify_pin(expected, receipt, serial, text[:-1], now=time.time())
+    _cli_budget(request["budget"])
+    if (
+        _cli_root(root) != parent
+        or _cli_read(path, CLI_REQUEST_LIMIT) != raw
+        or _cli_bound_file(inputs["serial"], root, "serial") != serial
+        or _cli_bound_file(inputs["wire"], root, "wire") != wire
+    ):
+        msg = "Original parser inputs changed before completion"
+        raise ValueError(msg)
+    return {
+        "schemaVersion": 1,
+        "kind": "original-gcp-observer-trust-parser-result",
+        "version": VERSION,
+        "fingerprint": fingerprint,
+        "serialSha256": digest(serial),
+        "wireSha256": digest(wire),
+        "consistencyVerified": True,
+        "gcpSourceAuthenticated": False,
+        "liveAccessVerified": False,
+        **budget,
+    }
+
+
+def main() -> None:
+    """Emit one bounded consistency result and retain failures on private stderr."""
+    try:
+        result = run_owned_request(sys.argv[1:])
+    except Exception as error:
+        traceback.print_exc(file=sys.stderr)
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "original-gcp-observer-trust-parser-failure",
+                    "errorType": type(error).__name__,
+                    "consistencyVerified": False,
+                    "gcpSourceAuthenticated": False,
+                    "liveAccessVerified": False,
+                }
+            )
+            + "\n"
+        )
+        raise SystemExit(1) from error
+    sys.stdout.write(json.dumps(result) + "\n")
+
+
+if __name__ == "__main__":
+    main()
