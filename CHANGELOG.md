@@ -10,16 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **terraform** binds original CE RSA wire capture to observer client ABI,
-  original VM serial evidence and distinct host-trust references. Capture-start
-  freshness, process-disappearance handling and SSH setup classification are
-  repaired. Live guest, runtime and operational gates remain open.
-
-- **`terraform`** v2.4.128 binds observer SSH trust to original VM, serial and
-  wire evidence, delivers verified client bytes through sealed input and
-  validates ABI output from original processes. Exact scope, identity, files,
-  clocks and single-use checks govern these paths. Live capture and operational
-  release gates remain open.
+- **`terraform`** v2.4.128 binds original CE RSA wire capture to observer
+  client ABI, original VM serial evidence and distinct host-trust references.
+  Capture-start freshness, process-disappearance handling and SSH setup
+  classification are repaired. Live guest, runtime and operational gates
+  remain open.
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
   explicitly types and manages fixture resources so full Python CI can check
