@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
   "kind": "original-gcp-ce-keyscan-source",
-  "guestHelperSha256": "cb3d05b937232a14874b2fa311554c38c37ce5889ed8cf08730c1be6dfcd354b",
+  "guestHelperSha256": "bd90798d178c1004318963d5deafc5e2532fa4259b271ff03e67a16260525504",
   "abiHelperSha256": "4c577d5b440e95e7745f4def2d39bb33a2cd70d7f698f31c23b7fc4ca449bc03"
 }

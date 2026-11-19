@@ -80,7 +80,7 @@ export async function openOriginalGcpCeKeyScanCommand(scanContext: unknown, call
       : callback.original.budget.deadline;
   const budget = projectOriginalGcpGuestDeliveryDeadline(peer.peer.clock, linuxMonotonicMs(), scopeDeadline);
   const request = Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: context.abiSchemaVersion,
     kind: 'original-observer-ce-keyscan',
     nonce: randomBytes(32).toString('hex'),
     observerInstanceId: context.observerInstanceId,

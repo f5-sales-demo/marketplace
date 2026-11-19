@@ -4,7 +4,10 @@ import { fingerprint } from '../../gcloud/src/ce/discovery';
 import { assertGcpTerraformObserverScope, gcpTerraformObserverIdentity } from '../../gcloud/src/ce/observer-scope';
 import type { GcpCeIntent } from '../../gcloud/src/ce/types';
 import { decodeEvidenceObject } from './evidence-json';
-import { assertOriginalGcpObserverClientAbiContext, type QualifiedGcpObserverClients } from './gcp-observer-client-abi';
+import {
+  assertOriginalQualifiedGcpObserverClientsContext,
+  type QualifiedOriginalGcpObserverClients,
+} from './gcp-observer-qualified-clients';
 import { assertOriginalVerifiedGcpObserverPeerContext } from './gcp-observer-ssh-peer';
 import {
   assertOriginalGcpVmCaptureCallback,
@@ -172,7 +175,8 @@ interface QualifiedScanView {
   readonly observerCommand: unknown;
   readonly observerPeer: unknown;
   readonly observerInstanceId: string;
-  readonly clients: Readonly<QualifiedGcpObserverClients>;
+  readonly clients: Readonly<QualifiedOriginalGcpObserverClients>;
+  readonly abiSchemaVersion: 1 | 2;
   readonly guestClientQualified: true;
   readonly sshTrustQualified: false;
 }
@@ -212,7 +216,7 @@ export async function bindOriginalQualifiedGcpCeObserverScanContext(
   callback: OriginalApplyCallbackContext,
 ) {
   const originalTarget = await assertOriginalGcpCeSliTargetContext(target, callback);
-  const originalClients = await assertOriginalGcpObserverClientAbiContext(clients, callback);
+  const originalClients = await assertOriginalQualifiedGcpObserverClientsContext(clients, callback);
   const originalPeer = await assertOriginalVerifiedGcpObserverPeerContext(originalClients.peer, callback);
   if (
     originalTarget.instanceId === originalPeer.peer.instanceId ||
@@ -225,11 +229,12 @@ export async function bindOriginalQualifiedGcpCeObserverScanContext(
     if (retired) throw new Error('Original qualified CE observer scan context retired');
     try {
       const currentTarget = await assertOriginalGcpCeSliTargetContext(target, callback);
-      const currentClients = await assertOriginalGcpObserverClientAbiContext(clients, callback);
+      const currentClients = await assertOriginalQualifiedGcpObserverClientsContext(clients, callback);
       const currentPeer = await assertOriginalVerifiedGcpObserverPeerContext(originalClients.peer, callback);
       if (
         currentTarget !== originalTarget ||
         currentClients.peer !== originalClients.peer ||
+        currentClients.abiSchemaVersion !== originalClients.abiSchemaVersion ||
         currentClients.clients.receiptSha256 !== originalClients.clients.receiptSha256 ||
         currentPeer.command !== originalPeer.command ||
         currentPeer.peer.instanceId !== originalPeer.peer.instanceId
@@ -243,6 +248,7 @@ export async function bindOriginalQualifiedGcpCeObserverScanContext(
         observerPeer: originalClients.peer,
         observerInstanceId: originalPeer.peer.instanceId,
         clients: currentClients.clients,
+        abiSchemaVersion: currentClients.abiSchemaVersion,
         guestClientQualified: true,
         sshTrustQualified: false,
       });

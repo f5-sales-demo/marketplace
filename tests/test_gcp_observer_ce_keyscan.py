@@ -30,6 +30,15 @@ fixture_spec.loader.exec_module(fixture)
 ABI_SOURCE = (
     ROOT / "plugins/terraform/scripts/gcp_observer_client_abi.py"
 ).read_bytes()
+renewal_spec = importlib.util.spec_from_file_location(
+    "original_keyscan_renewal_fixture",
+    ROOT / "tests/test_gcp_observer_client_abi_renewal.py",
+)
+if renewal_spec is None or renewal_spec.loader is None:
+    message = "Original ABI renewal fixture unavailable"
+    raise RuntimeError(message)
+renewal_fixture = importlib.util.module_from_spec(renewal_spec)
+renewal_spec.loader.exec_module(renewal_fixture)
 
 
 def request(proof):
@@ -59,6 +68,128 @@ def request(proof):
 
 
 class CeKeyscanGuestTests(unittest.TestCase):
+    def test_v2_guard_refuses_identical_installation_replacement_after_binding(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(Path, "home", return_value=Path(directory)),
+        ):
+            config, installation, _legacy = renewal_fixture.expired_installation()
+            load = renewal_fixture.renewal.load_abi
+
+            def loaded(source, path):
+                module = load(source, path)
+                module.identity = fixture.current
+                return module
+
+            with patch.object(renewal_fixture.renewal, "load_abi", side_effect=loaded):
+                proof = renewal_fixture.renewal.renew_original_clients(
+                    config, ABI_SOURCE
+                )
+            scan_request = {**request(proof), "schemaVersion": 2}
+            module = scan.load_abi(ABI_SOURCE, Path(directory) / "guard-abi.py")
+            module.identity = fixture.current
+            receipt = scan.bind_original_proof_guard(module, scan_request)
+            guard_inputs = {
+                **scan_request,
+                "deliveryReceiptSha256": scan_request["abiReceiptSha256"],
+            }
+            module.guard(guard_inputs, fixture.current(), receipt)
+            raw = installation.read_bytes()
+            preserved = installation.with_name("installed-retained.private.json")
+            installation.rename(preserved)
+            installation.write_bytes(raw)
+            installation.chmod(0o400)
+            with pytest.raises(ValueError, match="installation identity changed"):
+                module.guard(guard_inputs, fixture.current(), receipt)
+            assert installation.read_bytes() == preserved.read_bytes() == raw
+
+    def test_v2_renewal_drives_pinned_scan_without_replaying_expired_installation(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(Path, "home", return_value=Path(directory)),
+            patch.object(scan, "identity", side_effect=fixture.current),
+        ):
+            config, installation, _legacy = renewal_fixture.expired_installation()
+            installed = installation.read_bytes()
+            original_load = renewal_fixture.renewal.load_abi
+
+            def loaded(source, path):
+                module = original_load(source, path)
+                module.identity = fixture.current
+                return module
+
+            with patch.object(renewal_fixture.renewal, "load_abi", side_effect=loaded):
+                proof = renewal_fixture.renewal.renew_original_clients(
+                    config, ABI_SOURCE
+                )
+            scan_request = {**request(proof), "schemaVersion": 2}
+            scan_load = scan.load_abi
+
+            def scan_loaded(source, path):
+                module = scan_load(source, path)
+                module.identity = fixture.current
+                return module
+
+            with patch.object(scan, "load_abi", side_effect=scan_loaded):
+                result = scan.run_ce_keyscan(scan_request, ABI_SOURCE)
+            assert result["schemaVersion"] == 2
+            assert result["abiReceiptSha256"] == scan_request["abiReceiptSha256"]
+            assert result["sshTrustQualified"] is False
+            assert result["guestAccessQualified"] is False
+            assert result["process"]["identity"]["clientSeals"] == 15
+            assert installation.read_bytes() == installed
+            renewal_path = (
+                Path(directory)
+                / ".local/share/xcsh/gcp-observer-abi-renewal"
+                / proof["instanceId"]
+                / proof["nonce"]
+                / "proof.private.json"
+            )
+            changes: tuple[dict[str, object], ...] = (
+                {"peerMonotonicMs": proof["startedMs"] - scan.FRESH_MS - 1},
+                {"installationReplayed": True},
+                {"installationFinishedMs": True},
+                {"processes": []},
+                {"clientRoot": "foreign"},
+                {"extra": True},
+            )
+            for change in changes:
+                value = {**proof, **change}
+                raw = (json.dumps(value, sort_keys=True) + "\n").encode()
+                renewal_path.chmod(0o600)
+                renewal_path.write_bytes(raw)
+                renewal_path.chmod(0o400)
+                candidate = {
+                    **scan_request,
+                    "abiReceiptSha256": hashlib.sha256(raw).hexdigest(),
+                }
+                with (
+                    self.subTest(change=change),
+                    pytest.raises(ValueError, match="Original"),
+                ):
+                    scan.original_proof(fixture.abi, candidate)
+            renewal_path.chmod(0o600)
+            renewal_path.write_text(json.dumps(proof, sort_keys=True) + "\n")
+            renewal_path.chmod(0o400)
+            scan.original_proof(fixture.abi, scan_request)
+            alias = (
+                Path(directory)
+                / ".local/share/xcsh/gcp-observer-abi"
+                / proof["instanceId"]
+                / proof["nonce"]
+                / "proof.private.json"
+            )
+            alias.parent.mkdir(parents=True, mode=0o700)
+            alias.write_text(json.dumps(proof, sort_keys=True) + "\n")
+            alias.chmod(0o400)
+            with pytest.raises(ValueError, match="Original"):
+                scan.original_proof(fixture.abi, {**scan_request, "schemaVersion": 1})
+            installation.chmod(0o600)
+            installation.write_bytes(installed + b" ")
+            installation.chmod(0o400)
+            with pytest.raises(ValueError, match="Original"):
+                scan.original_proof(fixture.abi, scan_request)
+
     def test_abi_freshness_begins_at_capture_start_not_completion(self):
         with (
             tempfile.TemporaryDirectory() as directory,

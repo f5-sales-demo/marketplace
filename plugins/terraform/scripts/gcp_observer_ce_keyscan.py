@@ -22,6 +22,8 @@ ABI_SHA256 = "4c577d5b440e95e7745f4def2d39bb33a2cd70d7f698f31c23b7fc4ca449bc03"
 ARCHIVE_SHA256 = "243b9555199a427ca90e939310d03917f380b470aaed14200c28101e797ec318"
 COMMAND_MS = 60000
 FRESH_MS = 300000
+RENEWAL_SCHEMA_VERSION = 2
+REQUIRED_CLIENT_PROCESSES = 3
 PRIVATE_MODE = 0o700
 KEYS = {
     "schemaVersion",
@@ -120,7 +122,7 @@ def validate(config: dict[str, Any], source: bytes) -> dict[str, Any]:
     if (
         set(config) != KEYS
         or not integer(config.get("schemaVersion"))
-        or config["schemaVersion"] != 1
+        or config["schemaVersion"] not in (1, 2)
     ):
         reject("Original CE keyscan schema differs")
     if (
@@ -225,9 +227,16 @@ def original_proof(
     module: types.ModuleType, config: dict[str, Any]
 ) -> tuple[Path, tuple[int, ...]]:
     """Bind the exact original ABI receipt and current guest clock."""
+    version = config.get("schemaVersion")
+    if not integer(version) or version not in (1, 2):
+        reject("Original CE keyscan ABI schema differs")
     path = (
         Path.home()
-        / ".local/share/xcsh/gcp-observer-abi"
+        / (
+            ".local/share/xcsh/gcp-observer-abi"
+            if version == 1
+            else ".local/share/xcsh/gcp-observer-abi-renewal"
+        )
         / config["observerInstanceId"]
         / config["abiNonce"]
         / "proof.private.json"
@@ -239,7 +248,14 @@ def original_proof(
     if module.file_identity(path) != original:
         reject("Original CE keyscan ABI receipt changed")
     if (
-        value.get("kind") != "original-observer-client-abi-proof"
+        not integer(value.get("schemaVersion"))
+        or value["schemaVersion"] != version
+        or value.get("kind")
+        != (
+            "original-observer-client-abi-proof"
+            if version == 1
+            else "original-observer-client-abi-renewal-proof"
+        )
         or value.get("abiVerified") is not True
         or value.get("guestClientQualified") is not False
     ):
@@ -261,7 +277,186 @@ def original_proof(
         or not value["startedMs"] <= value["finishedMs"] <= monotonic_ms()
     ):
         reject("Original CE keyscan ABI receipt is stale or future")
+    if version == RENEWAL_SCHEMA_VERSION:
+        renewal_installation(module, config, value)
     return path, original
+
+
+def renewal_installation(
+    module: types.ModuleType, config: dict[str, Any], proof: dict[str, Any]
+) -> tuple[Path, tuple[int, ...]]:
+    """Retain the unchanged installation behind an explicitly fresh V2 ABI."""
+    for key in ("installationNonce", "installationReceiptSha256", "peerChallenge"):
+        if (
+            not isinstance(proof.get(key), str)
+            or re.fullmatch(r"[a-f0-9]{64}", proof[key]) is None
+        ):
+            reject("Original CE renewal installation or peer binding differs")
+    if (
+        set(proof)
+        != {
+            "schemaVersion",
+            "kind",
+            "instanceId",
+            "nonce",
+            "uid",
+            "bootId",
+            "pythonPath",
+            "pythonSha256",
+            "archiveSha256",
+            "installationNonce",
+            "installationReceiptSha256",
+            "installationFinishedMs",
+            "peerChallenge",
+            "peerMonotonicMs",
+            "clientRoot",
+            "originalDeadlineMs",
+            "startedMs",
+            "finishedMs",
+            "processes",
+            "abiVerified",
+            "guestClientQualified",
+            "installationReplayed",
+        }
+        or proof.get("installationReplayed") is not False
+        or proof.get("clientRoot")
+        != str(
+            Path.home()
+            / ".local/share/xcsh/gcp-observer-clients"
+            / config["observerInstanceId"]
+        )
+    ):
+        reject("Original CE renewal installation framing differs")
+    if (
+        not integer(proof.get("installationFinishedMs"))
+        or not integer(proof.get("peerMonotonicMs"))
+        or not integer(proof.get("originalDeadlineMs"))
+    ):
+        reject("Original CE renewal clock types differ")
+    if (
+        not 0
+        < proof["installationFinishedMs"]
+        <= proof["peerMonotonicMs"]
+        <= proof["startedMs"]
+        or not 0 <= monotonic_ms() - proof["peerMonotonicMs"] <= FRESH_MS
+        or not proof["startedMs"] <= proof["finishedMs"] < proof["originalDeadlineMs"]
+        or proof["finishedMs"] - proof["startedMs"] > COMMAND_MS
+    ):
+        reject("Original CE renewal peer or installation clocks differ")
+    if (
+        not isinstance(proof.get("processes"), list)
+        or len(proof["processes"]) != REQUIRED_CLIENT_PROCESSES
+    ):
+        reject("Original CE renewal peer, installation or probe clocks differ")
+    path = (
+        Path.home()
+        / ".local/share/xcsh/gcp-observer-delivery"
+        / config["observerInstanceId"]
+        / proof["installationNonce"]
+        / "installed.private.json"
+    )
+    original = module.file_identity(path)
+    packet = module.decode_object(
+        module.read_owned(path, proof["installationReceiptSha256"], 0o400)
+    )
+    if module.file_identity(path) != original:
+        reject("Original CE renewal installation changed during reading")
+    if (
+        set(packet)
+        != {
+            "schemaVersion",
+            "kind",
+            "instanceId",
+            "nonce",
+            "uid",
+            "bootId",
+            "pythonPath",
+            "pythonSha256",
+            "archiveSha256",
+            "clientRoot",
+            "startedMs",
+            "finishedMs",
+            "originalDeadlineMs",
+            "installedBytesVerified",
+            "abiVerified",
+            "guestClientQualified",
+        }
+        or not integer(packet.get("schemaVersion"))
+        or packet["schemaVersion"] != 1
+        or packet.get("kind") != "original-observer-installed-client-bytes"
+    ):
+        reject("Original CE renewal installation schema differs")
+    if (
+        packet.get("instanceId") != config["observerInstanceId"]
+        or packet.get("nonce") != proof["installationNonce"]
+        or packet.get("clientRoot")
+        != str(
+            Path.home()
+            / ".local/share/xcsh/gcp-observer-clients"
+            / config["observerInstanceId"]
+        )
+        or any(
+            packet.get(key) != config[key]
+            for key in ("uid", "bootId", "pythonPath", "pythonSha256", "archiveSha256")
+        )
+    ):
+        reject("Original CE renewal installation identity differs")
+    if (
+        packet.get("installedBytesVerified") is not True
+        or packet.get("abiVerified") is not False
+        or packet.get("guestClientQualified") is not False
+    ):
+        reject("Original CE renewal installation qualification differs")
+    if (
+        not all(
+            integer(packet.get(key))
+            for key in ("startedMs", "finishedMs", "originalDeadlineMs")
+        )
+        or not 0
+        < packet["startedMs"]
+        <= packet["finishedMs"]
+        < packet["originalDeadlineMs"]
+        or packet["finishedMs"] - packet["startedMs"] > COMMAND_MS
+        or packet["finishedMs"] != proof["installationFinishedMs"]
+    ):
+        reject("Original CE renewal installation identity or interval differs")
+    return path, original
+
+
+def bind_original_proof_guard(
+    module: types.ModuleType, config: dict[str, Any]
+) -> tuple[Path, tuple[int, ...]]:
+    """Bind independent installation identity and fresh ABI evidence for every probe stage."""
+    receipt = original_proof(module, config)
+    installation = (
+        renewal_installation(
+            module,
+            config,
+            module.decode_object(
+                module.read_owned(receipt[0], config["abiReceiptSha256"], 0o400)
+            ),
+        )
+        if config["schemaVersion"] == RENEWAL_SCHEMA_VERSION
+        else None
+    )
+    original_guard = module.guard
+
+    def retained_guard(
+        guard_inputs: dict[str, Any],
+        guest: dict[str, Any],
+        abi_receipt: tuple[Path, tuple[int, ...]] | None = None,
+    ) -> None:
+        """Preserve both original receipt identities and freshness throughout execution."""
+        original_guard(guard_inputs, guest, abi_receipt)
+        if (
+            installation is not None
+            and module.file_identity(installation[0]) != installation[1]
+        ):
+            reject("Original CE renewal installation identity changed")
+        original_proof(module, config)
+
+    vars(module)["guard"] = retained_guard
+    return receipt
 
 
 def run_ce_keyscan(config: dict[str, Any], source: bytes) -> dict[str, Any]:
@@ -287,7 +482,7 @@ def run_ce_keyscan(config: dict[str, Any], source: bytes) -> dict[str, Any]:
     try:
         persist(journal, "request.private.json", config)
         module = load_abi(source, journal / "abi.py")
-        receipt = original_proof(module, config)
+        receipt = bind_original_proof_guard(module, config)
         guard_config = {**config, "deliveryReceiptSha256": config["abiReceiptSha256"]}
         module.guard(guard_config, original, receipt)
         clients = (
@@ -310,7 +505,7 @@ def run_ce_keyscan(config: dict[str, Any], source: bytes) -> dict[str, Any]:
         if not process["stdoutBase64"]:
             reject("Original CE keyscan returned no complete wire evidence")
         result = {
-            "schemaVersion": 1,
+            "schemaVersion": config["schemaVersion"],
             "kind": "original-observer-ce-keyscan-proof",
             **{
                 key: config[key]

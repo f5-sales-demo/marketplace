@@ -1239,6 +1239,96 @@ export async function signalFreeGcpObserverClientAbiExecutor(
 }
 
 import {
+  assertOriginalGcpObserverClientAbiRenewalIdentity,
+  assertOriginalGcpObserverClientAbiRenewalInputs,
+  checkoutOriginalGcpObserverClientAbiRenewalCommand,
+  readOriginalGcpObserverClientAbiRenewalCommand,
+} from './gcp-observer-client-abi-renewal-command';
+
+export async function signalFreeGcpObserverClientAbiRenewalExecutor(
+  input: SignalFreeExecutionPolicy,
+  command: unknown,
+): Promise<Executor> {
+  const source = await readOriginalGcpObserverClientAbiRenewalCommand(command);
+  if (
+    input.python.path !== source.python.path ||
+    input.python.sha256 !== source.python.sha256 ||
+    input.executable.path !== source.executable.path ||
+    input.executable.sha256 !== source.executable.sha256 ||
+    input.originalStartMs !== source.callback.original.budget.start ||
+    input.originalDeadlineMs !== source.callback.original.budget.deadline
+  )
+    throw new Error('Original observer ABI renewal executable or operation budget differs');
+  if (
+    (input.timeoutMs ?? 60000) > 60000 ||
+    (input.startupTimeoutMs ?? 15000) > 15000 ||
+    (input.maxOutputBytes ?? 65536) > 65536
+  )
+    throw new Error('Original observer ABI renewal limits cannot be extended');
+  if (input.stdin !== undefined) throw new Error('Original observer ABI renewal command does not accept stdin');
+  return async (invocation) => {
+    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+      throw new Error('Original observer ABI renewal arguments differ');
+    await checkoutOriginalGcpObserverClientAbiRenewalCommand(command);
+    const remaining = source.sourceDeadlineMs - now();
+    if (remaining <= 0) throw new Error('Original observer ABI renewal deadline exhausted');
+    const policy: SignalFreeExecutionPolicy = {
+      ...input,
+      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+      maxOutputBytes: input.maxOutputBytes ?? 65536,
+      assertOriginal: async () => {
+        await readOriginalGcpObserverClientAbiRenewalCommand(command);
+        await input.assertOriginal();
+      },
+      assertOriginalIdentity: async () => {
+        await assertOriginalGcpObserverClientAbiRenewalIdentity(command);
+        await (input.assertOriginalIdentity ?? input.assertOriginal)();
+      },
+      assertFinalInputs: async () => {
+        await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+        await (input.assertFinalInputs ?? input.assertOriginal)();
+      },
+      beforeRelease: async (admission) => {
+        await readOriginalGcpObserverClientAbiRenewalCommand(command);
+        if (admission.stdin !== undefined) throw new Error('Original observer ABI renewal stdin admission differs');
+        await input.beforeRelease?.(admission);
+      },
+      finalCapture: async (capture) => {
+        const failures: unknown[] = [];
+        try {
+          await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await input.finalCapture(capture);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        if (failures.length)
+          throw new AggregateError(failures, 'Original observer ABI renewal final capture or input retention failed');
+      },
+    };
+    let reserve: FinalReaderReserve | undefined;
+    if (source.callback.phase === 'after') {
+      reserve = source.callback.reserve;
+      if (!reserve) throw new Error('Original final observer ABI renewal reserve required');
+      await assertFinalReaderReserve(reserve);
+    }
+    const execute = originalExecutor(policy, reserve);
+    const result = await execute(invocation);
+    await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+    return result;
+  };
+}
+
+import {
   assertOriginalGcpCeKeyScanIdentity,
   assertOriginalGcpCeKeyScanInputs,
   checkoutOriginalGcpCeKeyScanCommand,

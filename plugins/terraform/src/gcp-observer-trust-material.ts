@@ -194,6 +194,7 @@ export async function compileOriginalGcpCeTrustMaterial(
       wire.subnet !== target.subnet ||
       wire.observerInstanceId !== context.observerInstanceId ||
       wire.abiReceiptSha256 !== context.clients.receiptSha256 ||
+      wire.abiSchemaVersion !== context.abiSchemaVersion ||
       wire.algorithm !== 'ssh-rsa' ||
       callback.original.owner.provider !== 'gcp' ||
       callback.original.owner.engine !== 'terraform' ||

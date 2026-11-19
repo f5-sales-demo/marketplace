@@ -98,6 +98,16 @@ test('exact ABI, CE SLI, sealed process and retained wire bytes join as untruste
   expect(Object.isFrozen(view.process.identity)).toBe(true);
 });
 test('foreign identities, ABI, network, claims and operation clocks refuse', () => {
+  const renewed = { ...request, schemaVersion: 2 };
+  const renewedPacket = { ...packet(), schemaVersion: 2 };
+  const renewedView = scan.inspectGcpCeKeyScan(raw(renewedPacket), renewed);
+  expect(renewedView.abiSchemaVersion).toBe(2);
+  expect(renewedView.guestAccessQualified).toBe(false);
+  expect(() => scan.inspectGcpCeKeyScan(raw(renewedPacket), request)).toThrow();
+  expect(() => scan.inspectGcpCeKeyScan(raw(packet()), renewed)).toThrow();
+  expect(() =>
+    scan.inspectGcpCeKeyScan(raw({ ...renewedPacket, schemaVersion: 3 }), { ...renewed, schemaVersion: 3 }),
+  ).toThrow();
   for (const change of [
     { observerInstanceId: '789012' },
     { targetInstanceId: '123456' },

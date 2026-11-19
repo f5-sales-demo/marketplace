@@ -10,16 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.131 binds original CE RSA wire capture to observer
-  client ABI, original VM serial evidence and distinct host-trust references.
-  Capture-start freshness, process-disappearance handling and SSH setup
-  classification are repaired. Normal CI covers Bun-only plugins, and synthetic
-  expiry stays scoped to its observation while the original executor retains
-  its final capture window. Live guest, runtime and operational gates
-  remain open.
+- **`terraform`** v2.4.132 retains original observer installation provenance
+  across peer expiry and qualifies V2 clients with three guarded serial probes.
+  CE scans select V1 or V2 explicitly and bind both installation and ABI receipts.
+  Ownership, peer freshness, original output and single-use failures remain
+  enforced. Live guest, runtime and operational gates remain open.
 
-- **`platform`** v6.3.28 gives repeated original placement collections an
-  explicit fixture budget and replaces unchecked fixture identities with guards.
+- **`platform`** v6.3.29 rebuilds the shared CE runtime with Bun 1.4.4.
   Production operational deadlines and evidence requirements are preserved.
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
@@ -38,8 +35,8 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.56 preserves the original observer request reason while
-  deriving the internal CE-only compiler fingerprint.
+- **`gcloud`** v1.7.57 rebuilds the GCP CE runtime with Bun 1.4.4.
+  Original observer request and compiler fingerprint checks remain enforced.
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding

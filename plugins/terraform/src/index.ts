@@ -104,6 +104,24 @@ export {
   openOriginalGcpObserverClientAbiCommand,
 } from './gcp-observer-client-abi-command';
 export {
+  assertOriginalGcpObserverClientAbiRenewalContext,
+  type OriginalGcpObserverClientAbiRenewal,
+  openGcpObserverClientAbiRenewal,
+  readOriginalGcpObserverClientAbiRenewal,
+} from './gcp-observer-client-abi-renewal';
+export {
+  closeOriginalGcpObserverClientAbiRenewalCommand,
+  openOriginalGcpObserverClientAbiRenewalCommand,
+  readOriginalGcpObserverClientAbiRenewalCommand,
+} from './gcp-observer-client-abi-renewal-command';
+export {
+  assertOriginalGcpObserverClientInstallationContext,
+  closeOriginalGcpObserverClientInstallation,
+  type OriginalGcpObserverClientInstallation,
+  openOriginalGcpObserverClientInstallation,
+  readOriginalGcpObserverClientInstallation,
+} from './gcp-observer-client-delivery';
+export {
   assertOriginalGcpCeHostTrustContext,
   openGcpCeHostTrustReader,
   openGcpObserverHostTrustReader,
@@ -127,6 +145,7 @@ export {
   readOriginalGcpObserverSerialSource,
   readOriginalGcpObserverVmEvidence,
 } from './gcp-observer-insert-evidence';
+export { assertOriginalQualifiedGcpObserverClientsContext } from './gcp-observer-qualified-clients';
 export {
   compileOriginalGcpCeTrustMaterial,
   compileOriginalGcpObserverTrustMaterial,

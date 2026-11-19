@@ -61,6 +61,7 @@ export interface GcpCeWireKeyEvidence {
   readonly nonce: string;
   readonly abiNonce: string;
   readonly abiReceiptSha256: string;
+  readonly abiSchemaVersion: 1 | 2;
   readonly knownHostsLine: string;
   readonly fingerprint: string;
   readonly algorithm: 'ssh-rsa';
@@ -90,7 +91,8 @@ export function inspectGcpCeKeyScan(raw: Uint8Array, request: Readonly<Record<st
   ];
   if (
     Object.keys(value).sort().join(',') !== fields.sort().join(',') ||
-    value.schemaVersion !== 1 ||
+    ![1, 2].includes(request.schemaVersion as number) ||
+    value.schemaVersion !== request.schemaVersion ||
     value.kind !== 'original-observer-ce-keyscan-proof' ||
     requestFields
       .filter((key) => key !== 'kind' && key !== 'guestDeadlineMs')
@@ -142,6 +144,7 @@ export function inspectGcpCeKeyScan(raw: Uint8Array, request: Readonly<Record<st
     nonce: request.nonce as string,
     abiNonce: request.abiNonce as string,
     abiReceiptSha256: request.abiReceiptSha256 as string,
+    abiSchemaVersion: request.schemaVersion as 1 | 2,
     ...key,
     algorithm: 'ssh-rsa',
     hostKeyAlgorithms: Object.freeze(['rsa-sha2-512', 'rsa-sha2-256'] as const),

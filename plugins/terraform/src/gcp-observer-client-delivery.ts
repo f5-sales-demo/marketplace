@@ -7,7 +7,12 @@ import {
   readOriginalGcpObserverClientDeliveryCommand,
 } from './gcp-observer-client-delivery-command';
 import { assertOriginalVerifiedGcpObserverPeerContext } from './gcp-observer-ssh-peer';
-import type { OriginalApplyCallbackContext } from './installed-apply-controller';
+import {
+  assertOriginalApplyCallback,
+  assertOriginalApplyLifetime,
+  type OriginalApplyCallbackContext,
+} from './installed-apply-controller';
+import type { InstalledCaptureContext } from './installed-capture-context';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import {
@@ -110,6 +115,56 @@ export function inspectGcpObserverClientDelivery(
     guestClientQualified: false,
   });
 }
+export interface OriginalGcpObserverClientInstallation {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-gcp-observer-client-installation-reference';
+}
+interface InstallationView {
+  readonly context: InstalledCaptureContext;
+  readonly installation: Readonly<GcpObserverInstalledBytes>;
+  readonly originalProducer: Readonly<ExecutionCaptureAdmission['identity']>;
+  readonly originalOutputSha256: string;
+  readonly commandsAuthorized: false;
+  readonly guestClientQualified: false;
+}
+const installations = new WeakMap<
+  OriginalGcpObserverClientInstallation,
+  {
+    readonly context: InstalledCaptureContext;
+    read(): Promise<Readonly<InstallationView>>;
+    close(): void;
+  }
+>();
+function installationOrigin(value: unknown) {
+  const origin =
+    value && typeof value === 'object' ? installations.get(value as OriginalGcpObserverClientInstallation) : undefined;
+  if (!origin) throw new Error('Original observer installation provenance required');
+  return origin;
+}
+/** Historical installation provenance alone grants no command or guest authority. */
+export async function readOriginalGcpObserverClientInstallation(value: unknown) {
+  return installationOrigin(value).read();
+}
+export async function assertOriginalGcpObserverClientInstallationContext(
+  value: unknown,
+  callback: OriginalApplyCallbackContext,
+) {
+  const origin = installationOrigin(value);
+  if (callback.phase === 'after') await assertOriginalApplyCallback(callback);
+  else await assertOriginalApplyLifetime(callback);
+  if (origin.context !== callback.original)
+    throw new Error('Original installation and actual callback context required');
+  return origin.read();
+}
+export function closeOriginalGcpObserverClientInstallation(value: unknown) {
+  installationOrigin(value).close();
+}
+export async function openOriginalGcpObserverClientInstallation(delivery: unknown) {
+  const origin =
+    delivery && typeof delivery === 'object' ? origins.get(delivery as OriginalGcpObserverClientDelivery) : undefined;
+  if (!origin) throw new Error('Original successful observer delivery required');
+  return origin.installation();
+}
 export interface OriginalGcpObserverClientDelivery {
   readonly schemaVersion: 1;
   readonly kind: 'original-gcp-observer-client-delivery-reference';
@@ -121,6 +176,7 @@ const origins = new WeakMap<
     readonly peer: unknown;
     readonly callback: OriginalApplyCallbackContext;
     read(): Promise<Readonly<GcpObserverInstalledBytes>>;
+    installation(): Promise<OriginalGcpObserverClientInstallation>;
   }
 >();
 export async function readOriginalGcpObserverClientDelivery(value: unknown) {
@@ -159,15 +215,18 @@ export async function openGcpObserverClientDelivery(command: unknown) {
   const retained: OriginalInputBinding[] = [];
   let retired = false;
   let receipts: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
-  const guard = async () => {
+  const assertRetainedRoot = async () => {
     const current = await lstat(root, { bigint: true });
     if (
-      closed ||
       (await realpath(root)) !== root ||
       !current.isDirectory() ||
       (['dev', 'ino', 'uid', 'mode'] as const).some((key) => current[key] !== directory[key])
     )
       throw new Error('Original observer delivery capture directory changed or closed');
+  };
+  const guard = async () => {
+    if (closed) throw new Error('Original observer delivery capture directory changed or closed');
+    await assertRetainedRoot();
   };
   const persist = async (name: string, value: Record<string, unknown>) => {
     await guard();
@@ -329,7 +388,63 @@ export async function openGcpObserverClientDelivery(command: unknown) {
         schemaVersion: 1,
         kind: 'original-gcp-observer-client-delivery-reference',
       });
-      origins.set(ref, { command, peer: original.peer, callback: original.callback, read });
+      if (!admission) throw new Error('Original observer installation producer admission required');
+      const installationValue: Readonly<InstallationView> = Object.freeze({
+        context: original.callback.original,
+        installation: value,
+        originalProducer: Object.freeze({ ...admission.identity }),
+        originalOutputSha256: completion.stdout.sha256,
+        commandsAuthorized: false,
+        guestClientQualified: false,
+      });
+      let installationPending: Promise<OriginalGcpObserverClientInstallation> | undefined;
+      const installation = () => {
+        if (!installationPending)
+          installationPending = (async () => {
+            // Mint once while the original native delivery and peer are fresh.
+            await read();
+            const originalReceipts = Object.fromEntries(retained.map((input, index) => [String(index), input]));
+            const monitor = await monitorOriginalInputs(originalReceipts);
+            let installationRetired = false;
+            const readInstallation = async () => {
+              if (installationRetired) throw new Error('Original observer installation reference retired');
+              try {
+                await assertRetainedRoot();
+                await monitor.assertOriginal();
+                await assertRetainedRoot();
+                return installationValue;
+              } catch (error) {
+                installationRetired = true;
+                monitor.close();
+                throw error;
+              }
+            };
+            const installationRef: OriginalGcpObserverClientInstallation = Object.freeze({
+              schemaVersion: 1,
+              kind: 'original-gcp-observer-client-installation-reference',
+            });
+            installations.set(installationRef, {
+              context: original.callback.original,
+              read: readInstallation,
+              close: () => {
+                installationRetired = true;
+                monitor.close();
+              },
+            });
+            try {
+              await readInstallation();
+            } catch (error) {
+              monitor.close();
+              throw error;
+            }
+            return installationRef;
+          })();
+        return installationPending.then(async (value) => {
+          await readOriginalGcpObserverClientInstallation(value);
+          return value;
+        });
+      };
+      origins.set(ref, { command, peer: original.peer, callback: original.callback, read, installation });
       await read();
       return ref;
     } catch (error) {

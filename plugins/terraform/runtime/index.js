@@ -1,8 +1,8 @@
 // @bun
-// src/gcp-bootstrap-evidence.ts
+// plugins/terraform/src/gcp-bootstrap-evidence.ts
 import { createHash } from 'node:crypto';
 
-// ../platform/src/ce/evidence-json.ts
+// plugins/platform/src/ce/evidence-json.ts
 var object = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
   return value;
@@ -36,7 +36,7 @@ function decodeEvidenceObject(raw) {
   return value;
 }
 
-// src/installed-version-profile.ts
+// plugins/terraform/src/installed-version-profile.ts
 var profiles = [
   {
     terraformVersion: '1.17.2',
@@ -135,7 +135,7 @@ function isOriginalCreationScopeProfile(profile) {
   );
 }
 
-// src/gcp-bootstrap-evidence.ts
+// plugins/terraform/src/gcp-bootstrap-evidence.ts
 var hash = (value) => createHash('sha256').update(value).digest('hex');
 var sha256 = /^[a-f0-9]{64}$/;
 var name = /^[a-z][a-z0-9-]{0,62}$/;
@@ -294,11 +294,11 @@ async function readOriginalGcpTerraformBootstrapJwt(value) {
   return source.platform.readJwt(source.bootstrap);
 }
 
-// src/gcp-bootstrap-vm-binding.ts
-// src/gcp-insert-audit-evidence.ts
-import { createHash as createHash32, createHash as createHash33 } from 'node:crypto';
+// plugins/terraform/src/gcp-bootstrap-vm-binding.ts
+// plugins/terraform/src/gcp-insert-audit-evidence.ts
+import { createHash as createHash33, createHash as createHash34 } from 'node:crypto';
 
-// src/evidence-rfc3339.ts
+// plugins/terraform/src/evidence-rfc3339.ts
 function isEvidenceRfc3339(value) {
   if (typeof value !== 'string' || value.length > 64) return false;
   const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(value);
@@ -323,7 +323,7 @@ function isEvidenceRfc3339(value) {
   );
 }
 
-// src/gcp-insert-audit-query.ts
+// plugins/terraform/src/gcp-insert-audit-query.ts
 var resourceName = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 function compileGcpInsertAuditQuery(project, zone, node, input) {
   const window = { ...input };
@@ -365,12 +365,12 @@ function hasAuditControlCharacters(value) {
   return Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127);
 }
 
-// src/linux-clock.ts
+// plugins/terraform/src/linux-clock.ts
 import { dlopen, FFIType, ptr } from 'bun:ffi';
-// src/gcp-insert-evidence.ts
-// src/gcp-http-rpc-trace.ts
-// src/original-output-stream.ts
-import { createHash as createHash2, createHash as createHash3, createHash as createHash31 } from 'node:crypto';
+// plugins/terraform/src/gcp-insert-evidence.ts
+// plugins/terraform/src/gcp-http-rpc-trace.ts
+// plugins/terraform/src/original-output-stream.ts
+import { createHash as createHash2, createHash as createHash3, createHash as createHash32 } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, readFile, realpath, stat } from 'node:fs/promises';
 import {
@@ -402,7 +402,7 @@ function linuxMonotonicMs() {
   return sample();
 }
 
-// src/original-output-stream.ts
+// plugins/terraform/src/original-output-stream.ts
 var stableKeys = ['dev', 'ino', 'uid', 'nlink', 'mode'];
 var parentKeys = ['dev', 'ino', 'uid', 'mode'];
 var maximumChunk = 65536;
@@ -797,7 +797,7 @@ async function bindOriginalExecutionOutput(input) {
   }
 }
 
-// src/gcp-http-rpc-trace.ts
+// plugins/terraform/src/gcp-http-rpc-trace.ts
 var responseOrigins = new WeakMap();
 async function readOriginalGoogleHttpResponseSource(value) {
   const read = value && typeof value === 'object' ? responseOrigins.get(value) : undefined;
@@ -1326,7 +1326,7 @@ class GoogleHttpRpcTraceParser {
   }
 }
 
-// src/google-provider-lifecycle.ts
+// plugins/terraform/src/google-provider-lifecycle.ts
 var rpcOrigins = new WeakMap();
 function readOriginalGoogleProviderRpcSource(candidate) {
   const read = rpcOrigins.get(candidate);
@@ -1336,13 +1336,13 @@ function readOriginalGoogleProviderRpcSource(candidate) {
 var _maximumLine2 = 1024 * 1024;
 var _maximumStream2 = 64 * 1024 * 1024;
 
-// src/original-google-provider-source.ts
-// src/installed-provider-reader.ts
-import { createHash as createHash28, createHash as createHash29, randomUUID as randomUUID14 } from 'node:crypto';
-import { lstat as lstat19, mkdir as mkdir15, open as open17, realpath as realpath18 } from 'node:fs/promises';
-import { dirname as dirname14, join as join27 } from 'node:path';
+// plugins/terraform/src/original-google-provider-source.ts
+// plugins/terraform/src/installed-provider-reader.ts
+import { createHash as createHash29, createHash as createHash30, randomUUID as randomUUID15 } from 'node:crypto';
+import { lstat as lstat20, mkdir as mkdir17, open as open19, realpath as realpath19 } from 'node:fs/promises';
+import { dirname as dirname14, join as join29 } from 'node:path';
 
-// src/gcp-capture-source-pins.json
+// plugins/terraform/src/gcp-capture-source-pins.json
 var gcp_capture_source_pins_default = {
   schemaVersion: 1,
   kind: 'gcp-original-capture-sources',
@@ -1362,8 +1362,8 @@ var gcp_capture_source_pins_default = {
   },
 };
 
-// src/runner.ts
-// ../platform/src/ce/process-lock.ts
+// plugins/terraform/src/runner.ts
+// plugins/platform/src/ce/process-lock.ts
 import { createHash as createHash5, randomUUID, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
@@ -1382,7 +1382,7 @@ import {
   writeFile,
   writeFile as writeFile2,
 } from 'node:fs/promises';
-// src/installed-capture-context.ts
+// plugins/terraform/src/installed-capture-context.ts
 import {
   basename,
   dirname as dirname2,
@@ -1657,7 +1657,7 @@ async function acquireProcessLock(path, ownerPid = process.pid, options = {}) {
   throw new Error('Operation lock could not be acquired');
 }
 
-// src/failure.ts
+// plugins/terraform/src/failure.ts
 var patterns = [
   ['capacity', /\bInsufficientInstanceCapacity\b/],
   ['quota', /\bVpcLimitExceeded\b/],
@@ -1689,7 +1689,7 @@ class TerraformCommandError extends Error {
   }
 }
 
-// src/original-input-monitor.ts
+// plugins/terraform/src/original-input-monitor.ts
 import { createHash as createHash4 } from 'node:crypto';
 import { constants as constants2, watch } from 'node:fs';
 import { lstat as lstat3, open as open2, realpath as realpath2 } from 'node:fs/promises';
@@ -1864,7 +1864,7 @@ async function monitorOriginalInputs(input) {
   }
 }
 
-// src/runner.ts
+// plugins/terraform/src/runner.ts
 var originalPlanSources = new WeakMap();
 var originalPlanProjections = new WeakMap();
 function assertOriginalTerraformPlanSourceProjection(source, projection) {
@@ -3499,7 +3499,7 @@ class TerraformRunner {
   }
 }
 
-// src/installed-capture-context.ts
+// plugins/terraform/src/installed-capture-context.ts
 var fileKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var parentKeys3 = ['dev', 'ino', 'uid', 'mode'];
 var controls = (value) =>
@@ -3643,23 +3643,23 @@ function createInstalledCaptureContext(admission) {
   });
 }
 
-// src/installed-runtime.ts
-// ../gcloud/src/ce/discovery.ts
-import { createHash as createHash6, createHash as createHash27, randomUUID as randomUUID13 } from 'node:crypto';
+// plugins/terraform/src/installed-runtime.ts
+// plugins/gcloud/src/ce/discovery.ts
+import { createHash as createHash6, createHash as createHash28, randomUUID as randomUUID14 } from 'node:crypto';
 import { constants as constants8 } from 'node:fs';
 import {
-  lstat as lstat18,
-  mkdir as mkdir14,
-  open as open16,
+  lstat as lstat19,
+  mkdir as mkdir16,
+  open as open18,
   readdir as readdir3,
   readFile as readFile7,
-  realpath as realpath17,
+  realpath as realpath18,
   writeFile as writeFile5,
 } from 'node:fs/promises';
 import { homedir as homedir2 } from 'node:os';
-import { dirname as dirname13, isAbsolute as isAbsolute15, join as join26, resolve as resolve16 } from 'node:path';
+import { dirname as dirname13, isAbsolute as isAbsolute15, join as join28, resolve as resolve16 } from 'node:path';
 
-// ../gcloud/src/ce/types.ts
+// plugins/gcloud/src/ce/types.ts
 var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
 var GCP_CE_OPERATIONS = [
   'deploy',
@@ -3675,10 +3675,10 @@ var GCP_CE_OPERATIONS = [
   'teardown',
 ];
 
-// ../gcloud/src/gcloud/types.ts
+// plugins/gcloud/src/gcloud/types.ts
 var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 
-// ../gcloud/src/ce/site-access.ts
+// plugins/gcloud/src/ce/site-access.ts
 var GCP_SITE_ACCESS_MAPPING = Object.freeze({
   schemaVersion: 1,
   provider: 'f5-sales-demo/xcsh',
@@ -3776,7 +3776,7 @@ function gcpSiteAccessSpec(intent, providerVersion) {
   };
 }
 
-// ../gcloud/src/ce/observer-scope.ts
+// plugins/gcloud/src/ce/observer-scope.ts
 var GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
   project: 'ubuntu-os-cloud',
   name: 'ubuntu-2404-noble-amd64-v20261021',
@@ -3827,7 +3827,7 @@ function gcpTerraformObserverIdentity(intent) {
   };
 }
 
-// ../gcloud/src/ce/validation.ts
+// plugins/gcloud/src/ce/validation.ts
 var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
 function validateScope(project, region) {
   if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
@@ -3983,7 +3983,7 @@ function validateIntent(intent) {
   }
 }
 
-// ../gcloud/src/ce/discovery.ts
+// plugins/gcloud/src/ce/discovery.ts
 function fingerprint(value) {
   const stable = (item) =>
     Array.isArray(item)
@@ -4000,10 +4000,10 @@ function fingerprint(value) {
     .digest('hex')}`;
 }
 
-// src/google-adc-authentication.ts
+// plugins/terraform/src/google-adc-authentication.ts
 import { createHash as createHash7 } from 'node:crypto';
 
-// src/gcp-inventory-target.ts
+// plugins/terraform/src/gcp-inventory-target.ts
 var validName = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 function compileGcpInventoryResourceTarget(project, input) {
   if (!validName(project) || !input) throw new Error('Original Compute inventory scope required');
@@ -4021,7 +4021,7 @@ function compileGcpInventoryResourceTarget(project, input) {
   return Object.freeze({ target, path, selfLink: `https://www.googleapis.com/compute/v1/${path}` });
 }
 
-// src/gcp-observer-image-pin.ts
+// plugins/terraform/src/gcp-observer-image-pin.ts
 var GCP_OBSERVER_IMAGE_PIN = Object.freeze({
   project: 'ubuntu-os-cloud',
   name: 'ubuntu-2404-noble-amd64-v20261021',
@@ -4032,7 +4032,7 @@ var GCP_OBSERVER_IMAGE_PIN = Object.freeze({
     'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20261021',
 });
 
-// src/google-adc-authentication.ts
+// plugins/terraform/src/google-adc-authentication.ts
 var tokenEndpoint = 'https://oauth2.googleapis.com/token';
 var inspectionEndpoint = 'https://www.googleapis.com/oauth2/v2/tokeninfo';
 var hash4 = (value) => createHash7('sha256').update(value).digest('hex');
@@ -4387,10 +4387,10 @@ async function openGoogleAdcComputeReader(input, signal, fetcher = fetch) {
   });
 }
 
-// src/installed-apply-controller.ts
+// plugins/terraform/src/installed-apply-controller.ts
 import { randomUUID as randomUUID3 } from 'node:crypto';
 
-// src/reader-final-reserve.ts
+// plugins/terraform/src/reader-final-reserve.ts
 var admissions = new WeakMap();
 var windowKeys = ['originalStartMs', 'originalDeadlineMs', 'finalStartedMs', 'finalDeadlineMs'];
 var originalWindows = new Map();
@@ -4462,7 +4462,7 @@ async function assertFinalReaderReserve(reserve) {
   withinWindow(snapshot, admission.clock);
 }
 
-// src/installed-apply-controller.ts
+// plugins/terraform/src/installed-apply-controller.ts
 var callbacks = new WeakMap();
 var lifetimes = new WeakMap();
 var groupClosures = new WeakMap();
@@ -4760,7 +4760,7 @@ function createInstalledApplyController(original, worker, hooks) {
   };
 }
 
-// src/installed-capture-input-checks.ts
+// plugins/terraform/src/installed-capture-input-checks.ts
 function createInstalledCaptureInputChecks(admission) {
   if (
     typeof admission?.verifyStore !== 'function' ||
@@ -4812,7 +4812,7 @@ function createInstalledCaptureInputChecks(admission) {
   });
 }
 
-// src/installed-final-capture.ts
+// plugins/terraform/src/installed-final-capture.ts
 import { isAbsolute as isAbsolute5, join as join4, resolve as resolve5 } from 'node:path';
 
 function key(identity) {
@@ -4919,16 +4919,16 @@ async function finalizeInstalledCapture(invocations, finished, hooks) {
   if (failures.length) throw new AggregateError(failures, 'Original installed final capture is incomplete');
 }
 
-// src/google-adc-session.ts
+// plugins/terraform/src/google-adc-session.ts
 import { createHash as createHash8 } from 'node:crypto';
 import { constants as constants3, watch as watch2 } from 'node:fs';
 import { lstat as lstat5, open as open3, realpath as realpath4 } from 'node:fs/promises';
-// src/installed-gcp-invocation.ts
+// plugins/terraform/src/installed-gcp-invocation.ts
 import {
   dirname as dirname5,
   isAbsolute as isAbsolute6,
   isAbsolute as isAbsolute12,
-  join as join22,
+  join as join24,
   resolve as resolve6,
   resolve as resolve13,
 } from 'node:path';
@@ -5120,34 +5120,34 @@ async function openGoogleAdcSession(input, expectedInput) {
   return Object.freeze({ environment, verify, close });
 }
 
-// src/prepared-creation-scope.ts
-// src/bootstrap-grant-publication.ts
+// plugins/terraform/src/prepared-creation-scope.ts
+// plugins/terraform/src/bootstrap-grant-publication.ts
 import {
-  createHash as createHash22,
-  createHash as createHash25,
+  createHash as createHash23,
+  createHash as createHash26,
   generateKeyPairSync as generateKeyPairSync2,
-  randomBytes as randomBytes4,
+  randomBytes as randomBytes5,
   sign,
 } from 'node:crypto';
 import { constants as constants6, constants as constants7 } from 'node:fs';
 import {
   chmod as chmod2,
-  lstat as lstat15,
-  mkdir as mkdir13,
-  open as open13,
+  lstat as lstat16,
+  mkdir as mkdir15,
   open as open15,
+  open as open17,
   readFile as readFile5,
-  realpath as realpath14,
+  realpath as realpath15,
 } from 'node:fs/promises';
 import {
   dirname as dirname10,
   isAbsolute as isAbsolute11,
-  join as join18,
-  join as join21,
+  join as join20,
+  join as join23,
   resolve as resolve12,
 } from 'node:path';
 
-// src/installed-runtime-pins.json
+// plugins/terraform/src/installed-runtime-pins.json
 var installed_runtime_pins_default = {
   schemaVersion: 1,
   pythonSha256: 'aac3ade3f7d90fbf63e3ea0c46120a0cfbd159e1e503dde04721979507a1548b',
@@ -5177,24 +5177,24 @@ var installed_runtime_pins_default = {
   refreshQualificationSha256: '613a5979c06e99b57a9ae34855f8d0f4724ebe641e22d7b6ed973cca378fbc0c',
 };
 
-// src/signal-free-executor.ts
-// src/gcp-observer-insert-evidence.ts
-import { createHash as createHash12, createHash as createHash21, randomUUID as randomUUID10 } from 'node:crypto';
+// plugins/terraform/src/signal-free-executor.ts
+// plugins/terraform/src/gcp-observer-insert-evidence.ts
+import { createHash as createHash12, createHash as createHash22, randomUUID as randomUUID11 } from 'node:crypto';
 import { constants as constants5, watch as watch3 } from 'node:fs';
 import {
-  lstat as lstat13,
-  mkdir as mkdir11,
-  open as open12,
+  lstat as lstat14,
+  mkdir as mkdir13,
+  open as open14,
   readFile as readFile4,
   readlink,
-  realpath as realpath12,
+  realpath as realpath13,
   stat as stat2,
   writeFile as writeFile3,
 } from 'node:fs/promises';
 import { isIP } from 'node:net';
-import { dirname as dirname8, isAbsolute as isAbsolute10, join as join17, resolve as resolve11 } from 'node:path';
+import { dirname as dirname8, isAbsolute as isAbsolute10, join as join19, resolve as resolve11 } from 'node:path';
 
-// ../gcloud/src/ce/request-reason.ts
+// plugins/gcloud/src/ce/request-reason.ts
 var reasonPattern = /^xcsh-gcp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 function assertGcpTerraformRequestReason(value, intent, googleVersion) {
   validateIntent(intent);
@@ -5216,7 +5216,7 @@ function assertGcpTerraformRequestReason(value, intent, googleVersion) {
     throw new Error('Reviewed original GCP Terraform request reason and provider mapping required');
 }
 
-// ../gcloud/src/ce/compute-plan.ts
+// plugins/gcloud/src/ce/compute-plan.ts
 function assertComputeOnly(intent) {
   if (
     intent.ingress.profile !== 'none' ||
@@ -5451,7 +5451,7 @@ function translateGcpPublicTerraformSiteCompute(intent, versions, requestReason)
   };
 }
 
-// ../gcloud/src/ce/observer-plan.ts
+// plugins/gcloud/src/ce/observer-plan.ts
 function translateGcpTerraformObserverSiteCompute(intent, versions, observer, requestReason) {
   assertGcpSiteAccessProfile(intent);
   assertGcpTerraformObserverScope(observer, intent);
@@ -5584,7 +5584,7 @@ function translateGcpTerraformObserverSiteCompute(intent, versions, observer, re
   };
 }
 
-// src/gcp-cloud-serial-reader.ts
+// plugins/terraform/src/gcp-cloud-serial-reader.ts
 import { createHash as createHash9, randomUUID as randomUUID4 } from 'node:crypto';
 import { lstat as lstat6, mkdir as mkdir3, open as open4, realpath as realpath5 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute7, join as join5, resolve as resolve7 } from 'node:path';
@@ -6365,7 +6365,7 @@ async function openInstalledGcpCloudSerialReader(context, signal, fetcher = fetc
   }
 }
 
-// src/gcp-observer-image.ts
+// plugins/terraform/src/gcp-observer-image.ts
 import { createHash as createHash10, randomUUID as randomUUID5 } from 'node:crypto';
 import { lstat as lstat7, mkdir as mkdir4, open as open5, realpath as realpath6 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute8, join as join6, resolve as resolve8 } from 'node:path';
@@ -6590,12 +6590,12 @@ async function openGcpObserverImageReader(input, signal, fetcher = fetch) {
   return reader;
 }
 
-// src/installed-initial-inventory.ts
+// plugins/terraform/src/installed-initial-inventory.ts
 import { createHash as createHash11, randomUUID as randomUUID6 } from 'node:crypto';
-// src/original-gcp-inventory-scope.ts
+// plugins/terraform/src/original-gcp-inventory-scope.ts
 import { join as join7, join as join8 } from 'node:path';
 
-// ../gcloud/src/ce/terraform-public-ownership.ts
+// plugins/gcloud/src/ce/terraform-public-ownership.ts
 function publicTerraformPlatformScope(intent) {
   return intent.sites.flatMap((site) => [
     { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
@@ -6653,7 +6653,7 @@ function publicTerraformCloudScope(intent) {
   }));
 }
 
-// src/original-gcp-inventory-scope.ts
+// plugins/terraform/src/original-gcp-inventory-scope.ts
 var issued2 = new WeakMap();
 var pending = new WeakMap();
 var refuse = () => new Error('Original owning GCP inventory scope required');
@@ -6887,7 +6887,7 @@ async function assertOriginalGcpInventoryInputs(packet) {
   await record(packet).assertInputs();
 }
 
-// src/installed-initial-inventory.ts
+// plugins/terraform/src/installed-initial-inventory.ts
 var applyInventories = new WeakMap();
 var applyInventoryCallbacks = new WeakMap();
 async function assertOriginalApplyGcpInventoryCallback(packet, callback) {
@@ -7345,7 +7345,7 @@ async function openInitialInventory(input, options = {}) {
   });
 }
 
-// src/gcp-observer-insert-evidence.ts
+// plugins/terraform/src/gcp-observer-insert-evidence.ts
 var hash8 = (value) => createHash12('sha256').update(value).digest('hex');
 var object5 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Original observer object required');
@@ -7891,11 +7891,11 @@ async function collectOriginalGcpObserverVmEvidence(input) {
   return result;
 }
 
-// src/gcp-ssh-client-profile.ts
+// plugins/terraform/src/gcp-ssh-client-profile.ts
 import { lstat as lstat8, realpath as realpath7 } from 'node:fs/promises';
 import { join as join9, resolve as resolve9 } from 'node:path';
 
-// src/gcp-ssh-client-pins.json
+// plugins/terraform/src/gcp-ssh-client-pins.json
 var gcp_ssh_client_pins_default = {
   schemaVersion: 1,
   kind: 'gcp-qualified-ssh-client-artifact',
@@ -7919,7 +7919,7 @@ var gcp_ssh_client_pins_default = {
   installerSha256: '21f5cae7e24ee27935c1d004f6fbeec495786ae2af66f633ec1e390d2e2a8de9',
 };
 
-// src/gcp-ssh-client-profile.ts
+// plugins/terraform/src/gcp-ssh-client-profile.ts
 var names = ['ssh', 'ssh-keyscan', 'ssh-keygen'];
 var defaultPins = Object.freeze({
   version: gcp_ssh_client_pins_default.version,
@@ -8018,12 +8018,12 @@ async function openGcpSshClientProfile(root, options = {}) {
   return ref;
 }
 
-// src/gcp-keyscan-command.ts
+// plugins/terraform/src/gcp-keyscan-command.ts
 var _origins3 = new WeakMap();
-// src/gcp-observer-client-payload.ts
+// plugins/terraform/src/gcp-observer-client-payload.ts
 var _origins4 = new WeakMap();
 
-// src/gcp-campaign-access.ts
+// plugins/terraform/src/gcp-campaign-access.ts
 import {
   createHash as createHash13,
   createPrivateKey,
@@ -8416,45 +8416,45 @@ async function bindOriginalGcpCampaignAccess(store, binding) {
   await readOriginalGcpCampaignAccess(store, request, binding.intentSha256);
 }
 
-// src/gcp-observer-campaign-key.ts
+// plugins/terraform/src/gcp-observer-campaign-key.ts
 var _origins5 = new WeakMap();
 
-// src/gcp-observer-host-trust-reader.ts
-// src/gcp-observer-trust-material.ts
-// src/gcp-observer-client-abi.ts
-// src/gcp-observer-client-abi-command.ts
+// plugins/terraform/src/gcp-observer-host-trust-reader.ts
+// plugins/terraform/src/gcp-observer-trust-material.ts
+// plugins/terraform/src/gcp-observer-client-abi.ts
+// plugins/terraform/src/gcp-observer-client-abi-command.ts
 import {
   createHash as createHash15,
-  createHash as createHash19,
   createHash as createHash20,
+  createHash as createHash21,
   randomBytes as randomBytes2,
   randomUUID as randomUUID7,
-  randomUUID as randomUUID9,
+  randomUUID as randomUUID10,
 } from 'node:crypto';
 import {
   lstat as lstat10,
-  lstat as lstat12,
+  lstat as lstat13,
   mkdir as mkdir6,
   mkdir as mkdir7,
-  mkdir as mkdir10,
+  mkdir as mkdir12,
   open as open7,
   open as open8,
-  open as open11,
+  open as open13,
   realpath as realpath9,
-  realpath as realpath11,
+  realpath as realpath12,
 } from 'node:fs/promises';
-// src/gcp-ce-sli-target.ts
+// plugins/terraform/src/gcp-ce-sli-target.ts
 import { isIP as isIP3 } from 'node:net';
-import { dirname as dirname7, join as join11, join as join12, join as join13, join as join16 } from 'node:path';
+import { dirname as dirname7, join as join11, join as join12, join as join15, join as join18 } from 'node:path';
 
-// src/gcp-observer-client-abi-pins.json
+// plugins/terraform/src/gcp-observer-client-abi-pins.json
 var gcp_observer_client_abi_pins_default = {
   schemaVersion: 1,
   kind: 'original-gcp-observer-client-abi-source',
   guestHelperSha256: '4c577d5b440e95e7745f4def2d39bb33a2cd70d7f698f31c23b7fc4ca449bc03',
 };
 
-// src/gcp-observer-ssh-peer.ts
+// plugins/terraform/src/gcp-observer-ssh-peer.ts
 var origins6 = new WeakMap();
 async function assertOriginalVerifiedGcpObserverPeerContext(value, callback) {
   const origin = value && typeof value === 'object' ? origins6.get(value) : undefined;
@@ -8467,7 +8467,32 @@ async function assertOriginalVerifiedGcpObserverPeerContext(value, callback) {
   return Object.freeze({ peer, command: origin.command, callback });
 }
 
-// src/gcp-observer-client-delivery.ts
+// plugins/terraform/src/gcp-observer-client-delivery.ts
+var installations = new WeakMap();
+function installationOrigin(value) {
+  const origin = value && typeof value === 'object' ? installations.get(value) : undefined;
+  if (!origin) throw new Error('Original observer installation provenance required');
+  return origin;
+}
+async function readOriginalGcpObserverClientInstallation(value) {
+  return installationOrigin(value).read();
+}
+async function assertOriginalGcpObserverClientInstallationContext(value, callback) {
+  const origin = installationOrigin(value);
+  if (callback.phase === 'after') await assertOriginalApplyCallback(callback);
+  else await assertOriginalApplyLifetime(callback);
+  if (origin.context !== callback.original)
+    throw new Error('Original installation and actual callback context required');
+  return origin.read();
+}
+function closeOriginalGcpObserverClientInstallation(value) {
+  installationOrigin(value).close();
+}
+async function openOriginalGcpObserverClientInstallation(delivery) {
+  const origin = delivery && typeof delivery === 'object' ? origins7.get(delivery) : undefined;
+  if (!origin) throw new Error('Original successful observer delivery required');
+  return origin.installation();
+}
 var origins7 = new WeakMap();
 async function assertOriginalGcpObserverClientDeliveryContext(value, callback) {
   const origin = value && typeof value === 'object' ? origins7.get(value) : undefined;
@@ -8480,7 +8505,7 @@ async function assertOriginalGcpObserverClientDeliveryContext(value, callback) {
   return Object.freeze({ delivery, peer: origin.peer, command: origin.command, callback });
 }
 
-// src/gcp-observer-ssh-local-inputs.ts
+// plugins/terraform/src/gcp-observer-ssh-local-inputs.ts
 async function openOriginalGcpObserverSshInputLease(command, callback) {
   const source = await readOriginalGcpObserverSshCommand(command);
   if (source.callback !== callback) throw new Error('Original SSH input lease and actual callback required');
@@ -8543,7 +8568,7 @@ async function openOriginalGcpObserverSshInputLease(command, callback) {
   });
 }
 
-// src/gcp-observer-client-abi-command.ts
+// plugins/terraform/src/gcp-observer-client-abi-command.ts
 var origins8 = new WeakMap();
 function original(value) {
   const origin = value && typeof value === 'object' ? origins8.get(value) : undefined;
@@ -8694,7 +8719,7 @@ print(json.dumps(result,sort_keys=True))
   return ref;
 }
 
-// src/gcp-observer-guest-process.ts
+// plugins/terraform/src/gcp-observer-guest-process.ts
 import { createHash as createHash14 } from 'node:crypto';
 
 var hash10 = (raw) => createHash14('sha256').update(raw).digest('hex');
@@ -8814,7 +8839,7 @@ function inspectGcpObserverGuestProcess(item, request, mapping, window) {
   });
 }
 
-// src/gcp-observer-client-abi.ts
+// plugins/terraform/src/gcp-observer-client-abi.ts
 var hash11 = (raw) => createHash15('sha256').update(raw).digest('hex');
 var same2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 var integer2 = (value) => typeof value === 'number' && Number.isSafeInteger(value);
@@ -9189,11 +9214,620 @@ async function openGcpObserverClientAbi(command) {
   });
 }
 
-// src/gcp-vm-evidence.ts
-import { createHash as createHash16 } from 'node:crypto';
+// plugins/terraform/src/gcp-observer-client-abi-renewal.ts
+// plugins/terraform/src/gcp-observer-client-abi-renewal-command.ts
+import { createHash as createHash16, randomBytes as randomBytes3, randomUUID as randomUUID8 } from 'node:crypto';
+import {
+  lstat as lstat11,
+  mkdir as mkdir8,
+  mkdir as mkdir9,
+  open as open9,
+  open as open10,
+  realpath as realpath10,
+} from 'node:fs/promises';
+import { join as join13, join as join14 } from 'node:path';
+
+// plugins/terraform/src/gcp-observer-client-abi-renewal-pins.json
+var gcp_observer_client_abi_renewal_pins_default = {
+  schemaVersion: 2,
+  kind: 'original-gcp-observer-client-abi-renewal-source',
+  guestHelperSha256: '49539fa92123aaee73757e000d1cfce4ab45d863236d58fcbfdbae9c57fba98d',
+  abiHelperSha256: '4c577d5b440e95e7745f4def2d39bb33a2cd70d7f698f31c23b7fc4ca449bc03',
+};
+
+// plugins/terraform/src/gcp-observer-client-abi-renewal-command.ts
+var origins10 = new WeakMap();
+function original2(value) {
+  const origin = value && typeof value === 'object' ? origins10.get(value) : undefined;
+  if (!origin) throw new Error('Original observer ABI renewal command required');
+  return origin;
+}
+async function readOriginalGcpObserverClientAbiRenewalCommand(value) {
+  return original2(value).read();
+}
+async function assertOriginalGcpObserverClientAbiRenewalInputs(value) {
+  await original2(value).inputs();
+}
+async function assertOriginalGcpObserverClientAbiRenewalIdentity(value) {
+  await original2(value).identity();
+}
+async function checkoutOriginalGcpObserverClientAbiRenewalCommand(value) {
+  const origin = original2(value);
+  if (origin.used) throw new Error('Original observer ABI renewal command is single-use');
+  origin.used = true;
+  return origin.read();
+}
+function closeOriginalGcpObserverClientAbiRenewalCommand(value) {
+  original2(value).close();
+}
+async function openOriginalGcpObserverClientAbiRenewalCommand(installation, freshPeer, callback) {
+  const installed = await assertOriginalGcpObserverClientInstallationContext(installation, callback);
+  const peer = await assertOriginalVerifiedGcpObserverPeerContext(freshPeer, callback);
+  const source = await readOriginalGcpObserverSshCommand(peer.command);
+  const helper = await owned(join13(import.meta.dir, '../scripts/gcp_observer_client_abi_renewal.py'));
+  const abi = await owned(join13(import.meta.dir, '../scripts/gcp_observer_client_abi.py'));
+  if (
+    gcp_observer_client_abi_renewal_pins_default.schemaVersion !== 2 ||
+    helper.binding.sha256 !== gcp_observer_client_abi_renewal_pins_default.guestHelperSha256 ||
+    abi.binding.sha256 !== gcp_observer_client_abi_renewal_pins_default.abiHelperSha256
+  )
+    throw new Error('Original shipped observer ABI helper pin differs');
+  const scopeDeadline =
+    callback.phase === 'after' && callback.reserve
+      ? inspectFinalReaderReserve(callback.reserve).finalDeadlineMs
+      : callback.original.budget.deadline;
+  if (
+    peer.peer.instanceId !== installed.installation.instanceId ||
+    peer.peer.clock.bootId !== installed.installation.bootId ||
+    peer.peer.clock.uid !== installed.installation.uid ||
+    peer.peer.clock.pythonPath !== installed.installation.pythonPath ||
+    peer.peer.clock.pythonSha256 !== installed.installation.pythonSha256
+  )
+    throw new Error('Original installation and fresh observer peer identity differ');
+  const budget = projectOriginalGcpGuestDeliveryDeadline(
+    peer.peer.clock,
+    linuxMonotonicMs(),
+    Math.min(scopeDeadline, peer.peer.clock.sourceStartedMs + 300000),
+  );
+  const request = Object.freeze({
+    schemaVersion: 2,
+    kind: 'original-observer-client-abi-renewal',
+    instanceId: installed.installation.instanceId,
+    nonce: randomBytes3(32).toString('hex'),
+    uid: installed.installation.uid,
+    bootId: installed.installation.bootId,
+    pythonPath: installed.installation.pythonPath,
+    pythonSha256: installed.installation.pythonSha256,
+    archiveSha256: installed.installation.archiveSha256,
+    guestDeadlineMs: budget.guestDeadlineMs,
+    installationNonce: installed.installation.nonce,
+    installationReceiptSha256: installed.installation.receiptSha256,
+    installationFinishedMs: installed.installation.finishedMs,
+    peerChallenge: source.challenge,
+    peerMonotonicMs: peer.peer.clock.guestMonotonicMs,
+  });
+  const quote = (value) => `'${value.replace(/'/g, "'\\''")}'`;
+  const program = `${helper.bytes.toString('utf8')}
+import base64
+request=json.loads(${JSON.stringify(JSON.stringify(request))})
+result=renew_original_clients(request,base64.b64decode(${JSON.stringify(abi.bytes.toString('base64'))}))
+print(json.dumps(result,sort_keys=True))
+`;
+  const remote = ['/usr/bin/python3', '-I', '-B', '-c', program].map(quote).join(' ');
+  if (Buffer.byteLength(remote) > 120000) throw new Error('Original observer ABI SSH argument exceeds bound');
+  const args = Object.freeze([...source.args.slice(0, -1), remote]);
+  const root = join13(
+    callback.original.executionDirectory,
+    `observer-client-abi-renewal-${request.instanceId}-${request.nonce}`,
+  );
+  await mkdir8(root, { mode: 448 });
+  const path = join13(root, 'request.private.json');
+  const file = await open9(path, 'wx', 256);
+  try {
+    await file.writeFile(JSON.stringify(request));
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  const requestInput = await owned(path);
+  const sshInputs = await openOriginalGcpObserverSshInputLease(peer.command, callback);
+  let monitor;
+  try {
+    monitor = await monitorOriginalInputs({ helper: helper.binding, abi: abi.binding, request: requestInput.binding });
+  } catch (error) {
+    sshInputs.close();
+    throw error;
+  }
+  let closed = false,
+    retired = false;
+  const inputs = async () => {
+    if (closed) throw new Error('Original observer ABI renewal inputs closed');
+    await monitor.assertOriginal();
+    await sshInputs.assertOriginal();
+    await readOriginalGcpObserverClientInstallation(installation);
+    await monitor.assertOriginal();
+  };
+  const identity = async () => {
+    if (closed) throw new Error('Original observer ABI renewal inputs closed');
+    await monitor.assertOriginalIdentity();
+    await sshInputs.assertOriginalIdentity();
+  };
+  const read = async () => {
+    if (retired) throw new Error('Original observer ABI renewal command retired');
+    try {
+      await inputs();
+      if (linuxMonotonicMs() >= budget.sourceDeadlineMs)
+        throw new Error('Original observer ABI renewal command deadline exhausted');
+      const current = await assertOriginalGcpObserverClientInstallationContext(installation, callback);
+      const currentPeer = await assertOriginalVerifiedGcpObserverPeerContext(freshPeer, callback);
+      if (
+        current.context !== installed.context ||
+        current.installation.receiptSha256 !== request.installationReceiptSha256 ||
+        currentPeer.command !== peer.command ||
+        currentPeer.peer.instanceId !== request.instanceId ||
+        currentPeer.peer.clock.guestMonotonicMs !== request.peerMonotonicMs
+      )
+        throw new Error('Original ABI renewal installation or fresh peer binding changed');
+      await monitor.assertOriginal();
+      return Object.freeze({
+        callback,
+        installation,
+        peer: freshPeer,
+        python: source.python,
+        executable: source.executable,
+        args,
+        sourceDeadlineMs: budget.sourceDeadlineMs,
+        request,
+      });
+    } catch (error) {
+      retired = true;
+      throw error;
+    }
+  };
+  const ref = Object.freeze({
+    schemaVersion: 2,
+    kind: 'original-gcp-observer-client-abi-renewal-command-reference',
+  });
+  const close = () => {
+    retired = true;
+    closed = true;
+    monitor.close();
+    sshInputs.close();
+  };
+  origins10.set(ref, { read, inputs, identity, used: false, close });
+  try {
+    await read();
+  } catch (error) {
+    close();
+    throw error;
+  }
+  return ref;
+}
+
+// plugins/terraform/src/gcp-observer-client-abi-renewal.ts
+var hash12 = (raw) => createHash16('sha256').update(raw).digest('hex');
+var same3 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
+var integer3 = (value) => typeof value === 'number' && Number.isSafeInteger(value);
+var requestFields = [
+  'instanceId',
+  'nonce',
+  'uid',
+  'bootId',
+  'pythonPath',
+  'pythonSha256',
+  'archiveSha256',
+  'installationNonce',
+  'installationReceiptSha256',
+  'installationFinishedMs',
+  'peerChallenge',
+  'peerMonotonicMs',
+];
+var mappings2 = [
+  { client: 'ssh', args: ['-V'], exitCode: 0, marker: 'OpenSSH_10.6p2,' },
+  { client: 'ssh-keyscan', args: [], exitCode: 1, marker: 'usage: ssh-keyscan' },
+  {
+    client: 'ssh-keygen',
+    args: ['-l', '-f', '/dev/null'],
+    exitCode: 255,
+    marker: '/dev/null is not a public key file.',
+  },
+];
+function inspectGcpObserverClientAbiRenewal(raw, request) {
+  if (raw.length > 65536) throw new Error('Original ABI renewal proof exceeds bound');
+  const value = decodeEvidenceObject(raw);
+  const fields = [
+    'schemaVersion',
+    'kind',
+    ...requestFields,
+    'clientRoot',
+    'startedMs',
+    'finishedMs',
+    'originalDeadlineMs',
+    'processes',
+    'abiVerified',
+    'guestClientQualified',
+    'installationReplayed',
+  ];
+  if (
+    Object.keys(value).sort().join(',') !== fields.sort().join(',') ||
+    value.schemaVersion !== 2 ||
+    value.kind !== 'original-observer-client-abi-renewal-proof' ||
+    requestFields.some((key) => value[key] !== request[key]) ||
+    value.clientRoot !== `/home/ubuntu/.local/share/xcsh/gcp-observer-clients/${request.instanceId}` ||
+    value.archiveSha256 !== gcp_ssh_client_pins_default.archiveSha256 ||
+    value.abiVerified !== true ||
+    value.guestClientQualified !== false ||
+    value.installationReplayed !== false ||
+    !integer3(value.uid) ||
+    value.uid <= 0
+  )
+    throw new Error('Original ABI renewal installation, peer, identity or framing differs');
+  if (
+    !integer3(value.startedMs) ||
+    !integer3(value.finishedMs) ||
+    !integer3(value.originalDeadlineMs) ||
+    !integer3(value.installationFinishedMs) ||
+    !integer3(value.peerMonotonicMs) ||
+    value.installationFinishedMs <= 0 ||
+    value.installationFinishedMs > value.peerMonotonicMs ||
+    value.startedMs < value.peerMonotonicMs ||
+    value.startedMs - value.peerMonotonicMs > 300000 ||
+    value.finishedMs < value.startedMs ||
+    value.finishedMs - value.peerMonotonicMs > 300000 ||
+    value.finishedMs - value.startedMs > 60000 ||
+    value.originalDeadlineMs !== request.guestDeadlineMs ||
+    value.finishedMs >= value.originalDeadlineMs
+  )
+    throw new Error('Original ABI renewal clocks, freshness or deadline differ');
+  if (!Array.isArray(value.processes) || value.processes.length !== 3)
+    throw new Error('Original ABI renewal requires three serial processes');
+  const pids = new Set();
+  let previous = value.startedMs;
+  const processes = value.processes.map((item, index) => {
+    const process2 = inspectGcpObserverGuestProcess(
+      item,
+      request,
+      { ...mappings2[index], stdout: 'empty' },
+      {
+        startedMs: previous,
+        finishedMs: value.finishedMs,
+        originalDeadlineMs: value.originalDeadlineMs,
+      },
+    );
+    if (pids.has(process2.pid)) throw new Error('Original ABI renewal requires distinct processes');
+    pids.add(process2.pid);
+    previous = process2.finishedMs;
+    return process2;
+  });
+  return Object.freeze({
+    instanceId: value.instanceId,
+    nonce: value.nonce,
+    uid: value.uid,
+    bootId: value.bootId,
+    pythonPath: value.pythonPath,
+    pythonSha256: value.pythonSha256,
+    archiveSha256: value.archiveSha256,
+    clientRoot: value.clientRoot,
+    installationNonce: value.installationNonce,
+    installationReceiptSha256: value.installationReceiptSha256,
+    installationFinishedMs: value.installationFinishedMs,
+    peerChallenge: value.peerChallenge,
+    peerMonotonicMs: value.peerMonotonicMs,
+    startedMs: value.startedMs,
+    finishedMs: value.finishedMs,
+    originalDeadlineMs: value.originalDeadlineMs,
+    receiptSha256: hash12(raw),
+    processes: Object.freeze(processes),
+    abiVerified: true,
+    installationReplayed: false,
+    guestClientQualified: false,
+  });
+}
+var origins11 = new WeakMap();
+async function readOriginalGcpObserverClientAbiRenewal(value) {
+  const origin = value && typeof value === 'object' ? origins11.get(value) : undefined;
+  if (!origin) throw new Error('Original observer client delivery provenance required');
+  return origin.read();
+}
+async function assertOriginalGcpObserverClientAbiRenewalContext(value, callback) {
+  const origin = value && typeof value === 'object' ? origins11.get(value) : undefined;
+  if (!origin || origin.callback !== callback)
+    throw new Error('Original observer ABI renewal and actual callback required');
+  const clients = await origin.read();
+  await assertOriginalGcpObserverClientInstallationContext(origin.installation, callback);
+  const peer = await assertOriginalVerifiedGcpObserverPeerContext(origin.peer, callback);
+  if (peer.peer.instanceId !== clients.instanceId || peer.peer.clock.bootId !== clients.bootId)
+    throw new Error('Original observer ABI renewal peer identity differs');
+  return Object.freeze({
+    clients,
+    installation: origin.installation,
+    peer: origin.peer,
+    command: origin.command,
+    callback,
+  });
+}
+async function openGcpObserverClientAbiRenewal(command) {
+  const original = await readOriginalGcpObserverClientAbiRenewalCommand(command);
+  const root = join14(
+    original.callback.original.executionDirectory,
+    `gcp-observer-abi-renewal-captures-${randomUUID8()}`,
+  );
+  await mkdir9(root, { mode: 448 });
+  const directory = await lstat11(root, { bigint: true });
+  let closed = false,
+    used = false,
+    producerSeen = false,
+    producerClosed = false;
+  let pending, closing;
+  const retained = [];
+  let retired = false;
+  let receipts;
+  const guard = async () => {
+    const current = await lstat11(root, { bigint: true });
+    if (
+      closed ||
+      (await realpath10(root)) !== root ||
+      !current.isDirectory() ||
+      ['dev', 'ino', 'uid', 'mode'].some((key) => current[key] !== directory[key])
+    )
+      throw new Error('Original observer ABI renewal capture directory changed or closed');
+  };
+  const persist = async (name, value) => {
+    await guard();
+    const file = await open10(join14(root, name), 'wx', 256);
+    try {
+      await file.writeFile(JSON.stringify(value));
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    retained.push((await owned(join14(root, name))).binding);
+    const parent = await open10(root, 'r');
+    try {
+      await parent.sync();
+    } finally {
+      await parent.close();
+    }
+  };
+  const run = async () => {
+    await guard();
+    let admission, capture, completion;
+    let stdout = Buffer.alloc(0),
+      stderr = Buffer.alloc(0);
+    const policy = {
+      python: original.python,
+      executable: original.executable,
+      originalStartMs: original.callback.original.budget.start,
+      originalDeadlineMs: original.callback.original.budget.deadline,
+      timeoutMs: 60000,
+      startupTimeoutMs: 15000,
+      maxOutputBytes: 65536,
+      assertOriginal: guard,
+      assertOriginalIdentity: guard,
+      assertFinalInputs: guard,
+      beforeRelease: async (value) => {
+        await guard();
+        if (
+          admission ||
+          value.directory !== root ||
+          value.originalStartMs !== original.callback.original.budget.start ||
+          value.originalDeadlineMs !== original.callback.original.budget.deadline ||
+          JSON.stringify(value.args) !== JSON.stringify(original.args) ||
+          value.stdin !== undefined
+        )
+          throw new Error('Original observer ABI renewal admission differs');
+        const prefix = await readOriginalExecutionPrefix(value.output);
+        if (
+          prefix.directory !== root ||
+          !same3(prefix.identity, value.identity) ||
+          prefix.stdout.bytes ||
+          prefix.stderr.bytes
+        )
+          throw new Error('Original empty ABI renewal output required');
+        admission = value;
+        producerSeen = true;
+      },
+      finalCapture: async (value) => {
+        capture = value;
+        producerSeen ||= !!value.identity;
+        let failure;
+        try {
+          if (
+            !admission ||
+            !value.identity ||
+            !same3(value.identity, admission.identity) ||
+            value.stdoutPath !== admission.stdoutPath ||
+            value.stderrPath !== admission.stderrPath ||
+            JSON.stringify(value.stdin) !== JSON.stringify(admission.stdin)
+          )
+            throw new Error('Original observer ABI renewal producer or stdin differs');
+          for (const channel of ['stdout', 'stderr']) {
+            const parts = [];
+            let offset = 0;
+            for (;;) {
+              const chunk = await admission.output.read(channel);
+              if (!chunk) break;
+              const record = readOriginalExecutionChunk(admission.output, chunk, channel);
+              if (
+                !same3(record.identity, admission.identity) ||
+                record.directory !== root ||
+                record.offset !== offset ||
+                record.endOffset !== offset + record.bytes.length ||
+                record.endOffset > 65536 ||
+                hash12(record.bytes) !== record.sha256
+              )
+                throw new Error('Original observer ABI renewal output chunk differs');
+              offset = record.endOffset;
+              parts.push(record.bytes);
+              if (channel === 'stdout') stdout = Buffer.concat(parts);
+              else stderr = Buffer.concat(parts);
+            }
+          }
+          if (!value.originalGroupClosed) throw new Error('Original observer ABI renewal producer closure unresolved');
+          completion = await admission.output.finish();
+          const issued = readOriginalExecutionCompletion(admission.output, completion);
+          if (
+            !same3(issued.identity, admission.identity) ||
+            issued.directory !== root ||
+            completion.stdout.bytes !== stdout.length ||
+            completion.stderr.bytes !== stderr.length ||
+            completion.stdout.sha256 !== hash12(stdout) ||
+            completion.stderr.sha256 !== hash12(stderr)
+          )
+            throw new Error('Original observer ABI renewal completion differs');
+          producerClosed = true;
+        } catch (error) {
+          failure = error;
+        }
+        await persist('capture.private.json', {
+          schemaVersion: 1,
+          kind: 'original-observer-client-abi-renewal-capture',
+          capture: value,
+          completion,
+          stdoutSha256: hash12(stdout),
+          stderrSha256: hash12(stderr),
+          stdoutBase64: stdout.toString('base64'),
+          stderrBase64: stderr.toString('base64'),
+          complete: !failure && !!completion,
+          guestClientQualified: false,
+          ...(failure ? { errorType: failure instanceof Error ? failure.name : typeof failure } : {}),
+        });
+        if (failure) throw failure;
+      },
+    };
+    try {
+      const execute = await signalFreeGcpObserverClientAbiRenewalExecutor(policy, command);
+      const result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+      if (
+        result.code !== 0 ||
+        !capture ||
+        !completion ||
+        !capture.submitted ||
+        capture.actualExitCode !== 0 ||
+        capture.reason ||
+        !producerClosed ||
+        capture.finishedMs > original.sourceDeadlineMs
+      )
+        throw new Error('Original observer ABI renewal not verified; private diagnostics retained');
+      const candidate = inspectGcpObserverClientAbiRenewal(stdout, original.request);
+      const sourceStartedMs = capture.invocationStartedMs;
+      const value = Object.freeze({
+        ...candidate,
+        guestClientQualified: true,
+        cloudOperationalQualified: false,
+      });
+      await persist('proof.private.json', {
+        schemaVersion: 1,
+        kind: 'original-observer-client-abi-renewal-proof',
+        ...value,
+        stdoutSha256: hash12(stdout),
+      });
+      const read = async () => {
+        if (retired) throw new Error('Original observer ABI renewal reference retired');
+        try {
+          await guard();
+          if (linuxMonotonicMs() < sourceStartedMs || linuxMonotonicMs() - sourceStartedMs > 300000)
+            throw new Error('Original observer ABI renewal evidence is stale');
+          await assertOriginalGcpObserverClientInstallationContext(original.installation, original.callback);
+          await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+          const peer = await assertOriginalVerifiedGcpObserverPeerContext(original.peer, original.callback);
+          if (peer.peer.instanceId !== value.instanceId || peer.peer.clock.bootId !== value.bootId)
+            throw new Error('Original observer ABI renewal peer identity differs');
+          await receipts?.assertOriginal();
+          return value;
+        } catch (error) {
+          retired = true;
+          receipts?.close();
+          throw error;
+        }
+      };
+      receipts = await monitorOriginalInputs(
+        Object.fromEntries(retained.map((input, index) => [String(index), input])),
+      );
+      const ref = Object.freeze({
+        schemaVersion: 2,
+        kind: 'original-gcp-observer-client-abi-renewal-reference',
+      });
+      origins11.set(ref, {
+        command,
+        installation: original.installation,
+        peer: original.peer,
+        callback: original.callback,
+        read,
+      });
+      await read();
+      return ref;
+    } catch (error) {
+      retired = true;
+      receipts?.close();
+      try {
+        await persist('failure.private.json', {
+          schemaVersion: 1,
+          errorType: error instanceof Error ? error.name : typeof error,
+          complete: false,
+          guestClientQualified: false,
+        });
+      } catch (retention) {
+        throw new AggregateError([error, retention], 'Original observer ABI renewal failure retention unresolved');
+      }
+      throw error;
+    }
+  };
+  return Object.freeze({
+    verify() {
+      if (closed || used) return Promise.reject(new Error('Original observer ABI renewal is closed or single-use'));
+      used = true;
+      pending = run();
+      return pending;
+    },
+    close() {
+      if (!closing)
+        closing = (async () => {
+          if (pending)
+            await pending.catch(() => {
+              return;
+            });
+          retired = true;
+          receipts?.close();
+          await guard();
+          try {
+            await lstat11(join14(root, '.terraform-executor-lock'));
+            throw new Error('Original observer ABI renewal lock unresolved; retained');
+          } catch (error) {
+            if (!(error instanceof Error) || error.code !== 'ENOENT') throw error;
+          }
+          if (producerSeen && !producerClosed)
+            throw new Error('Original observer ABI renewal producer closure unresolved');
+          closed = true;
+        })();
+      return closing;
+    },
+  });
+}
+
+// plugins/terraform/src/gcp-observer-qualified-clients.ts
+async function assertOriginalQualifiedGcpObserverClientsContext(value, callback) {
+  if (!value || typeof value !== 'object') throw new Error('Original qualified observer client reference required');
+  const reference = value;
+  if (reference.schemaVersion === 1 && reference.kind === 'original-gcp-observer-client-abi-reference')
+    return Object.freeze({
+      ...(await assertOriginalGcpObserverClientAbiContext(value, callback)),
+      abiSchemaVersion: 1,
+    });
+  if (reference.schemaVersion === 2 && reference.kind === 'original-gcp-observer-client-abi-renewal-reference')
+    return Object.freeze({
+      ...(await assertOriginalGcpObserverClientAbiRenewalContext(value, callback)),
+      abiSchemaVersion: 2,
+    });
+  throw new Error('Original qualified observer client schema and issuer differ');
+}
+
+// plugins/terraform/src/gcp-vm-evidence.ts
+import { createHash as createHash17 } from 'node:crypto';
 import { isIP as isIP2 } from 'node:net';
 
-var hash12 = (value) => createHash16('sha256').update(value).digest('hex');
+var hash13 = (value) => createHash17('sha256').update(value).digest('hex');
 var object7 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original VM evidence object required');
@@ -9308,10 +9942,10 @@ function corroborateVmBodies(source, requestBody, absent, absentRaw, operation, 
     throw new Error('Original reviewed VM machine type or forwarding capability differs');
   const items = metadata3(vm.metadata);
   if (
-    hash12(canonical3(items)) !== source.metadataSha256 ||
+    hash13(canonical3(items)) !== source.metadataSha256 ||
     !items['user-data'] ||
-    hash12(items['user-data']) !== source.bootstrapSha256 ||
-    hash12(canonical3(object7(vm.labels))) !== source.labelsSha256 ||
+    hash13(items['user-data']) !== source.bootstrapSha256 ||
+    hash13(canonical3(object7(vm.labels))) !== source.labelsSha256 ||
     !Array.isArray(vm.networkInterfaces) ||
     !Array.isArray(request.networkInterfaces) ||
     vm.networkInterfaces.length !== request.networkInterfaces.length
@@ -9506,7 +10140,7 @@ async function projectSerialSource(reader, serial, vm) {
     start: body.start,
     next: body.next,
     sourceSha256: serial.sha256,
-    contentsSha256: hash12(body.contents),
+    contentsSha256: hash13(body.contents),
     startedAt: serial.startedAt,
     finishedAt: serial.finishedAt,
     sshTrustQualified: false,
@@ -9864,20 +10498,20 @@ async function collectOriginalEarlyGcpVmEvidence(input) {
   return packet;
 }
 
-// src/gcp-ce-sli-target.ts
-var origins10 = new WeakMap();
+// plugins/terraform/src/gcp-ce-sli-target.ts
+var origins12 = new WeakMap();
 async function readOriginalGcpCeSliTarget(value) {
-  const origin = value && typeof value === 'object' ? origins10.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins12.get(value) : undefined;
   if (!origin) throw new Error('Original CE SLI target required');
   return origin.read();
 }
 async function assertOriginalGcpCeSliTargetContext(value, callback) {
-  const origin = value && typeof value === 'object' ? origins10.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins12.get(value) : undefined;
   if (!origin || origin.callback !== callback) throw new Error('Original CE SLI target and actual callback required');
   return origin.read();
 }
 async function readOriginalGcpCeSliSerialSource(value, serial, callback) {
-  const origin = value && typeof value === 'object' ? origins10.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins12.get(value) : undefined;
   if (!origin || origin.callback !== callback) throw new Error('Original CE SLI target serial context required');
   await origin.read();
   const source =
@@ -9892,7 +10526,7 @@ async function openOriginalGcpCeSliTarget(vm, callback) {
   const binding = callback.original.inputs['workspace:gcp-terraform-input-identity.json'];
   if (
     !binding ||
-    binding.path !== join13(dirname7(callback.original.executionDirectory), 'gcp-terraform-input-identity.json')
+    binding.path !== join15(dirname7(callback.original.executionDirectory), 'gcp-terraform-input-identity.json')
   )
     throw new Error('Original reviewed CE intent binding required');
   const project = async () => {
@@ -9972,7 +10606,7 @@ async function openOriginalGcpCeSliTarget(vm, callback) {
     }
   };
   const ref = Object.freeze({ schemaVersion: 1, kind: 'original-gcp-ce-sli-target-reference' });
-  origins10.set(ref, { callback, vm, read });
+  origins12.set(ref, { callback, vm, read });
   await read();
   return ref;
 }
@@ -9990,7 +10624,7 @@ async function assertOriginalQualifiedGcpCeObserverScanContext(value, callback) 
 }
 async function bindOriginalQualifiedGcpCeObserverScanContext(target, clients, callback) {
   const originalTarget = await assertOriginalGcpCeSliTargetContext(target, callback);
-  const originalClients = await assertOriginalGcpObserverClientAbiContext(clients, callback);
+  const originalClients = await assertOriginalQualifiedGcpObserverClientsContext(clients, callback);
   const originalPeer = await assertOriginalVerifiedGcpObserverPeerContext(originalClients.peer, callback);
   if (
     originalTarget.instanceId === originalPeer.peer.instanceId ||
@@ -10003,11 +10637,12 @@ async function bindOriginalQualifiedGcpCeObserverScanContext(target, clients, ca
     if (retired) throw new Error('Original qualified CE observer scan context retired');
     try {
       const currentTarget = await assertOriginalGcpCeSliTargetContext(target, callback);
-      const currentClients = await assertOriginalGcpObserverClientAbiContext(clients, callback);
+      const currentClients = await assertOriginalQualifiedGcpObserverClientsContext(clients, callback);
       const currentPeer = await assertOriginalVerifiedGcpObserverPeerContext(originalClients.peer, callback);
       if (
         currentTarget !== originalTarget ||
         currentClients.peer !== originalClients.peer ||
+        currentClients.abiSchemaVersion !== originalClients.abiSchemaVersion ||
         currentClients.clients.receiptSha256 !== originalClients.clients.receiptSha256 ||
         currentPeer.command !== originalPeer.command ||
         currentPeer.peer.instanceId !== originalPeer.peer.instanceId
@@ -10021,6 +10656,7 @@ async function bindOriginalQualifiedGcpCeObserverScanContext(target, clients, ca
         observerPeer: originalClients.peer,
         observerInstanceId: originalPeer.peer.instanceId,
         clients: currentClients.clients,
+        abiSchemaVersion: currentClients.abiSchemaVersion,
         guestClientQualified: true,
         sshTrustQualified: false,
       });
@@ -10039,58 +10675,58 @@ async function bindOriginalQualifiedGcpCeObserverScanContext(target, clients, ca
 }
 var _scans = new WeakMap();
 
-// src/gcp-ce-wire-key-reader.ts
-// src/gcp-ce-keyscan-command.ts
-import { createHash as createHash18, randomBytes as randomBytes3, randomUUID as randomUUID8 } from 'node:crypto';
+// plugins/terraform/src/gcp-ce-wire-key-reader.ts
+// plugins/terraform/src/gcp-ce-keyscan-command.ts
+import { createHash as createHash19, randomBytes as randomBytes4, randomUUID as randomUUID9 } from 'node:crypto';
 import {
-  lstat as lstat11,
-  mkdir as mkdir8,
-  mkdir as mkdir9,
-  open as open9,
-  open as open10,
-  realpath as realpath10,
+  lstat as lstat12,
+  mkdir as mkdir10,
+  mkdir as mkdir11,
+  open as open11,
+  open as open12,
+  realpath as realpath11,
 } from 'node:fs/promises';
-import { join as join14, join as join15 } from 'node:path';
+import { join as join16, join as join17 } from 'node:path';
 
-// src/gcp-ce-keyscan-pins.json
+// plugins/terraform/src/gcp-ce-keyscan-pins.json
 var gcp_ce_keyscan_pins_default = {
   schemaVersion: 1,
   kind: 'original-gcp-ce-keyscan-source',
-  guestHelperSha256: 'cb3d05b937232a14874b2fa311554c38c37ce5889ed8cf08730c1be6dfcd354b',
+  guestHelperSha256: 'bd90798d178c1004318963d5deafc5e2532fa4259b271ff03e67a16260525504',
   abiHelperSha256: '4c577d5b440e95e7745f4def2d39bb33a2cd70d7f698f31c23b7fc4ca449bc03',
 };
 
-// src/gcp-ce-keyscan-command.ts
-var origins11 = new WeakMap();
-function original2(value) {
-  const origin = value && typeof value === 'object' ? origins11.get(value) : undefined;
+// plugins/terraform/src/gcp-ce-keyscan-command.ts
+var origins13 = new WeakMap();
+function original3(value) {
+  const origin = value && typeof value === 'object' ? origins13.get(value) : undefined;
   if (!origin) throw new Error('Original CE keyscan command required');
   return origin;
 }
 async function readOriginalGcpCeKeyScanCommand(value) {
-  return original2(value).read();
+  return original3(value).read();
 }
 async function assertOriginalGcpCeKeyScanInputs(value) {
-  await original2(value).inputs();
+  await original3(value).inputs();
 }
 async function assertOriginalGcpCeKeyScanIdentity(value) {
-  await original2(value).identity();
+  await original3(value).identity();
 }
 async function checkoutOriginalGcpCeKeyScanCommand(value) {
-  const origin = original2(value);
+  const origin = original3(value);
   if (origin.used) throw new Error('Original CE keyscan command is single-use');
   origin.used = true;
   return origin.read();
 }
 function closeOriginalGcpCeKeyScanCommand(value) {
-  original2(value).close();
+  original3(value).close();
 }
 async function openOriginalGcpCeKeyScanCommand(scanContext, callback) {
   const context = await assertOriginalQualifiedGcpCeObserverScanContext(scanContext, callback);
   const peer = await assertOriginalVerifiedGcpObserverPeerContext(context.observerPeer, callback);
   const source = await readOriginalGcpObserverSshCommand(peer.command);
-  const helper = await owned(join14(import.meta.dir, '../scripts/gcp_observer_ce_keyscan.py'));
-  const abi = await owned(join14(import.meta.dir, '../scripts/gcp_observer_client_abi.py'));
+  const helper = await owned(join16(import.meta.dir, '../scripts/gcp_observer_ce_keyscan.py'));
+  const abi = await owned(join16(import.meta.dir, '../scripts/gcp_observer_client_abi.py'));
   if (
     gcp_ce_keyscan_pins_default.schemaVersion !== 1 ||
     helper.binding.sha256 !== gcp_ce_keyscan_pins_default.guestHelperSha256 ||
@@ -10103,9 +10739,9 @@ async function openOriginalGcpCeKeyScanCommand(scanContext, callback) {
       : callback.original.budget.deadline;
   const budget = projectOriginalGcpGuestDeliveryDeadline(peer.peer.clock, linuxMonotonicMs(), scopeDeadline);
   const request = Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: context.abiSchemaVersion,
     kind: 'original-observer-ce-keyscan',
-    nonce: randomBytes3(32).toString('hex'),
+    nonce: randomBytes4(32).toString('hex'),
     observerInstanceId: context.observerInstanceId,
     abiNonce: context.clients.nonce,
     abiReceiptSha256: context.clients.receiptSha256,
@@ -10133,13 +10769,13 @@ print(json.dumps(result,sort_keys=True))
   const remote = ['/usr/bin/python3', '-I', '-B', '-c', program].map(quote).join(' ');
   if (Buffer.byteLength(remote) > 120000) throw new Error('Original CE keyscan SSH argument exceeds bound');
   const args = Object.freeze([...source.args.slice(0, -1), remote]);
-  const root = join14(
+  const root = join16(
     callback.original.executionDirectory,
     `ce-keyscan-${request.observerInstanceId}-${request.targetInstanceId}-${request.nonce}`,
   );
-  await mkdir8(root, { mode: 448 });
-  const path = join14(root, 'request.private.json');
-  const file = await open9(path, 'wx', 256);
+  await mkdir10(root, { mode: 448 });
+  const path = join16(root, 'request.private.json');
+  const file = await open11(path, 'wx', 256);
   try {
     await file.writeFile(JSON.stringify(request));
     await file.sync();
@@ -10209,7 +10845,7 @@ print(json.dumps(result,sort_keys=True))
     monitor.close();
     sshInputs.close();
   };
-  origins11.set(ref, { read, inputs, identity, used: false, close });
+  origins13.set(ref, { read, inputs, identity, used: false, close });
   try {
     await read();
   } catch (error) {
@@ -10219,8 +10855,8 @@ print(json.dumps(result,sort_keys=True))
   return ref;
 }
 
-// src/gcp-wire-key.ts
-import { createHash as createHash17 } from 'node:crypto';
+// plugins/terraform/src/gcp-wire-key.ts
+import { createHash as createHash18 } from 'node:crypto';
 
 function inspectGcpWireHostKey(stdout, address, algorithm = 'ssh-ed25519') {
   const text = new TextDecoder('utf-8', { fatal: true }).decode(stdout);
@@ -10285,15 +10921,15 @@ function inspectGcpWireHostKey(stdout, address, algorithm = 'ssh-ed25519') {
   }
   return {
     knownHostsLine: line,
-    fingerprint: `SHA256:${createHash17('sha256').update(bytes).digest('base64').replace(/=+$/, '')}`,
+    fingerprint: `SHA256:${createHash18('sha256').update(bytes).digest('base64').replace(/=+$/, '')}`,
   };
 }
 
-// src/gcp-ce-wire-key-reader.ts
-var hash13 = (raw) => createHash18('sha256').update(raw).digest('hex');
-var same3 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
-var integer3 = (value) => typeof value === 'number' && Number.isSafeInteger(value);
-var requestFields = [
+// plugins/terraform/src/gcp-ce-wire-key-reader.ts
+var hash14 = (raw) => createHash19('sha256').update(raw).digest('hex');
+var same4 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
+var integer4 = (value) => typeof value === 'number' && Number.isSafeInteger(value);
+var requestFields2 = [
   'schemaVersion',
   'kind',
   'nonce',
@@ -10318,7 +10954,7 @@ function inspectGcpCeKeyScan(raw, request) {
   if (raw.length > 65536) throw new Error('Original CE scan proof exceeds bound');
   const value = decodeEvidenceObject(raw);
   const fields = [
-    ...requestFields.filter((key) => key !== 'guestDeadlineMs'),
+    ...requestFields2.filter((key) => key !== 'guestDeadlineMs'),
     'interfaceIndex',
     'role',
     'process',
@@ -10330,9 +10966,10 @@ function inspectGcpCeKeyScan(raw, request) {
   ];
   if (
     Object.keys(value).sort().join(',') !== fields.sort().join(',') ||
-    value.schemaVersion !== 1 ||
+    ![1, 2].includes(request.schemaVersion) ||
+    value.schemaVersion !== request.schemaVersion ||
     value.kind !== 'original-observer-ce-keyscan-proof' ||
-    requestFields
+    requestFields2
       .filter((key) => key !== 'kind' && key !== 'guestDeadlineMs')
       .some((key) => value[key] !== request[key]) ||
     value.observerInstanceId === value.targetInstanceId ||
@@ -10344,12 +10981,12 @@ function inspectGcpCeKeyScan(raw, request) {
   )
     throw new Error('Original CE scan ABI, target or framing differs');
   if (
-    !integer3(value.startedMs) ||
+    !integer4(value.startedMs) ||
     value.startedMs < 0 ||
-    !integer3(value.finishedMs) ||
+    !integer4(value.finishedMs) ||
     value.finishedMs < value.startedMs ||
     value.finishedMs - value.startedMs > 60000 ||
-    !integer3(value.originalDeadlineMs) ||
+    !integer4(value.originalDeadlineMs) ||
     value.originalDeadlineMs !== request.guestDeadlineMs ||
     value.finishedMs >= value.originalDeadlineMs
   )
@@ -10378,11 +11015,12 @@ function inspectGcpCeKeyScan(raw, request) {
     nonce: request.nonce,
     abiNonce: request.abiNonce,
     abiReceiptSha256: request.abiReceiptSha256,
+    abiSchemaVersion: request.schemaVersion,
     ...key,
     algorithm: 'ssh-rsa',
     hostKeyAlgorithms: Object.freeze(['rsa-sha2-512', 'rsa-sha2-256']),
     process: process2,
-    receiptSha256: hash13(raw),
+    receiptSha256: hash14(raw),
     startedMs: value.startedMs,
     finishedMs: value.finishedMs,
     originalDeadlineMs: value.originalDeadlineMs,
@@ -10390,14 +11028,14 @@ function inspectGcpCeKeyScan(raw, request) {
     guestAccessQualified: false,
   });
 }
-var origins12 = new WeakMap();
+var origins14 = new WeakMap();
 async function readOriginalGcpCeWireKeys(value) {
-  const origin = value && typeof value === 'object' ? origins12.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins14.get(value) : undefined;
   if (!origin) throw new Error('Original CE wire-key provenance required');
   return origin.read();
 }
 async function assertOriginalGcpCeWireKeysContext(value, scanContext, callback) {
-  const origin = value && typeof value === 'object' ? origins12.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins14.get(value) : undefined;
   if (!origin || origin.callback !== callback || origin.scanContext !== scanContext)
     throw new Error('Original CE wire keys, scan context and actual callback required');
   await assertOriginalQualifiedGcpCeObserverScanContext(scanContext, callback);
@@ -10405,9 +11043,9 @@ async function assertOriginalGcpCeWireKeysContext(value, scanContext, callback) 
 }
 async function openGcpCeWireKeyReader(command) {
   const original = await readOriginalGcpCeKeyScanCommand(command);
-  const root = join15(original.callback.original.executionDirectory, `gcp-ce-keyscan-captures-${randomUUID8()}`);
-  await mkdir9(root, { mode: 448 });
-  const directory = await lstat11(root, { bigint: true });
+  const root = join17(original.callback.original.executionDirectory, `gcp-ce-keyscan-captures-${randomUUID9()}`);
+  await mkdir11(root, { mode: 448 });
+  const directory = await lstat12(root, { bigint: true });
   let closed = false,
     used = false,
     producerSeen = false,
@@ -10417,10 +11055,10 @@ async function openGcpCeWireKeyReader(command) {
   let retired = false;
   let receipts;
   const guard = async () => {
-    const current = await lstat11(root, { bigint: true });
+    const current = await lstat12(root, { bigint: true });
     if (
       closed ||
-      (await realpath10(root)) !== root ||
+      (await realpath11(root)) !== root ||
       !current.isDirectory() ||
       ['dev', 'ino', 'uid', 'mode'].some((key) => current[key] !== directory[key])
     )
@@ -10428,15 +11066,15 @@ async function openGcpCeWireKeyReader(command) {
   };
   const persist = async (name, value) => {
     await guard();
-    const file = await open10(join15(root, name), 'wx', 256);
+    const file = await open12(join17(root, name), 'wx', 256);
     try {
       await file.writeFile(JSON.stringify(value));
       await file.sync();
     } finally {
       await file.close();
     }
-    retained.push((await owned(join15(root, name))).binding);
-    const parent = await open10(root, 'r');
+    retained.push((await owned(join17(root, name))).binding);
+    const parent = await open12(root, 'r');
     try {
       await parent.sync();
     } finally {
@@ -10474,7 +11112,7 @@ async function openGcpCeWireKeyReader(command) {
         const prefix = await readOriginalExecutionPrefix(value.output);
         if (
           prefix.directory !== root ||
-          !same3(prefix.identity, value.identity) ||
+          !same4(prefix.identity, value.identity) ||
           prefix.stdout.bytes ||
           prefix.stderr.bytes
         )
@@ -10490,7 +11128,7 @@ async function openGcpCeWireKeyReader(command) {
           if (
             !admission ||
             !value.identity ||
-            !same3(value.identity, admission.identity) ||
+            !same4(value.identity, admission.identity) ||
             value.stdoutPath !== admission.stdoutPath ||
             value.stderrPath !== admission.stderrPath ||
             JSON.stringify(value.stdin) !== JSON.stringify(admission.stdin)
@@ -10504,12 +11142,12 @@ async function openGcpCeWireKeyReader(command) {
               if (!chunk) break;
               const record = readOriginalExecutionChunk(admission.output, chunk, channel);
               if (
-                !same3(record.identity, admission.identity) ||
+                !same4(record.identity, admission.identity) ||
                 record.directory !== root ||
                 record.offset !== offset ||
                 record.endOffset !== offset + record.bytes.length ||
                 record.endOffset > 65536 ||
-                hash13(record.bytes) !== record.sha256
+                hash14(record.bytes) !== record.sha256
               )
                 throw new Error('Original CE keyscan output chunk differs');
               offset = record.endOffset;
@@ -10522,12 +11160,12 @@ async function openGcpCeWireKeyReader(command) {
           completion = await admission.output.finish();
           const issued = readOriginalExecutionCompletion(admission.output, completion);
           if (
-            !same3(issued.identity, admission.identity) ||
+            !same4(issued.identity, admission.identity) ||
             issued.directory !== root ||
             completion.stdout.bytes !== stdout.length ||
             completion.stderr.bytes !== stderr.length ||
-            completion.stdout.sha256 !== hash13(stdout) ||
-            completion.stderr.sha256 !== hash13(stderr)
+            completion.stdout.sha256 !== hash14(stdout) ||
+            completion.stderr.sha256 !== hash14(stderr)
           )
             throw new Error('Original CE keyscan completion differs');
           producerClosed = true;
@@ -10539,8 +11177,8 @@ async function openGcpCeWireKeyReader(command) {
           kind: 'original-ce-keyscan-capture',
           capture: value,
           completion,
-          stdoutSha256: hash13(stdout),
-          stderrSha256: hash13(stderr),
+          stdoutSha256: hash14(stdout),
+          stderrSha256: hash14(stderr),
           stdoutBase64: stdout.toString('base64'),
           stderrBase64: stderr.toString('base64'),
           complete: !failure && !!completion,
@@ -10575,7 +11213,7 @@ async function openGcpCeWireKeyReader(command) {
         schemaVersion: 1,
         kind: 'original-ce-keyscan-proof',
         ...value,
-        stdoutSha256: hash13(stdout),
+        stdoutSha256: hash14(stdout),
       });
       const read = async () => {
         if (retired) throw new Error('Original CE keyscan reference retired');
@@ -10600,7 +11238,7 @@ async function openGcpCeWireKeyReader(command) {
         schemaVersion: 1,
         kind: 'original-gcp-ce-wire-key-reference',
       });
-      origins12.set(ref, {
+      origins14.set(ref, {
         command,
         scanContext: original.scanContext,
         callback: original.callback,
@@ -10642,7 +11280,7 @@ async function openGcpCeWireKeyReader(command) {
           receipts?.close();
           await guard();
           try {
-            await lstat11(join15(root, '.terraform-executor-lock'));
+            await lstat12(join17(root, '.terraform-executor-lock'));
             throw new Error('Original CE keyscan lock unresolved; retained');
           } catch (error) {
             if (!(error instanceof Error) || error.code !== 'ENOENT') throw error;
@@ -10655,25 +11293,25 @@ async function openGcpCeWireKeyReader(command) {
   });
 }
 
-// src/gcp-observer-wire-key-reader.ts
-var origins13 = new WeakMap();
+// plugins/terraform/src/gcp-observer-wire-key-reader.ts
+var origins15 = new WeakMap();
 async function assertOriginalGcpObserverWireKeysOrigin(value, vm, callback) {
-  const origin = value && typeof value === 'object' ? origins13.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins15.get(value) : undefined;
   if (!origin || origin.vm !== vm || origin.callback !== callback)
     throw new Error('Original wire-key VM and actual callback pairing required');
   return origin.read();
 }
 
-// src/gcp-observer-trust-material.ts
-var hash14 = (bytes) => createHash19('sha256').update(bytes).digest('hex');
-var origins14 = new WeakMap();
+// plugins/terraform/src/gcp-observer-trust-material.ts
+var hash15 = (bytes) => createHash20('sha256').update(bytes).digest('hex');
+var origins16 = new WeakMap();
 async function readOriginalGcpObserverTrustMaterial(value) {
-  const origin = value && typeof value === 'object' ? origins14.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
   if (origin?.family !== 'observer') throw new Error('Original observer serial/wire material required');
   return origin.read();
 }
 async function assertOriginalGcpObserverTrustMaterialContext(value, callback) {
-  const origin = value && typeof value === 'object' ? origins14.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
   if (origin?.family !== 'observer' || origin.callback !== callback)
     throw new Error('Original material and actual capture callback required');
   return origin.read();
@@ -10693,7 +11331,7 @@ async function compileOriginalGcpObserverTrustMaterial(vm, serial, keys, callbac
       BigInt(source.next) !== BigInt(bytes.length) ||
       !bytes.length ||
       bytes.length > 4 * 1024 * 1024 ||
-      source.contentsSha256 !== hash14(bytes) ||
+      source.contentsSha256 !== hash15(bytes) ||
       wire.project !== original.project ||
       wire.zone !== original.zone ||
       wire.nodeName !== original.name ||
@@ -10709,7 +11347,7 @@ async function compileOriginalGcpObserverTrustMaterial(vm, serial, keys, callbac
       nodeName: original.name,
       instanceId: original.instanceId,
       address: original.externalAddress,
-      ownershipSha256: hash14(
+      ownershipSha256: hash15(
         Buffer.from(
           JSON.stringify({
             owner: callback.original.owner,
@@ -10747,12 +11385,12 @@ async function compileOriginalGcpObserverTrustMaterial(vm, serial, keys, callbac
   return sealOriginalTrustMaterial('observer', callback, collect);
 }
 async function readOriginalGcpCeTrustMaterial(value) {
-  const origin = value && typeof value === 'object' ? origins14.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
   if (origin?.family !== 'ce') throw new Error('Original CE serial/wire material required');
   return origin.read();
 }
 async function assertOriginalGcpCeTrustMaterialContext(value, callback) {
-  const origin = value && typeof value === 'object' ? origins14.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
   if (origin?.family !== 'ce' || origin.callback !== callback)
     throw new Error('Original CE trust material and actual callback required');
   return origin.read();
@@ -10773,7 +11411,7 @@ async function compileOriginalGcpCeTrustMaterial(scanContext, serial, keys, call
       BigInt(source.next) !== BigInt(bytes.length) ||
       !bytes.length ||
       bytes.length > 4 * 1024 * 1024 ||
-      source.contentsSha256 !== hash14(bytes) ||
+      source.contentsSha256 !== hash15(bytes) ||
       wire.project !== target.project ||
       wire.zone !== target.zone ||
       wire.nodeName !== target.nodeName ||
@@ -10783,6 +11421,7 @@ async function compileOriginalGcpCeTrustMaterial(scanContext, serial, keys, call
       wire.subnet !== target.subnet ||
       wire.observerInstanceId !== context.observerInstanceId ||
       wire.abiReceiptSha256 !== context.clients.receiptSha256 ||
+      wire.abiSchemaVersion !== context.abiSchemaVersion ||
       wire.algorithm !== 'ssh-rsa' ||
       callback.original.owner.provider !== 'gcp' ||
       callback.original.owner.engine !== 'terraform' ||
@@ -10794,7 +11433,7 @@ async function compileOriginalGcpCeTrustMaterial(scanContext, serial, keys, call
       nodeName: target.nodeName,
       instanceId: target.instanceId,
       address: target.address,
-      ownershipSha256: hash14(
+      ownershipSha256: hash15(
         Buffer.from(
           JSON.stringify({
             owner: callback.original.owner,
@@ -10869,28 +11508,28 @@ async function sealOriginalTrustMaterial(family, callback, collect) {
     kind:
       family === 'ce' ? 'original-gcp-ce-trust-material-reference' : 'original-gcp-observer-trust-material-reference',
   });
-  origins14.set(reference, { read, callback, family });
+  origins16.set(reference, { read, callback, family });
   await read();
   return reference;
 }
 
-// src/gcp-observer-host-trust-reader.ts
+// plugins/terraform/src/gcp-observer-host-trust-reader.ts
 var maximum3 = 65536;
-var hash15 = (value) => createHash20('sha256').update(value).digest('hex');
+var hash16 = (value) => createHash21('sha256').update(value).digest('hex');
 var sameIdentity2 = (left, right) => ['pid', 'group', 'start', 'boot'].every((key) => left[key] === right[key]);
-var origins15 = new WeakMap();
+var origins17 = new WeakMap();
 async function readOriginalGcpObserverHostTrust(value) {
-  const origin = value && typeof value === 'object' ? origins15.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins17.get(value) : undefined;
   if (origin?.family !== 'observer') throw new Error('Original observer host trust source required');
   return origin.read();
 }
 async function readOriginalGcpCeHostTrust(value) {
-  const origin = value && typeof value === 'object' ? origins15.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins17.get(value) : undefined;
   if (origin?.family !== 'ce') throw new Error('Original CE host trust source required');
   return origin.read();
 }
 async function assertOriginalGcpCeHostTrustContext(value, callback) {
-  const origin = value && typeof value === 'object' ? origins15.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins17.get(value) : undefined;
   if (origin?.family !== 'ce' || origin.callback !== callback)
     throw new Error('Original CE host trust and actual callback required');
   return origin.read();
@@ -10907,9 +11546,9 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
   const python = callback.original.inputs.python;
   if (!script || !python || script.sha256 !== gcp_capture_source_pins_default.files['gcp_host_trust.py'])
     throw new Error('Original installed host-trust parser and Python prerequisites required');
-  const root = join16(callback.original.executionDirectory, `gcp-host-trust-readers-${randomUUID9()}`);
-  await mkdir10(root, { mode: 448 });
-  const directory = await lstat12(root, { bigint: true });
+  const root = join18(callback.original.executionDirectory, `gcp-host-trust-readers-${randomUUID10()}`);
+  await mkdir12(root, { mode: 448 });
+  const directory = await lstat13(root, { bigint: true });
   let retired = false,
     used = false,
     producerSeen = false,
@@ -10919,11 +11558,11 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
   let requestMonitor;
   const retained = {};
   const assertRoot = async () => {
-    const current = await lstat12(root, { bigint: true });
+    const current = await lstat13(root, { bigint: true });
     if (
       !current.isDirectory() ||
       current.isSymbolicLink() ||
-      (await realpath11(root)) !== root ||
+      (await realpath12(root)) !== root ||
       ['dev', 'ino', 'uid', 'mode'].some((key) => current[key] !== directory[key]) ||
       current.uid !== BigInt(process.getuid?.() ?? -1) ||
       (current.mode & 0o777n) !== 0o700n
@@ -10959,8 +11598,8 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
   };
   const persist = async (name, bytes) => {
     await assertRoot();
-    const path = join16(root, name),
-      handle = await open11(path, 'wx', 256);
+    const path = join18(root, name),
+      handle = await open13(path, 'wx', 256);
     try {
       await handle.writeFile(bytes);
       await handle.sync();
@@ -10968,8 +11607,8 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
       await handle.close();
     }
     const input = await owned(path, Math.max(maximum3, bytes.length));
-    if (input.binding.sha256 !== hash15(bytes)) throw new Error('Original retained host-trust bytes changed');
-    const parent = await open11(root, 'r');
+    if (input.binding.sha256 !== hash16(bytes)) throw new Error('Original retained host-trust bytes changed');
+    const parent = await open13(root, 'r');
     try {
       await parent.sync();
     } finally {
@@ -11051,7 +11690,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
                 record.offset !== offset ||
                 record.endOffset !== offset + record.bytes.length ||
                 record.endOffset > maximum3 ||
-                record.sha256 !== hash15(record.bytes)
+                record.sha256 !== hash16(record.bytes)
               )
                 throw new Error('Original host-trust output record differs');
               offset = record.endOffset;
@@ -11066,8 +11705,8 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
           if (
             !sameIdentity2(issued.identity, admission.identity) ||
             issued.directory !== root ||
-            completion.stdout.sha256 !== hash15(stdout) ||
-            completion.stderr.sha256 !== hash15(stderr) ||
+            completion.stdout.sha256 !== hash16(stdout) ||
+            completion.stderr.sha256 !== hash16(stderr) ||
             completion.stdout.bytes !== stdout.length ||
             completion.stderr.bytes !== stderr.length
           )
@@ -11084,8 +11723,8 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
               kind: 'original-host-trust-parser-capture',
               capture,
               completion,
-              stdoutSha256: hash15(stdout),
-              stderrSha256: hash15(stderr),
+              stdoutSha256: hash16(stdout),
+              stderrSha256: hash16(stderr),
               complete: !failure && !!completion,
               liveAccessVerified: false,
               ...(failure ? { errorType: failure instanceof Error ? failure.name : typeof failure } : {}),
@@ -11113,14 +11752,14 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
         throw new Error('Original observer serial/wire fingerprint verification failed; private evidence retained');
       const reply = decodeEvidenceObject(stdout);
       const key = original.wire.toString().trimEnd().split(' ')[2];
-      const fingerprint = `SHA256:${createHash20('sha256').update(Buffer.from(key, 'base64')).digest('base64').replace(/=+$/, '')}`;
+      const fingerprint = `SHA256:${createHash21('sha256').update(Buffer.from(key, 'base64')).digest('base64').replace(/=+$/, '')}`;
       if (
         reply.schemaVersion !== 1 ||
         reply.kind !== 'original-gcp-observer-trust-parser-result' ||
         reply.version !== 'gcp-host-trust-consistency-v1' ||
         reply.fingerprint !== fingerprint ||
-        reply.serialSha256 !== hash15(original.serial) ||
-        reply.wireSha256 !== hash15(original.wire) ||
+        reply.serialSha256 !== hash16(original.serial) ||
+        reply.wireSha256 !== hash16(original.wire) ||
         reply.consistencyVerified !== true ||
         reply.gcpSourceAuthenticated !== false ||
         reply.liveAccessVerified !== false ||
@@ -11155,7 +11794,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
         schemaVersion: 1,
         kind: family === 'ce' ? 'original-gcp-ce-host-trust-reference' : 'original-gcp-observer-host-trust-reference',
       });
-      origins15.set(reference, { read, callback, family });
+      origins17.set(reference, { read, callback, family });
       await read();
       return reference;
     } catch (error) {
@@ -11196,7 +11835,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
           try {
             await assertRoot();
             try {
-              await lstat12(join16(root, '.terraform-executor-lock'));
+              await lstat13(join18(root, '.terraform-executor-lock'));
               throw new Error('Original host-trust executor closure unresolved; lock preserved');
             } catch (error) {
               if (!(error instanceof Error) || error.code !== 'ENOENT') throw error;
@@ -11212,20 +11851,20 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
   });
 }
 
-// src/gcp-observer-ssh-command.ts
-var origins16 = new WeakMap();
+// plugins/terraform/src/gcp-observer-ssh-command.ts
+var origins18 = new WeakMap();
 async function readOriginalGcpObserverSshCommand(value) {
-  const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins18.get(value) : undefined;
   if (!origin) throw new Error('Original observer SSH command required');
   return origin.read();
 }
 async function assertOriginalGcpObserverSshCommandInputs(value) {
-  const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins18.get(value) : undefined;
   if (!origin) throw new Error('Original observer SSH command required');
   await origin.inputs();
 }
 
-// src/gcp-observer-client-delivery-command.ts
+// plugins/terraform/src/gcp-observer-client-delivery-command.ts
 function projectOriginalGcpGuestDeliveryDeadline(clock, now, scopeDeadline) {
   if (
     !Number.isSafeInteger(now) ||
@@ -11245,15 +11884,15 @@ function projectOriginalGcpGuestDeliveryDeadline(clock, now, scopeDeadline) {
     guestDeadlineMs: sourceDeadlineMs + clock.offsetMinimumMs - 1000,
   });
 }
-var origins17 = new WeakMap();
+var origins19 = new WeakMap();
 async function assertOriginalGcpObserverClientDeliveryInputs(value) {
-  const origin = value && typeof value === 'object' ? origins17.get(value) : undefined;
+  const origin = value && typeof value === 'object' ? origins19.get(value) : undefined;
   if (!origin) throw new Error('Original observer delivery local inputs required');
   await origin.inputs();
 }
 
-// src/signal-free-executor.ts
-var hash16 = (value) => createHash21('sha256').update(value).digest('hex');
+// plugins/terraform/src/signal-free-executor.ts
+var hash17 = (value) => createHash22('sha256').update(value).digest('hex');
 var now = linuxMonotonicMs;
 var pause = () => Bun.sleep(25);
 var signalFreeBootstrapSource = `import fcntl,hashlib,json,os,stat,sys,time
@@ -11343,16 +11982,16 @@ async function pinned(binding) {
     !/^[a-f0-9]{64}$/.test(binding.sha256)
   )
     throw new Error('Reviewed original executable binding required');
-  const canonical = await realpath12(binding.path);
+  const canonical = await realpath13(binding.path);
   const original = await stat2(canonical, { bigint: true });
-  const link = await lstat13(binding.path, { bigint: true });
+  const link = await lstat14(binding.path, { bigint: true });
   if (
     !original.isFile() ||
     original.uid !== BigInt(process.getuid?.() ?? -1) ||
     original.nlink !== 1n ||
     (original.mode & 0o022n) !== 0n ||
     (original.mode & 0o111n) === 0n ||
-    hash16(await readFile4(canonical)) !== binding.sha256
+    hash17(await readFile4(canonical)) !== binding.sha256
   )
     throw new Error('Owned pinned original executable required');
   let changed = false;
@@ -11372,10 +12011,10 @@ async function pinned(binding) {
     canonical,
     async require() {
       const current = await stat2(canonical, { bigint: true });
-      const currentLink = await lstat13(binding.path, { bigint: true });
+      const currentLink = await lstat14(binding.path, { bigint: true });
       if (
         changed ||
-        (await realpath12(binding.path)) !== canonical ||
+        (await realpath13(binding.path)) !== canonical ||
         ['dev', 'ino', 'uid', 'mode', 'size', 'mtimeNs', 'ctimeNs'].some((key) => current[key] !== original[key]) ||
         currentLink.ino !== link.ino ||
         currentLink.ctimeNs !== link.ctimeNs
@@ -11465,7 +12104,7 @@ function originalExecutor(input, reserve) {
       throw new Error('Original operation deadline exhausted');
     signal?.throwIfAborted();
     await assertOriginal();
-    const directory = await lstat13(cwd);
+    const directory = await lstat14(cwd);
     if (
       !directory.isDirectory() ||
       directory.isSymbolicLink() ||
@@ -11483,14 +12122,14 @@ function originalExecutor(input, reserve) {
       python.close();
       throw error;
     }
-    const root = join17(cwd, 'executor-diagnostics', randomUUID10());
-    await mkdir11(root, { recursive: true, mode: 448 });
-    const script = join17(root, 'gate.py');
-    const bootstrap = join17(root, 'bootstrap.json');
+    const root = join19(cwd, 'executor-diagnostics', randomUUID11());
+    await mkdir13(root, { recursive: true, mode: 448 });
+    const script = join19(root, 'gate.py');
+    const bootstrap = join19(root, 'bootstrap.json');
     await writeFile3(script, signalFreeBootstrapSource, { flag: 'wx', mode: 256 });
     const generatedBindings = {};
     const gate = await owned(script);
-    if (gate.binding.sha256 !== hash16(Buffer.from(signalFreeBootstrapSource)))
+    if (gate.binding.sha256 !== hash17(Buffer.from(signalFreeBootstrapSource)))
       throw new Error('Original generated gate bytes changed before admission');
     generatedBindings.gate = gate.binding;
     if (stdin) {
@@ -11503,25 +12142,25 @@ function originalExecutor(input, reserve) {
       const path = `${bootstrap}.stdin-binding.json`;
       await writeFile3(path, metadata, { flag: 'wx', mode: 256 });
       const control = await owned(path);
-      if (control.binding.sha256 !== hash16(Buffer.from(metadata)))
+      if (control.binding.sha256 !== hash17(Buffer.from(metadata)))
         throw new Error('Original stdin metadata bytes changed before admission');
       generatedBindings.stdinControl = control.binding;
     }
-    const stdoutPath = join17(root, 'stdout.private');
-    const stderrPath = join17(root, 'stderr.private');
-    const stdout = await open12(
+    const stdoutPath = join19(root, 'stdout.private');
+    const stderrPath = join19(root, 'stderr.private');
+    const stdout = await open14(
       stdoutPath,
       constants5.O_CREAT | constants5.O_EXCL | constants5.O_WRONLY | constants5.O_NOFOLLOW,
       384,
     );
-    const stderr = await open12(
+    const stderr = await open14(
       stderrPath,
       constants5.O_CREAT | constants5.O_EXCL | constants5.O_WRONLY | constants5.O_NOFOLLOW,
       384,
     );
     const outIdentity = await stdout.stat({ bigint: true });
     const errIdentity = await stderr.stat({ bigint: true });
-    const lock = join17(cwd, '.terraform-executor-lock');
+    const lock = join19(cwd, '.terraform-executor-lock');
     let release;
     let child;
     let submitted = false;
@@ -11547,7 +12186,7 @@ function originalExecutor(input, reserve) {
       startupEvidence.length ? { startupFailureEvidence: Object.freeze([...startupEvidence]) } : {};
     const retainStartupFailure = async (phase, error) => {
       fail('startup');
-      const path = join17(root, `startup-${phase}-failure.private.json`);
+      const path = join19(root, `startup-${phase}-failure.private.json`);
       const raw = JSON.stringify({
         schemaVersion: 1,
         kind: 'original-executor-startup-failure',
@@ -11567,7 +12206,7 @@ function originalExecutor(input, reserve) {
       });
       try {
         await writeFile3(path, raw, { mode: 256, flag: 'wx' });
-        startupEvidence.push(Object.freeze({ schemaVersion: 1, phase, path, sha256: hash16(Buffer.from(raw)) }));
+        startupEvidence.push(Object.freeze({ schemaVersion: 1, phase, path, sha256: hash17(Buffer.from(raw)) }));
       } catch (persistenceError) {
         startupPersistenceErrors.push(
           new AggregateError([error, persistenceError], 'Original startup failure and persistence unresolved'),
@@ -11578,7 +12217,7 @@ function originalExecutor(input, reserve) {
       fail('input-changed');
       if (inputFailureObserved) return;
       inputFailureObserved = true;
-      const path = join17(root, 'input-failure.private.json');
+      const path = join19(root, 'input-failure.private.json');
       const raw = JSON.stringify({
         schemaVersion: 1,
         kind: 'original-executor-input-failure',
@@ -11598,7 +12237,7 @@ function originalExecutor(input, reserve) {
       });
       try {
         await writeFile3(path, raw, { mode: 256, flag: 'wx' });
-        inputFailureEvidence = Object.freeze({ schemaVersion: 1, path, sha256: hash16(Buffer.from(raw)) });
+        inputFailureEvidence = Object.freeze({ schemaVersion: 1, path, sha256: hash17(Buffer.from(raw)) });
       } catch (persistenceError) {
         inputPersistenceErrors.push(
           new AggregateError([error, persistenceError], 'Original input failure and persistence unresolved'),
@@ -11624,7 +12263,7 @@ function originalExecutor(input, reserve) {
       ]) {
         let current;
         try {
-          current = await lstat13(path, { bigint: true });
+          current = await lstat14(path, { bigint: true });
         } catch (error) {
           await retainInputFailure(path === stdoutPath ? 'stdout-path-inspection' : 'stderr-path-inspection', error);
           continue;
@@ -11686,7 +12325,7 @@ function originalExecutor(input, reserve) {
             metadata.ino.toString() !== snapshot.ino ||
             metadata.uid !== BigInt(process.getuid?.() ?? -1) ||
             metadata.size !== BigInt(snapshot.bytes) ||
-            hash16(await readFile4(descriptor)) !== stdin.sha256
+            hash17(await readFile4(descriptor)) !== stdin.sha256
           )
             throw new Error('Original stdin descriptor or sealed bytes differ');
           stdinSnapshot = Object.freeze({ ...snapshot });
@@ -11808,7 +12447,7 @@ function originalExecutor(input, reserve) {
       }
       if (!reason) {
         await writeFile3(
-          join17(root, 'submission.private.json'),
+          join19(root, 'submission.private.json'),
           JSON.stringify({
             schemaVersion: 1,
             pid: child.pid,
@@ -11865,7 +12504,7 @@ function originalExecutor(input, reserve) {
       };
       const finalErrors = [];
       try {
-        await writeFile3(join17(root, 'final.private.json'), JSON.stringify(capture), { mode: 256, flag: 'wx' });
+        await writeFile3(join19(root, 'final.private.json'), JSON.stringify(capture), { mode: 256, flag: 'wx' });
       } catch (error) {
         finalErrors.push(error);
       }
@@ -11927,7 +12566,7 @@ function originalExecutor(input, reserve) {
       }
       try {
         await writeFile3(
-          join17(root, 'completion.private.json'),
+          join19(root, 'completion.private.json'),
           JSON.stringify({
             ...capture,
             ...startupFields(),
@@ -11977,7 +12616,7 @@ function originalExecutor(input, reserve) {
       if (release) {
         try {
           await writeFile3(
-            join17(lock, 'capture-unresolved.json'),
+            join19(lock, 'capture-unresolved.json'),
             JSON.stringify({
               schemaVersion: 1,
               pid: child?.pid,
@@ -12083,6 +12722,85 @@ async function signalFreeGcpObserverClientAbiExecutor(input, command) {
     return result;
   };
 }
+async function signalFreeGcpObserverClientAbiRenewalExecutor(input, command) {
+  const source = await readOriginalGcpObserverClientAbiRenewalCommand(command);
+  if (
+    input.python.path !== source.python.path ||
+    input.python.sha256 !== source.python.sha256 ||
+    input.executable.path !== source.executable.path ||
+    input.executable.sha256 !== source.executable.sha256 ||
+    input.originalStartMs !== source.callback.original.budget.start ||
+    input.originalDeadlineMs !== source.callback.original.budget.deadline
+  )
+    throw new Error('Original observer ABI renewal executable or operation budget differs');
+  if (
+    (input.timeoutMs ?? 60000) > 60000 ||
+    (input.startupTimeoutMs ?? 15000) > 15000 ||
+    (input.maxOutputBytes ?? 65536) > 65536
+  )
+    throw new Error('Original observer ABI renewal limits cannot be extended');
+  if (input.stdin !== undefined) throw new Error('Original observer ABI renewal command does not accept stdin');
+  return async (invocation) => {
+    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+      throw new Error('Original observer ABI renewal arguments differ');
+    await checkoutOriginalGcpObserverClientAbiRenewalCommand(command);
+    const remaining = source.sourceDeadlineMs - now();
+    if (remaining <= 0) throw new Error('Original observer ABI renewal deadline exhausted');
+    const policy = {
+      ...input,
+      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+      maxOutputBytes: input.maxOutputBytes ?? 65536,
+      assertOriginal: async () => {
+        await readOriginalGcpObserverClientAbiRenewalCommand(command);
+        await input.assertOriginal();
+      },
+      assertOriginalIdentity: async () => {
+        await assertOriginalGcpObserverClientAbiRenewalIdentity(command);
+        await (input.assertOriginalIdentity ?? input.assertOriginal)();
+      },
+      assertFinalInputs: async () => {
+        await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+        await (input.assertFinalInputs ?? input.assertOriginal)();
+      },
+      beforeRelease: async (admission) => {
+        await readOriginalGcpObserverClientAbiRenewalCommand(command);
+        if (admission.stdin !== undefined) throw new Error('Original observer ABI renewal stdin admission differs');
+        await input.beforeRelease?.(admission);
+      },
+      finalCapture: async (capture) => {
+        const failures = [];
+        try {
+          await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await input.finalCapture(capture);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+        } catch (error) {
+          failures.push(error);
+        }
+        if (failures.length)
+          throw new AggregateError(failures, 'Original observer ABI renewal final capture or input retention failed');
+      },
+    };
+    let reserve;
+    if (source.callback.phase === 'after') {
+      reserve = source.callback.reserve;
+      if (!reserve) throw new Error('Original final observer ABI renewal reserve required');
+      await assertFinalReaderReserve(reserve);
+    }
+    const execute = originalExecutor(policy, reserve);
+    const result = await execute(invocation);
+    await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+    return result;
+  };
+}
 async function signalFreeGcpCeKeyScanExecutor(input, command) {
   const source = await readOriginalGcpCeKeyScanCommand(command);
   if (
@@ -12163,11 +12881,11 @@ async function signalFreeGcpCeKeyScanExecutor(input, command) {
   };
 }
 
-// src/bootstrap-grant-publication.ts
-var hash17 = (raw) => createHash22('sha256').update(raw).digest('hex');
+// plugins/terraform/src/bootstrap-grant-publication.ts
+var hash18 = (raw) => createHash23('sha256').update(raw).digest('hex');
 async function retainBootstrapGrantFile(directory, name, raw) {
-  const file = await open13(
-    join18(directory, name),
+  const file = await open15(
+    join20(directory, name),
     constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW,
     256,
   );
@@ -12177,7 +12895,7 @@ async function retainBootstrapGrantFile(directory, name, raw) {
   } finally {
     await file.close();
   }
-  const parent = await open13(directory, constants6.O_RDONLY | constants6.O_DIRECTORY | constants6.O_NOFOLLOW);
+  const parent = await open15(directory, constants6.O_RDONLY | constants6.O_DIRECTORY | constants6.O_NOFOLLOW);
   try {
     await parent.sync();
   } finally {
@@ -12197,8 +12915,8 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
   )
     throw new Error('Qualified original grant publisher inputs required');
   await guard();
-  const name = `.grant-${nonce}-${randomBytes4(16).toString('hex')}.partial`,
-    sha256 = hash17(raw);
+  const name = `.grant-${nonce}-${randomBytes5(16).toString('hex')}.partial`,
+    sha256 = hash18(raw);
   await retainBootstrapGrantFile(original.directory, name, raw);
   await guard();
   let closed = false;
@@ -12257,10 +12975,10 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
   return Object.freeze({ name: `grant-${nonce}.json`, sha256 });
 }
 
-// src/xcsh-creation-body.ts
-import { createHash as createHash24 } from 'node:crypto';
+// plugins/terraform/src/xcsh-creation-body.ts
+import { createHash as createHash25 } from 'node:crypto';
 
-// ../platform/src/ce/security.ts
+// plugins/platform/src/ce/security.ts
 function containsControlCharacters(value) {
   return Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
@@ -12268,16 +12986,16 @@ function containsControlCharacters(value) {
   });
 }
 
-// src/installed-xcsh-creation-reader.ts
-import { createHash as createHash23, randomUUID as randomUUID11 } from 'node:crypto';
-import { lstat as lstat14, mkdir as mkdir12, open as open14, realpath as realpath13 } from 'node:fs/promises';
-import { dirname as dirname9, join as join19 } from 'node:path';
+// plugins/terraform/src/installed-xcsh-creation-reader.ts
+import { createHash as createHash24, randomUUID as randomUUID12 } from 'node:crypto';
+import { lstat as lstat15, mkdir as mkdir14, open as open16, realpath as realpath14 } from 'node:fs/promises';
+import { dirname as dirname9, join as join21 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
-var hash18 = (raw) => createHash23('sha256').update(raw).digest('hex');
+var hash19 = (raw) => createHash24('sha256').update(raw).digest('hex');
 var terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e';
 var providerHash = '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0';
-var origins18 = new WeakMap();
+var origins20 = new WeakMap();
 var openings = new WeakSet();
 var targetOrigins = new WeakMap();
 var object8 = (value) => {
@@ -12299,7 +13017,7 @@ async function readOriginalInstalledXcshTarget(target) {
   return read();
 }
 async function readOriginalInstalledXcshCreation(result) {
-  const read = origins18.get(result);
+  const read = origins20.get(result);
   if (!read) throw new Error('An original installed xcsh result is required');
   return read();
 }
@@ -12356,27 +13074,27 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     !entry ||
     Object.entries(gcp_capture_source_pins_default.files).some(
       ([name, expected]) =>
-        inputs[`script:${name}`]?.path !== join19(dirname9(entry.path), name) ||
+        inputs[`script:${name}`]?.path !== join21(dirname9(entry.path), name) ||
         inputs[`script:${name}`]?.sha256 !== expected,
     )
   )
     throw new Error('All shipped original xcsh reader sources required');
-  const root = join19(context.executionDirectory, `xcsh-creation-readers-${randomUUID11()}`);
-  await mkdir12(root, { mode: 448 });
-  const rootIdentity = await lstat14(root, { bigint: true });
+  const root = join21(context.executionDirectory, `xcsh-creation-readers-${randomUUID12()}`);
+  await mkdir14(root, { mode: 448 });
+  const rootIdentity = await lstat15(root, { bigint: true });
   const monitors = [];
   let retired = false;
   let readerActor;
   let closure;
   const assertDirectory = async () => {
-    const actual = await lstat14(root, { bigint: true });
+    const actual = await lstat15(root, { bigint: true });
     if (
       !actual.isDirectory() ||
       actual.dev !== rootIdentity.dev ||
       actual.ino !== rootIdentity.ino ||
       actual.uid !== rootIdentity.uid ||
       actual.mode !== rootIdentity.mode ||
-      (await realpath13(root)) !== root
+      (await realpath14(root)) !== root
     )
       throw new Error('Original xcsh reader directory changed');
   };
@@ -12403,14 +13121,14 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
       throw new Error('Original xcsh reader budget exhausted');
   };
   const persist = async (path, raw) => {
-    const handle = await open14(path, 'wx', 256);
+    const handle = await open16(path, 'wx', 256);
     try {
       await handle.writeFile(raw);
       await handle.sync();
     } finally {
       await handle.close();
     }
-    const directory = await open14(dirname9(path), 'r');
+    const directory = await open16(dirname9(path), 'r');
     try {
       await directory.sync();
     } finally {
@@ -12441,8 +13159,8 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     },
   };
   const bytes = Buffer.from(JSON.stringify(request)),
-    requestHash = hash18(bytes),
-    requestPath = join19(root, 'request.private.json');
+    requestHash = hash19(bytes),
+    requestPath = join21(root, 'request.private.json');
   const requestBinding = await persist(requestPath, bytes);
   monitors.push(await monitorOriginalInputs({ request: requestBinding }));
   const retainedTargets = new Map();
@@ -12531,7 +13249,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
         !/^[1-9][0-9]*$/.test(actor.start_ticks) ||
         actor.executable_sha256 !== providerHash ||
         actor.boot_id_sha256 !==
-          hash18(
+          hash19(
             Buffer.from(`${admission.identity.boot}
 `),
           ) ||
@@ -12558,7 +13276,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
       readerActor = Object.freeze({ ...admitted.identity });
     },
     finalCapture: async (capture) => {
-      await persist(join19(root, 'reader-capture.private.json'), Buffer.from(JSON.stringify(capture)));
+      await persist(join21(root, 'reader-capture.private.json'), Buffer.from(JSON.stringify(capture)));
       if (
         !sameActor(capture.identity, readerActor) ||
         capture.pid !== readerActor?.pid ||
@@ -12592,7 +13310,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
   );
   const completed = (async () => {
     try {
-      const path = join19(root, 'xcsh-ready.private.json');
+      const path = join21(root, 'xcsh-ready.private.json');
       while (
         !(await owned(path, 65536).then(
           () => true,
@@ -12630,13 +13348,13 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
         windowStartedMs: readyValue.windowStartedMs,
         windowDeadlineMs: readyValue.windowDeadlineMs,
         evidencePath: path,
-        evidenceSha256: hash18(readyFile.bytes),
+        evidenceSha256: hash19(readyFile.bytes),
       });
       readyState.resolve(ready);
       const outcome = await pending;
       if (outcome.code !== 0 || !closure) throw new Error('Original xcsh reader did not close successfully');
       await guard();
-      const resultPath = join19(root, 'xcsh-result.private.json'),
+      const resultPath = join21(root, 'xcsh-result.private.json'),
         resultFile = await owned(resultPath, 65536);
       const value = decodeEvidenceObject(resultFile.bytes);
       if (
@@ -12690,13 +13408,13 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
         complete: value.complete,
         targetCount: scope.resources.length,
         evidencePath: resultPath,
-        evidenceSha256: hash18(resultFile.bytes),
+        evidenceSha256: hash19(resultFile.bytes),
       });
-      origins18.set(result, async () => {
+      origins20.set(result, async () => {
         await assertOriginal();
         const current = await owned(resultPath, 65536);
         assertSameOriginalInput(resultFile.binding, current.binding);
-        if (hash18(current.bytes) !== result.evidenceSha256) throw new Error('Original xcsh evidence bytes changed');
+        if (hash19(current.bytes) !== result.evidenceSha256) throw new Error('Original xcsh evidence bytes changed');
         await assertOriginal();
         return Buffer.from(current.bytes);
       });
@@ -12708,7 +13426,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
       try {
         await assertDirectory();
         await persist(
-          join19(root, 'bridge-failure.private.json'),
+          join21(root, 'bridge-failure.private.json'),
           Buffer.from(
             JSON.stringify({
               schemaVersion: 1,
@@ -12757,7 +13475,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
             .map((key) => `${encodedString(key)}: ${encodedString(target[key])}`)
             .join(', ')}}`;
           const key = JSON.stringify([target.type_name, target.namespace, target.name]);
-          const path = join19(root, `xcsh-target-${hash18(Buffer.from(encoded))}.private.json`);
+          const path = join21(root, `xcsh-target-${hash19(Buffer.from(encoded))}.private.json`);
           let file;
           try {
             file = await owned(path, 65536);
@@ -12782,7 +13500,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
           const retained = retainedTargets.get(key);
           if (retained) {
             assertSameOriginalInput(retained.binding, file.binding);
-            if (hash18(file.bytes) !== retained.evidence.evidenceSha256)
+            if (hash19(file.bytes) !== retained.evidence.evidenceSha256)
               throw new Error('Original xcsh target bytes changed');
           }
           currentFiles.push({ key, file, value });
@@ -12804,7 +13522,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
             signalsSent: false,
             cloudSubmissions: 0,
             evidencePath: row.file.binding.path,
-            evidenceSha256: hash18(row.file.bytes),
+            evidenceSha256: hash19(row.file.bytes),
           });
           monitors.push(await monitorOriginalInputs({ target: row.file.binding }));
           if (finalTargetReceipts && !isDeepStrictEqual(receipt, finalTargetReceipts.get(row.key)))
@@ -12814,7 +13532,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
             await guard();
             const current = await owned(evidence.evidencePath, 65536);
             assertSameOriginalInput(row.file.binding, current.binding);
-            if (hash18(current.bytes) !== evidence.evidenceSha256)
+            if (hash19(current.bytes) !== evidence.evidenceSha256)
               throw new Error('Original xcsh target bytes changed');
             await guard();
             return Buffer.from(current.bytes);
@@ -12852,8 +13570,8 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
   });
 }
 
-// src/xcsh-creation-body.ts
-var hash19 = (bytes) => createHash24('sha256').update(bytes).digest('hex');
+// plugins/terraform/src/xcsh-creation-body.ts
+var hash20 = (bytes) => createHash25('sha256').update(bytes).digest('hex');
 var object9 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Original creation object required');
   return value;
@@ -12916,7 +13634,7 @@ async function joinOriginalXcshCreationBody(input) {
         !response.accepted ||
         response.truncated ||
         response.origin !== context.environment.XCSH_API_URL ||
-        response.credentialSha256 !== hash19(context.environment.XCSH_API_TOKEN) ||
+        response.credentialSha256 !== hash20(context.environment.XCSH_API_TOKEN) ||
         ['provider', 'engine', 'account', 'region', 'deploymentId'].some(
           (key) => response.owner[key] !== context.owner[key],
         )
@@ -12943,14 +13661,14 @@ async function joinOriginalXcshCreationBody(input) {
         !system.uid ||
         system.uid.length > 128 ||
         containsControlCharacters(system.uid) ||
-        receipts[0].creation_identity_sha256 !== hash19(system.uid)
+        receipts[0].creation_identity_sha256 !== hash20(system.uid)
       )
         throw new Error('Original creation response identity differs');
       await assertBody(body);
       await readCreation();
       await context.assertInputs();
       await context.assertWithinDeadline();
-      return { planSha256: scope.planSha256, identity: hash19(system.uid) };
+      return { planSha256: scope.planSha256, identity: hash20(system.uid) };
     } catch (error) {
       refused = true;
       throw error;
@@ -12987,7 +13705,7 @@ async function assertOriginalXcshCreationBodyContext(evidence, context) {
   await readOriginalXcshCreationBody(evidence);
 }
 
-// src/gcp-preapply-bootstrap.ts
+// plugins/terraform/src/gcp-preapply-bootstrap.ts
 var object10 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original preapply bootstrap object required');
@@ -13101,10 +13819,10 @@ async function assertOriginalGcpPreapplyBootstrapContext(value, context) {
   await check(context);
 }
 
-// src/gcp-preapply-checkout.ts
-import { join as join20 } from 'node:path';
+// plugins/terraform/src/gcp-preapply-checkout.ts
+import { join as join22 } from 'node:path';
 
-// ../gcloud/src/ce/bootstrap.ts
+// plugins/gcloud/src/ce/bootstrap.ts
 function formatGcpUserData(binding, now = Date.now()) {
   for (const name of [binding.deploymentName, binding.siteName, binding.nodeName]) {
     if (!/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error('Invalid GCP bootstrap binding');
@@ -13127,7 +13845,7 @@ function formatGcpUserData(binding, now = Date.now()) {
 `);
 }
 
-// ../gcloud/src/ce/bootstrap-checkout.ts
+// plugins/gcloud/src/ce/bootstrap-checkout.ts
 function ownerEqual(a, b) {
   return ['project', 'deploymentName', 'siteName', 'nodeName', 'engine'].every((field) => a[field] === b[field]);
 }
@@ -13180,7 +13898,7 @@ async function checkoutGcpBootstrap(store, owner, now = Date.now()) {
   });
 }
 
-// src/gcp-preapply-checkout.ts
+// plugins/terraform/src/gcp-preapply-checkout.ts
 async function checkoutOriginalGcpPreapplyBootstrap(evidence, store) {
   const jwt = await readOriginalGcpPreapplyBootstrapJwt(evidence);
   const bootstrap = evidence.bootstrap;
@@ -13195,7 +13913,7 @@ async function checkoutOriginalGcpPreapplyBootstrap(evidence, store) {
       throw new Error('Original bootstrap storage scope differs');
   };
   await verify();
-  const release = await acquireProcessLock(join20(directory, '.gcp-original-bootstrap-lock'));
+  const release = await acquireProcessLock(join22(directory, '.gcp-original-bootstrap-lock'));
   try {
     await verify();
     const name = `gcp-preapply-bootstrap-${bootstrap.nodeName}.json`;
@@ -13254,10 +13972,10 @@ async function checkoutOriginalGcpPreapplyBootstrap(evidence, store) {
   }
 }
 
-// src/prepared-creation-scope.ts
+// plugins/terraform/src/prepared-creation-scope.ts
 var preparations2 = new WeakMap();
 var leases = new WeakMap();
-var hash20 = (raw) => createHash25('sha256').update(raw).digest('hex');
+var hash21 = (raw) => createHash26('sha256').update(raw).digest('hex');
 var failure = () => new Error('Trusted original prepared creation scope required');
 function lease(value) {
   const current = value && typeof value === 'object' ? leases.get(value) : undefined;
@@ -13268,21 +13986,21 @@ async function privateDirectory3(path) {
   if (!isAbsolute11(path) || resolve12(path) !== path) throw failure();
   let current = '/';
   for (const part of path.split('/').filter(Boolean)) {
-    current = join21(current, part);
-    if ((await lstat15(current)).isSymbolicLink()) throw failure();
+    current = join23(current, part);
+    if ((await lstat16(current)).isSymbolicLink()) throw failure();
   }
-  const st = await lstat15(path, { bigint: true });
+  const st = await lstat16(path, { bigint: true });
   if (
     !st.isDirectory() ||
     st.uid !== BigInt(process.getuid?.() ?? -1) ||
     (st.mode & 0o777n) !== 0o700n ||
-    (await realpath14(path)) !== path
+    (await realpath15(path)) !== path
   )
     throw failure();
   return st;
 }
 async function fileBinding(path) {
-  const st = await lstat15(path, { bigint: true }),
+  const st = await lstat16(path, { bigint: true }),
     parent = await privateDirectory3(dirname10(path));
   if (
     !st.isFile() ||
@@ -13292,13 +14010,13 @@ async function fileBinding(path) {
     (st.mode & 0o777n) !== 0o400n ||
     st.size < 1n ||
     st.size > 65536n ||
-    (await realpath14(path)) !== path
+    (await realpath15(path)) !== path
   )
     throw failure();
   const keys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
   return Object.freeze({
     path,
-    sha256: hash20(await readFile5(path)),
+    sha256: hash21(await readFile5(path)),
     expectedIdentity: Object.freeze(Object.fromEntries(keys.map((k) => [k, st[k].toString()]))),
     expectedParentIdentity: Object.freeze({
       dev: parent.dev.toString(),
@@ -13391,7 +14109,7 @@ function prepareOriginalCreationScope(context) {
         version = name.slice('terraform-provider-xcsh_v'.length);
       if (
         provider.path !==
-          join21(
+          join23(
             context.executionDirectory,
             '.terraform/providers/registry.terraform.io/f5-sales-demo/xcsh',
             version,
@@ -13406,25 +14124,25 @@ function prepareOriginalCreationScope(context) {
         throw failure();
       record.provider = provider;
       await privateDirectory3(context.executionDirectory);
-      const base = join21(context.executionDirectory, '.xcsh-original-creation');
+      const base = join23(context.executionDirectory, '.xcsh-original-creation');
       try {
-        await mkdir13(base, { mode: 448 });
+        await mkdir15(base, { mode: 448 });
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
       }
       await privateDirectory3(base);
-      const directory = join21(base, projection.receipt.planSha256);
-      await mkdir13(directory, { mode: 448 });
+      const directory = join23(base, projection.receipt.planSha256);
+      await mkdir15(directory, { mode: 448 });
       await privateDirectory3(directory);
-      const bootstrapBase = join21(context.executionDirectory, '.xcsh-original-bootstrap');
+      const bootstrapBase = join23(context.executionDirectory, '.xcsh-original-bootstrap');
       try {
-        await mkdir13(bootstrapBase, { mode: 448 });
+        await mkdir15(bootstrapBase, { mode: 448 });
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
       }
       await privateDirectory3(bootstrapBase);
-      const bootstrapDirectory = join21(bootstrapBase, projection.receipt.planSha256);
-      await mkdir13(bootstrapDirectory, { mode: 448 });
+      const bootstrapDirectory = join23(bootstrapBase, projection.receipt.planSha256);
+      await mkdir15(bootstrapDirectory, { mode: 448 });
       await chmod2(bootstrapDirectory, 448);
       const bootstrapIdentity = await privateDirectory3(bootstrapDirectory);
       const keyPair = generateKeyPairSync2('ed25519');
@@ -13447,7 +14165,7 @@ function prepareOriginalCreationScope(context) {
         }),
         privateKey: keyPair.privateKey,
       };
-      const scopeFile = join21(directory, 'scope.json');
+      const scopeFile = join23(directory, 'scope.json');
       const raw = Buffer.from(
         JSON.stringify({
           schema_version: 2,
@@ -13459,7 +14177,7 @@ function prepareOriginalCreationScope(context) {
         }),
       );
       if (raw.length > 65536) throw failure();
-      const file = await open15(
+      const file = await open17(
         scopeFile,
         constants7.O_WRONLY | constants7.O_CREAT | constants7.O_EXCL | constants7.O_NOFOLLOW,
         256,
@@ -13471,7 +14189,7 @@ function prepareOriginalCreationScope(context) {
         await file.close();
       }
       for (const path of [directory, base, bootstrapDirectory, bootstrapBase]) {
-        const handle = await open15(path, constants7.O_RDONLY | constants7.O_DIRECTORY | constants7.O_NOFOLLOW);
+        const handle = await open17(path, constants7.O_RDONLY | constants7.O_DIRECTORY | constants7.O_NOFOLLOW);
         try {
           await handle.sync();
         } finally {
@@ -13612,7 +14330,7 @@ async function publishOriginalGcpBootstrapGrant(input, options = {}) {
     directory = store.directory,
     expiresAt = Date.parse(evidence.bootstrap.expiresAt);
   const jwt = await readOriginalGcpPreapplyBootstrapJwt(evidence);
-  const jwtSha256 = hash20(Buffer.from(jwt));
+  const jwtSha256 = hash21(Buffer.from(jwt));
   if (jwtSha256 !== evidence.bootstrap.jwtSha256 || !Number.isSafeInteger(expiresAt) || expiresAt <= Date.now())
     throw new Error('Fresh original bootstrap token required');
   const guard = async () => {
@@ -13647,7 +14365,7 @@ async function publishOriginalGcpBootstrapGrant(input, options = {}) {
   if (current.grantClaims.has(nonce))
     throw new Error('Original bootstrap grant already claimed; reconcile without replay');
   current.grantClaims.add(nonce);
-  const release = await acquireProcessLock(join21(directory, '.gcp-original-bootstrap-grant-lock'));
+  const release = await acquireProcessLock(join23(directory, '.gcp-original-bootstrap-grant-lock'));
   try {
     await guard();
     const name = `gcp-original-bootstrap-grant-${evidence.bootstrap.nodeName}.json`;
@@ -13731,7 +14449,7 @@ ${JSON.stringify(payload)}`);
   }
 }
 
-// src/installed-gcp-invocation.ts
+// plugins/terraform/src/installed-gcp-invocation.ts
 var originalLoaderAlternatives = Object.freeze([
   'PYTHONPATH',
   'PYTHONHOME',
@@ -13826,8 +14544,8 @@ function createInstalledGcpInvocationCompiler(input) {
   if (!canonicalPath(directory)) throw new Error('Original installed execution directory required');
   const selected = selectInstalledGcpEnvironment({ ...input.environment });
   const internal = Object.freeze({
-    TF_CLI_CONFIG_FILE: join22(directory, 'deployment.tfrc'),
-    TF_DATA_DIR: join22(directory, '.terraform'),
+    TF_CLI_CONFIG_FILE: join24(directory, 'deployment.tfrc'),
+    TF_DATA_DIR: join24(directory, '.terraform'),
     TF_IN_AUTOMATION: '1',
     TF_INPUT: '0',
     TF_WORKSPACE: 'default',
@@ -13874,10 +14592,10 @@ function createInstalledGcpInvocationCompiler(input) {
   };
 }
 
-// src/installed-terraform-executable.ts
-import { lstat as lstat16, realpath as realpath15 } from 'node:fs/promises';
+// plugins/terraform/src/installed-terraform-executable.ts
+import { lstat as lstat17, realpath as realpath16 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname as dirname11, isAbsolute as isAbsolute13, join as join23, resolve as resolve14 } from 'node:path';
+import { dirname as dirname11, isAbsolute as isAbsolute13, join as join25, resolve as resolve14 } from 'node:path';
 
 function selectPinnedTerraformInput(expectedSha256, cached, ambient) {
   if (cached) {
@@ -13889,16 +14607,16 @@ function selectPinnedTerraformInput(expectedSha256, cached, ambient) {
   return ambient;
 }
 function installedTerraformVersionsDirectory(environment = process.env) {
-  return environment.XCSH_TERRAFORM_EXECUTABLES_DIR ?? join23(homedir(), '.local/share/xcsh/terraform/versions');
+  return environment.XCSH_TERRAFORM_EXECUTABLES_DIR ?? join25(homedir(), '.local/share/xcsh/terraform/versions');
 }
 async function privateOwnedDirectory(path) {
-  const value = await lstat16(path);
+  const value = await lstat17(path);
   if (
     !value.isDirectory() ||
     value.isSymbolicLink() ||
     value.uid !== process.getuid?.() ||
     (value.mode & 18) !== 0 ||
-    (await realpath15(path)) !== path
+    (await realpath16(path)) !== path
   )
     throw new Error('Original owned Terraform version cache directory required');
 }
@@ -13910,7 +14628,7 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
     throw new Error('Original canonical Terraform version cache required');
   const exists = async (path) => {
     try {
-      await lstat16(path);
+      await lstat17(path);
       return true;
     } catch (error) {
       if (error.code === 'ENOENT') return false;
@@ -13919,7 +14637,7 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
   };
   if (await exists(root)) await privateOwnedDirectory(root);
   let cached;
-  const path = join23(root, profile.terraformVersion, 'terraform');
+  const path = join25(root, profile.terraformVersion, 'terraform');
   if (await exists(dirname11(path))) await privateOwnedDirectory(dirname11(path));
   if (await exists(path)) {
     await privateOwnedDirectory(root);
@@ -13931,16 +14649,16 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
   }
   if (cached) return selectPinnedTerraformInput(profile.terraformSha256, cached, undefined);
   const command = Bun.which('terraform', { PATH: environment.PATH ?? process.env.PATH });
-  const ambient = command ? (await owned(await realpath15(command))).binding : undefined;
+  const ambient = command ? (await owned(await realpath16(command))).binding : undefined;
   if (ambient && (Number(ambient.expectedIdentity?.mode) & 64) === 0)
     throw new Error('Original Terraform is not executable');
   return selectPinnedTerraformInput(profile.terraformSha256, undefined, ambient);
 }
 
-// src/legacy-installed-executor.ts
-import { randomUUID as randomUUID12 } from 'node:crypto';
+// plugins/terraform/src/legacy-installed-executor.ts
+import { randomUUID as randomUUID13 } from 'node:crypto';
 import { writeFile as writeFile4 } from 'node:fs/promises';
-import { dirname as dirname12, join as join24 } from 'node:path';
+import { dirname as dirname12, join as join26 } from 'node:path';
 
 var retained = new Map();
 function createLegacyInstalledTerraformExecutor(options) {
@@ -13962,7 +14680,7 @@ function createLegacyInstalledTerraformExecutor(options) {
     start ??= linuxMonotonicMs();
     if (linuxMonotonicMs() >= start + 7200000) throw new Error('Original legacy Terraform budget exhausted');
     active = true;
-    const key = randomUUID12();
+    const key = randomUUID13();
     let monitor;
     let completed = false;
     try {
@@ -13976,7 +14694,7 @@ function createLegacyInstalledTerraformExecutor(options) {
         assertOriginal: guard,
         finalCapture: async (capture) => {
           await writeFile4(
-            join24(dirname12(capture.stdoutPath), 'legacy-final.private.json'),
+            join26(dirname12(capture.stdoutPath), 'legacy-final.private.json'),
             JSON.stringify(capture),
             {
               flag: 'wx',
@@ -13996,12 +14714,12 @@ function createLegacyInstalledTerraformExecutor(options) {
   };
 }
 
-// src/provider-package.ts
-import { createHash as createHash26 } from 'node:crypto';
-import { lstat as lstat17, readdir as readdir2, readFile as readFile6, realpath as realpath16 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute14, join as join25, resolve as resolve15 } from 'node:path';
+// plugins/terraform/src/provider-package.ts
+import { createHash as createHash27 } from 'node:crypto';
+import { lstat as lstat18, readdir as readdir2, readFile as readFile6, realpath as realpath17 } from 'node:fs/promises';
+import { isAbsolute as isAbsolute14, join as join27, resolve as resolve15 } from 'node:path';
 
-var digest3 = (bytes) => createHash26('sha256').update(bytes).digest('hex');
+var digest3 = (bytes) => createHash27('sha256').update(bytes).digest('hex');
 function lockEntries(raw) {
   if (Buffer.byteLength(raw) > 1024 * 1024) throw new Error('Bounded provider lock required');
   const tokens = [];
@@ -14090,11 +14808,11 @@ async function verifyProviderPackage(request) {
   const entry = lockEntries(lock).get(source);
   if (!entry) throw new Error('Unique matching provider lock entry required');
   if (entry.version !== version) throw new Error('Provider lock version differs');
-  const root = await lstat17(directory);
+  const root = await lstat18(directory);
   if (
     !isAbsolute14(directory) ||
     resolve15(directory) !== directory ||
-    (await realpath16(directory)) !== directory ||
+    (await realpath17(directory)) !== directory ||
     !root.isDirectory() ||
     root.isSymbolicLink() ||
     root.uid !== process.getuid?.()
@@ -14102,12 +14820,12 @@ async function verifyProviderPackage(request) {
     throw new Error('Canonical original provider package required');
   const files = [];
   async function inventory(relative) {
-    const parent = relative ? join25(directory, relative) : directory;
+    const parent = relative ? join27(directory, relative) : directory;
     for (const child of (await readdir2(parent)).sort()) {
       if (!/^[A-Za-z0-9_.-]+$/.test(child) || child === '.' || child === '..')
         throw new Error('Safe provider package file name required');
       const path = relative ? `${relative}/${child}` : child;
-      const info = await lstat17(join25(directory, path));
+      const info = await lstat18(join27(directory, path));
       if (
         info.isSymbolicLink() ||
         info.uid !== process.getuid?.() ||
@@ -14129,13 +14847,13 @@ async function verifyProviderPackage(request) {
   const filesSha256 = {};
   let total = 0;
   for (const file of files) {
-    const path = join25(directory, file),
-      before = await lstat17(path);
+    const path = join27(directory, file),
+      before = await lstat18(path);
     total += before.size;
     if (before.size > 512 * 1024 * 1024 || total > 1024 * 1024 * 1024)
       throw new Error('Bounded provider package bytes required');
     const bytes = await readFile6(path),
-      after = await lstat17(path);
+      after = await lstat18(path);
     if (
       !after.isFile() ||
       after.isSymbolicLink() ||
@@ -14176,7 +14894,7 @@ async function verifyProviderPackage(request) {
 `,
     )
     .join('');
-  const packageHash = `h1:${createHash26('sha256').update(summary).digest('base64')}`;
+  const packageHash = `h1:${createHash27('sha256').update(summary).digest('base64')}`;
   if (!entry.hashes.includes(packageHash)) throw new Error('Provider contents differ from locked package');
   const firstInventory = JSON.stringify(files);
   files.splice(0);
@@ -14185,9 +14903,9 @@ async function verifyProviderPackage(request) {
   return { source, version, platform, packageHash, executableSha256: filesSha256[executable], filesSha256 };
 }
 
-// src/installed-runtime.ts
-var hash21 = (raw) => createHash27('sha256').update(raw).digest('hex');
-var installer = join26(import.meta.dir, '../scripts/install_runtime.py');
+// plugins/terraform/src/installed-runtime.ts
+var hash22 = (raw) => createHash28('sha256').update(raw).digest('hex');
+var installer = join28(import.meta.dir, '../scripts/install_runtime.py');
 var modeName = 'google-runtime-mode.json';
 var retainedInspectionMonitors = new Map();
 
@@ -14202,13 +14920,13 @@ class InstalledCaptureSourcesUnavailable extends Error {
     super('Verified Terraform plugin capture sources are missing or changed; reinstall the plugin');
   }
 }
-async function inspectInstalledCaptureScripts(directory = join26(import.meta.dir, '../scripts')) {
+async function inspectInstalledCaptureScripts(directory = join28(import.meta.dir, '../scripts')) {
   try {
-    const parent = await lstat18(directory);
+    const parent = await lstat19(directory);
     if (
       !isAbsolute15(directory) ||
       resolve16(directory) !== directory ||
-      (await realpath17(directory)) !== directory ||
+      (await realpath18(directory)) !== directory ||
       !parent.isDirectory() ||
       parent.isSymbolicLink() ||
       parent.uid !== process.getuid?.() ||
@@ -14219,7 +14937,7 @@ async function inspectInstalledCaptureScripts(directory = join26(import.meta.dir
       throw new InstalledCaptureSourcesUnavailable();
     const inputs = {};
     for (const [name, expected] of Object.entries(gcp_capture_source_pins_default.files)) {
-      const actual = await owned(join26(directory, name));
+      const actual = await owned(join28(directory, name));
       if (actual.binding.sha256 !== expected) throw new InstalledCaptureSourcesUnavailable();
       inputs[`script:${name}`] = actual.binding;
     }
@@ -14230,9 +14948,9 @@ async function inspectInstalledCaptureScripts(directory = join26(import.meta.dir
   }
 }
 async function owned(path, maximum = 256 * 1024 * 1024) {
-  if (!isAbsolute15(path) || resolve16(path) !== path || (await realpath17(path)) !== path)
+  if (!isAbsolute15(path) || resolve16(path) !== path || (await realpath18(path)) !== path)
     throw new Error('Canonical owned runtime input required');
-  const before = await lstat18(path, { bigint: true });
+  const before = await lstat19(path, { bigint: true });
   if (
     !before.isFile() ||
     before.isSymbolicLink() ||
@@ -14243,20 +14961,20 @@ async function owned(path, maximum = 256 * 1024 * 1024) {
     before.size > BigInt(maximum)
   )
     throw new Error('Owned original runtime input required');
-  const handle = await open16(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
+  const handle = await open18(path, constants8.O_RDONLY | constants8.O_NOFOLLOW);
   try {
     const opened = await handle.stat({ bigint: true });
     const keys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
     if (keys.some((key) => opened[key] !== before[key])) throw new Error('Original runtime input changed during open');
     const bytes = await handle.readFile();
-    const after = await lstat18(path, { bigint: true });
+    const after = await lstat19(path, { bigint: true });
     if (keys.some((key) => after[key] !== before[key])) throw new Error('Original runtime input changed during read');
-    const parent = await lstat18(dirname13(path), { bigint: true });
+    const parent = await lstat19(dirname13(path), { bigint: true });
     return {
       bytes,
       binding: Object.freeze({
         path,
-        sha256: hash21(bytes),
+        sha256: hash22(bytes),
         expectedIdentity: Object.freeze(Object.fromEntries(keys.map((key) => [key, before[key].toString()]))),
         expectedParentIdentity: Object.freeze({
           dev: parent.dev.toString(),
@@ -14272,48 +14990,48 @@ async function owned(path, maximum = 256 * 1024 * 1024) {
 }
 async function privateDirectory4(path) {
   if (!isAbsolute15(path) || resolve16(path) !== path) throw new Error('Canonical private runtime directory required');
-  await mkdir14(path, { recursive: true, mode: 448 });
-  const stat = await lstat18(path);
+  await mkdir16(path, { recursive: true, mode: 448 });
+  const stat = await lstat19(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
     (stat.mode & 511) !== 448 ||
-    (await realpath17(path)) !== path
+    (await realpath18(path)) !== path
   )
     throw new Error('Original private runtime directory required');
 }
 function runtimeRoot(env) {
   return (
-    env.XCSH_TERRAFORM_RUNTIME_DIR ?? join26(homedir2(), '.local/share/xcsh/terraform/runtime/python315-psutil722')
+    env.XCSH_TERRAFORM_RUNTIME_DIR ?? join28(homedir2(), '.local/share/xcsh/terraform/runtime/python315-psutil722')
   );
 }
 async function assertInstalledRuntime(env = process.env) {
   const root = runtimeRoot(env);
   try {
     if (process.platform !== 'linux' || process.arch !== 'x64') throw new InstalledTerraformSetupRequired();
-    const rootInfo = await lstat18(root);
+    const rootInfo = await lstat19(root);
     if (
       !rootInfo.isDirectory() ||
       rootInfo.isSymbolicLink() ||
       rootInfo.uid !== process.getuid?.() ||
       (rootInfo.mode & 511) !== 448 ||
-      (await realpath17(root)) !== root
+      (await realpath18(root)) !== root
     )
       throw new InstalledTerraformSetupRequired();
-    const python = join26(root, 'environment/bin/python3');
-    const site = join26(root, 'environment/lib/python3.15/site-packages');
+    const python = join28(root, 'environment/bin/python3');
+    const site = join28(root, 'environment/lib/python3.15/site-packages');
     const bindings = {};
     for (const [role, path, expected] of [
       ['python', python, installed_runtime_pins_default.pythonSha256],
-      ['archive', join26(root, 'archive.whl'), installed_runtime_pins_default.wheelSha256],
+      ['archive', join28(root, 'archive.whl'), installed_runtime_pins_default.wheelSha256],
       ['installer', installer, installed_runtime_pins_default.installerSha256],
     ]) {
       const actual = await owned(path);
       if (actual.binding.sha256 !== expected) throw new InstalledTerraformSetupRequired();
       bindings[role] = actual.binding;
     }
-    const config = await owned(join26(root, 'environment/pyvenv.cfg'), 8192);
+    const config = await owned(join28(root, 'environment/pyvenv.cfg'), 8192);
     const pairs = config.bytes
       .toString()
       .trim()
@@ -14336,8 +15054,8 @@ async function assertInstalledRuntime(env = process.env) {
     const names = [];
     const walk = async (directory) => {
       for (const name of await readdir3(directory)) {
-        const path = join26(directory, name),
-          stat = await lstat18(path);
+        const path = join28(directory, name),
+          stat = await lstat19(path);
         if (stat.isSymbolicLink() || stat.uid !== process.getuid?.()) throw new InstalledTerraformSetupRequired();
         if (stat.isDirectory()) await walk(path);
         else names.push(path.slice(site.length + 1));
@@ -14349,20 +15067,20 @@ async function assertInstalledRuntime(env = process.env) {
     )
       throw new InstalledTerraformSetupRequired();
     for (const [name, expected] of Object.entries(installed_runtime_pins_default.sdkFilesSha256)) {
-      const actual = await owned(join26(site, name));
+      const actual = await owned(join28(site, name));
       if (actual.binding.sha256 !== expected) throw new InstalledTerraformSetupRequired();
       bindings[`sdk:${name}`] = actual.binding;
     }
-    bindings.review = (await owned(join26(root, 'review.json'), 65536)).binding;
+    bindings.review = (await owned(join28(root, 'review.json'), 65536)).binding;
     Object.assign(bindings, await inspectInstalledCaptureScripts());
     const monitor = await monitorOriginalInputs(bindings);
     let inspectionDirectory;
     let inspectionClosed = false;
     try {
-      const inspection = join26(
-        env.XDG_STATE_HOME ?? join26(homedir2(), '.local/state'),
+      const inspection = join28(
+        env.XDG_STATE_HOME ?? join28(homedir2(), '.local/state'),
         'xcsh/terraform/runtime-inspections',
-        randomUUID13(),
+        randomUUID14(),
       );
       await privateDirectory4(inspection);
       inspectionDirectory = inspection;
@@ -14375,7 +15093,7 @@ async function assertInstalledRuntime(env = process.env) {
         timeoutMs: 60000,
         assertOriginal: monitor.assertOriginal,
         finalCapture: async (capture) => {
-          await writeFile5(join26(inspection, 'inspection-capture.private.json'), JSON.stringify(capture), {
+          await writeFile5(join28(inspection, 'inspection-capture.private.json'), JSON.stringify(capture), {
             flag: 'wx',
             mode: 256,
           });
@@ -14420,7 +15138,7 @@ function selectedGoogleAccountSha256(environment = process.env) {
   const account = command.stdout.toString().trim();
   if (command.exitCode !== 0 || !account || account === '(unset)')
     throw new Error('Selected Google account unavailable');
-  return hash21(account);
+  return hash22(account);
 }
 function createInstalledRuntimeResolver(environment = process.env, options = {}) {
   const env = { ...environment },
@@ -14430,21 +15148,21 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     if (owner.provider !== 'gcp') return {};
     if (!/^[a-z][a-z0-9-]{0,62}$/.test(deployment.deploymentId))
       throw new Error('Original Terraform deployment identity required');
-    const executionDirectory = join26(directory, deployment.deploymentId);
+    const executionDirectory = join28(directory, deployment.deploymentId);
     const store = await platform.storage(owner);
     let mode;
     try {
-      mode = JSON.parse((await owned(join26(directory, modeName), 65536)).bytes.toString());
+      mode = JSON.parse((await owned(join28(directory, modeName), 65536)).bytes.toString());
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    const existingDeployment = await Bun.file(join26(executionDirectory, 'deployment.json')).exists();
+    const existingDeployment = await Bun.file(join28(executionDirectory, 'deployment.json')).exists();
     if (!resume && existingDeployment) throw new Error('Existing deployment must resume its original runtime');
     const legacy = resume && !mode && existingDeployment;
     const runtime = await assertInstalledRuntime(env);
     const versionProfile = resolveInstalledGcpVersionProfile({
       terraformVersion: deployment.terraformVersion,
-      providerLockSha256: hash21(deployment.providerLock),
+      providerLockSha256: hash22(deployment.providerLock),
     });
     const terraformBinding = await resolveInstalledTerraformExecutable(versionProfile, env);
     const terraformPath = terraformBinding.path;
@@ -14462,23 +15180,23 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     const accountSha256 = selectedGoogleAccountSha256(env);
     const sourcePath =
       env.GOOGLE_APPLICATION_CREDENTIALS ??
-      join26(env.CLOUDSDK_CONFIG ?? join26(homedir2(), '.config/gcloud'), 'application_default_credentials.json');
+      join28(env.CLOUDSDK_CONFIG ?? join28(homedir2(), '.config/gcloud'), 'application_default_credentials.json');
     const source = await owned(sourcePath, 65536);
     const credential = JSON.parse(source.bytes.toString());
     if (credential.type !== 'authorized_user' || typeof credential.client_id !== 'string')
       throw new Error('Qualified authorized-user ADC mapping required');
-    const audienceSha256 = hash21(credential.client_id);
+    const audienceSha256 = hash22(credential.client_id);
     const expectedMode = {
       schemaVersion: 1,
       kind: 'installed-google-adc-runtime',
       owner,
-      providerLockSha256: hash21(deployment.providerLock),
+      providerLockSha256: hash22(deployment.providerLock),
       qualificationSha256: installed_runtime_pins_default.refreshQualificationSha256,
     };
     if (mode && fingerprint(mode) !== fingerprint(expectedMode))
       throw new Error('Original installed runtime mode changed');
     await privateDirectory4(directory);
-    if (!mode) await writeFile5(join26(directory, modeName), JSON.stringify(expectedMode), { flag: 'wx', mode: 256 });
+    if (!mode) await writeFile5(join28(directory, modeName), JSON.stringify(expectedMode), { flag: 'wx', mode: 256 });
     let monitor;
     let providers;
     let providerInputs;
@@ -14504,7 +15222,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     const close = async () => {
       if (active) throw new Error('Original installed executor remains in flight');
       for (const group of groups) await assertExecutorGroupClosed(group);
-      if (await Bun.file(join26(executionDirectory, '.terraform-executor-lock/capture-unresolved.json')).exists())
+      if (await Bun.file(join28(executionDirectory, '.terraform-executor-lock/capture-unresolved.json')).exists())
         throw new Error('Original installed capture remains unresolved');
       await capture?.closeAfterExecutorExit();
       closePreparedCreationScope(preparedCreationScope);
@@ -14520,7 +15238,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         await store.verify();
         const currentSource = await owned(sourcePath, 65536);
         assertSameOriginalInput(source.binding, currentSource.binding);
-        const snapshotPath = join26(directory, `google-adc-${randomUUID13()}.private.json`);
+        const snapshotPath = join28(directory, `google-adc-${randomUUID14()}.private.json`);
         await writeFile5(snapshotPath, currentSource.bytes, { flag: 'wx', mode: 256 });
         const saved = await store.read('gcp-terraform-input-identity.json');
         if (
@@ -14534,8 +15252,8 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
           !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(saved.platformContext)
         )
           throw new Error('Original GCP platform context and ownership differ');
-        const configPath = join26(
-          env.XDG_CONFIG_HOME ?? join26(homedir2(), '.config'),
+        const configPath = join28(
+          env.XDG_CONFIG_HOME ?? join28(homedir2(), '.config'),
           'xcsh/contexts',
           `${saved.platformContext}.json`,
         );
@@ -14552,7 +15270,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         )
           throw new Error('Original selected Platform credential unavailable');
         originalEnvironment = { XCSH_API_URL: url.origin, XCSH_API_TOKEN: context.apiToken };
-        const environmentPath = join26(directory, `platform-environment-${randomUUID13()}.private.json`);
+        const environmentPath = join28(directory, `platform-environment-${randomUUID14()}.private.json`);
         await writeFile5(environmentPath, JSON.stringify(originalEnvironment), { flag: 'wx', mode: 256 });
         const bindings = {
           ...runtime.bindings,
@@ -14568,10 +15286,10 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         ]) {
           const path =
             name === 'gcp-terraform-input-identity.json'
-              ? join26(store.directory, name)
+              ? join28(store.directory, name)
               : name === modeName
-                ? join26(directory, name)
-                : join26(executionDirectory, name);
+                ? join28(directory, name)
+                : join28(executionDirectory, name);
           bindings[`workspace:${name}`] = (await owned(path)).binding;
         }
         const invocationEnvironment = selectInstalledGcpEnvironment({
@@ -14581,7 +15299,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
           GOOGLE_APPLICATION_CREDENTIALS: snapshotPath,
           ...originalEnvironment,
         });
-        const invocationEnvironmentPath = join26(directory, `runtime-environment-${randomUUID13()}.private.json`);
+        const invocationEnvironmentPath = join28(directory, `runtime-environment-${randomUUID14()}.private.json`);
         await writeFile5(invocationEnvironmentPath, JSON.stringify(invocationEnvironment), { flag: 'wx', mode: 256 });
         bindings.runtimeEnvironment = (await owned(invocationEnvironmentPath)).binding;
         compileInvocation = createInstalledGcpInvocationCompiler({
@@ -14619,7 +15337,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             assertOriginal,
           });
           await writeFile5(
-            join26(directory, `google-authentication-${randomUUID13()}.private.json`),
+            join28(directory, `google-authentication-${randomUUID14()}.private.json`),
             JSON.stringify(authenticated),
             { flag: 'wx', mode: 256 },
           );
@@ -14649,8 +15367,8 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
           capture = worker
             ? createInstalledApplyController(captureContext, worker, {
                 persist: async (event) => {
-                  const handle = await open16(
-                    join26(directory, `google-original-apply-${randomUUID13()}.private.json`),
+                  const handle = await open18(
+                    join28(directory, `google-original-apply-${randomUUID14()}.private.json`),
                     'wx',
                     256,
                   );
@@ -14701,7 +15419,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
                 versionProfile.xcProviderSha256,
               ],
             ]) {
-              const path = join26(executionDirectory, '.terraform/providers', sourceName, version, 'linux_amd64');
+              const path = join28(executionDirectory, '.terraform/providers', sourceName, version, 'linux_amd64');
               const verified = await verifyProviderPackage({
                 directory: path,
                 source: sourceName,
@@ -14709,12 +15427,12 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
                 executable: executableName,
                 platform: 'linux_amd64',
                 lock: deployment.providerLock,
-                lockSha256: hash21(deployment.providerLock),
+                lockSha256: hash22(deployment.providerLock),
               });
               if (verified.executableSha256 !== expectedSha)
                 throw new Error('Original qualified provider executable changed');
               for (const [name, expected] of Object.entries(verified.filesSha256)) {
-                const file = await owned(join26(path, name));
+                const file = await owned(join28(path, name));
                 if (file.binding.sha256 !== expected) throw new Error('Original provider package changed');
                 providerBindings[`${sourceName}:${name}`] = file.binding;
               }
@@ -14744,18 +15462,18 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             },
             assertFinalInputs: assertInputs,
             beforeRelease: async (admission) => {
-              const currentGroup = join26(directory, 'google-runtime-groups', randomUUID13());
+              const currentGroup = join28(directory, 'google-runtime-groups', randomUUID14());
               await privateDirectory4(currentGroup);
               for (const name of ['claim.json', 'lifetime.json'])
                 await writeFile5(
-                  join26(currentGroup, name),
-                  await readFile7(join26(executionDirectory, '.terraform-executor-lock', name)),
+                  join28(currentGroup, name),
+                  await readFile7(join28(executionDirectory, '.terraform-executor-lock', name)),
                   { flag: 'wx', mode: 256 },
                 );
               groups.push(currentGroup);
               const groupInputs = {};
               for (const name of ['claim', 'lifetime'])
-                groupInputs[name] = (await owned(join26(currentGroup, `${name}.json`))).binding;
+                groupInputs[name] = (await owned(join28(currentGroup, `${name}.json`))).binding;
               const originalCapture = captureInvocations.admit({
                 identity: admission.identity,
                 budget: { start: admission.originalStartMs, deadline: admission.originalDeadlineMs },
@@ -14773,7 +15491,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             finalCapture: async (finished) =>
               finalizeInstalledCapture(captureInvocations, finished, {
                 persist: async (value) => {
-                  const resultPath = join26(directory, `google-runtime-final-${randomUUID13()}.private.json`);
+                  const resultPath = join28(directory, `google-runtime-final-${randomUUID14()}.private.json`);
                   await writeFile5(resultPath, JSON.stringify(value), { flag: 'wx', mode: 256 });
                 },
                 verify: verifyCaptureGroup,
@@ -14785,7 +15503,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             kind: 'google-adc-snapshot',
             owner,
             snapshotPath,
-            snapshotSha256: hash21(currentSource.bytes),
+            snapshotSha256: hash22(currentSource.bytes),
             accountSha256,
             audienceSha256,
             authenticationReceiptSha256: authenticated.authenticationReceiptSha256,
@@ -14841,7 +15559,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
   };
 }
 
-// src/session-lifetime.ts
+// plugins/terraform/src/session-lifetime.ts
 async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
   const outcome = await (async () => {
     try {
@@ -14860,7 +15578,7 @@ async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
   return outcome.value;
 }
 
-// src/installed-provider-reader.ts
+// plugins/terraform/src/installed-provider-reader.ts
 var windowOrigins = new WeakMap();
 async function readOriginalInstalledProviderWindow(window) {
   const read = windowOrigins.get(window);
@@ -14873,7 +15591,7 @@ async function readOriginalInstalledProviderWindowClock(window) {
   if (!read) throw new Error('An original reader-issued window clock is required');
   return read();
 }
-var hash22 = (raw) => createHash28('sha256').update(raw).digest('hex');
+var hash23 = (raw) => createHash29('sha256').update(raw).digest('hex');
 var equalIdentity = (value, original) => {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !original) return false;
   const row = value;
@@ -14936,7 +15654,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
     !script ||
     Object.entries(gcp_capture_source_pins_default.files).some(
       ([name, expected]) =>
-        inputs[`script:${name}`]?.path !== join27(dirname14(script.path), name) ||
+        inputs[`script:${name}`]?.path !== join29(dirname14(script.path), name) ||
         inputs[`script:${name}`]?.sha256 !== expected,
     ) ||
     inputs.python?.sha256 !== installed_runtime_pins_default.pythonSha256 ||
@@ -14949,9 +15667,9 @@ async function openInstalledProviderReader(context, input, options = {}) {
     throw new Error('All original qualified installed provider inputs required');
   const allInputs = freezeAdmittedCaptureInputs({ ...inputs, ...providers });
   await context.assertInputs();
-  const root = join27(context.executionDirectory, `gcp-provider-readers-${randomUUID14()}`);
-  await mkdir15(root, { mode: 448 });
-  const originalRoot = await lstat19(root, { bigint: true });
+  const root = join29(context.executionDirectory, `gcp-provider-readers-${randomUUID15()}`);
+  await mkdir17(root, { mode: 448 });
+  const originalRoot = await lstat20(root, { bigint: true });
   let retired = false;
   let windowReadyOnce = false;
   let parentClosed = false;
@@ -14988,22 +15706,22 @@ async function openInstalledProviderReader(context, input, options = {}) {
   };
   const assertOriginal = async () => {
     await context.assertInputs();
-    const actual = await lstat19(root, { bigint: true });
+    const actual = await lstat20(root, { bigint: true });
     if (
       !actual.isDirectory() ||
       actual.dev !== originalRoot.dev ||
       actual.ino !== originalRoot.ino ||
       actual.uid !== originalRoot.uid ||
       actual.mode !== originalRoot.mode ||
-      (await realpath18(root)) !== root
+      (await realpath19(root)) !== root
     )
       throw new Error('Original provider reader directory changed');
     await context.assertInputs();
   };
   const persist = async (path, raw) => {
-    const parent = await lstat19(dirname14(path), { bigint: true });
+    const parent = await lstat20(dirname14(path), { bigint: true });
     let expectedIdentity;
-    const handle = await open17(path, 'wx', 256);
+    const handle = await open19(path, 'wx', 256);
     try {
       await handle.writeFile(raw);
       await handle.sync();
@@ -15013,7 +15731,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
     } finally {
       await handle.close();
     }
-    const directory = await open17(dirname14(path), 'r');
+    const directory = await open19(dirname14(path), 'r');
     try {
       await directory.sync();
     } finally {
@@ -15021,7 +15739,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
     }
     return {
       path,
-      sha256: hash22(raw),
+      sha256: hash23(raw),
       expectedIdentity,
       expectedParentIdentity: {
         dev: String(parent.dev),
@@ -15041,7 +15759,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
     const sourceGuard = async () => {
       await assertOriginal();
       if (childDirectory) {
-        const actual = await lstat19(childDirectory.path);
+        const actual = await lstat20(childDirectory.path);
         const original = childDirectory.identity;
         if (
           !actual.isDirectory() ||
@@ -15049,7 +15767,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
           actual.ino !== original.ino ||
           actual.uid !== original.uid ||
           actual.mode !== original.mode ||
-          (await realpath18(childDirectory.path)) !== childDirectory.path
+          (await realpath19(childDirectory.path)) !== childDirectory.path
         )
           throw new Error('Original provider execution directory changed');
       }
@@ -15073,9 +15791,9 @@ async function openInstalledProviderReader(context, input, options = {}) {
       return await withFinalCheck(
         async () => {
           await guard();
-          const directory = join27(root, randomUUID14());
-          await mkdir15(directory, { mode: 448 });
-          childDirectory = { path: directory, identity: await lstat19(directory) };
+          const directory = join29(root, randomUUID15());
+          await mkdir17(directory, { mode: 448 });
+          childDirectory = { path: directory, identity: await lstat20(directory) };
           const final = reserve ? inspectFinalReaderReserve(reserve) : undefined;
           const request = {
             schemaVersion: startup ? windowVersion : 1,
@@ -15090,7 +15808,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
               : {}),
           };
           const bytes = Buffer.from(JSON.stringify(request)),
-            requestPath = join27(directory, 'request.private.json');
+            requestPath = join29(directory, 'request.private.json');
           const requestBinding = await persist(requestPath, bytes);
           requestMonitor = await monitorOriginalInputs({ request: requestBinding });
           await guard();
@@ -15117,7 +15835,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
               attempt.capture = retained;
               captures.push(retained);
               attempt.binding = await persist(
-                join27(directory, 'capture.private.json'),
+                join29(directory, 'capture.private.json'),
                 Buffer.from(JSON.stringify(retained)),
               );
               if (
@@ -15146,7 +15864,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
           let terminal = false;
           const pending = execute({
             cwd: directory,
-            args: ['-I', '-B', script.path, '--request', requestPath, '--sha256', hash22(bytes)],
+            args: ['-I', '-B', script.path, '--request', requestPath, '--sha256', hash23(bytes)],
             env: { PATH: '/usr/bin:/bin' },
           });
           pending.then(
@@ -15161,7 +15879,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
           let startupFailure;
           if (startup) {
             try {
-              const path = join27(directory, 'provider-ready.private.json');
+              const path = join29(directory, 'provider-ready.private.json');
               while (!(await Bun.file(path).exists())) {
                 await guard();
                 if (terminal) throw new Error('Original provider window ended before readiness');
@@ -15201,7 +15919,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
                 Object.keys(value).sort().join(',') !== keys ||
                 value.schemaVersion !== windowVersion ||
                 value.kind !== 'original-provider-stderr-ready' ||
-                value.requestSha256 !== hash22(bytes) ||
+                value.requestSha256 !== hash23(bytes) ||
                 !equalIdentity(value.executor, admission.identity) ||
                 !equalIdentity(value.reader, readerIdentity) ||
                 !Number.isSafeInteger(began) ||
@@ -15222,7 +15940,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
                 executor: admission.identity,
                 reader: originalReader,
                 evidencePath: path,
-                evidenceSha256: hash22(input.bytes),
+                evidenceSha256: hash23(input.bytes),
               });
               await guard();
               if (retired) throw new Error('Original installed provider reader is retired');
@@ -15236,7 +15954,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
           const outcome = await pending;
           if (startupFailure) throw startupFailure;
           if (outcome.code !== 0 || !complete) throw new Error('Original provider SDK reader failed');
-          const path = join27(directory, 'provider-result.private.json');
+          const path = join29(directory, 'provider-result.private.json');
           const resultInput = await owned(path, 65536);
           const resultIdentity = resultInput.binding.expectedIdentity;
           if (!resultIdentity || (BigInt(resultIdentity.mode) & 0o077n) !== 0n)
@@ -15248,7 +15966,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
           if (
             value.schemaVersion !== (startup ? windowVersion : 1) ||
             value.kind !== (startup ? windowKind : 'original-provider-cohort') ||
-            value.requestSha256 !== hash22(bytes) ||
+            value.requestSha256 !== hash23(bytes) ||
             !equalIdentity(value.executor, admission.identity) ||
             !equalIdentity(value.reader, readerIdentity) ||
             (!startup && !Array.isArray(value.candidates)) ||
@@ -15370,7 +16088,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
               reader: originalReader,
               observations: Object.freeze(observations),
               evidencePath: path,
-              evidenceSha256: hash22(raw),
+              evidenceSha256: hash23(raw),
             });
             const afterClock = captureClock();
             let clockRefused = false;
@@ -15417,7 +16135,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
                 await assertProviderSnapshot();
                 const current = await owned(path, 65536);
                 assertSameOriginalInput(resultInput.binding, current.binding);
-                if (hash22(current.bytes) !== window.evidenceSha256)
+                if (hash23(current.bytes) !== window.evidenceSha256)
                   throw new Error('Original provider window bytes changed');
                 await assertOriginal();
                 const final = await owned(path, 65536);
@@ -15432,7 +16150,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
           return Object.freeze({
             schemaVersion: 1,
             kind: 'original-provider-cohort',
-            requestSha256: hash22(bytes),
+            requestSha256: hash23(bytes),
             executor: admission.identity,
             reader: readerIdentity,
             candidates: Object.freeze(candidates),
@@ -15442,7 +16160,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
             signalsSent: false,
             cloudSubmissions: 0,
             evidencePath: path,
-            evidenceSha256: hash22(raw),
+            evidenceSha256: hash23(raw),
           });
         },
         async () => {
@@ -15524,7 +16242,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
   });
 }
 
-// src/original-google-provider-source.ts
+// plugins/terraform/src/original-google-provider-source.ts
 async function corroborateOriginalGoogleRpcProvider(input) {
   const rpc = input.rpc;
   const windows = Object.freeze([...input.windows]);
@@ -15537,7 +16255,7 @@ async function corroborateOriginalGoogleRpcProvider(input) {
   for (const window of windows) {
     const raw = await readOriginalInstalledProviderWindow(window);
     if (
-      createHash29('sha256').update(raw).digest('hex') !== window.evidenceSha256 ||
+      createHash30('sha256').update(raw).digest('hex') !== window.evidenceSha256 ||
       ['pid', 'group', 'start', 'boot'].some((key) => source.executor[key] !== window.executor[key]) ||
       ![3, 4].includes(window.schemaVersion) ||
       !window.samplingWindowComplete ||
@@ -15610,8 +16328,8 @@ async function corroborateOriginalGoogleRpcProvider(input) {
   });
 }
 
-// src/terraform-apply-hooks.ts
-import { createHash as createHash30 } from 'node:crypto';
+// plugins/terraform/src/terraform-apply-hooks.ts
+import { createHash as createHash31 } from 'node:crypto';
 
 var hookOrigins = new WeakMap();
 async function readOriginalTerraformApplyHookSource(value) {
@@ -15643,7 +16361,7 @@ var text2 = (value) => {
 function reviewedProvisioners(plan, configuration) {
   if (
     Buffer.byteLength(configuration) > maxStreamBytes ||
-    createHash30('sha256').update(configuration).digest('hex') !== plan.configurationSha256
+    createHash31('sha256').update(configuration).digest('hex') !== plan.configurationSha256
   )
     throw new Error('Original reviewed Terraform configuration bytes required');
   const config = decodeEvidenceObject(Buffer.from(configuration));
@@ -15690,7 +16408,7 @@ class TerraformApplyHookParser {
   #originOutput;
   #originCompletion;
   #sourceEnd = 0;
-  #sourceHash = createHash30('sha256');
+  #sourceHash = createHash31('sha256');
   #eventTimes = new WeakMap();
   #eventEpochMs = 0;
   constructor(plan, binding, configuration) {
@@ -15925,7 +16643,7 @@ class TerraformApplyHookParser {
       elapsedSeconds: elapsed,
       idKey,
       idValue,
-      rawLineSha256: createHash30('sha256')
+      rawLineSha256: createHash31('sha256')
         .update(raw)
         .update(`
 `)
@@ -15963,7 +16681,7 @@ class TerraformApplyHookParser {
     if (phase === 'provision_progress') {
       if (typeof hook.output !== 'string' || Buffer.byteLength(hook.output) > maxLineBytes)
         throw new Error('Original provisioner output must be bounded text');
-      outputSha256 = createHash30('sha256').update(hook.output).digest('hex');
+      outputSha256 = createHash31('sha256').update(hook.output).digest('hex');
     }
     const candidate = Object.freeze({
       address: reviewed.address,
@@ -15977,7 +16695,7 @@ class TerraformApplyHookParser {
       provisioner,
       provisionerIndex: active.provisionerNext,
       outputSha256,
-      rawLineSha256: createHash30('sha256')
+      rawLineSha256: createHash31('sha256')
         .update(raw)
         .update(`
 `)
@@ -16039,7 +16757,7 @@ class TerraformApplyHookParser {
   }
 }
 
-// src/gcp-insert-evidence.ts
+// plugins/terraform/src/gcp-insert-evidence.ts
 var sourceBodies = new WeakMap();
 function readOriginalGcpInsertSourceBodies(source) {
   const bodies = sourceBodies.get(source);
@@ -16048,7 +16766,7 @@ function readOriginalGcpInsertSourceBodies(source) {
   return bodies;
 }
 var insertOrigins = new WeakMap();
-var hash23 = (value) => createHash31('sha256').update(value).digest('hex');
+var hash24 = (value) => createHash32('sha256').update(value).digest('hex');
 var name4 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var uint643 = (value) =>
   typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value) && BigInt(value) <= 18446744073709551615n;
@@ -16116,7 +16834,7 @@ function metadata4(request) {
   }
   if (bytes >= 512 * 1024 || !entries['user-data'] || entries.VmDnsSetting !== 'ZonePreferred')
     throw new Error('Original node bootstrap and DNS metadata required');
-  return { bootstrapSha256: hash23(entries['user-data']), metadataSha256: hash23(canonical4(entries)) };
+  return { bootstrapSha256: hash24(entries['user-data']), metadataSha256: hash24(canonical4(entries)) };
 }
 function projectOriginalComputeInsert(input, binding) {
   const profile = resolveInstalledGcpVersionProfile(binding);
@@ -16127,8 +16845,8 @@ function projectOriginalComputeInsert(input, binding) {
     input.resourceType !== 'google_compute_instance' ||
     input.method !== 'POST' ||
     input.status !== 200 ||
-    hash23(input.requestBody) !== input.requestBodySha256 ||
-    hash23(input.responseBody) !== input.responseBodySha256
+    hash24(input.requestBody) !== input.requestBodySha256 ||
+    hash24(input.responseBody) !== input.responseBodySha256
   )
     throw new Error('Original latest Compute insert body profile required');
   const url = new URL(input.url);
@@ -16212,10 +16930,10 @@ function projectOriginalComputeInsert(input, binding) {
     receivedRecordSha256: input.receivedRecordSha256,
     requestReasonSha256: input.requestReasonSha256,
     ...metadata4(request),
-    labelsSha256: hash23(canonical4(labels)),
-    interfacesSha256: hash23(canonical4(request.networkInterfaces)),
-    disksSha256: hash23(canonical4(request.disks)),
-    requestProjectionSha256: hash23(canonical4(request)),
+    labelsSha256: hash24(canonical4(labels)),
+    interfacesSha256: hash24(canonical4(request.networkInterfaces)),
+    disksSha256: hash24(canonical4(request.disks)),
+    requestProjectionSha256: hash24(canonical4(request)),
     serviceAccountsRequested: false,
     applyRpcQualified: false,
     originalInsertQualified: false,
@@ -16332,7 +17050,7 @@ function joinOriginalGcpInsertSource(input) {
     plan.operation !== undefined ||
     plan.providerLockSha256 !== input.binding.providerLockSha256 ||
     plan.planSha256 !== insert.planSha256 ||
-    hash23(input.configuration) !== plan.configurationSha256 ||
+    hash24(input.configuration) !== plan.configurationSha256 ||
     (plan.actionInvocations?.length ?? 0)
   )
     throw new Error('Original reviewed Terraform create plan and bytes required');
@@ -16392,7 +17110,7 @@ function joinOriginalGcpInsertSource(input) {
     provider.alias !== undefined ||
     resource.provider !== undefined ||
     typeof provider.request_reason !== 'string' ||
-    hash23(provider.request_reason) !== insert.requestReasonSha256
+    hash24(provider.request_reason) !== insert.requestReasonSha256
   )
     throw new Error('Original reviewed provider request reason required');
   if (
@@ -16405,7 +17123,7 @@ function joinOriginalGcpInsertSource(input) {
     !isAbsolute16(input.providerPath) ||
     resolve17(input.providerPath) !== input.providerPath ||
     basename3(input.providerPath) !== `terraform-provider-google_v${profile.googleVersion}_x5` ||
-    rpc.providerPathSha256 !== hash23(input.providerPath)
+    rpc.providerPathSha256 !== hash24(input.providerPath)
   )
     throw new Error('Original lifecycle RPC and insert source records differ');
   if (
@@ -16622,8 +17340,8 @@ async function collectOriginalGcpInsertWitnesses(input) {
   return candidate;
 }
 
-// src/gcp-insert-audit-evidence.ts
-var hash24 = (value) => createHash32('sha256').update(value).digest('hex');
+// plugins/terraform/src/gcp-insert-audit-evidence.ts
+var hash25 = (value) => createHash33('sha256').update(value).digest('hex');
 function object14(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original insert audit object required');
@@ -16706,7 +17424,7 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
         ? operation.first !== true || operation.last === true
         : operation.last !== true || operation.first === true) ||
       typeof auth.principalEmail !== 'string' ||
-      hash24(auth.principalEmail) !== account ||
+      hash25(auth.principalEmail) !== account ||
       (auth.serviceAccountDelegationInfo !== undefined &&
         (!Array.isArray(auth.serviceAccountDelegationInfo) || auth.serviceAccountDelegationInfo.length > 0)) ||
       (status.code !== undefined && status.code !== 0) ||
@@ -16724,7 +17442,7 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
   if (
     typeof attributes.reason !== 'string' ||
     !attributes.reason ||
-    hash24(attributes.reason) !== source.requestReasonSha256
+    hash25(attributes.reason) !== source.requestReasonSha256
   )
     throw new Error('Original audit request reason is unavailable or differs');
   const lastMetadata = object14(last.protoPayload).requestMetadata;
@@ -16732,7 +17450,7 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
     const attributes = requestAttributes(object14(last.protoPayload));
     if (
       attributes.reason !== undefined &&
-      (typeof attributes.reason !== 'string' || hash24(attributes.reason) !== source.requestReasonSha256)
+      (typeof attributes.reason !== 'string' || hash25(attributes.reason) !== source.requestReasonSha256)
     )
       throw new Error('Original final audit request reason differs');
   }
@@ -16752,7 +17470,7 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
     !['PENDING', 'RUNNING', 'DONE'].includes(response.status) ||
     request.name !== source.nodeName ||
     request.canIpForward !== true ||
-    hash24(canonical5(object14(request.labels))) !== source.labelsSha256
+    hash25(canonical5(object14(request.labels))) !== source.labelsSha256
   )
     throw new Error('Original audit response or requested ownership differs');
   await reader.readAuditEvidence(audit);
@@ -16766,16 +17484,16 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
     auditCorroborated: true,
     auditQuerySha256: audit.querySha256,
     auditPageSha256s: Object.freeze(audit.pages.map((page) => page.sha256)),
-    auditFirstSha256: hash24(canonical5(first)),
-    auditLastSha256: hash24(canonical5(last)),
+    auditFirstSha256: hash25(canonical5(first)),
+    auditLastSha256: hash25(canonical5(last)),
     requestReasonSha256: source.requestReasonSha256,
     applyRpcQualified: false,
     originalInsertQualified: false,
   });
 }
 
-// src/gcp-bootstrap-vm-binding.ts
-var hash25 = (value) => createHash33('sha256').update(value).digest('hex');
+// plugins/terraform/src/gcp-bootstrap-vm-binding.ts
+var hash26 = (value) => createHash34('sha256').update(value).digest('hex');
 var object15 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original bootstrap VM object required');
@@ -16807,7 +17525,7 @@ async function joinOriginalGcpBootstrapVm(input) {
   if (
     userdata.length !== 1 ||
     typeof userdata[0].value !== 'string' ||
-    hash25(userdata[0].value) !== source.bootstrapSha256
+    hash26(userdata[0].value) !== source.bootstrapSha256
   )
     throw new Error('Original VM user-data identity differs');
   const jwt = await readOriginalGcpPreapplyBootstrapJwt(bootstrap);
@@ -16867,8 +17585,8 @@ async function joinOriginalGcpBootstrapVm(input) {
   });
 }
 
-// src/installed-bootstrap-capture.ts
-import { createHash as createHash34, randomUUID as randomUUID15 } from 'node:crypto';
+// plugins/terraform/src/installed-bootstrap-capture.ts
+import { createHash as createHash35, randomUUID as randomUUID16 } from 'node:crypto';
 
 var sameActor2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 var name5 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
@@ -16968,7 +17686,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
   const retain = async (phase, value) => {
     await store.verify();
     if (store.directory !== directory) throw new Error('Original bootstrap stage retention directory changed');
-    await store.write(`gcp-bootstrap-stage-${randomUUID15()}.json`, {
+    await store.write(`gcp-bootstrap-stage-${randomUUID16()}.json`, {
       schemaVersion: 1,
       kind: 'original-installed-bootstrap-stage-event',
       phase,
@@ -16998,7 +17716,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
   await guard();
   observation = await openObservation(context.owner, platformContext, {
     origin: context.environment.XCSH_API_URL,
-    credentialSha256: createHash34('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
+    credentialSha256: createHash35('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
     targets: scope.resources,
     assertOriginal: inputs,
   });
@@ -17169,7 +17887,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         publishedCount: grants.size,
         expectedCount: nodes.length,
         creationComplete: result.status === 'fulfilled' && result.value.complete,
-        creationEvidenceSha256: raw ? createHash34('sha256').update(raw).digest('hex') : undefined,
+        creationEvidenceSha256: raw ? createHash35('sha256').update(raw).digest('hex') : undefined,
         originalGroupClosed,
         finalReserve: reserve,
         failures: outcomes.filter((value) => value.status === 'rejected').length,
@@ -17222,9 +17940,9 @@ async function openInstalledBootstrapCapture(input, options = {}) {
   });
 }
 
-// src/installed-ssh-clients.ts
+// plugins/terraform/src/installed-ssh-clients.ts
 import { homedir as homedir3 } from 'node:os';
-import { join as join28 } from 'node:path';
+import { join as join30 } from 'node:path';
 
 class InstalledGcpSshClientSetupRequired extends Error {
   constructor() {
@@ -17235,11 +17953,11 @@ async function openInstalledGcpSshClientProfile(environment = process.env) {
   const env = { ...environment };
   const root =
     env.XCSH_TERRAFORM_SSH_CLIENTS_DIR ??
-    join28(homedir3(), '.local/share/xcsh/terraform/ssh-clients', gcp_ssh_client_pins_default.version);
+    join30(homedir3(), '.local/share/xcsh/terraform/ssh-clients', gcp_ssh_client_pins_default.version);
   const inputs = {};
   let profile;
   try {
-    const installer = await owned(join28(import.meta.dir, '../scripts/install_ssh_clients.py'));
+    const installer = await owned(join30(import.meta.dir, '../scripts/install_ssh_clients.py'));
     if (installer.binding.sha256 !== gcp_ssh_client_pins_default.installerSha256)
       throw new InstalledGcpSshClientSetupRequired();
     inputs['installation:installer'] = installer.binding;
@@ -17248,11 +17966,11 @@ async function openInstalledGcpSshClientProfile(environment = process.env) {
       ['LICENCE', gcp_ssh_client_pins_default.licenseSha256],
       ['BUILD.json', gcp_ssh_client_pins_default.buildSha256],
     ]) {
-      const input = await owned(join28(root, name), 16 * 1024 * 1024);
+      const input = await owned(join30(root, name), 16 * 1024 * 1024);
       if (input.binding.sha256 !== expected) throw new InstalledGcpSshClientSetupRequired();
       inputs[`installation:${name}`] = input.binding;
     }
-    const declaration = await owned(join28(root, 'installation.json'));
+    const declaration = await owned(join30(root, 'installation.json'));
     const original = decodeEvidenceObject(declaration.bytes);
     if (
       original.schemaVersion !== 1 ||
@@ -17290,8 +18008,8 @@ async function assertInstalledGcpSshClientSetup(environment = process.env) {
   }
 }
 
-// src/service.ts
-import { join as join29 } from 'node:path';
+// plugins/terraform/src/service.ts
+import { join as join31 } from 'node:path';
 
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 function freezeRuntime(options) {
@@ -17329,7 +18047,7 @@ function createCeTerraformService(platform, options = {}) {
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const directory = deployment.stage
-        ? join29(store.directory, 'terraform-stages', deployment.stage)
+        ? join31(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
       const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
         ? freezeRuntime(
@@ -17560,7 +18278,7 @@ function requestPlatform(bus) {
   });
 }
 
-// src/index.ts
+// plugins/terraform/src/index.ts
 function factory(pi) {
   pi.setLabel('Terraform CE lifecycle execution');
   const service = createCeTerraformService(() => requestPlatform(pi.events), {
@@ -17603,14 +18321,19 @@ export {
   assertOriginalGcpInventoryInputs,
   assertOriginalGcpInventoryScope,
   assertOriginalGcpObserverClientAbiContext,
+  assertOriginalGcpObserverClientAbiRenewalContext,
+  assertOriginalGcpObserverClientInstallationContext,
   assertOriginalGcpPreapplyBootstrapContext,
   assertOriginalInstalledGcpCloudReader,
+  assertOriginalQualifiedGcpObserverClientsContext,
   bindOriginalQualifiedGcpCeObserverScanContext,
   captureOriginalGcpObserverImage,
   checkoutOriginalGcpPreapplyBootstrap,
   closeOriginalGcpCeKeyScanCommand,
   closeOriginalGcpInventoryScope,
   closeOriginalGcpObserverClientAbiCommand,
+  closeOriginalGcpObserverClientAbiRenewalCommand,
+  closeOriginalGcpObserverClientInstallation,
   collectOriginalEarlyGcpInsertIdentity,
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,
@@ -17636,6 +18359,7 @@ export {
   openGcpCeWireKeyReader,
   openGcpCloudSerialReader,
   openGcpObserverClientAbi,
+  openGcpObserverClientAbiRenewal,
   openGcpObserverHostTrustReader,
   openGcpObserverImageReader,
   openInstalledBootstrapCapture,
@@ -17645,6 +18369,8 @@ export {
   openOriginalGcpCeKeyScanCommand,
   openOriginalGcpCeSliTarget,
   openOriginalGcpObserverClientAbiCommand,
+  openOriginalGcpObserverClientAbiRenewalCommand,
+  openOriginalGcpObserverClientInstallation,
   prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
   readOriginalApplyGcpInventory,
@@ -17663,6 +18389,9 @@ export {
   readOriginalGcpCeWireKeys,
   readOriginalGcpInsertWitnesses,
   readOriginalGcpObserverClientAbi,
+  readOriginalGcpObserverClientAbiRenewal,
+  readOriginalGcpObserverClientAbiRenewalCommand,
+  readOriginalGcpObserverClientInstallation,
   readOriginalGcpObserverHostTrust,
   readOriginalGcpObserverImageEvidence,
   readOriginalGcpObserverInsertIdentity,

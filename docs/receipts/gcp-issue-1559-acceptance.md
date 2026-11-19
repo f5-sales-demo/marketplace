@@ -62,6 +62,29 @@ resumes without submission. The original controller and process group are absent
 The successor will select fresh serial-verified RSA CE keys with modern SHA-2
 signatures and preserve observer Ed25519 trust, strict checking and all bounds.
 
+## Source continuation on November 17
+
+The [original observer client renewal checkpoint](gcp-observer-renewal-source-20261117.md)
+now includes the Linux-qualified V2 renewal continuation on CI-qualified head
+`3cf2ca07afc661852f3ef0421b5cfc698b59947c`, with the original snapshots
+preserved. PR #1698 remains draft
+with `Closes #1559`. Current-head CI remains an independent gate.
+
+Failing-first tests reproduced the V2 CE receipt incompatibility and retention
+error chaining. Explicit issuer dispatch, separate historical installation/fresh
+peer evidence and CE receipt guards now have source tests. Nine final packet and
+dispatch cases, three pure regressions and local source lint/build passed.
+The renewed helper enforces peer freshness inside every probe and rejects a
+deadline beyond the original freshness window; failing-first evidence is retained.
+The interrupted Ubuntu run does not qualify the final source. Both worktrees and
+private evidence are preserved while the verified workstation is unavailable.
+
+Final Linux validation, original GCP guest access/capture, callback handoff,
+default capture and actual token renewal remain open. Native/Terraform single-node
+and HA networking/lifecycle/traffic/recovery/cleanup, ordinary installed Ubuntu
+runtime, CI/review, merge, publication and verified installation remain open.
+Historical evidence, unresolved locks and immutable v12.3.1 remain preserved.
+
 ## Original xcsh observer source checkpoint on November 12
 
 The [observer source receipt](gcp-original-xcsh-creation-observer-20261112.md)
