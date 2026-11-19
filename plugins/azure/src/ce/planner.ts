@@ -53,6 +53,22 @@ function validateResourceId(id: string, subscriptionId: string): void {
 }
 
 function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
+  if (input.vm.adminUsername !== undefined || input.vm.sshPublicKey !== undefined) {
+    if (
+      !input.vm.adminUsername ||
+      !/^[a-z][a-z0-9_-]{0,31}$/.test(input.vm.adminUsername) ||
+      ['root', 'admin', 'administrator'].includes(input.vm.adminUsername)
+    )
+      fail('explicit VM administrator name is invalid');
+    if (
+      !input.vm.sshPublicKey ||
+      input.vm.sshPublicKey.length > 16384 ||
+      !/^ssh-rsa [A-Za-z0-9+/]+={0,2}(?: [^\r\n]+)?$/.test(input.vm.sshPublicKey)
+    )
+      fail('explicit VM administrator public key is invalid');
+  }
+  if (input.vm.shutdownAfterHours && (!input.vm.adminUsername || !input.vm.sshPublicKey))
+    fail('bounded experiments require explicit task VM credentials');
   if (
     input.vm.osDiskSizeGb !== undefined &&
     (!Number.isInteger(input.vm.osDiskSizeGb) || input.vm.osDiskSizeGb < 80 || input.vm.osDiskSizeGb > 2048)
@@ -103,7 +119,18 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
       fail('route subnet must be listed in brownfield.resourceIds');
   }
 
-  for (const rule of input.securityRules) {
+  const priorities = new Set<string>();
+  for (const [index, rule] of [...input.securityRules].sort((a, b) => a.name.localeCompare(b.name)).entries()) {
+    if (rule.access !== undefined && !['Allow', 'Deny'].includes(rule.access)) fail('security rule access is invalid');
+    const priority = rule.priority ?? 100 + index;
+    if (
+      !Number.isInteger(priority) ||
+      priority < 100 ||
+      priority > 4096 ||
+      priorities.has(`${rule.direction}:${priority}`)
+    )
+      fail('security rule priority is invalid or duplicated');
+    priorities.add(`${rule.direction}:${priority}`);
     validateName('security rule name', rule.name);
     for (const cidr of [...rule.sourceCidrs, ...rule.destinationCidrs])
       validateCidr(`security rule ${rule.name} CIDR`, cidr);
@@ -168,6 +195,19 @@ function actionFactory() {
 
 function tagsArgs(deploymentName: string): string[] {
   return ['xcsh-managed-by=azure-ce', `xcsh-deployment-id=${deploymentName}`, 'xcsh-plan-sha256=__PLAN_SHA256__'];
+}
+
+function administrationArgs(intent: AzureCeIntent): string[] {
+  return intent.vm.adminUsername && intent.vm.sshPublicKey
+    ? [
+        '--admin-username',
+        intent.vm.adminUsername,
+        '--authentication-type',
+        'ssh',
+        '--ssh-key-values',
+        intent.vm.sshPublicKey,
+      ]
+    : [];
 }
 
 function groupId(subscriptionId: string, resourceGroup: string): string {
@@ -412,7 +452,7 @@ function buildDeployActions(
             '--name',
             rule.name,
             '--priority',
-            String(100 + index),
+            String(rule.priority ?? 100 + index),
             '--direction',
             rule.direction,
             '--protocol',
@@ -424,7 +464,7 @@ function buildDeployActions(
             '--destination-port-ranges',
             ...rule.destinationPorts,
             '--access',
-            'Allow',
+            rule.access ?? 'Allow',
             '--subscription',
             intent.subscriptionId,
           ],
@@ -577,6 +617,7 @@ function buildDeployActions(
           imageUrn,
           '--size',
           intent.vm.size,
+          ...administrationArgs(intent),
           ...zoneArgs(zones, node),
           ...nicNames,
           '--plan-name',
@@ -611,7 +652,7 @@ function buildDeployActions(
       next({
         phase: 'registration',
         kind: 'health-gate',
-        description: `Wait for ${nodeName} registration and health`,
+        description: `Require original ${nodeName} cloud/NIC/site identity, registration ONLINE and VPM PROVISIONED before controlled probes; internal-service coverage remains separate`,
         node,
         mutates: false,
         destructive: false,
@@ -1013,6 +1054,7 @@ function buildLifecycleActions(
           observation.image.urn,
           '--size',
           intent.vm.size,
+          ...administrationArgs(intent),
           ...zoneArgs(zones, node),
           ...nicArgs,
           '--plan-name',

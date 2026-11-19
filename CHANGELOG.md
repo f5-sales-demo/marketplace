@@ -45,11 +45,11 @@ and this project adheres to
 
 - **`github`** v3.3.2 exposes repository, issue, PR, workflow and Actions summaries with twelve-row previews, complete evidence and exact typed CLI commands (#1691).
 
-- **`platform`** v6.2.3 validates native Azure single-node SLO requests against the pinned API release, binds issued JWT/cloud-init material, observes registration identity, and verifies upstream token revocation (#1925).
+- **`platform`** v6.2.4 validates native Azure single-node SLO requests against the pinned API release, binds issued JWT/cloud-init material, observes registration identity, and verifies upstream token revocation (#1925).
 
 - **`aws`** v2.3.3 replaces collapsed Customer Edge summaries with complete domain evidence in expanded views, preserving literal guidance without repeating structured fields (#1679).
 
-- **`azure`** v4.7.1 embeds Marketplace terms and consent guidance with readable resource routes, resolves current certified purchase plans, enforces the automation policy, and preserves bounded native CE plans and issued bootstrap material (#1925).
+- **`azure`** v4.7.2 embeds Marketplace terms and consent guidance with readable resource routes, resolves current certified purchase plans, enforces the automation policy, and preserves bounded native CE plans and issued bootstrap material (#1925).
 - **`aws`** v2.3.1 exposes caller identity, twelve-row lists, exact executable commands and guarded Customer Edge summaries through shared presentation. Preserve S3 prefixes, large sizes and object-key spaces; report malformed listings and failed help accurately. Requires xcsh 23.8.0 or newer (#1672).
 
 - **`salesforce`** v2.3.16 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).

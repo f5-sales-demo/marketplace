@@ -31,11 +31,19 @@ launching the VM, and checks it again before launch on resume. If Azure rejects 
 schedule targeting a VM that does not yet exist, apply stops before launching
 compute. This pre-launch provider behavior still requires live qualification.
 
-Registration observations correlate the configured hostname/MAC and cloud
-instance. Registration ONLINE remains separate from operational health. The
-pinned Azure contract has no operational-health mapping: health admission returns
-unknown and stops. Caller-supplied health, BGP, and traffic booleans are rejected.
-This repair does not claim GPU or vK8s runtime acceptance.
+Node probe admission joins the observed Azure VM and attached NIC to the F5
+configuration UID in `system_metadata.uid`, original site UID, unique ONLINE
+registration and PROVISIONED VPM state. The read mappings are checked against the
+pinned published OpenAPI digest, and configuration is rechecked for drift.
+This admits controlled probes on the original node; complete internal-service
+health remains unknown until independently measured. Caller-supplied health,
+BGP and traffic booleans are rejected. GPU and vK8s acceptance remain separate.
+
+Bounded experiments require an explicit administrator name and public SSH key
+in the immutable plan, avoiding shared CLI key-generation defaults. NSG intent
+supports explicit Allow/Deny access and priorities, so a deny rule can close
+provider default outbound allowances. Group deletion verifies that every
+remaining resource has the experiment's ownership before removing the group.
 
 Resume skips completed journal actions and rejects creation when an owned
 resource exists without a completed boundary. Preserve the failed candidate and

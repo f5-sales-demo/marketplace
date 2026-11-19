@@ -146,9 +146,14 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     try {
       await assertActionOwnership(plan, action, api);
       if (action.kind === 'health-gate' && action.node) {
-        const observation = await observeAzureHealth(plan, action.node, api, process.env);
+        const environment = { ...process.env };
+        const configured = ctx.settings?.get('bash.environment');
+        if (configured && typeof configured === 'object' && !Array.isArray(configured))
+          for (const [key, value] of Object.entries(configured))
+            if (/^XCSH_[A-Z0-9_]+$/.test(key) && typeof value === 'string') environment[key] = value;
+        const observation = await observeAzureHealth(plan, action.node, api, environment);
         await ctx.sessionManager.saveArtifact(JSON.stringify(observation), 'azure-ce-health');
-        if (observation.status !== 'healthy')
+        if (observation.status !== 'ready-for-probe')
           throw new Error(`F5 health gate is ${observation.status}: ${observation.reason}`);
       }
       if (action.kind === 'bgp-gate') throw new Error('Measured Azure BGP admission is unavailable');
@@ -206,6 +211,7 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
       checkpoint.failedActionId = undefined;
       const changesFingerprint =
         action.kind === 'marketplace-terms-accept' ||
+        action.kind === 'vm-create' ||
         action.kind === 'route-association-update' ||
         action.kind === 'brownfield-restore' ||
         (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0);

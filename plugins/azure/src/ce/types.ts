@@ -32,6 +32,8 @@ export interface AzureCeNicIntent {
 }
 
 export interface AzureCeSecurityRuleIntent {
+  access?: 'Allow' | 'Deny';
+  priority?: number;
   name: string;
   purpose: 'application-vip' | 'management' | 'intra-cluster' | 'platform-connectivity';
   direction: 'Inbound' | 'Outbound';
@@ -63,7 +65,14 @@ export interface AzureCeIntent {
   routing: { mode: AzureCeRoutingMode; destinationCidrs: string[]; localAsn?: number; peerAsn?: number };
   securityRules: AzureCeSecurityRuleIntent[];
   image: { publisher: string; offer: string; plan: string };
-  vm: { size: string; zones?: string[]; osDiskSizeGb?: number; shutdownAfterHours?: number };
+  vm: {
+    size: string;
+    zones?: string[];
+    osDiskSizeGb?: number;
+    shutdownAfterHours?: number;
+    adminUsername?: string;
+    sshPublicKey?: string;
+  };
   brownfield: { resourceIds: string[]; routeChanges: AzureCeBrownfieldRouteChange[] };
   replacementNode?: number;
 }

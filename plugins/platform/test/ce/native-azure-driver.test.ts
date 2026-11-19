@@ -10,7 +10,7 @@ afterEach(() => {
 });
 const uid = 'test-configuration-uid';
 const site = {
-  metadata: { uid },
+  system_metadata: { uid },
   spec: {
     azure: {
       not_managed: {

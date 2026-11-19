@@ -111,6 +111,70 @@ function nics(count: number): AzureCeIntent['nics'] {
 }
 
 describe('compileAzureCePlan', () => {
+  it('binds explicit task credentials and deny rules into the immutable launch', () => {
+    const publicFixture = `ssh-rsa ${Buffer.from('synthetic-public-key').toString('base64')} experiment`;
+    const plan = compileAzureCePlan(
+      intent({
+        vm: {
+          size: 'Standard_D8s_v5',
+          adminUsername: 'azureuser',
+          sshPublicKey: publicFixture,
+          osDiskSizeGb: 128,
+          shutdownAfterHours: 8,
+        },
+        securityRules: [
+          {
+            name: 'deny-other-egress',
+            purpose: 'platform-connectivity',
+            access: 'Deny',
+            priority: 4000,
+            direction: 'Outbound',
+            protocol: '*',
+            sourceCidrs: ['0.0.0.0/0'],
+            destinationCidrs: ['0.0.0.0/0'],
+            destinationPorts: ['*'],
+          },
+        ],
+      } as any),
+      observation(),
+    );
+    const launch = plan.actions.find((action) => action.kind === 'vm-create')!;
+    expect(launch.args).toContain('--admin-username');
+    expect(launch.args).toContain('azureuser');
+    expect(launch.args).toContain(publicFixture);
+    expect(launch.args).not.toContain('--generate-ssh-keys');
+    const rule = plan.actions.find((action) => action.kind === 'nsg-rule-create')!;
+    expect(rule.args?.slice(rule.args.indexOf('--access'), rule.args.indexOf('--access') + 2)).toEqual([
+      '--access',
+      'Deny',
+    ]);
+    expect(rule.args?.slice(rule.args.indexOf('--priority'), rule.args.indexOf('--priority') + 2)).toEqual([
+      '--priority',
+      '4000',
+    ]);
+  });
+  it('rejects incomplete credentials, invalid NSG access and duplicate priorities', () => {
+    expect(() =>
+      compileAzureCePlan(intent({ vm: { size: 'Standard_D8s_v5', adminUsername: 'azureuser' } } as any), observation()),
+    ).toThrow();
+    const rule = {
+      name: 'a',
+      purpose: 'platform-connectivity',
+      access: 'Deny',
+      priority: 4000,
+      direction: 'Outbound',
+      protocol: '*',
+      sourceCidrs: ['0.0.0.0/0'],
+      destinationCidrs: ['0.0.0.0/0'],
+      destinationPorts: ['*'],
+    };
+    expect(() =>
+      compileAzureCePlan(intent({ securityRules: [{ ...rule, access: 'invalid' }] } as any), observation()),
+    ).toThrow();
+    expect(() =>
+      compileAzureCePlan(intent({ securityRules: [rule, { ...rule, name: 'b' }] } as any), observation()),
+    ).toThrow();
+  });
   it('is byte-identical for identical normalized intent and observations', () => {
     const first = compileAzureCePlan(intent(), observation());
     const second = compileAzureCePlan(intent(), observation());

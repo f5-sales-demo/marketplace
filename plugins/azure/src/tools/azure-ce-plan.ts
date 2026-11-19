@@ -62,6 +62,8 @@ export function createAzureCePlanTool(pi: PluginInterface) {
         securityRules: Type.Array(
           Type.Object({
             name: Type.String(),
+            access: Type.Optional(Type.Union([Type.Literal('Allow'), Type.Literal('Deny')])),
+            priority: Type.Optional(Type.Number({ minimum: 100, maximum: 4096 })),
             purpose: Type.Union(
               ['application-vip', 'management', 'intra-cluster', 'platform-connectivity'].map((value) =>
                 Type.Literal(value),
@@ -77,6 +79,8 @@ export function createAzureCePlanTool(pi: PluginInterface) {
         image: Type.Object({ publisher: Type.String(), offer: Type.String(), plan: Type.String() }),
         vm: Type.Object({
           size: Type.String(),
+          adminUsername: Type.Optional(Type.String()),
+          sshPublicKey: Type.Optional(Type.String()),
           zones: Type.Optional(Type.Array(Type.String())),
           osDiskSizeGb: Type.Optional(Type.Number({ minimum: 80, maximum: 2048 })),
           shutdownAfterHours: Type.Optional(Type.Number({ minimum: 1, maximum: 8 })),

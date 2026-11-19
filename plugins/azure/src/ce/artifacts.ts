@@ -12,6 +12,7 @@ export interface SessionManagerLike {
 }
 
 export interface AzureCeToolContext {
+  settings?: { get(key: string): unknown };
   cwd: string;
   hasUI: boolean;
   ui: { confirm(title: string, message: string): Promise<boolean> };

@@ -234,7 +234,7 @@ export class HttpCeV2Driver implements CeV2Driver {
       if (!this.#azure || request.namespace !== 'system') throw new Error('Verified Azure bootstrap is unavailable');
       const site = await this.site('read', request);
       const nodes = (site.spec as any)?.azure?.not_managed?.node_list;
-      const configurationUid = (site.metadata as any)?.uid;
+      const configurationUid = (site.system_metadata as any)?.uid;
       if (
         !Array.isArray(nodes) ||
         nodes.length !== 1 ||
@@ -264,7 +264,7 @@ export class HttpCeV2Driver implements CeV2Driver {
         const cloudInit = bindIssuedCloudInit(template, spec.content);
         const recheck = await this.site('read', request);
         if (
-          (recheck.metadata as any)?.uid !== configurationUid ||
+          (recheck.system_metadata as any)?.uid !== configurationUid ||
           JSON.stringify(recheck.spec) !== JSON.stringify(site.spec)
         )
           throw new Error('Site drifted during bootstrap checkout');

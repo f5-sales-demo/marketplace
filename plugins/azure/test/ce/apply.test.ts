@@ -177,4 +177,28 @@ describe('Azure CE apply protections', () => {
     };
     await expect(assertActionOwnership(plan, action, api)).rejects.toThrow(/refusing to replay/);
   });
+  it('rejects deletion of an owned group containing an unowned resource', async () => {
+    const group = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-ce-demo`;
+    const action = {
+      id: 'cleanup',
+      phase: 'teardown',
+      kind: 'resource-delete',
+      resourceId: group,
+      description: 'cleanup',
+      mutates: true,
+      destructive: true,
+    } as const;
+    const api = {
+      exec: async (_command: string, args: string[]) => ({
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify(
+          args.includes('list')
+            ? [{ id: `${group}/providers/Microsoft.Compute/virtualMachines/foreign`, tags: {} }]
+            : { id: group, tags: { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': plan.deploymentName } },
+        ),
+      }),
+    };
+    await expect(assertActionOwnership(plan, action, api)).rejects.toThrow(/foreign or unverified/);
+  });
 });

@@ -120,6 +120,35 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
   const tags = (raw.tags as Record<string, string> | undefined) ?? {};
   const owned = tags['xcsh-managed-by'] === 'azure-ce' && tags['xcsh-deployment-id'] === plan.deploymentName;
   if (!owned) throw new Error(`Refusing to mutate unmanaged resource ${action.resourceId}`);
+  if (action.kind === 'resource-delete' && isGroup) {
+    const children = await api.exec('az', [
+      'resource',
+      'list',
+      '--resource-group',
+      plan.intent.resourceGroup,
+      '--subscription',
+      plan.subscription.id,
+      '--output',
+      'json',
+    ]);
+    if (children.exitCode !== 0) throw new Error('Resource group cleanup inventory is unavailable');
+    let inventory: Array<{ id?: string; tags?: Record<string, string> }>;
+    try {
+      inventory = JSON.parse(children.stdout);
+    } catch {
+      throw new Error('Resource group cleanup inventory is malformed');
+    }
+    if (
+      !Array.isArray(inventory) ||
+      inventory.some(
+        (item) =>
+          !item.id?.toLowerCase().startsWith(`${action.resourceId!.toLowerCase()}/providers/`) ||
+          item.tags?.['xcsh-managed-by'] !== 'azure-ce' ||
+          item.tags?.['xcsh-deployment-id'] !== plan.deploymentName,
+      )
+    )
+      throw new Error('Refusing resource group deletion containing foreign or unverified resources');
+  }
   if (CREATE_KINDS.has(action.kind) && tags['xcsh-plan-sha256'] !== plan.planSha256)
     throw new Error(`Existing resource belongs to a different Azure CE plan: ${action.resourceId}`);
   if (CREATE_KINDS.has(action.kind))
