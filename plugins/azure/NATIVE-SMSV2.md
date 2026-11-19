@@ -4,7 +4,7 @@ Azure discovery enforces `f5xc-ce-automation-policy/v2`, retrieves current F5 an
 Microsoft guidance, and binds normalized content hashes into immutable plans.
 The Marketplace prerequisite workflow is embedded as `azure-marketplace-terms`
 and is readable at `xcsh://plugin/azure/marketplace-terms`. It resolves the actual
-purchase-plan identity and current certified image before a legal decision.
+purchase-plan identity and current certified image before acceptance.
 The optional `region` field restricts discovery to the requested region. A failed
 Marketplace terms lookup remains a deployment blocker even when the Compute
 image catalog lists the image.

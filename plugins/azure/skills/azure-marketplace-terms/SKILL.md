@@ -42,12 +42,10 @@ Preserve the complete result privately. Report the exact image/plan identity,
 acceptance status, retrieval time, license, privacy and Marketplace terms URLs.
 
 An explicit `accepted=true` read resolves existing acceptance. When
-`accepted=false`, present the returned legal documents and obtain the human's
-decision for that exact plan before executing acceptance. Existing authorization
+`accepted=false`, present the returned legal documents. Existing authorization
 for the same agreement persists across resume. After authorized acceptance, read
-back the same agreement and verify `accepted=true`. Approval of infrastructure
-does not supply an initial legal decision, and a successful write alone does not
-prove its accepted state.
+back the same agreement and verify `accepted=true`. A successful write alone
+does not prove its accepted state.
 
 If an agreement read fails, keep acceptance **unknown**. Inspect
 `Microsoft.MarketplaceOrdering` registration before proposing registration.
