@@ -4,10 +4,9 @@ import { join, resolve } from 'node:path';
 
 export async function runIsolatedClockFixture(name: string) {
   const sourceRoot = resolve(import.meta.dir, '../src');
-  const source = (await readFile(join(import.meta.dir, 'fixtures', name), 'utf8')).replaceAll(
-    "'../../src/",
-    `'${sourceRoot}/`,
-  );
+  const source = (await readFile(join(import.meta.dir, 'fixtures', name), 'utf8'))
+    .replaceAll("'../../src/", `'${sourceRoot}/`)
+    .replaceAll("'../isolated-fixture-clock'", `'${resolve(import.meta.dir, 'isolated-fixture-clock')}'`);
   const root = await mkdtemp(join(tmpdir(), 'ce-isolated-clock-'));
   const path = join(root, 'clock.test.ts');
   await writeFile(path, source, { flag: 'wx', mode: 0o400 });

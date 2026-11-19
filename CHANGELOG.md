@@ -10,11 +10,17 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.130 binds original CE RSA wire capture to observer
+- **`terraform`** v2.4.131 binds original CE RSA wire capture to observer
   client ABI, original VM serial evidence and distinct host-trust references.
   Capture-start freshness, process-disappearance handling and SSH setup
-  classification are repaired. Live guest, runtime and operational gates
+  classification are repaired. Normal CI covers Bun-only plugins, and synthetic
+  expiry stays scoped to its observation while the original executor retains
+  its final capture window. Live guest, runtime and operational gates
   remain open.
+
+- **`platform`** v6.3.28 gives repeated original placement collections an
+  explicit fixture budget and replaces unchecked fixture identities with guards.
+  Production operational deadlines and evidence requirements are preserved.
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
   explicitly types and manages fixture resources so full Python CI can check

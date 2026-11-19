@@ -2005,3 +2005,14 @@ classification. All 813 Terraform and 1,015 shared cases pass after repair;
 the original failed run remains preserved. No live GCP or installed runtime gate
 is established. Guest capture, proof renewal, default factory and every
 remaining issue1559 acceptance gate remain open.
+
+### CI fixture clock isolation, 2026-11-19
+
+Terraform 2.4.131 scopes synthetic expiry to its original observation, preserving
+the independent executor's final-capture clock. Platform 6.3.28 declares bounded
+framework budgets for repeated placement collections and guards fixture identity
+lookups. KVM passes with complete isolated Python prerequisites and unchanged
+source. See the [source receipt](gcp-ci-clock-isolation-20261119.md). Focused
+regressions, complete normal suites and full CLI isolation pass with unchanged
+source/dependencies and zero recording CLI calls. Current-head CI remains pending.
+Every original live, installed runtime, review and delivery gate remains open.

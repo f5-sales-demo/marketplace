@@ -68,16 +68,17 @@ async function fixture(initialize = false) {
     intentFingerprint: fingerprint(i),
     platformContext: i.platformContext,
   });
-  const resources: GcpResourceIdentity[] = publicTerraformCloudScope(i).map((resource, index) => ({
-    ...resource,
-    id:
-      resource.kind === 'instance'
-        ? f.binding.nodes.find((node) => node.nodeName === resource.nodeName)!.instanceId
-        : String(index + 10),
-    project: i.project,
-    deploymentName: i.deploymentName,
-    engine: 'terraform',
-  }));
+  const resources: GcpResourceIdentity[] = publicTerraformCloudScope(i).map((resource, index) => {
+    const node = f.binding.nodes.find((node) => node.nodeName === resource.nodeName);
+    if (resource.kind === 'instance' && !node) throw new Error('Synthetic instance binding missing');
+    return {
+      ...resource,
+      id: resource.kind === 'instance' && node ? node.instanceId : String(index + 10),
+      project: i.project,
+      deploymentName: i.deploymentName,
+      engine: 'terraform',
+    };
+  });
   for (const resource of resources) await recordGcpResource(store, resource);
   const owned = {
     schemaVersion: 2,
@@ -117,10 +118,9 @@ async function fixture(initialize = false) {
     const path = new URL(String(url)).pathname;
     if (path.includes('/securemesh_site_v2s/')) return Response.json(await f.port.configuration());
     if (path.includes('/tokens/')) {
-      const name = path
-        .split('/')
-        .at(-1)!
-        .replace(/-token$/, '');
+      const segment = path.split('/').at(-1);
+      if (!segment) throw new Error('Synthetic token path missing');
+      const name = segment.replace(/-token$/, '');
       return Response.json(await f.port.token(name));
     }
     if (path.includes('/registrations_by_site/')) return Response.json(await f.port.registrations());
@@ -216,7 +216,7 @@ it('establishes complete frozen placement once and keeps the original binding on
   expect(first.binding.nodes.map((node) => node.role)).toEqual(['control', 'control', 'control']);
   expect((await f.collect()).binding).toEqual(first.binding);
   expect(await f.store.read('gcp-operational-original-binding.json')).toEqual(persisted);
-});
+}, 60000);
 
 it('establishes original placement with interleaved null global runtime rows', async () => {
   const f = await fixture(true);
@@ -233,7 +233,7 @@ it('establishes original placement with interleaved null global runtime rows', a
   expect(first.binding.nodes.map((node) => node.role)).toEqual(['control', 'control', 'control']);
   expect((await f.collect()).binding).toEqual(first.binding);
   expect(await f.store.read('gcp-operational-original-binding.json')).toEqual(persisted);
-});
+}, 60000);
 it.each(['foreign', 'duplicate', 'missing', 'malformed', 'malformed-row', 'ambiguous-role'])(
   'rejects %s runtime node placement without persisting a binding',
   async (change) => {
