@@ -372,6 +372,63 @@ async function inventory(
       await add(name, true);
       continue;
     }
+    if (name.startsWith('pending-registration-delete-')) {
+      const value = object(await store.read(name)),
+        selected = object(teardown);
+      const { planId: _id, planSha256: _digest, ...draft } = selected;
+      const identity = Object.fromEntries(
+        ['siteName', 'node', 'name', 'uid', 'instanceId', 'passportSha256'].map((key) => [key, value[key]]),
+      );
+      const bindings = siteBindings(base);
+      const binding = bindings.find(
+        ({ binding }) => binding.siteName === value.siteName && binding.nodes.includes(String(value.node)),
+      )?.binding;
+      const retirements = Array.isArray(selected.retirement) ? selected.retirement.map(object) : [];
+      const matches = retirements
+        .filter((site) => site.siteName === value.siteName)
+        .flatMap((site) => (Array.isArray(site.registrations) ? site.registrations.map(object) : []))
+        .filter((record) => canonicalSha256(record) === canonicalSha256(identity));
+      const instances = object(selected.initialRegistrationInstances);
+      const authorization = await store.read(`${teardown.planId}-authorization.json`);
+      if (
+        JSON.stringify(Object.keys(value).sort()) !==
+          JSON.stringify(
+            ['action', 'siteName', 'node', 'name', 'uid', 'instanceId', 'passportSha256', 'state'].sort(),
+          ) ||
+        selected.schemaVersion !== 1 ||
+        selected.engine !== 'terraform' ||
+        selected.kind !== 'aws-ce-terraform-pending-teardown' ||
+        canonicalSha256(draft) !== teardown.planSha256 ||
+        canonicalSha256(await store.read(`${teardown.planId}.json`)) !== canonicalSha256(selected) ||
+        canonicalSha256(authorization) !==
+          canonicalSha256({
+            schemaVersion: 1,
+            engine: 'terraform',
+            sourcePlanSha256: base.planSha256,
+            teardownPlanSha256: teardown.planSha256,
+            mutations: true,
+          }) ||
+        !binding ||
+        canonicalSha256(object(selected.drain).owner) !== canonicalSha256(binding.owner) ||
+        value.action !== 'delete-initial-registration' ||
+        value.state !== 'submitted' ||
+        typeof value.uid !== 'string' ||
+        !value.uid ||
+        name !== `pending-registration-delete-${value.uid}.json` ||
+        typeof value.name !== 'string' ||
+        !/^[a-z][a-z0-9-]{0,62}$/.test(value.name) ||
+        typeof value.instanceId !== 'string' ||
+        !/^i-[a-f0-9]{17}$/.test(value.instanceId) ||
+        !sha(value.passportSha256) ||
+        instances[String(value.node)] !== value.instanceId ||
+        matches.length !== 1
+      )
+        throw Error('AWS pending registration deletion provenance differs');
+      // This retains a submitted request, not deletion evidence. The caller has already
+      // independently qualified current platform absence and every owning runner retirement.
+      await add(name, true);
+      continue;
+    }
     if (name.startsWith('observation-rejection-')) {
       const value = JSON.parse((await file(join(store.directory, name))).toString());
       qualifyAwsTerraformRevalidationCapture(base, name, value);

@@ -68,7 +68,7 @@ for (const output of result.outputs) {
     `// biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.\n${content}`,
   );
   const format = Bun.spawn(
-    ['bunx', '@biomejs/biome@2.5.15', 'check', '--write', '--linter-enabled=false', '--vcs-enabled=false', target],
+    ['bunx', '@biomejs/biome@2.6.8', 'check', '--write', '--linter-enabled=false', '--vcs-enabled=false', target],
     { cwd: repository, stdout: 'pipe', stderr: 'pipe' },
   );
   if (await format.exited) throw Error('CE runtime formatting failed');
@@ -104,7 +104,7 @@ await writeFile(
 const format = Bun.spawn(
   [
     'bunx',
-    '@biomejs/biome@2.5.15',
+    '@biomejs/biome@2.6.8',
     'check',
     '--write',
     '--linter-enabled=false',

@@ -206,7 +206,7 @@ export async function retireAwsTerraformMetadata(
       throw Error('Cloud teardown has not converged before metadata retirement');
   }
   const api = scopedAwsApi(raw, plan.intent.awsProfile, signal);
-  const execute = async (service: string, operation: string, args: Json = {}) => {
+  const rawExecute = async (service: string, operation: string, args: Json = {}) => {
     await store.verify();
     signal?.throwIfAborted();
     const response = await api.exec('aws', [
@@ -221,6 +221,10 @@ export async function retireAwsTerraformMetadata(
       'json',
     ]);
     signal?.throwIfAborted();
+    return response;
+  };
+  const execute = async (service: string, operation: string, args: Json = {}) => {
+    const response = await rawExecute(service, operation, args);
     if (response.exitCode !== 0) throw detectAwsError(response.stderr, response.exitCode);
     return response;
   };
@@ -246,6 +250,68 @@ export async function retireAwsTerraformMetadata(
     } while (token);
     return result;
   };
+  const prepareOrphanSubnetTags = async (tag: Json) => {
+    const id = tag.ResourceId;
+    if (typeof id !== 'string' || !/^subnet-[a-f0-9]{17}$/.test(id) || tag.ResourceType !== 'subnet')
+      throw Error('Deployment metadata has unknown or ambiguous lifecycle origin');
+    const found = await tags([{ Name: 'resource-id', Values: [id] }]);
+    const seen = new Set<string>();
+    for (const row of found) {
+      if (
+        row.ResourceId !== id ||
+        row.ResourceType !== 'subnet' ||
+        typeof row.Key !== 'string' ||
+        typeof row.Value !== 'string' ||
+        seen.has(row.Key)
+      )
+        throw Error('Orphan subnet metadata is malformed or ambiguous');
+      seen.add(row.Key);
+    }
+    const projection = found
+      .map((row) => ({ Key: String(row.Key), Value: String(row.Value) }))
+      .sort((a, b) => a.Key.localeCompare(b.Key));
+    const matches = metadata.filter(
+      (row) => row.type === 'aws_subnet' && canonicalSha256(row.tags) === canonicalSha256(projection),
+    );
+    if (!projection.length || matches.length !== 1)
+      throw Error('Orphan subnet metadata has no exact immutable projection');
+    const absent = async () => {
+      const result = await rawExecute('ec2', 'describe-subnets', { SubnetIds: [id] });
+      if (
+        result.exitCode === 0 ||
+        result.stdout.trim() ||
+        !/^An error occurred \(InvalidSubnetID\.NotFound\) when calling the DescribeSubnets operation: [^\r\n]+$/.test(
+          result.stderr.trim(),
+        )
+      )
+        throw Error('Orphan subnet object absence is unqualified');
+    };
+    await absent();
+    return async () => {
+      await absent();
+      const current = await tags([{ Name: 'resource-id', Values: [id] }]);
+      if (canonicalSha256(current) !== canonicalSha256(found))
+        throw Error('Orphan subnet metadata changed before retirement');
+      await execute('ec2', 'delete-tags', { Resources: [id], Tags: projection });
+      if ((await tags([{ Name: 'resource-id', Values: [id] }])).length)
+        throw Error('Orphan subnet metadata retirement was not observed');
+      await absent();
+      // The absent object's creation ID was never observed. This qualifies only
+      // removal of its exact owned tag projection, without deleting any object.
+      await store.write(`aws-terraform-orphan-subnet-tags-${canonicalSha256(id)}.json`, {
+        schemaVersion: 1,
+        owner: store.owner,
+        sourcePlanSha256: plan.planSha256,
+        resourceId: id,
+        projectionAddress: matches[0].address,
+        tagsSha256: canonicalSha256(projection),
+        status: 'exact-orphan-tags-retired',
+        objectAbsence: 'InvalidSubnetID.NotFound',
+        creationIdentityQualified: false,
+        ceResourcesTouched: false,
+      });
+    };
+  };
   const knownDeploymentTags = async () => {
     const found = await tags([
       { Name: 'key', Values: ['xcsh-deployment-id'] },
@@ -256,17 +322,23 @@ export async function retireAwsTerraformMetadata(
       const original = metadata.find((row) => row.id === tag.ResourceId);
       if (
         typeof tag.ResourceId !== 'string' ||
-        !ids.has(tag.ResourceId) ||
         seen.has(tag.ResourceId) ||
-        !original ||
-        tag.ResourceType !== resourceTypes[original.type] ||
         tag.Key !== 'xcsh-deployment-id' ||
-        tag.Value !== plan.intent.deploymentName
+        tag.Value !== plan.intent.deploymentName ||
+        (original
+          ? tag.ResourceType !== resourceTypes[original.type]
+          : tag.ResourceType !== 'subnet' || !/^subnet-[a-f0-9]{17}$/.test(tag.ResourceId))
       )
         throw Error('Deployment metadata has unknown or ambiguous lifecycle origin');
       seen.add(tag.ResourceId);
     }
-    return found;
+    // Qualify the complete current inventory before any orphan tag mutation.
+    await allCurrentTags();
+    const retirements = [];
+    for (const tag of found.filter((row) => !ids.has(String(row.ResourceId))))
+      retirements.push(await prepareOrphanSubnetTags(tag));
+    for (const retire of retirements) await retire();
+    return found.filter((tag) => ids.has(String(tag.ResourceId)));
   };
   const currentTags = async (row: AwsTerraformMetadataIdentity, observed?: Json[]) => {
     const found = observed

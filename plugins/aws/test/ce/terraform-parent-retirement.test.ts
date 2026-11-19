@@ -1591,3 +1591,112 @@ test('parent retirement rejects foreign, malformed and changed revalidation capt
     expect(await readdir(f.store.directory)).not.toContain('aws-terraform-parent-artifact-retirement.json');
   }
 });
+
+async function pendingRegistrationRetirementFixture() {
+  const f = await fixture(true);
+  const binding = siteBindings(f.base)[0].binding;
+  const registration = {
+    siteName: binding.siteName,
+    node: binding.nodes[0],
+    name: 'r-00000000-0000-4000-8000-000000000001',
+    uid: '00000000-0000-4000-8000-000000000001',
+    instanceId: 'i-0123456789abcdef0',
+    passportSha256: 'e'.repeat(64),
+  };
+  const draft = {
+    schemaVersion: 1,
+    kind: 'aws-ce-terraform-pending-teardown',
+    engine: 'terraform',
+    sourcePlanSha256: f.base.planSha256,
+    sourceJournalSha256: 'd'.repeat(64),
+    initialRegistrationInstances: { [registration.node]: registration.instanceId },
+    drain: {
+      owner: binding.owner,
+      sourcePlanSha256: f.base.planSha256,
+      siteContractFingerprint: 'site-contract',
+      ingressContractFingerprint: 'ingress-contract',
+    },
+    retirement: [
+      {
+        siteName: binding.siteName,
+        siteUid: 'example-site-uid',
+        physicalSiteUid: 'example-physical-uid',
+        tokens: [],
+        registrations: [registration],
+      },
+    ],
+  };
+  const planSha256 = canonicalSha256(draft);
+  const teardown = { ...draft, planId: 'aws-ce-pending-teardown-' + planSha256.slice(0, 24), planSha256 };
+  await f.store.remove(f.teardown.planId + '.json');
+  await f.store.remove(f.teardown.planId + '-authorization.json');
+  await f.store.remove('aws-terraform-lifecycle-retirement.json');
+  await beginAwsTerraformRetirement(f.base, teardown, f.store);
+  await f.store.write(teardown.planId + '.json', teardown);
+  await f.store.write(teardown.planId + '-authorization.json', {
+    schemaVersion: 1,
+    engine: 'terraform',
+    sourcePlanSha256: f.base.planSha256,
+    teardownPlanSha256: planSha256,
+    mutations: true,
+  });
+  const name = 'pending-registration-delete-' + registration.uid + '.json';
+  const journal = { action: 'delete-initial-registration', ...registration, state: 'submitted' };
+  await f.store.write(name, journal);
+  return { ...f, teardown, registration, name, journal };
+}
+
+test('pending registration deletion journal has exact retirement provenance', async () => {
+  const f = await pendingRegistrationRetirementFixture();
+  const original = await readFile(join(f.store.directory, f.name));
+  await retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store);
+  expect(await readFile(join(f.store.directory, f.name))).toEqual(original);
+  const marker = (await f.store.read('aws-terraform-parent-artifact-retirement.json')) as {
+    artifacts: Array<{ path: string; preserve: boolean }>;
+  };
+  expect(marker.artifacts.find((row) => row.path === f.name)?.preserve).toBe(true);
+});
+
+for (const mode of [
+  'site',
+  'node',
+  'uid',
+  'registration-name',
+  'instance',
+  'passport',
+  'action',
+  'state',
+  'extra',
+  'plan-digest',
+  'authorization',
+  'duplicate-registration',
+  'missing-instance',
+] as const)
+  test(`pending registration deletion journal rejects ${mode} provenance`, async () => {
+    const f = await pendingRegistrationRetirementFixture();
+    const journal: Record<string, unknown> = structuredClone(f.journal);
+    if (mode === 'site') journal.siteName = 'example-foreign-site';
+    if (mode === 'node') journal.node = 'example-foreign-node';
+    if (mode === 'uid') journal.uid = '00000000-0000-4000-8000-000000000002';
+    if (mode === 'registration-name') journal.name = 'example-foreign-registration';
+    if (mode === 'instance') journal.instanceId = 'i-0123456789abcdef1';
+    if (mode === 'passport') journal.passportSha256 = 'f'.repeat(64);
+    if (mode === 'action') journal.action = 'unknown';
+    if (mode === 'state') journal.state = 'request-acknowledged-as-deleted';
+    if (mode === 'extra') journal.extra = true;
+    await f.store.write(f.name, journal);
+    if (mode === 'plan-digest') await f.store.write(f.teardown.planId + '.json', { ...f.teardown, changed: true });
+    if (mode === 'authorization') await f.store.write(f.teardown.planId + '-authorization.json', {});
+    if (mode === 'duplicate-registration') {
+      f.teardown.retirement[0].registrations.push(structuredClone(f.registration));
+      await f.store.write(f.teardown.planId + '.json', f.teardown);
+    }
+    if (mode === 'missing-instance') {
+      f.teardown.initialRegistrationInstances = {};
+      await f.store.write(f.teardown.planId + '.json', f.teardown);
+    }
+    await expect(retireAwsTerraformParentArtifacts(f.base, f.teardown, 'b'.repeat(64), f.store)).rejects.toThrow();
+    expect(await f.store.read(f.name)).toEqual(journal);
+    expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
+    expect(await readdir(f.store.directory)).not.toContain('aws-terraform-parent-artifact-retirement.json');
+  });

@@ -419,7 +419,7 @@ var factory = async (pi) => {
     const { createAwsCePlanTool } = await import('./runtime-tcy6m4nw.js');
     const { createAwsCeApplyTool } = await import('./runtime-x44x0yx3.js');
     const { createAwsCeInventoryTool } = await import('./runtime-gm4wbzpx.js');
-    const { createAwsCeTeardownTool } = await import('./runtime-j8fns49d.js');
+    const { createAwsCeTeardownTool } = await import('./runtime-knqkr3zs.js');
     const { createAwsCeUpgradeTool } = await import('./runtime-gv6q6w95.js');
     const { createAwsCeFailoverTool } = await import('./runtime-58s6sm2w.js');
     const { createAwsCePowerTool } = await import('./runtime-kvhqdpr6.js');

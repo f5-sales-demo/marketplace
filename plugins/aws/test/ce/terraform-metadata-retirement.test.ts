@@ -698,3 +698,114 @@ for (const kind of ['missing', 'partial'])
     expect(f.mutations).toHaveLength(count);
     expect(await f.store.read('aws-terraform-metadata-retirement.json')).toEqual(saved);
   });
+
+test('orphan subnet tags retire only after exact projection and typed object absence', async () => {
+  const f = await fixture();
+  const id = 'subnet-0123456789abcdef0';
+  f.current.set(id, structuredClone(f.inventory.metadata[1].tags));
+  const api = {
+    exec: async (command: string, argv: string[], options?: { signal?: AbortSignal }) => {
+      const input = JSON.parse(argv[argv.indexOf('--cli-input-json') + 1]);
+      if (argv[1] === 'describe-subnets' && input.SubnetIds?.[0] === id)
+        return {
+          exitCode: 254,
+          stdout: '',
+          stderr:
+            'An error occurred (InvalidSubnetID.NotFound) when calling the DescribeSubnets operation: The subnet does not exist',
+        };
+      return f.api.exec(command, argv, options);
+    },
+  };
+  await retireAwsTerraformMetadata(f.plan, f.store, api);
+  expect(f.current.get(id)).toEqual([]);
+  expect(f.mutations).toContainEqual({ Resources: [id], Tags: f.inventory.metadata[1].tags });
+});
+
+for (const mode of [
+  'foreign',
+  'live',
+  'denied',
+  'unavailable',
+  'mixed-output',
+  'partial',
+  'duplicate-tags',
+  'duplicate-index',
+  'wrong-type',
+  'ambiguous-projection',
+] as const)
+  test(`orphan subnet metadata rejects ${mode} evidence before any mutation`, async () => {
+    const f = await fixture();
+    const id = 'subnet-0123456789abcdef0';
+    const original = structuredClone(f.inventory.metadata[1].tags);
+    f.current.set(
+      id,
+      mode === 'foreign'
+        ? original.map((t) => (t.Key === 'xcsh-plan-sha256' ? { ...t, Value: '0'.repeat(64) } : t))
+        : original,
+    );
+    if (mode === 'ambiguous-projection') {
+      f.inventory.metadata.push({ ...structuredClone(f.inventory.metadata[1]), id: 'subnet-22345678' });
+      f.inventory.resources.push({ type: 'aws_subnet', id: 'subnet-22345678' });
+      const { sha256: _hash, ...material } = f.inventory;
+      f.inventory.sha256 = canonicalSha256(material);
+      await f.store.write('terraform-cloud-teardown-inventory.json', f.inventory);
+    }
+    const api = {
+      exec: async (command: string, argv: string[], options?: { signal?: AbortSignal }) => {
+        const input = JSON.parse(argv[argv.indexOf('--cli-input-json') + 1]);
+        if (argv[1] === 'describe-subnets' && input.SubnetIds?.[0] === id) {
+          if (mode === 'live')
+            return { exitCode: 0, stdout: JSON.stringify({ Subnets: [{ SubnetId: id }] }), stderr: '' };
+          return {
+            exitCode: 254,
+            stdout: mode === 'mixed-output' ? '{}' : '',
+            stderr:
+              mode === 'denied'
+                ? 'An error occurred (UnauthorizedOperation) when calling the DescribeSubnets operation: denied'
+                : mode === 'unavailable'
+                  ? 'request timed out'
+                  : 'An error occurred (InvalidSubnetID.NotFound) when calling the DescribeSubnets operation: The subnet does not exist',
+          };
+        }
+        const result = await f.api.exec(command, argv, options);
+        if (argv[1] === 'describe-tags') {
+          const response = JSON.parse(result.stdout);
+          const selected = input.Filters?.find((r: { Name: string }) => r.Name === 'resource-id')?.Values;
+          if (selected?.includes(id) && mode === 'partial') response.Tags = [];
+          if (selected?.includes(id) && mode === 'duplicate-tags') response.Tags.push(response.Tags[0]);
+          if (!selected && mode === 'duplicate-index')
+            response.Tags.push(response.Tags.find((r: { ResourceId: string }) => r.ResourceId === id));
+          if (!selected && mode === 'wrong-type')
+            response.Tags = response.Tags.map((r: { ResourceId: string }) =>
+              r.ResourceId === id ? { ...r, ResourceType: 'volume' } : r,
+            );
+          return { ...result, stdout: JSON.stringify(response) };
+        }
+        return result;
+      },
+    };
+    await expect(retireAwsTerraformMetadata(f.plan, f.store, api)).rejects.toThrow();
+    expect(f.mutations).toEqual([]);
+  });
+
+test('orphan subnet tag acknowledgement cannot qualify observed retirement', async () => {
+  const f = await fixture();
+  const id = 'subnet-0123456789abcdef0';
+  f.current.set(id, structuredClone(f.inventory.metadata[1].tags));
+  f.setFailure('ack-only');
+  const api = {
+    exec: async (command: string, argv: string[], options?: { signal?: AbortSignal }) => {
+      const input = JSON.parse(argv[argv.indexOf('--cli-input-json') + 1]);
+      if (argv[1] === 'describe-subnets' && input.SubnetIds?.[0] === id)
+        return {
+          exitCode: 254,
+          stdout: '',
+          stderr:
+            'An error occurred (InvalidSubnetID.NotFound) when calling the DescribeSubnets operation: The subnet does not exist',
+        };
+      return f.api.exec(command, argv, options);
+    },
+  };
+  await expect(retireAwsTerraformMetadata(f.plan, f.store, api)).rejects.toThrow('retirement was not observed');
+  expect(f.current.get(id)?.length).toBeGreaterThan(0);
+});
