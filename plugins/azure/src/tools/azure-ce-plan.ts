@@ -75,7 +75,12 @@ export function createAzureCePlanTool(pi: PluginInterface) {
           }),
         ),
         image: Type.Object({ publisher: Type.String(), offer: Type.String(), plan: Type.String() }),
-        vm: Type.Object({ size: Type.String(), zones: Type.Optional(Type.Array(Type.String())) }),
+        vm: Type.Object({
+          size: Type.String(),
+          zones: Type.Optional(Type.Array(Type.String())),
+          osDiskSizeGb: Type.Optional(Type.Number({ minimum: 80, maximum: 2048 })),
+          shutdownAfterHours: Type.Optional(Type.Number({ minimum: 1, maximum: 8 })),
+        }),
         brownfield: Type.Object({
           resourceIds: Type.Array(Type.String()),
           routeChanges: Type.Array(

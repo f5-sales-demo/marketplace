@@ -2,7 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const subscriptionId = '00000000-0000-4000-8000-000000000001';
+const tenantFixture = '22222222-2222-4222-8222-222222222222';
+const subscriptionFixture = '00000000-0000-4000-8000-000000000001';
 const f5Source = 'https://docs.cloud.f5.com/example';
 const microsoftSource = 'https://learn.microsoft.com/example';
 const sharedContractUrl =
@@ -11,7 +12,7 @@ const sharedContractUrl =
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
     schemaVersion: 2,
-    subscription: { id: subscriptionId, cloud: 'AzureCloud', tenantId: '22222222-2222-4222-8222-222222222222' },
+    subscription: { id: subscriptionFixture, cloud: 'AzureCloud', tenantId: tenantFixture },
     image: {
       publisher: 'f5-networks',
       offer: 'f5xc-customer-edge',
@@ -56,8 +57,8 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
       ],
       sharedContract: {
         url: sharedContractUrl,
-        contractId: 'f5xc-ce-automation',
-        contractVersion: 'v1',
+        contractId: 'f5xc-ce-automation-policy',
+        contractVersion: 'v2',
         normalizedSha256: '3'.repeat(64),
       },
     },
@@ -69,7 +70,7 @@ function intent(overrides: Partial<AzureCeIntent> = {}): AzureCeIntent {
   return {
     schemaVersion: 2,
     operation: 'deploy',
-    subscriptionId,
+    subscriptionId: subscriptionFixture,
     deploymentName: 'ce-demo',
     siteName: 'ce-demo',
     namespace: 'system',
@@ -135,7 +136,7 @@ describe('compileAzureCePlan', () => {
       compileAzureCePlan({ ...intent(), schemaVersion: 1 } as unknown as AzureCeIntent, observation()),
     ).toThrow(/schema version 1/i);
     const invalid = observation();
-    invalid.research.sharedContract.contractVersion = 'v2' as 'v1';
+    invalid.research.sharedContract.contractVersion = 'v3' as 'v2';
     expect(() => compileAzureCePlan(intent(), invalid)).toThrow(/shared.*contract/i);
   });
 
@@ -179,7 +180,7 @@ describe('compileAzureCePlan', () => {
 
   for (const mode of ['nat-gateway', 'firewall', 'proxy'] as const) {
     it(`supports explicitly selected ${mode} egress without creating public IPs`, () => {
-      const egressId = `/subscriptions/${subscriptionId}/resourceGroups/rg-net/providers/Microsoft.Network/${mode === 'nat-gateway' ? 'natGateways' : mode === 'firewall' ? 'azureFirewalls' : 'virtualAppliances'}/egress`;
+      const egressId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-net/providers/Microsoft.Network/${mode === 'nat-gateway' ? 'natGateways' : mode === 'firewall' ? 'azureFirewalls' : 'virtualAppliances'}/egress`;
       const plan = compileAzureCePlan(
         intent({
           egress: { mode, resourceId: egressId },
@@ -212,7 +213,7 @@ describe('compileAzureCePlan', () => {
   });
 
   it('uses an explicitly selected brownfield resource group without adopting it', () => {
-    const groupId = `/subscriptions/${subscriptionId}/resourceGroups/rg-ce-demo`;
+    const groupId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-ce-demo`;
     const plan = compileAzureCePlan(
       intent({ brownfield: { resourceIds: [groupId], routeChanges: [] } }),
       observation({
@@ -228,7 +229,7 @@ describe('compileAzureCePlan', () => {
   });
 
   it('rejects an unapproved pre-existing resource group', () => {
-    const groupId = `/subscriptions/${subscriptionId}/resourceGroups/rg-ce-demo`;
+    const groupId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-ce-demo`;
     expect(() =>
       compileAzureCePlan(
         intent(),
@@ -383,8 +384,8 @@ describe('compileAzureCePlan', () => {
   });
 
   it('captures exact brownfield route restoration and never adopts the resource', () => {
-    const routeTableId = `/subscriptions/${subscriptionId}/resourceGroups/rg-net/providers/Microsoft.Network/routeTables/app-rt`;
-    const subnetId = `/subscriptions/${subscriptionId}/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/app/subnets/workload`;
+    const routeTableId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-net/providers/Microsoft.Network/routeTables/app-rt`;
+    const subnetId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/app/subnets/workload`;
     const plan = compileAzureCePlan(
       intent({
         brownfield: {
@@ -431,8 +432,8 @@ describe('compileAzureCePlan', () => {
   });
 
   it('never emits deletion for an unmanaged resource during teardown', () => {
-    const unmanagedId = `/subscriptions/${subscriptionId}/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/shared`;
-    const ownedId = `/subscriptions/${subscriptionId}/resourceGroups/rg-ce-demo/providers/Microsoft.Compute/virtualMachines/ce-demo-1`;
+    const unmanagedId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/shared`;
+    const ownedId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-ce-demo/providers/Microsoft.Compute/virtualMachines/ce-demo-1`;
     const plan = compileAzureCePlan(
       intent({ operation: 'teardown' }),
       observation({
@@ -459,7 +460,7 @@ describe('compileAzureCePlan', () => {
   });
 
   it('deletes an owned resource group last after dependency-ordered resources', () => {
-    const groupId = `/subscriptions/${subscriptionId}/resourceGroups/rg-ce-demo`;
+    const groupId = `/subscriptions/${subscriptionFixture}/resourceGroups/rg-ce-demo`;
     const vmId = `${groupId}/providers/Microsoft.Compute/virtualMachines/ce-demo-1`;
     const vnetId = `${groupId}/providers/Microsoft.Network/virtualNetworks/ce-demo-vnet`;
     const tags = { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': 'ce-demo' };

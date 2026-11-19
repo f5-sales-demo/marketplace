@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { AzureSmsv2Contract } from './native-azure';
 
 const RELEASE_TAG = 'v7.0.9';
 const RELEASE_COMMIT = '1c4f4eb8dd6cd9c440c241b995a6c0ef1bcd23ab';
@@ -45,6 +46,7 @@ export interface Smsv2KvmImageResolution {
 }
 
 export interface Smsv2ReleaseContract {
+  azure?: AzureSmsv2Contract;
   collectionPath: string;
   itemPath: string;
   namespace: 'system';
@@ -302,6 +304,7 @@ export async function resolveSmsv2ReleaseContract(
     fail('manifest checksums are inconsistent');
 
   const contract = parseAsset(contractBytes, 'contract');
+  const openapi = parseAsset(openapiBytes, 'OpenAPI contract');
   const api = object(contract.api, 'contract API');
   const aws = object(object(contract.providers, 'providers').aws, 'AWS provider');
   const capabilities = object(aws.capabilities, 'AWS capabilities');
@@ -351,12 +354,39 @@ export async function resolveSmsv2ReleaseContract(
 
   let resolution: Omit<Smsv2KvmImageResolution, 'publication'>;
   try {
-    resolution = parseKvmImageResolution(parseAsset(openapiBytes, 'OpenAPI contract'));
+    resolution = parseKvmImageResolution(openapi);
   } catch {
     fail('public_contract_parsing: KVM image resolution schema is unsupported');
   }
 
+  let azure: AzureSmsv2Contract | undefined;
+  const azureProvider = object(contract.providers, 'providers').azure;
+  if (azureProvider) {
+    const paths = object(openapi.paths, 'OpenAPI paths');
+    const required = [
+      ['/api/register/namespaces/{metadata.namespace}/tokens', 'post', 'ves.io.schema.token.API.Create'],
+      ['/api/register/namespaces/{namespace}/tokens/{name}', 'delete', 'ves.io.schema.token.API.Delete'],
+      [
+        '/api/register/namespaces/system/get-cloud-init-config',
+        'get',
+        'ves.io.schema.token.CustomAPI.GetCloudInitConfig',
+      ],
+      [
+        '/api/register/namespaces/{namespace}/registrations_by_site/{site_name}',
+        'get',
+        'ves.io.schema.registration.CustomAPI.ListRegistrationsBySite',
+      ],
+    ];
+    for (const [path, method, operationId] of required)
+      if (object(object(paths[path], 'Azure operation path')[method], 'Azure operation').operationId !== operationId)
+        fail('Azure operation mapping is unsupported');
+    azure = new AzureSmsv2Contract(
+      object(azureProvider, 'Azure provider'),
+      object(object(openapi.components, 'OpenAPI components').schemas, 'OpenAPI schemas'),
+    );
+  }
   return {
+    ...(azure ? { azure } : {}),
     collectionPath: api.collection_path,
     itemPath: api.item_path,
     namespace: 'system',

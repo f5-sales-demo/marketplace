@@ -58,6 +58,7 @@ const CREATE_KINDS = new Set([
   'public-ip-create',
   'nic-create',
   'vm-create',
+  'vm-shutdown-arm',
   'route-table-create',
   'route-server-create',
   'route-server-peer-create',
@@ -121,4 +122,8 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
   if (!owned) throw new Error(`Refusing to mutate unmanaged resource ${action.resourceId}`);
   if (CREATE_KINDS.has(action.kind) && tags['xcsh-plan-sha256'] !== plan.planSha256)
     throw new Error(`Existing resource belongs to a different Azure CE plan: ${action.resourceId}`);
+  if (CREATE_KINDS.has(action.kind))
+    throw new Error(
+      `Existing owned resource has no completed journal boundary; refusing to replay creation: ${action.resourceId}`,
+    );
 }

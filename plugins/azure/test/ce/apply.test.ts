@@ -4,13 +4,14 @@ import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const subscriptionId = '00000000-0000-4000-8000-000000000001';
+const tenantFixture = '22222222-2222-4222-8222-222222222222';
+const subscriptionFixture = '00000000-0000-4000-8000-000000000001';
 const sharedContractUrl =
   'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 const intent: AzureCeIntent = {
   schemaVersion: 2,
   operation: 'deploy',
-  subscriptionId,
+  subscriptionId: subscriptionFixture,
   deploymentName: 'ce-demo',
   siteName: 'ce-demo',
   namespace: 'system',
@@ -27,7 +28,7 @@ const intent: AzureCeIntent = {
 };
 const observation: AzureCeObservation = {
   schemaVersion: 2,
-  subscription: { id: subscriptionId, tenantId: '22222222-2222-4222-8222-222222222222', cloud: 'AzureCloud' },
+  subscription: { id: subscriptionFixture, tenantId: tenantFixture, cloud: 'AzureCloud' },
   image: {
     publisher: 'f5-networks',
     offer: 'f5xc-customer-edge',
@@ -70,8 +71,8 @@ const observation: AzureCeObservation = {
     ],
     sharedContract: {
       url: sharedContractUrl,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: '3'.repeat(64),
     },
   },
@@ -150,12 +151,30 @@ describe('Azure CE apply protections', () => {
       phase: 'routing' as const,
       kind: 'route-association-update' as const,
       description: 'substituted target',
-      resourceId: `/subscriptions/${subscriptionId}/resourceGroups/other/providers/Microsoft.Network/routeTables/substituted`,
+      resourceId: `/subscriptions/${subscriptionFixture}/resourceGroups/other/providers/Microsoft.Network/routeTables/substituted`,
       mutates: true,
       destructive: false,
     };
     await expect(
       assertActionOwnership(plan, changed, { exec: async () => ({ stdout: '', stderr: '', exitCode: 1 }) }),
     ).rejects.toThrow(/allowlist/i);
+  });
+  it('refuses to replay a create whose result exists but was never checkpointed', async () => {
+    const action = plan.actions.find((item) => item.kind === 'vm-create')!;
+    const api = {
+      exec: async () => ({
+        stdout: JSON.stringify({
+          id: action.resourceId,
+          tags: {
+            'xcsh-managed-by': 'azure-ce',
+            'xcsh-deployment-id': plan.deploymentName,
+            'xcsh-plan-sha256': plan.planSha256,
+          },
+        }),
+        stderr: '',
+        exitCode: 0,
+      }),
+    };
+    await expect(assertActionOwnership(plan, action, api)).rejects.toThrow(/refusing to replay/);
   });
 });

@@ -45,11 +45,11 @@ and this project adheres to
 
 - **`github`** v3.3.2 exposes repository, issue, PR, workflow and Actions summaries with twelve-row previews, complete evidence and exact typed CLI commands (#1691).
 
-- **`platform`** v6.2.2 shows site identity, twelve-row network tables, exact plan hashes and artifacts, bootstrap scope and unavailable telemetry through shared presentation. Expanded views preserve complete safe evidence once; HTTP operations no longer imply executable CLI commands (#1688).
+- **`platform`** v6.2.3 validates native Azure single-node SLO requests against the pinned API release, binds issued JWT/cloud-init material, observes registration identity, and verifies upstream token revocation (#1925).
 
 - **`aws`** v2.3.3 replaces collapsed Customer Edge summaries with complete domain evidence in expanded views, preserving literal guidance without repeating structured fields (#1679).
 
-- **`azure`** v4.6.2 shows subscription identity, twelve-row resource previews, pagination and Customer Edge summaries through shared rendering; declares exact CLI argv and preserves output flags, tag filters, help cancellation and safe expanded evidence. CE status preserves unknown F5 health and unavailable Azure read coverage (#1677).
+- **`azure`** v4.6.3 enforces the current automation policy, supports exact-region discovery and bounded shutdown plans, consumes issued bootstrap material, and rejects unmeasured health claims and ambiguous create replay (#1925).
 - **`aws`** v2.3.1 exposes caller identity, twelve-row lists, exact executable commands and guarded Customer Edge summaries through shared presentation. Preserve S3 prefixes, large sizes and object-key spaces; report malformed listings and failed help accurately. Requires xcsh 23.8.0 or newer (#1672).
 
 - **`salesforce`** v2.3.16 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).

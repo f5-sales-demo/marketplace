@@ -8,7 +8,7 @@ import {
 const officialFetch = (async (input: RequestInfo | URL) => {
   const url = String(input);
   const body = url.includes('/automation-contract.txt')
-    ? 'contract_id: f5xc-ce-automation\ncontract_version: v1\ncombined: f5xc-ce-automation/v1\n' +
+    ? 'contract_id: f5xc-ce-automation-policy\ncontract_version: v2\ncombined: f5xc-ce-automation-policy/v2\n' +
       'provider-neutral guidance '.repeat(12)
     : 'official guidance '.repeat(20);
   return new Response(body, { status: 200 });
@@ -33,11 +33,12 @@ function api(fixtures: Record<string, unknown>, calls: string[] = []): AzExecApi
   };
 }
 
-const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const tenantFixture = '22222222-2222-4222-8222-222222222222';
+const subscriptionFixture = '11111111-1111-4111-8111-111111111111';
 const baseFixtures: Record<string, unknown> = {
   'account show --subscription 11111111-1111-4111-8111-111111111111': {
-    id: subscriptionId,
-    tenantId: '22222222-2222-4222-8222-222222222222',
+    id: subscriptionFixture,
+    tenantId: tenantFixture,
     environmentName: 'AzureCloud',
   },
   'rest --method get --url https://management.azure.com/subscriptions/11111111-1111-4111-8111-111111111111/locations?api-version=2022-12-01':
@@ -133,7 +134,7 @@ describe('discoverAzureCompute', () => {
     await expect(
       discoverAzureComputeWithOfficialResearch(
         {
-          subscriptionId,
+          subscriptionId: subscriptionFixture,
           deploymentName: 'ce-demo',
           resourceGroup: 'rg-ce-demo',
           requiredNics: 2,
@@ -151,7 +152,7 @@ describe('discoverAzureCompute', () => {
     const calls: string[] = [];
     const result = await discoverAzureCompute(
       {
-        subscriptionId,
+        subscriptionId: subscriptionFixture,
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         requiredNics: 8,
@@ -174,8 +175,8 @@ describe('discoverAzureCompute', () => {
     expect(result.research.officialSourceRetrieval).toBe('live');
     expect(result.schemaVersion).toBe(2);
     expect(result.research.sharedContract).toMatchObject({
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
     });
     expect(result.research.sharedContract.normalizedSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.research.sourceReceipts).toHaveLength(4);
@@ -194,7 +195,7 @@ describe('discoverAzureCompute', () => {
   it('pins the newest exact non-latest image and ranks every physical region', async () => {
     const result = await discoverAzureCompute(
       {
-        subscriptionId,
+        subscriptionId: subscriptionFixture,
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -218,7 +219,7 @@ describe('discoverAzureCompute', () => {
     ];
     const result = await discoverAzureCompute(
       {
-        subscriptionId,
+        subscriptionId: subscriptionFixture,
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -251,7 +252,7 @@ describe('discoverAzureCompute', () => {
     });
     const result = await discoverAzureCompute(
       {
-        subscriptionId,
+        subscriptionId: subscriptionFixture,
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         requiredNics: 8,
@@ -272,7 +273,7 @@ describe('discoverAzureCompute', () => {
     skus[0].locationInfo[1].zones = ['1'];
     const result = await discoverAzureCompute(
       {
-        subscriptionId,
+        subscriptionId: subscriptionFixture,
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -315,7 +316,7 @@ describe('discoverAzureCompute', () => {
     ];
     const result = await discoverAzureCompute(
       {
-        subscriptionId,
+        subscriptionId: subscriptionFixture,
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -332,7 +333,7 @@ describe('discoverAzureCompute', () => {
     await expect(
       discoverAzureCompute(
         {
-          subscriptionId,
+          subscriptionId: subscriptionFixture,
           version: 'latest',
           deploymentName: 'ce-demo',
           resourceGroup: 'rg-ce-demo',
@@ -348,7 +349,7 @@ describe('discoverAzureCompute', () => {
     await expect(
       discoverAzureCompute(
         {
-          subscriptionId,
+          subscriptionId: subscriptionFixture,
           deploymentName: 'ce-demo',
           resourceGroup: 'rg-ce-demo',
           vmSize: 'Standard_D8s_v5',

@@ -53,6 +53,18 @@ function validateResourceId(id: string, subscriptionId: string): void {
 }
 
 function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
+  if (
+    input.vm.osDiskSizeGb !== undefined &&
+    (!Number.isInteger(input.vm.osDiskSizeGb) || input.vm.osDiskSizeGb < 80 || input.vm.osDiskSizeGb > 2048)
+  )
+    fail('OS disk size is invalid');
+  if (
+    input.vm.shutdownAfterHours !== undefined &&
+    (!Number.isInteger(input.vm.shutdownAfterHours) ||
+      input.vm.shutdownAfterHours < 1 ||
+      input.vm.shutdownAfterHours > 8)
+  )
+    fail('shutdown lifetime must be 1 to 8 hours');
   if (input.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
   if (!UUID.test(input.subscriptionId)) fail('subscriptionId must be a UUID');
@@ -509,6 +521,45 @@ function buildDeployActions(
       );
     }
     const nicNames = ['--nics', ...intent.nics.map((_nic, index) => `${nodeName}-nic${index}`)];
+    if (intent.vm.shutdownAfterHours)
+      actions.push(
+        next({
+          phase: 'nodes',
+          kind: 'vm-shutdown-arm',
+          description: `Arm and verify UTC shutdown protection before launching ${nodeName}`,
+          resourceId: managedId(
+            intent.subscriptionId,
+            intent.resourceGroup,
+            `Microsoft.DevTestLab/schedules/shutdown-computevm-${nodeName}`,
+          ),
+          command: 'az',
+          args: [
+            'resource',
+            'create',
+            '--id',
+            managedId(
+              intent.subscriptionId,
+              intent.resourceGroup,
+              `Microsoft.DevTestLab/schedules/shutdown-computevm-${nodeName}`,
+            ),
+            '--api-version',
+            '2018-09-15',
+            '--location',
+            region,
+            '--properties',
+            '__SHUTDOWN_PROPERTIES__',
+            '--subscription',
+            intent.subscriptionId,
+            '--tags',
+            ...tags,
+            '--output',
+            'json',
+          ],
+          node,
+          mutates: true,
+          destructive: false,
+        }),
+      );
     actions.push(
       next({
         phase: 'nodes',
@@ -535,7 +586,7 @@ function buildDeployActions(
           '--plan-publisher',
           intent.image.publisher,
           '--os-disk-size-gb',
-          '80',
+          String(intent.vm.osDiskSizeGb ?? 80),
           '--os-disk-delete-option',
           'Delete',
           '--custom-data',
@@ -971,7 +1022,7 @@ function buildLifecycleActions(
           '--plan-publisher',
           intent.image.publisher,
           '--os-disk-size-gb',
-          '80',
+          String(intent.vm.osDiskSizeGb ?? 80),
           '--os-disk-delete-option',
           'Delete',
           '--custom-data',
@@ -1279,8 +1330,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     fail('official Microsoft research source is required');
   if (
     observation.research.sharedContract?.url !== AZURE_CE_SHARED_CONTRACT_URL ||
-    observation.research.sharedContract.contractId !== 'f5xc-ce-automation' ||
-    observation.research.sharedContract.contractVersion !== 'v1' ||
+    observation.research.sharedContract.contractId !== 'f5xc-ce-automation-policy' ||
+    observation.research.sharedContract.contractVersion !== 'v2' ||
     !/^[a-f0-9]{64}$/.test(observation.research.sharedContract.normalizedSha256)
   )
     fail('valid live shared Customer Edge automation contract receipt is required');
@@ -1452,6 +1503,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
         'public-ip-create',
         'nic-create',
         'vm-create',
+        'vm-shutdown-arm',
         'route-table-create',
         'route-server-create',
         'route-server-peer-create',
