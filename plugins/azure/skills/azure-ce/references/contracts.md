@@ -7,6 +7,9 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 
 ## Marketplace and compute discovery
 
+Read [Marketplace terms guidance](../../azure-marketplace-terms/SKILL.md) when
+agreement resolution, purchase-plan identity or legal acceptance is needed.
+
 - Enumerate publisher, offer, image SKU, and exact versions with `az vm image
   list-publishers`, `list-offers`, `list-skus`, and `list`. User-supplied values are
   constraints and must still be observed live. Reject `latest`.
