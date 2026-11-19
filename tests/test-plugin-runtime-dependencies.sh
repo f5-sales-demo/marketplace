@@ -219,6 +219,11 @@ cp "$RUNNER" "$BAD_INSTALL/scripts/run-plugin-tests.sh"
 mkdir -p "$BAD_INSTALL/scripts/agent-validation-runtime"
 # The canonical runner now includes a real Python capture regression before Bun suites.
 mkdir -p "$BAD_INSTALL/tests"
+# Run the real driver guards inside this isolated repository. Each guard creates
+# its own fixture, so retain its supporting driver instead of replacing checks.
+cp "$REPO_ROOT/tests/test-run-plugin-tests-native-only.sh" "$BAD_INSTALL/tests/test-run-plugin-tests-native-only.sh"
+cp "$REPO_ROOT/tests/test-hermetic-cli-diagnostic.sh" "$BAD_INSTALL/tests/test-hermetic-cli-diagnostic.sh"
+cp "$REPO_ROOT/scripts/check-tests-are-hermetic.sh" "$BAD_INSTALL/scripts/check-tests-are-hermetic.sh"
 cp "$REPO_ROOT/tests/test_native_capture_tools.py" "$BAD_INSTALL/tests/test_native_capture_tools.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-capture.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-campaign.py" "$BAD_INSTALL/scripts/drive-salesforce-campaign.py"

@@ -2016,3 +2016,12 @@ source. See the [source receipt](gcp-ci-clock-isolation-20261119.md). Focused
 regressions, complete normal suites and full CLI isolation pass with unchanged
 source/dependencies and zero recording CLI calls. Current-head CI remains pending.
 Every original live, installed runtime, review and delivery gate remains open.
+
+### CI dependency fixture support, 2026-11-19
+
+The current-head Shell Unit Tests failure reproduced a missing supporting guard
+in the dependency-repair fixture. The fixture now copies the real driver guards
+and supporting hermetic driver. All 16 dependency checks and all 18 CI shell
+scripts pass; see the [source receipt](gcp-ci-driver-fixture-support-20261119.md).
+A separate managed-test absence finding remains queued for docs-control repair.
+Current-head CI, original GCP live/runtime and publication acceptance remain open.
