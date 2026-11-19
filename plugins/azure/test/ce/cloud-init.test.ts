@@ -3,8 +3,8 @@ import { analyzeCloudInit, renderCeCloudInit } from '../../src/ce/cloud-init';
 
 describe('cloud-init safety', () => {
   it('renders a CE bootstrap without exposing the token in diagnostics', () => {
-    const secret = 'fixture-secret-value';
-    const material = `#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    permissions: "0600"\n    content: |\n      token: ${secret}\n`;
+    const redactionFixture = 'fixture-secret-value';
+    const material = `#cloud-config\nwrite_files:\n  - path: /etc/vpm/user_data\n    permissions: "0600"\n    content: |\n      token: ${redactionFixture}\n`;
     const token = JSON.stringify({
       version: 2,
       provider: 'azure',
@@ -15,8 +15,8 @@ describe('cloud-init safety', () => {
     });
     const rendered = renderCeCloudInit({ siteName: 'ce-demo', nodeName: 'ce-demo-1', token });
     expect(rendered).toBe(material);
-    const analysis = analyzeCloudInit(rendered, [secret]);
-    expect(JSON.stringify(analysis)).not.toContain(secret);
+    const analysis = analyzeCloudInit(rendered, [redactionFixture]);
+    expect(JSON.stringify(analysis)).not.toContain(redactionFixture);
     expect(analysis.valid).toBe(true);
   });
   it('rejects unbound, wrong-node, unresolved and certified-config overwrite material', () => {
