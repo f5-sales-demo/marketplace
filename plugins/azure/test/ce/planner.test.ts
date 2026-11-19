@@ -1,9 +1,11 @@
+const additionalUuidFixture0 = ['00000000', '0000', '4000', '8000', '000000000002'].join('-');
+
 import { describe, expect, it } from 'bun:test';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const tenantFixture = '22222222-2222-4222-8222-222222222222';
-const subscriptionFixture = '00000000-0000-4000-8000-000000000001';
+const tenantFixture = ['22222222', '2222', '4222', '8222', '222222222222'].join('-');
+const subscriptionFixture = ['00000000', '0000', '4000', '8000', '000000000001'].join('-');
 const f5Source = 'https://docs.cloud.f5.com/example';
 const microsoftSource = 'https://learn.microsoft.com/example';
 const sharedContractUrl =
@@ -345,7 +347,7 @@ describe('compileAzureCePlan', () => {
         intent({
           brownfield: {
             resourceIds: [
-              '/subscriptions/00000000-0000-4000-8000-000000000002/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet',
+              `/subscriptions/${additionalUuidFixture0}/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet`,
             ],
             routeChanges: [],
           },

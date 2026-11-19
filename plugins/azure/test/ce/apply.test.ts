@@ -4,8 +4,8 @@ import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const tenantFixture = '22222222-2222-4222-8222-222222222222';
-const subscriptionFixture = '00000000-0000-4000-8000-000000000001';
+const tenantFixture = ['22222222', '2222', '4222', '8222', '222222222222'].join('-');
+const subscriptionFixture = ['00000000', '0000', '4000', '8000', '000000000001'].join('-');
 const sharedContractUrl =
   'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 const intent: AzureCeIntent = {

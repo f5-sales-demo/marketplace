@@ -49,7 +49,7 @@ and this project adheres to
 
 - **`aws`** v2.3.3 replaces collapsed Customer Edge summaries with complete domain evidence in expanded views, preserving literal guidance without repeating structured fields (#1679).
 
-- **`azure`** v4.6.3 enforces the current automation policy, supports exact-region discovery and bounded shutdown plans, consumes issued bootstrap material, and rejects unmeasured health claims and ambiguous create replay (#1925).
+- **`azure`** v4.6.4 enforces the current automation policy, supports exact-region discovery and bounded shutdown plans, consumes issued bootstrap material, and rejects unmeasured health claims and ambiguous create replay (#1925).
 - **`aws`** v2.3.1 exposes caller identity, twelve-row lists, exact executable commands and guarded Customer Edge summaries through shared presentation. Preserve S3 prefixes, large sizes and object-key spaces; report malformed listings and failed help accurately. Requires xcsh 23.8.0 or newer (#1672).
 
 - **`salesforce`** v2.3.16 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
