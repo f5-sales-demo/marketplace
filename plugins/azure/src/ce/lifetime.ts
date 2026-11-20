@@ -18,6 +18,14 @@ export function shutdownProperties(plan: AzureCePlan, node: number, deadline: st
   };
 }
 
+export function shutdownResourceBody(plan: AzureCePlan, node: number, deadline: string) {
+  return {
+    location: plan.region,
+    tags: { ...plan.ownershipTagTemplate, 'xcsh-plan-sha256': plan.planSha256 },
+    properties: shutdownProperties(plan, node, deadline),
+  };
+}
+
 export async function verifyShutdown(plan: AzureCePlan, action: AzureCeAction, deadline: string, api: AzExecApi) {
   const result = await api.exec('az', [
     'resource',

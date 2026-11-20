@@ -9,7 +9,7 @@ import { fingerprintObservation, sha256Hex } from '../ce/canonical';
 import { renderCeCloudInit } from '../ce/cloud-init';
 import { discoverAzureCompute } from '../ce/discovery';
 import { observeAzureHealth } from '../ce/health-observation';
-import { shutdownProperties, verifyShutdown } from '../ce/lifetime';
+import { shutdownResourceBody, verifyShutdown } from '../ce/lifetime';
 import { consumeBootstrapRef } from '../ce/token-consumer';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
 import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
@@ -167,9 +167,7 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
         const replacements = await replacementsFor(action.args, api, plan);
         if (action.kind === 'vm-shutdown-arm') {
           if (!shutdownDeadline) throw new Error('Durable shutdown deadline is missing');
-          replacements.__SHUTDOWN_PROPERTIES__ = JSON.stringify(
-            shutdownProperties(plan, action.node!, shutdownDeadline),
-          );
+          replacements.__SHUTDOWN_BODY__ = JSON.stringify(shutdownResourceBody(plan, action.node!, shutdownDeadline));
         }
         if (action.requiresBootstrap && action.node) {
           const reference = params.bootstrapRefs?.find((item) => item.node === action.node)?.reference;

@@ -156,6 +156,9 @@ describe('compileAzureCePlan', () => {
     expect(launch.args).toContain('azureuser');
     expect(launch.args).toContain(publicFixture);
     expect(launch.args).not.toContain('--generate-ssh-keys');
+    const protection = plan.actions.find((action) => action.kind === 'vm-shutdown-arm');
+    expect(protection?.args).toContain('--is-full-object');
+    expect(protection?.args).not.toContain('--tags');
     const rule = plan.actions.find((action) => action.kind === 'nsg-rule-create')!;
     expect(rule.args?.slice(rule.args.indexOf('--access'), rule.args.indexOf('--access') + 2)).toEqual([
       '--access',
