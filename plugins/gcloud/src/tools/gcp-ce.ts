@@ -36,9 +36,9 @@ import { applyGcpTerraformTeardown, planGcpTerraformTeardown } from '../ce/terra
 import { GCP_CE_OPERATIONS, type GcpCeEngine, type GcpCeIntent, type GcpCeOperation } from '../ce/types';
 import { validateIntent, validateScope } from '../ce/validation';
 import { inventoryArgs } from '../gcloud/arguments';
-import { execGcloudJson, type GcloudExecApi } from '../gcloud/exec';
+import { execGcloudJson, type GcloudExecApi, GcloudExecError } from '../gcloud/exec';
 import type { PluginInterface } from '../gcloud/types';
-import { makeExecApi } from './shared';
+import { detectErrorType, makeExecApi } from './shared';
 
 function result(
   tool: string,
@@ -765,6 +765,18 @@ export function createGcpCeTools(
             },
             true,
           );
+        // Preserve typed provider failures with static guidance; raw diagnostics remain private.
+        const gcloudErrorType = error instanceof GcloudExecError ? detectErrorType(error) : undefined;
+        const gcloudReason =
+          gcloudErrorType === 'auth_required'
+            ? 'gcloud_authentication_required'
+            : gcloudErrorType === 'session_expired'
+              ? 'gcloud_session_expired'
+              : gcloudErrorType === 'permission_denied'
+                ? 'gcloud_permission_denied'
+                : gcloudErrorType === 'not_found'
+                  ? 'gcloud_resource_not_found'
+                  : undefined;
         // Cloud errors and caller-controlled fields can contain private values.
         return result(
           tool,
@@ -780,7 +792,7 @@ export function createGcpCeTools(
                 ? 'terraform_setup_required'
                 : error instanceof GcpMarketplaceUnavailable
                   ? error.reason
-                  : 'validation_or_read_failed',
+                  : (gcloudReason ?? 'validation_or_read_failed'),
             mutationAttempted,
             ...(error instanceof GcpTerraformSetupRequired
               ? {
@@ -791,6 +803,10 @@ export function createGcpCeTools(
                     'shared Terraform GCP runner',
                   ],
                 }
+              : {}),
+            ...(gcloudErrorType ? { errorType: gcloudErrorType } : {}),
+            ...(!mutationAttempted && (gcloudErrorType === 'auth_required' || gcloudErrorType === 'session_expired')
+              ? { required: ['xcsh plugin setup gcloud'] }
               : {}),
             ...(error instanceof GcpMarketplaceUnavailable ? gcpMarketplacePrerequisiteGuidance(error.reason) : {}),
           },

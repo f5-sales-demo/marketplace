@@ -12743,6 +12743,17 @@ function createGcpCeTools(
             },
             true,
           );
+        const gcloudErrorType = error instanceof GcloudExecError ? detectErrorType(error) : undefined;
+        const gcloudReason =
+          gcloudErrorType === 'auth_required'
+            ? 'gcloud_authentication_required'
+            : gcloudErrorType === 'session_expired'
+              ? 'gcloud_session_expired'
+              : gcloudErrorType === 'permission_denied'
+                ? 'gcloud_permission_denied'
+                : gcloudErrorType === 'not_found'
+                  ? 'gcloud_resource_not_found'
+                  : undefined;
         return result(
           tool,
           {
@@ -12757,7 +12768,7 @@ function createGcpCeTools(
                 ? 'terraform_setup_required'
                 : error instanceof GcpMarketplaceUnavailable
                   ? error.reason
-                  : 'validation_or_read_failed',
+                  : (gcloudReason ?? 'validation_or_read_failed'),
             mutationAttempted,
             ...(error instanceof GcpTerraformSetupRequired
               ? {
@@ -12768,6 +12779,10 @@ function createGcpCeTools(
                     'shared Terraform GCP runner',
                   ],
                 }
+              : {}),
+            ...(gcloudErrorType ? { errorType: gcloudErrorType } : {}),
+            ...(!mutationAttempted && (gcloudErrorType === 'auth_required' || gcloudErrorType === 'session_expired')
+              ? { required: ['xcsh plugin setup gcloud'] }
               : {}),
             ...(error instanceof GcpMarketplaceUnavailable ? gcpMarketplacePrerequisiteGuidance(error.reason) : {}),
           },

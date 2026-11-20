@@ -35,8 +35,9 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.62 rebuilds the GCP CE runtime with Bun 1.4.4.
-  Original observer request and compiler fingerprint checks remain enforced.
+- **`gcloud`** v1.7.63 preserves typed authentication, expired-session, permission
+  and missing-resource reasons in Customer Edge tools with static setup guidance.
+  Raw provider diagnostics stay private; mutation reconciliation remains required.
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding
