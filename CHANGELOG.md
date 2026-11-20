@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.136 retains original observer installation provenance
+- **`terraform`** v2.4.137 retains original observer installation provenance
   across peer expiry and qualifies V2 clients with three guarded serial probes.
   CE scans select V1 or V2 explicitly and bind both installation and ABI receipts.
   Ownership, peer freshness, original output and single-use failures remain

@@ -30,7 +30,7 @@ test('XC capture resolves its exact executable pair without migrating another pr
 });
 
 function select(script: string, fn: string, executables: Record<string, { sha256: string }>) {
-  const code = `import importlib.util,json,sys\ns=importlib.util.spec_from_file_location("reader",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\nprint(json.dumps(getattr(m,sys.argv[2])(json.loads(sys.argv[3]))))`;
+  const code = `import importlib.util,json,sys\ns=importlib.util.spec_from_file_location("reader",sys.argv[1]);m=importlib.util.module_from_spec(s);sys.modules[s.name]=m;s.loader.exec_module(m)\nprint(json.dumps(getattr(m,sys.argv[2])(json.loads(sys.argv[3]))))`;
   const child = Bun.spawnSync([
     python,
     '-I',
