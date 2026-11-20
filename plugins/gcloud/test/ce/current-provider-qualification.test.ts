@@ -93,7 +93,7 @@ describe('current GCP artifact and Site schema qualification', () => {
       expect(() => resolveGcpSiteAccessMapping(version)).toThrow();
   });
 
-  it('binds original current executables while keeping creation admission closed', () => {
+  it('binds original current capture preparation without changing public artifact selection', () => {
     const profile = resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256: lockSha256 });
     expect(profile).toMatchObject({
       googleVersion: '8.12.0',
@@ -105,7 +105,12 @@ describe('current GCP artifact and Site schema qualification', () => {
     expect(Object.isFrozen(profile)).toBe(true);
     expect(resolveInstalledGcpExecutableProfile(profile.terraformSha256, profile.googleProviderSha256)).toBe(profile);
     expect(() => resolveInstalledGcpExecutableProfile(profile.terraformSha256)).toThrow('ambiguous');
-    expect(isOriginalCreationScopeProfile(profile)).toBe(false);
+    expect(isOriginalCreationScopeProfile(profile)).toBe(true);
+    expect(artifacts.GCP_PUBLIC_TERRAFORM_ARTIFACTS.versions).toEqual({
+      terraform: '1.17.2',
+      google: '8.11.0',
+      xcsh: '15.17.3',
+    });
     expect(() =>
       resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.1', providerLockSha256: lockSha256 }),
     ).toThrow();

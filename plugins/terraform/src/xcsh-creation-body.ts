@@ -5,6 +5,10 @@ import type { OriginalGcpPlatformHttpBody } from '../../platform/src/ce/gcp-http
 import { containsControlCharacters } from '../../platform/src/ce/security';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import {
+  type OriginalXcshCreationProfile,
+  resolveInstalledXcshCreationExecutableProfile,
+} from './installed-version-profile';
+import {
   type InstalledXcshCreationResult,
   type InstalledXcshCreationTarget,
   readOriginalInstalledXcshCreation,
@@ -34,6 +38,7 @@ export interface OriginalXcshCreationBodyEvidence {
 }
 const issued = new WeakMap<object, () => Promise<OriginalGcpPlatformHttpBody>>();
 const contexts = new WeakMap<object, InstalledCaptureContext>();
+const providerProfiles = new WeakMap<object, OriginalXcshCreationProfile>();
 
 /** Original creation receipt and independently captured authenticated GET join.
  * This can run during the owning apply without starting a competing state read.
@@ -75,6 +80,10 @@ export async function joinOriginalXcshCreationBody(input: {
         )
       )
         throw new Error('Original creation scope target required');
+      const providerProfile = resolveInstalledXcshCreationExecutableProfile(
+        context.inputs.terraform.sha256,
+        scope.provider?.sha256 ?? '',
+      );
       const raw = await readCreation();
       const creation = decodeEvidenceObject(raw);
       if (
@@ -138,7 +147,7 @@ export async function joinOriginalXcshCreationBody(input: {
       await readCreation();
       await context.assertInputs();
       await context.assertWithinDeadline();
-      return { planSha256: scope.planSha256, identity: hash(system.uid) };
+      return { planSha256: scope.planSha256, identity: hash(system.uid), providerProfile };
     } catch (error) {
       refused = true;
       throw error;
@@ -159,6 +168,7 @@ export async function joinOriginalXcshCreationBody(input: {
     bootstrapOwnershipQualified: false as const,
   });
   contexts.set(evidence, context);
+  providerProfiles.set(evidence, original.providerProfile);
   issued.set(evidence, async () => {
     await verify();
     return body;
@@ -180,4 +190,14 @@ export async function assertOriginalXcshCreationBodyContext(
 ): Promise<void> {
   if (contexts.get(evidence) !== context) throw new Error('Original creation body context required');
   await readOriginalXcshCreationBody(evidence);
+}
+
+/** Provider attribution comes from the original prepared scope and fresh body join. */
+export async function readOriginalXcshCreationBodyProviderProfile(
+  evidence: OriginalXcshCreationBodyEvidence,
+): Promise<OriginalXcshCreationProfile> {
+  await readOriginalXcshCreationBody(evidence);
+  const profile = providerProfiles.get(evidence);
+  if (!profile) throw new Error('Original creation provider profile required');
+  return profile;
 }

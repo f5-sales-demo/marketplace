@@ -9,6 +9,7 @@ import {
   assertOriginalXcshCreationBodyContext,
   type OriginalXcshCreationBodyEvidence,
   readOriginalXcshCreationBody,
+  readOriginalXcshCreationBodyProviderProfile,
 } from './xcsh-creation-body';
 
 type Json = Record<string, unknown>;
@@ -17,11 +18,9 @@ const object = (value: unknown): Json => {
     throw new Error('Original preapply bootstrap object required');
   return value as Json;
 };
-export interface OriginalGcpPreapplyBootstrapEvidence {
-  readonly schemaVersion: 4;
+interface OriginalGcpPreapplyBootstrapEvidenceBase {
   readonly executor: OriginalXcshCreationBodyEvidence['executor'];
   readonly kind: 'original-gcp-preapply-bootstrap-candidate';
-  readonly xcshProviderVersion: '15.17.3';
   readonly planSha256: string;
   readonly readerRequestSha256: string;
   readonly siteReaderEvidenceSha256: string;
@@ -33,6 +32,11 @@ export interface OriginalGcpPreapplyBootstrapEvidence {
   readonly gcpWireCorroborated: true;
   readonly bootstrapOwnershipQualified: false;
 }
+export type OriginalGcpPreapplyBootstrapEvidence = OriginalGcpPreapplyBootstrapEvidenceBase &
+  (
+    | { readonly schemaVersion: 4; readonly xcshProviderVersion: '15.17.3' }
+    | { readonly schemaVersion: 5; readonly xcshProviderVersion: '15.17.6' }
+  );
 const issued = new WeakMap<object, () => Promise<string>>();
 const contextChecks = new WeakMap<object, (context: InstalledCaptureContext) => Promise<void>>();
 
@@ -105,12 +109,16 @@ export async function collectOriginalGcpPreapplyBootstrap(input: {
     await readOriginalXcshCreationBody(token);
     return bootstrap;
   };
+  const siteProfile = await readOriginalXcshCreationBodyProviderProfile(site);
+  const tokenProfile = await readOriginalXcshCreationBodyProviderProfile(token);
+  if (siteProfile !== tokenProfile) throw new Error('Original Site and Token provider profiles differ');
   const bootstrap = await verify();
   const value = Object.freeze({
-    schemaVersion: 4 as const,
+    ...(siteProfile.xcshVersion === '15.17.6'
+      ? { schemaVersion: 5 as const, xcshProviderVersion: '15.17.6' as const }
+      : { schemaVersion: 4 as const, xcshProviderVersion: '15.17.3' as const }),
     executor: site.executor,
     kind: 'original-gcp-preapply-bootstrap-candidate' as const,
-    xcshProviderVersion: '15.17.3' as const,
     planSha256: site.planSha256,
     readerRequestSha256: site.readerRequestSha256,
     siteReaderEvidenceSha256: site.readerResultSha256,

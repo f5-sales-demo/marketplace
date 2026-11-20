@@ -135,13 +135,24 @@ function resolveInstalledGcpExecutableProfile(terraformSha256, googleProviderSha
   return matching[0];
 }
 function isOriginalCreationScopeProfile(profile) {
-  return (
-    profile ===
-    resolveInstalledGcpVersionProfile({
-      terraformVersion: '1.17.2',
-      providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
-    })
+  return [
+    'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+    'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+  ].some(
+    (providerLockSha256) =>
+      profile === resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256 }),
   );
+}
+function resolveInstalledXcshCreationExecutableProfile(terraformSha256, xcshSha256) {
+  const matching = profiles.filter(
+    (profile) =>
+      profile.terraformSha256 === terraformSha256 &&
+      profile.xcProviderSha256 === xcshSha256 &&
+      isOriginalCreationScopeProfile(profile),
+  );
+  if (matching.length !== 1 || !isOriginalCreationScopeProfile(matching[0]))
+    throw new Error('Original qualified XC creation executable pair required');
+  return matching[0];
 }
 
 // plugins/terraform/src/gcp-bootstrap-evidence.ts
@@ -190,6 +201,11 @@ async function collectOriginalGcpTerraformBootstrapV2(input) {
   if (evidence.schemaVersion !== 2) throw new Error('Version 2 bootstrap evidence schema required');
   return evidence;
 }
+async function collectOriginalGcpTerraformBootstrapV3(input) {
+  const evidence = await collectBootstrap(input, '15.17.6');
+  if (evidence.schemaVersion !== 3) throw new Error('Version 3 bootstrap evidence schema required');
+  return evidence;
+}
 async function collectBootstrap(input, providerVersion) {
   input = { ...input, environment: { ...input.environment } };
   const platform = Object.freeze({ ...input.platform });
@@ -219,7 +235,10 @@ async function collectBootstrap(input, providerVersion) {
     terraformVersion: input.terraformVersion,
     providerLockSha256: receipt.providerLockSha256,
   });
-  if (profile.googleVersion !== '8.11.0' || profile.xcshVersion !== providerVersion)
+  if (
+    profile.googleVersion !== (providerVersion === '15.17.6' ? '8.12.0' : '8.11.0') ||
+    profile.xcshVersion !== providerVersion
+  )
     throw new Error('Original qualified Terraform bootstrap provider mapping required');
   await platform.assertBody(input.site);
   await platform.assertBody(input.token);
@@ -293,7 +312,9 @@ async function collectBootstrap(input, providerVersion) {
   const value =
     providerVersion === '15.15.7'
       ? Object.freeze({ ...common, schemaVersion: 1, xcshProviderVersion: '15.15.7' })
-      : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
+      : providerVersion === '15.17.6'
+        ? Object.freeze({ ...common, schemaVersion: 3, xcshProviderVersion: '15.17.6' })
+        : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
   issued.set(value, { bootstrap, platform });
   return value;
 }
@@ -1364,9 +1385,9 @@ var gcp_capture_source_pins_default = {
     'guest_worker.py': '8cccbddd35d02ffb64d9c91adbf15c016f6f9ecaf817f9b71c0088257d43a392',
     'guest_entrypoint.py': 'f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151',
     'gcp_provider_process.py': '2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00',
-    'gcp_provider_reader.py': '19532859fd9390ded4a3321fade653f1ca5ccb0d22afd04f2c37dcc816391ceb',
+    'gcp_provider_reader.py': '7c74ad218ac485164e767c86c7cb3f46ea091729b21d14f08ed4a596a0b48ffb',
     'xcsh_creation_observer.py': '6ebd1f53ef6e1ae69c41533a6930351fca4e3a0d928d46fb6d3f0ea0fb918b5b',
-    'xcsh_creation_reader.py': '39e491fafa0885e735652c63743a86167253ef9a5c8a8fe522c014df28e557b2',
+    'xcsh_creation_reader.py': '5dba7f304cf8d7b5e036119dc9455231df51c26b115326f370c6629bbfc729a6',
     'publish_bootstrap_grant.py': '6309afaebcd31730e750d14fb03d12afff5b83e3b9f06f765f1c1178d156ab9a',
   },
 };
@@ -13397,7 +13418,6 @@ import { isDeepStrictEqual } from 'node:util';
 
 var hash19 = (raw) => createHash24('sha256').update(raw).digest('hex');
 var terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e';
-var providerHash = '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0';
 var origins20 = new WeakMap();
 var openings = new WeakSet();
 var targetOrigins = new WeakMap();
@@ -13461,11 +13481,15 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     !scope.scopeFile ||
     !scope.directory ||
     !scope.resources.length ||
-    scope.provider.sha256 !== providerHash ||
     context.inputs.python?.sha256 !== installed_runtime_pins_default.pythonSha256 ||
     context.inputs.terraform?.sha256 !== terraformHash
   )
     throw new Error('Qualified original xcsh creation scope and binaries required');
+  const providerProfile = resolveInstalledXcshCreationExecutableProfile(
+    context.inputs.terraform.sha256,
+    scope.provider.sha256,
+  );
+  const providerHash = providerProfile.xcProviderSha256;
   const scopeBinding = scope.scope;
   const inputs = freezeAdmittedCaptureInputs({
     ...context.inputs,
@@ -13551,7 +13575,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     executables: {
       bootstrap: { path: inputs.python.path, sha256: installed_runtime_pins_default.pythonSha256 },
       terraform: { path: inputs.terraform.path, sha256: terraformHash },
-      xcsh: { path: scope.provider.path, sha256: providerHash },
+      xcsh: { path: scope.provider.path, sha256: providerProfile.xcProviderSha256 },
     },
     inputs,
     scope: {
@@ -13981,6 +14005,7 @@ var object9 = (value) => {
 };
 var issued3 = new WeakMap();
 var contexts = new WeakMap();
+var providerProfiles = new WeakMap();
 async function joinOriginalXcshCreationBody(input) {
   const { context, packet, result, body } = input;
   const target = Object.freeze({ ...input.target });
@@ -14008,6 +14033,10 @@ async function joinOriginalXcshCreationBody(input) {
         )
       )
         throw new Error('Original creation scope target required');
+      const providerProfile = resolveInstalledXcshCreationExecutableProfile(
+        context.inputs.terraform.sha256,
+        scope.provider?.sha256 ?? '',
+      );
       const raw = await readCreation();
       const creation = decodeEvidenceObject(raw);
       if (
@@ -14071,7 +14100,7 @@ async function joinOriginalXcshCreationBody(input) {
       await readCreation();
       await context.assertInputs();
       await context.assertWithinDeadline();
-      return { planSha256: scope.planSha256, identity: hash20(system.uid) };
+      return { planSha256: scope.planSha256, identity: hash20(system.uid), providerProfile };
     } catch (error) {
       refused = true;
       throw error;
@@ -14092,6 +14121,7 @@ async function joinOriginalXcshCreationBody(input) {
     bootstrapOwnershipQualified: false,
   });
   contexts.set(evidence, context);
+  providerProfiles.set(evidence, original.providerProfile);
   issued3.set(evidence, async () => {
     await verify();
     return body;
@@ -14106,6 +14136,12 @@ async function readOriginalXcshCreationBody(evidence) {
 async function assertOriginalXcshCreationBodyContext(evidence, context) {
   if (contexts.get(evidence) !== context) throw new Error('Original creation body context required');
   await readOriginalXcshCreationBody(evidence);
+}
+async function readOriginalXcshCreationBodyProviderProfile(evidence) {
+  await readOriginalXcshCreationBody(evidence);
+  const profile = providerProfiles.get(evidence);
+  if (!profile) throw new Error('Original creation provider profile required');
+  return profile;
 }
 
 // plugins/terraform/src/gcp-preapply-bootstrap.ts
@@ -14175,12 +14211,16 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
     await readOriginalXcshCreationBody(token);
     return bootstrap;
   };
+  const siteProfile = await readOriginalXcshCreationBodyProviderProfile(site);
+  const tokenProfile = await readOriginalXcshCreationBodyProviderProfile(token);
+  if (siteProfile !== tokenProfile) throw new Error('Original Site and Token provider profiles differ');
   const bootstrap = await verify();
   const value = Object.freeze({
-    schemaVersion: 4,
+    ...(siteProfile.xcshVersion === '15.17.6'
+      ? { schemaVersion: 5, xcshProviderVersion: '15.17.6' }
+      : { schemaVersion: 4, xcshProviderVersion: '15.17.3' }),
     executor: site.executor,
     kind: 'original-gcp-preapply-bootstrap-candidate',
-    xcshProviderVersion: '15.17.3',
     planSha256: site.planSha256,
     readerRequestSha256: site.readerRequestSha256,
     siteReaderEvidenceSha256: site.readerResultSha256,
@@ -16049,7 +16089,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
     inputs.terraform?.sha256 ?? '',
     googleBindings[0][1].sha256,
   );
-  const windowVersion = ['8.10.0', '8.11.0'].includes(versionProfile.googleVersion) ? 4 : 3;
+  const windowVersion = ['8.10.0', '8.11.0', '8.12.0'].includes(versionProfile.googleVersion) ? 4 : 3;
   const windowKind =
     windowVersion === 4 ? 'original-provider-stderr-verified-window' : 'original-provider-stderr-coherent-window';
   const script = inputs['script:gcp_provider_reader.py'];
@@ -18748,6 +18788,7 @@ export {
   collectOriginalGcpPreapplyBootstrap,
   collectOriginalGcpTerraformBootstrap,
   collectOriginalGcpTerraformBootstrapV2,
+  collectOriginalGcpTerraformBootstrapV3,
   compileOriginalGcpCeTrustMaterial,
   compileOriginalGcpObserverTrustMaterial,
   factory as default,
@@ -18811,5 +18852,6 @@ export {
   readOriginalQualifiedGcpCeObserverScanContext,
   readOriginalTerraformApplyHookSource,
   readOriginalXcshCreationBody,
+  readOriginalXcshCreationBodyProviderProfile,
   TerraformApplyHookParser,
 };

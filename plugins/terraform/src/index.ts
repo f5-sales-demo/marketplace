@@ -1,6 +1,8 @@
 export {
   collectOriginalGcpTerraformBootstrap,
   collectOriginalGcpTerraformBootstrapV2,
+  collectOriginalGcpTerraformBootstrapV3,
+  type OriginalGcpTerraformBootstrapEvidenceV3,
   readOriginalGcpTerraformBootstrapJwt,
 } from './gcp-bootstrap-evidence';
 export { joinOriginalGcpBootstrapVm } from './gcp-bootstrap-vm-binding';
@@ -8,6 +10,7 @@ export { assertOriginalInstalledGcpCloudReader, openGcpCloudSerialReader } from 
 export {
   assertOriginalGcpPreapplyBootstrapContext,
   collectOriginalGcpPreapplyBootstrap,
+  type OriginalGcpPreapplyBootstrapEvidence,
   readOriginalGcpPreapplyBootstrapJwt,
 } from './gcp-preapply-bootstrap';
 export { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
@@ -21,7 +24,11 @@ export {
   prepareOriginalGcpInventoryScope,
 } from './original-gcp-inventory-scope';
 export { publishOriginalGcpBootstrapGrant } from './prepared-creation-scope';
-export { joinOriginalXcshCreationBody, readOriginalXcshCreationBody } from './xcsh-creation-body';
+export {
+  joinOriginalXcshCreationBody,
+  readOriginalXcshCreationBody,
+  readOriginalXcshCreationBodyProviderProfile,
+} from './xcsh-creation-body';
 
 import type { CeEventBus } from '../../platform/src/ce/service';
 import { bindOriginalGcpCampaignAccess, prepareOriginalGcpCampaignAccess } from './gcp-campaign-access';

@@ -91,6 +91,7 @@ async function scoped(
   includeSite = false,
   pendingTokens = 0,
   consume = false,
+  providerVersion: '15.17.3' | '15.17.6' = '15.17.3',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'xcsh-bridge-fixture-'));
   const deployment: Deployment = {
@@ -146,13 +147,15 @@ async function scoped(
         };
         const providerDirectory = join(
           request.cwd,
-          '.terraform/providers/registry.terraform.io/f5-sales-demo/xcsh/15.17.3/linux_amd64',
+          `.terraform/providers/registry.terraform.io/f5-sales-demo/xcsh/${providerVersion}/linux_amd64`,
         );
         await mkdir(providerDirectory, { recursive: true, mode: 0o700 });
-        const ownedProvider = join(providerDirectory, 'terraform-provider-xcsh_v15.17.3');
+        const ownedProvider = join(providerDirectory, `terraform-provider-xcsh_v${providerVersion}`);
         const provider = await fakeBinding(
           ownedProvider,
-          '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0',
+          providerVersion === '15.17.6'
+            ? '3c38dd6ceba946a199970effa34ce0bfcfd4348524b11ec51df3dd9124c5d65f'
+            : '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0',
         );
         const started = linuxMonotonicMs();
         const context = createInstalledCaptureContext({
@@ -179,7 +182,7 @@ async function scoped(
           assertInputs: async () => {},
           assertWithinDeadline: async () => {},
           readProviderInputs: async () => ({
-            'registry.terraform.io/f5-sales-demo/xcsh:terraform-provider-xcsh_v15.17.3': provider,
+            [`registry.terraform.io/f5-sales-demo/xcsh:terraform-provider-xcsh_v${providerVersion}`]: provider,
           }),
           readOriginalPlanSource: () =>
             readOriginalTerraformPlanSource(request.originalPlanSource, {
@@ -647,274 +650,290 @@ test('a fresh authenticated body cannot replace the original creation UID', asyn
   });
 });
 
-for (const finalWriteFailure of [false, true]) {
-  test(`preapply bootstrap original checkout and source retirement (final write failure: ${finalWriteFailure})`, async () => {
-    await scoped(async (context, admission, packet) => {
-      const module = await import('../src/gcp-preapply-bootstrap');
-      const bodyModule = await import('../src/xcsh-creation-body');
-      const uids = { site: 'synthetic-original-site-uid', token: 'synthetic-original-token-uid' };
-      const reader = await (await bridge()).openInstalledXcshCreationReader(context, admission, packet, {
-        executorFactory: fakeExecutor((value) => {
-          const receipt = (value.receipts as Record<string, unknown>[])[0];
-          value.targetCount = 2;
-          value.receipts = [
-            {
-              ...receipt,
-              target: { type_name: 'xcsh_securemesh_site_v2', name: 'example-site', namespace: 'system' },
-              nonce: 'a'.repeat(32),
-              creation_identity_sha256: sha(Buffer.from(uids.site)),
-            },
-            {
-              ...receipt,
-              target: { type_name: 'xcsh_token', name: 'example-token', namespace: 'system' },
-              nonce: 'b'.repeat(32),
-              creation_identity_sha256: sha(Buffer.from(uids.token)),
-            },
-          ];
-        }),
-      });
-      await reader.ready;
-      const result = await reader.completed;
-      const storeRoot = await mkdtemp(join(tmpdir(), 'preapply-bootstrap-'));
-      try {
-        const store = await CeDeploymentStore.open(storeRoot, context.owner);
-        const capture = await openGcpLifecycleHttpCapture(store, context.assertInputs, {
-          siteNames: ['example-site'],
-          tokenNames: ['example-token'],
-        });
-        const labels = { 'xcsh-deployment': context.owner.deploymentId, 'xcsh-engine': 'terraform' };
-        const jwt = [
-          Buffer.from('{}').toString('base64url'),
-          Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'),
-          Buffer.from('synthetic-signature').toString('base64url'),
-        ].join('.');
-        const siteValue = {
-          metadata: {
-            name: 'example-site',
-            namespace: 'system',
-            labels: { ...labels, 'ves.io/provider': 'ves-io-GOOGLE' },
-          },
-          system_metadata: { uid: uids.site },
-          spec: { gcp: { not_managed: { node_list: [] } } },
-        };
-        const tokenValue = {
-          metadata: { name: 'example-token', namespace: 'system', labels: { ...labels, 'xcsh-node': 'example-node' } },
-          system_metadata: { uid: uids.token },
-          spec: { site_name: 'example-site', type: 1, content: jwt },
-        };
-        const port = createGcpLifecycleHttpPort(
-          context.environment.XCSH_API_URL,
-          context.environment.XCSH_API_TOKEN,
-          async (url) => Response.json(String(url).includes('/tokens/') ? tokenValue : siteValue),
-          capture,
-        );
-        const siteResponse = await port.read('/api/config/namespaces/system/securemesh_site_v2s/example-site');
-        const tokenResponse = await port.read('/api/register/namespaces/system/tokens/example-token');
-        if (!siteResponse || !tokenResponse) throw new Error('Original fixture response missing');
-        const site = await bodyModule.joinOriginalXcshCreationBody({
-          context,
-          packet,
-          result,
-          platform: originalGcpBootstrapSource,
-          body: await capture.read(capture.evidenceFor(siteResponse)),
-          target: { type_name: 'xcsh_securemesh_site_v2', name: 'example-site', namespace: 'system' },
-        });
-        const token = await bodyModule.joinOriginalXcshCreationBody({
-          context,
-          packet,
-          result,
-          platform: originalGcpBootstrapSource,
-          body: await capture.read(capture.evidenceFor(tokenResponse)),
-          target: { type_name: 'xcsh_token', name: 'example-token', namespace: 'system' },
-        });
-        const input = {
-          site,
-          token,
-          platform: originalGcpBootstrapSource,
-          binding: {
-            owner: context.owner,
-            deploymentName: context.owner.deploymentId,
-            siteName: 'example-site',
-            nodeName: 'example-node',
-            tokenName: 'example-token',
-          },
-        };
-        const value = await module.collectOriginalGcpPreapplyBootstrap(input);
-        await module.assertOriginalGcpPreapplyBootstrapContext(value, context);
-        await expect(module.assertOriginalGcpPreapplyBootstrapContext(value, { ...context })).rejects.toThrow(
-          'Original',
-        );
-        await expect(module.assertOriginalGcpPreapplyBootstrapContext({ ...value }, context)).rejects.toThrow(
-          'Original',
-        );
-        expect(value.schemaVersion).toBe(4);
-        expect(value.xcshProviderVersion).toBe('15.17.3');
-        expect(value.bootstrapOwnershipQualified).toBe(false);
-        expect(JSON.stringify(value)).not.toContain(jwt);
-        expect(await module.readOriginalGcpPreapplyBootstrapJwt(value)).toBe(jwt);
-        await expect(module.readOriginalGcpPreapplyBootstrapJwt({ ...value })).rejects.toThrow('Original');
-        for (const foreign of [
-          { ...input, site: { ...site } },
-          { ...input, token: { ...token } },
-          { ...input, binding: { ...input.binding, nodeName: 'foreign-node' } },
-          { ...input, binding: { ...input.binding, owner: { ...context.owner, engine: 'native' as const } } },
-        ])
-          await expect(module.collectOriginalGcpPreapplyBootstrap(foreign)).rejects.toThrow();
-        const vmModule = await import('../src/gcp-bootstrap-vm-binding');
-        const { auditJoinFixture } = await import('./fixtures/gcp-insert.fixture');
-        const { formatGcpUserData } = await import('../../gcloud/src/ce/bootstrap');
-        const request = {
-          name: 'example-node',
-          canIpForward: true,
-          deletionProtection: false,
-          machineType: 'projects/example-project/zones/us-central1-a/machineTypes/e2-standard-8',
-          labels: {
-            'xcsh-deployment': context.owner.deploymentId,
-            'xcsh-engine': 'terraform',
-            'xcsh-site': 'example-site',
-            'xcsh-node': 'example-node',
-          },
-          metadata: {
-            items: [
-              { key: 'VmDnsSetting', value: 'ZonePreferred' },
-              { key: 'user-data', value: formatGcpUserData({ ...value.bootstrap, jwt }) },
-            ],
-          },
-          networkInterfaces: [
-            {
-              network: 'projects/example-project/global/networks/example-outside',
-              subnetwork: 'projects/example-project/regions/us-central1/subnetworks/example-outside',
-            },
-            {
-              network: 'projects/example-project/global/networks/example-inside',
-              subnetwork: 'projects/example-project/regions/us-central1/subnetworks/example-inside',
-            },
-          ],
-          disks: [{ boot: true, autoDelete: true, initializeParams: { sourceImage: 'example-reviewed-image' } }],
-        };
-        const version = {
-          terraformVersion: '1.17.2',
-          providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
-        };
-        const cloud = await auditJoinFixture(undefined, version, '8.11.0', request, value.planSha256);
-        const bound = await vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: value, cloud });
-        expect(bound.bootstrapCorroborated).toBe(true);
-        expect(bound.originalInsertQualified).toBe(false);
-        expect(bound.interfaces).toHaveLength(2);
-        for (const material of [
-          request.metadata.items[1].value.replace(jwt, 'foreignheader.foreignpayload.foreignsignature'),
-          `${request.metadata.items[1].value}runcmd:\n  - echo forbidden\n`,
-        ]) {
-          const changed = {
-            ...request,
-            metadata: { items: [request.metadata.items[0], { key: 'user-data', value: material }] },
-          };
-          const foreign = await auditJoinFixture(undefined, version, '8.11.0', changed, value.planSha256);
-          await expect(
-            vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: value, cloud: foreign }),
-          ).rejects.toThrow();
-        }
-        const wrongPlan = await auditJoinFixture(undefined, version, '8.11.0', request, 'a'.repeat(64));
-        await expect(
-          vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: value, cloud: wrongPlan }),
-        ).rejects.toThrow('scope');
-
-        expect(JSON.stringify(bound)).not.toContain(jwt);
-        await expect(
-          vmModule.joinOriginalGcpBootstrapVm({ context: { ...context }, bootstrap: value, cloud }),
-        ).rejects.toThrow('Original');
-        await expect(vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: { ...value }, cloud })).rejects.toThrow(
-          'Original',
-        );
-        const checkout = await import('../src/gcp-preapply-checkout');
-        if (finalWriteFailure) {
-          const originalWrite = store.write.bind(store);
-          store.write = async (name, record) => {
-            if (name.startsWith('gcp-preapply-bootstrap-') && (record as { state: string }).state === 'consumed')
-              throw new Error('fixture final checkpoint failed');
-            return originalWrite(name, record);
-          };
+for (const providerVersion of ['15.17.3', '15.17.6'] as const) {
+  for (const finalWriteFailure of [false, true]) {
+    test(`preapply bootstrap original checkout and source retirement (provider: ${providerVersion}, final write failure: ${finalWriteFailure})`, async () => {
+      await scoped(
+        async (context, admission, packet) => {
+          const module = await import('../src/gcp-preapply-bootstrap');
+          const bodyModule = await import('../src/xcsh-creation-body');
+          const uids = { site: 'synthetic-original-site-uid', token: 'synthetic-original-token-uid' };
+          const reader = await (await bridge()).openInstalledXcshCreationReader(context, admission, packet, {
+            executorFactory: fakeExecutor((value) => {
+              const receipt = (value.receipts as Record<string, unknown>[])[0];
+              value.targetCount = 2;
+              value.receipts = [
+                {
+                  ...receipt,
+                  target: { type_name: 'xcsh_securemesh_site_v2', name: 'example-site', namespace: 'system' },
+                  nonce: 'a'.repeat(32),
+                  creation_identity_sha256: sha(Buffer.from(uids.site)),
+                },
+                {
+                  ...receipt,
+                  target: { type_name: 'xcsh_token', name: 'example-token', namespace: 'system' },
+                  nonce: 'b'.repeat(32),
+                  creation_identity_sha256: sha(Buffer.from(uids.token)),
+                },
+              ];
+            }),
+          });
+          await reader.ready;
+          const result = await reader.completed;
+          const storeRoot = await mkdtemp(join(tmpdir(), 'preapply-bootstrap-'));
           try {
-            await expect(checkout.checkoutOriginalGcpPreapplyBootstrap(value, store)).rejects.toThrow(
-              'checkpoint failed',
+            const store = await CeDeploymentStore.open(storeRoot, context.owner);
+            const capture = await openGcpLifecycleHttpCapture(store, context.assertInputs, {
+              siteNames: ['example-site'],
+              tokenNames: ['example-token'],
+            });
+            const labels = { 'xcsh-deployment': context.owner.deploymentId, 'xcsh-engine': 'terraform' };
+            const jwt = [
+              Buffer.from('{}').toString('base64url'),
+              Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'),
+              Buffer.from('synthetic-signature').toString('base64url'),
+            ].join('.');
+            const siteValue = {
+              metadata: {
+                name: 'example-site',
+                namespace: 'system',
+                labels: { ...labels, 'ves.io/provider': 'ves-io-GOOGLE' },
+              },
+              system_metadata: { uid: uids.site },
+              spec: { gcp: { not_managed: { node_list: [] } } },
+            };
+            const tokenValue = {
+              metadata: {
+                name: 'example-token',
+                namespace: 'system',
+                labels: { ...labels, 'xcsh-node': 'example-node' },
+              },
+              system_metadata: { uid: uids.token },
+              spec: { site_name: 'example-site', type: 1, content: jwt },
+            };
+            const port = createGcpLifecycleHttpPort(
+              context.environment.XCSH_API_URL,
+              context.environment.XCSH_API_TOKEN,
+              async (url) => Response.json(String(url).includes('/tokens/') ? tokenValue : siteValue),
+              capture,
             );
+            const siteResponse = await port.read('/api/config/namespaces/system/securemesh_site_v2s/example-site');
+            const tokenResponse = await port.read('/api/register/namespaces/system/tokens/example-token');
+            if (!siteResponse || !tokenResponse) throw new Error('Original fixture response missing');
+            const site = await bodyModule.joinOriginalXcshCreationBody({
+              context,
+              packet,
+              result,
+              platform: originalGcpBootstrapSource,
+              body: await capture.read(capture.evidenceFor(siteResponse)),
+              target: { type_name: 'xcsh_securemesh_site_v2', name: 'example-site', namespace: 'system' },
+            });
+            const token = await bodyModule.joinOriginalXcshCreationBody({
+              context,
+              packet,
+              result,
+              platform: originalGcpBootstrapSource,
+              body: await capture.read(capture.evidenceFor(tokenResponse)),
+              target: { type_name: 'xcsh_token', name: 'example-token', namespace: 'system' },
+            });
+            const input = {
+              site,
+              token,
+              platform: originalGcpBootstrapSource,
+              binding: {
+                owner: context.owner,
+                deploymentName: context.owner.deploymentId,
+                siteName: 'example-site',
+                nodeName: 'example-node',
+                tokenName: 'example-token',
+              },
+            };
+            const value = await module.collectOriginalGcpPreapplyBootstrap(input);
+            await module.assertOriginalGcpPreapplyBootstrapContext(value, context);
+            await expect(module.assertOriginalGcpPreapplyBootstrapContext(value, { ...context })).rejects.toThrow(
+              'Original',
+            );
+            await expect(module.assertOriginalGcpPreapplyBootstrapContext({ ...value }, context)).rejects.toThrow(
+              'Original',
+            );
+            expect(value.schemaVersion).toBe(providerVersion === '15.17.6' ? 5 : 4);
+            expect(value.xcshProviderVersion).toBe(providerVersion);
+            expect(value.bootstrapOwnershipQualified).toBe(false);
+            expect(JSON.stringify(value)).not.toContain(jwt);
+            expect(await module.readOriginalGcpPreapplyBootstrapJwt(value)).toBe(jwt);
+            await expect(module.readOriginalGcpPreapplyBootstrapJwt({ ...value })).rejects.toThrow('Original');
+            for (const foreign of [
+              { ...input, site: { ...site } },
+              { ...input, token: { ...token } },
+              { ...input, binding: { ...input.binding, nodeName: 'foreign-node' } },
+              { ...input, binding: { ...input.binding, owner: { ...context.owner, engine: 'native' as const } } },
+            ])
+              await expect(module.collectOriginalGcpPreapplyBootstrap(foreign)).rejects.toThrow();
+            const vmModule = await import('../src/gcp-bootstrap-vm-binding');
+            const { auditJoinFixture } = await import('./fixtures/gcp-insert.fixture');
+            const { formatGcpUserData } = await import('../../gcloud/src/ce/bootstrap');
+            const request = {
+              name: 'example-node',
+              canIpForward: true,
+              deletionProtection: false,
+              machineType: 'projects/example-project/zones/us-central1-a/machineTypes/e2-standard-8',
+              labels: {
+                'xcsh-deployment': context.owner.deploymentId,
+                'xcsh-engine': 'terraform',
+                'xcsh-site': 'example-site',
+                'xcsh-node': 'example-node',
+              },
+              metadata: {
+                items: [
+                  { key: 'VmDnsSetting', value: 'ZonePreferred' },
+                  { key: 'user-data', value: formatGcpUserData({ ...value.bootstrap, jwt }) },
+                ],
+              },
+              networkInterfaces: [
+                {
+                  network: 'projects/example-project/global/networks/example-outside',
+                  subnetwork: 'projects/example-project/regions/us-central1/subnetworks/example-outside',
+                },
+                {
+                  network: 'projects/example-project/global/networks/example-inside',
+                  subnetwork: 'projects/example-project/regions/us-central1/subnetworks/example-inside',
+                },
+              ],
+              disks: [{ boot: true, autoDelete: true, initializeParams: { sourceImage: 'example-reviewed-image' } }],
+            };
+            const version = {
+              terraformVersion: '1.17.2',
+              providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+            };
+            const cloud = await auditJoinFixture(undefined, version, '8.11.0', request, value.planSha256);
+            const bound = await vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: value, cloud });
+            expect(bound.bootstrapCorroborated).toBe(true);
+            expect(bound.originalInsertQualified).toBe(false);
+            expect(bound.interfaces).toHaveLength(2);
+            for (const material of [
+              request.metadata.items[1].value.replace(jwt, 'foreignheader.foreignpayload.foreignsignature'),
+              `${request.metadata.items[1].value}runcmd:\n  - echo forbidden\n`,
+            ]) {
+              const changed = {
+                ...request,
+                metadata: { items: [request.metadata.items[0], { key: 'user-data', value: material }] },
+              };
+              const foreign = await auditJoinFixture(undefined, version, '8.11.0', changed, value.planSha256);
+              await expect(
+                vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: value, cloud: foreign }),
+              ).rejects.toThrow();
+            }
+            const wrongPlan = await auditJoinFixture(undefined, version, '8.11.0', request, 'a'.repeat(64));
+            await expect(
+              vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: value, cloud: wrongPlan }),
+            ).rejects.toThrow('scope');
+
+            expect(JSON.stringify(bound)).not.toContain(jwt);
+            await expect(
+              vmModule.joinOriginalGcpBootstrapVm({ context: { ...context }, bootstrap: value, cloud }),
+            ).rejects.toThrow('Original');
+            await expect(
+              vmModule.joinOriginalGcpBootstrapVm({ context, bootstrap: { ...value }, cloud }),
+            ).rejects.toThrow('Original');
+            const checkout = await import('../src/gcp-preapply-checkout');
+            if (finalWriteFailure) {
+              const originalWrite = store.write.bind(store);
+              store.write = async (name, record) => {
+                if (name.startsWith('gcp-preapply-bootstrap-') && (record as { state: string }).state === 'consumed')
+                  throw new Error('fixture final checkpoint failed');
+                return originalWrite(name, record);
+              };
+              try {
+                await expect(checkout.checkoutOriginalGcpPreapplyBootstrap(value, store)).rejects.toThrow(
+                  'checkpoint failed',
+                );
+              } finally {
+                store.write = originalWrite;
+              }
+              expect(
+                ((await store.read('gcp-bootstrap-example-node.json')) as { state: string; jwt: string }).jwt,
+              ).toBe('');
+              expect(((await store.read('gcp-preapply-bootstrap-example-node.json')) as { state: string }).state).toBe(
+                'claiming',
+              );
+              await expect(checkout.checkoutOriginalGcpPreapplyBootstrap(value, store)).rejects.toThrow('claimed');
+            } else {
+              const outcomes = await Promise.allSettled([
+                checkout.checkoutOriginalGcpPreapplyBootstrap(value, store),
+                checkout.checkoutOriginalGcpPreapplyBootstrap(value, store),
+              ]);
+              const successful = outcomes.filter((result) => result.status === 'fulfilled');
+              expect(successful).toHaveLength(1);
+              if (successful[0].status !== 'fulfilled') throw new Error('Original checkout did not complete');
+              expect(successful[0].value).toContain(jwt);
+              expect(
+                ((await store.read('gcp-bootstrap-example-node.json')) as { state: string; jwt: string }).jwt,
+              ).toBe('');
+              const resumed = await CeDeploymentStore.open(storeRoot, context.owner);
+              await expect(checkout.checkoutOriginalGcpPreapplyBootstrap(value, resumed)).rejects.toThrow('claimed');
+              await expect(checkout.checkoutOriginalGcpPreapplyBootstrap({ ...value }, store)).rejects.toThrow(
+                'Original',
+              );
+            }
+            const changes = [
+              { site: { ...siteValue, spec: { gcp: { managed: {} } } }, token: tokenValue },
+              {
+                site: {
+                  ...siteValue,
+                  metadata: { ...siteValue.metadata, labels: { ...siteValue.metadata.labels, foreign: 'owner' } },
+                },
+                token: tokenValue,
+              },
+              { site: siteValue, token: { ...tokenValue, spec: { ...tokenValue.spec, site_name: 'foreign-site' } } },
+              { site: siteValue, token: { ...tokenValue, spec: { ...tokenValue.spec, type: 2 } } },
+            ];
+            for (const change of changes) {
+              const changedPort = createGcpLifecycleHttpPort(
+                context.environment.XCSH_API_URL,
+                context.environment.XCSH_API_TOKEN,
+                async (url) => Response.json(String(url).includes('/tokens/') ? change.token : change.site),
+                capture,
+              );
+              const currentSite = await changedPort.read(
+                '/api/config/namespaces/system/securemesh_site_v2s/example-site',
+              );
+              const currentToken = await changedPort.read('/api/register/namespaces/system/tokens/example-token');
+              if (!currentSite || !currentToken) throw new Error('Original fixture response missing');
+              const changedSite = await bodyModule.joinOriginalXcshCreationBody({
+                context,
+                packet,
+                result,
+                platform: originalGcpBootstrapSource,
+                body: await capture.read(capture.evidenceFor(currentSite)),
+                target: { type_name: 'xcsh_securemesh_site_v2', name: 'example-site', namespace: 'system' },
+              });
+              const changedToken = await bodyModule.joinOriginalXcshCreationBody({
+                context,
+                packet,
+                result,
+                platform: originalGcpBootstrapSource,
+                body: await capture.read(capture.evidenceFor(currentToken)),
+                target: { type_name: 'xcsh_token', name: 'example-token', namespace: 'system' },
+              });
+              await expect(
+                module.collectOriginalGcpPreapplyBootstrap({ ...input, site: changedSite, token: changedToken }),
+              ).rejects.toThrow();
+            }
+            await reader.closeAfterExecutorExit();
+            await expect(module.readOriginalGcpPreapplyBootstrapJwt(value)).rejects.toThrow();
           } finally {
-            store.write = originalWrite;
+            // A second successful close is idempotent for this source reader.
+            await reader.closeAfterExecutorExit();
+            await rm(storeRoot, { recursive: true });
           }
-          expect(((await store.read('gcp-bootstrap-example-node.json')) as { state: string; jwt: string }).jwt).toBe(
-            '',
-          );
-          expect(((await store.read('gcp-preapply-bootstrap-example-node.json')) as { state: string }).state).toBe(
-            'claiming',
-          );
-          await expect(checkout.checkoutOriginalGcpPreapplyBootstrap(value, store)).rejects.toThrow('claimed');
-        } else {
-          const outcomes = await Promise.allSettled([
-            checkout.checkoutOriginalGcpPreapplyBootstrap(value, store),
-            checkout.checkoutOriginalGcpPreapplyBootstrap(value, store),
-          ]);
-          const successful = outcomes.filter((result) => result.status === 'fulfilled');
-          expect(successful).toHaveLength(1);
-          if (successful[0].status !== 'fulfilled') throw new Error('Original checkout did not complete');
-          expect(successful[0].value).toContain(jwt);
-          expect(((await store.read('gcp-bootstrap-example-node.json')) as { state: string; jwt: string }).jwt).toBe(
-            '',
-          );
-          const resumed = await CeDeploymentStore.open(storeRoot, context.owner);
-          await expect(checkout.checkoutOriginalGcpPreapplyBootstrap(value, resumed)).rejects.toThrow('claimed');
-          await expect(checkout.checkoutOriginalGcpPreapplyBootstrap({ ...value }, store)).rejects.toThrow('Original');
-        }
-        const changes = [
-          { site: { ...siteValue, spec: { gcp: { managed: {} } } }, token: tokenValue },
-          {
-            site: {
-              ...siteValue,
-              metadata: { ...siteValue.metadata, labels: { ...siteValue.metadata.labels, foreign: 'owner' } },
-            },
-            token: tokenValue,
-          },
-          { site: siteValue, token: { ...tokenValue, spec: { ...tokenValue.spec, site_name: 'foreign-site' } } },
-          { site: siteValue, token: { ...tokenValue, spec: { ...tokenValue.spec, type: 2 } } },
-        ];
-        for (const change of changes) {
-          const changedPort = createGcpLifecycleHttpPort(
-            context.environment.XCSH_API_URL,
-            context.environment.XCSH_API_TOKEN,
-            async (url) => Response.json(String(url).includes('/tokens/') ? change.token : change.site),
-            capture,
-          );
-          const currentSite = await changedPort.read('/api/config/namespaces/system/securemesh_site_v2s/example-site');
-          const currentToken = await changedPort.read('/api/register/namespaces/system/tokens/example-token');
-          if (!currentSite || !currentToken) throw new Error('Original fixture response missing');
-          const changedSite = await bodyModule.joinOriginalXcshCreationBody({
-            context,
-            packet,
-            result,
-            platform: originalGcpBootstrapSource,
-            body: await capture.read(capture.evidenceFor(currentSite)),
-            target: { type_name: 'xcsh_securemesh_site_v2', name: 'example-site', namespace: 'system' },
-          });
-          const changedToken = await bodyModule.joinOriginalXcshCreationBody({
-            context,
-            packet,
-            result,
-            platform: originalGcpBootstrapSource,
-            body: await capture.read(capture.evidenceFor(currentToken)),
-            target: { type_name: 'xcsh_token', name: 'example-token', namespace: 'system' },
-          });
-          await expect(
-            module.collectOriginalGcpPreapplyBootstrap({ ...input, site: changedSite, token: changedToken }),
-          ).rejects.toThrow();
-        }
-        await reader.closeAfterExecutorExit();
-        await expect(module.readOriginalGcpPreapplyBootstrapJwt(value)).rejects.toThrow();
-      } finally {
-        // A second successful close is idempotent for this source reader.
-        await reader.closeAfterExecutorExit();
-        await rm(storeRoot, { recursive: true });
-      }
-    }, true);
-  });
+        },
+        true,
+        0,
+        false,
+        providerVersion,
+      );
+    });
+  }
 }
 
 function earlyTargetPath(directory: string, target: Record<string, string>) {

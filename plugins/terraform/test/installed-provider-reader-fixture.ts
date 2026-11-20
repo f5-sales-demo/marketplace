@@ -17,21 +17,24 @@ afterEach(async () => {
 export const parent = { pid: 1234, group: 1234, start: '100', boot: '00000000-0000-4000-8000-000000000001' };
 export const sdk = { pid: 2345, group: 2345, start: '101', boot: parent.boot };
 export const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-export async function fixture(latest: boolean | '811' | '1172' = false, executorIdentity = parent) {
+export async function fixture(latest: boolean | '811' | '1172' | '812' = false, executorIdentity = parent) {
   const parent = executorIdentity;
   const terraformHash =
-    latest === '1172'
+    latest === '1172' || latest === '812'
       ? 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e'
       : latest
         ? '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc'
         : pins.terraformSha256;
   const googleHash =
-    latest === '811' || latest === '1172'
-      ? 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5'
-      : latest
-        ? 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9'
-        : pins.googleProviderSha256;
-  const googleVersion = latest === '811' || latest === '1172' ? '8.11.0' : latest ? '8.10.0' : '8.7.0';
+    latest === '812'
+      ? '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0'
+      : latest === '811' || latest === '1172'
+        ? 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5'
+        : latest
+          ? 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9'
+          : pins.googleProviderSha256;
+  const googleVersion =
+    latest === '812' ? '8.12.0' : latest === '811' || latest === '1172' ? '8.11.0' : latest ? '8.10.0' : '8.7.0';
 
   const root = await mkdtemp(join(tmpdir(), 'ce-installed-provider-'));
   roots.push(root);

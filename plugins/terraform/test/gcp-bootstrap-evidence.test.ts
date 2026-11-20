@@ -11,6 +11,7 @@ import { openGcpLifecycleHttpCapture } from '../../platform/src/ce/gcp-http-capt
 import {
   collectOriginalGcpTerraformBootstrap,
   collectOriginalGcpTerraformBootstrapV2,
+  collectOriginalGcpTerraformBootstrapV3,
   readOriginalGcpTerraformBootstrapJwt,
 } from '../src/gcp-bootstrap-evidence';
 import type { AppliedResourceProjection, PlanReceipt } from '../src/runner';
@@ -359,4 +360,17 @@ it('version 2 rejects legacy profiles and changing applied state without migrati
     },
   };
   await expect(collectOriginalGcpTerraformBootstrapV2({ ...latest.input, reader })).rejects.toThrow('state changed');
+});
+
+it('current XC15.17.6 bootstrap collection uses schema3 and preserves historical mapping refusal', async () => {
+  const run = await fixture();
+  run.input.terraformVersion = '1.17.2';
+  run.input.receipt.providerLockSha256 = 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5';
+  const value = await collectOriginalGcpTerraformBootstrapV3(run.input);
+  expect(value.schemaVersion).toBe(3);
+  expect(value.xcshProviderVersion).toBe('15.17.6');
+  expect(value.bootstrapOwnershipQualified).toBe(false);
+  expect(await readOriginalGcpTerraformBootstrapJwt(value)).toBe(run.jwt);
+  await expect(readOriginalGcpTerraformBootstrapJwt({ ...value })).rejects.toThrow('Original');
+  await expect(collectOriginalGcpTerraformBootstrapV2(run.input)).rejects.toThrow('mapping');
 });

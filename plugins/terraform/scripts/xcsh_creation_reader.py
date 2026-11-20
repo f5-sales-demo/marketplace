@@ -42,6 +42,27 @@ PINS = {
     "terraform": "dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e",
     "xcsh": "542d99d1905fe03fadce8a889390751b3ad1531f367ef678cf03d97204ef7cc1",
 }
+XCSH15173_PINS = {
+    **PINS,
+    "xcsh": "89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0",
+}
+XCSH15176_PINS = {
+    **PINS,
+    "xcsh": "3c38dd6ceba946a199970effa34ce0bfcfd4348524b11ec51df3dd9124c5d65f",
+}
+
+
+def select_xcsh_pins(executables: dict[str, dict[str, str]]) -> dict[str, str]:
+    """Keep original exact pairs; unknown or mixed executable inputs refuse."""
+    for profile in (PINS, XCSH15173_PINS, XCSH15176_PINS):
+        if all(
+            executables.get(role, {}).get("sha256") == digest
+            for role, digest in profile.items()
+        ):
+            return profile
+    return reject()
+
+
 SOURCE_NAMES = (
     "__init__.py",
     "guest_pty.py",
@@ -241,7 +262,8 @@ def validate_request(data: dict[str, Any], now: int) -> int:
     executables = data["executables"]
     if not isinstance(executables, dict) or set(executables) != set(PINS):
         reject()
-    for role, digest in PINS.items():
+    selected_pins = select_xcsh_pins(executables)
+    for role, digest in selected_pins.items():
         value = executables[role]
         if (
             not isinstance(value, dict)

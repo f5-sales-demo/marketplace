@@ -60,9 +60,21 @@ GOOGLE811_TERRAFORM1172_PINS = {
 }
 
 
+GOOGLE812_TERRAFORM1172_PINS = {
+    **GOOGLE811_TERRAFORM1172_PINS,
+    "provider": "97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0",
+}
+
+
 def select_provider_pins(executables: dict[str, dict[str, str]]) -> dict[str, str]:
     """Select the exact admitted pair; never migrate an original reader request."""
-    for profile in (PINS, LATEST_PINS, GOOGLE811_PINS, GOOGLE811_TERRAFORM1172_PINS):
+    for profile in (
+        PINS,
+        LATEST_PINS,
+        GOOGLE811_PINS,
+        GOOGLE811_TERRAFORM1172_PINS,
+        GOOGLE812_TERRAFORM1172_PINS,
+    ):
         if all(
             executables.get(role, {}).get("sha256") == digest
             for role, digest in profile.items()

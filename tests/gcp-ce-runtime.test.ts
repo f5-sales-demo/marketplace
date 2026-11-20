@@ -122,3 +122,14 @@ it('isolated installed GCloud tools expose deploy review and refuse unapproved o
     presence.mockRestore();
   }
 });
+
+it('isolated current Terraform bundle ships the current bootstrap evidence API and rejects copied bodies', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-current-runtime-'));
+  roots.push(root);
+  const runtime = join(root, 'terraform.js');
+  await copyFile(new URL('../plugins/terraform/runtime/index.js', import.meta.url), runtime);
+  const module = await import(runtime);
+  expect(typeof module.collectOriginalGcpTerraformBootstrapV3).toBe('function');
+  expect(typeof module.readOriginalXcshCreationBodyProviderProfile).toBe('function');
+  await expect(module.readOriginalXcshCreationBodyProviderProfile({})).rejects.toThrow('Original');
+});

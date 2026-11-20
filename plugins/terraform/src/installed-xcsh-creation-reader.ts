@@ -7,6 +7,7 @@ import sources from './gcp-capture-source-pins.json';
 import { freezeAdmittedCaptureInputs, type InstalledCaptureContext } from './installed-capture-context';
 import { readOwnedInstalledInput } from './installed-runtime';
 import pins from './installed-runtime-pins.json';
+import { resolveInstalledXcshCreationExecutableProfile } from './installed-version-profile';
 import { linuxMonotonicMs } from './linux-clock';
 import { assertSameOriginalInput, monitorOriginalInputs } from './original-input-monitor';
 import {
@@ -26,7 +27,6 @@ type Identity = ExecutionCaptureAdmission['identity'];
 type Json = Record<string, unknown>;
 const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
 const terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e';
-const providerHash = '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0';
 const origins = new WeakMap<object, () => Promise<Buffer>>();
 const openings = new WeakSet<object>();
 const targetOrigins = new WeakMap<object, () => Promise<Buffer>>();
@@ -146,11 +146,15 @@ export async function openInstalledXcshCreationReader(
     !scope.scopeFile ||
     !scope.directory ||
     !scope.resources.length ||
-    scope.provider.sha256 !== providerHash ||
     context.inputs.python?.sha256 !== pins.pythonSha256 ||
     context.inputs.terraform?.sha256 !== terraformHash
   )
     throw new Error('Qualified original xcsh creation scope and binaries required');
+  const providerProfile = resolveInstalledXcshCreationExecutableProfile(
+    context.inputs.terraform.sha256,
+    scope.provider.sha256,
+  );
+  const providerHash = providerProfile.xcProviderSha256;
   const scopeBinding = scope.scope;
   const inputs = freezeAdmittedCaptureInputs({
     ...context.inputs,
@@ -236,7 +240,7 @@ export async function openInstalledXcshCreationReader(
     executables: {
       bootstrap: { path: inputs.python.path, sha256: pins.pythonSha256 },
       terraform: { path: inputs.terraform.path, sha256: terraformHash },
-      xcsh: { path: scope.provider.path, sha256: providerHash },
+      xcsh: { path: scope.provider.path, sha256: providerProfile.xcProviderSha256 },
     },
     inputs,
     scope: {

@@ -109,12 +109,33 @@ export function resolveInstalledGcpExecutableProfile(
 
 /** Current source mapping only; this predicate grants no live execution acceptance.
  * Reference identity prevents a copied or mixed artifact tuple from entering it. */
-export function isOriginalCreationScopeProfile(profile: InstalledGcpVersionProfile): boolean {
-  return (
-    profile ===
-    resolveInstalledGcpVersionProfile({
-      terraformVersion: '1.17.2',
-      providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
-    })
+export type OriginalXcshCreationProfile = InstalledGcpVersionProfile & {
+  readonly xcshVersion: '15.17.3' | '15.17.6';
+};
+export function isOriginalCreationScopeProfile(
+  profile: InstalledGcpVersionProfile,
+): profile is OriginalXcshCreationProfile {
+  return [
+    'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+    'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+  ].some(
+    (providerLockSha256) =>
+      profile === resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256 }),
   );
+}
+
+/** Resolve only a source-owned original pair; no request can declare a version. */
+export function resolveInstalledXcshCreationExecutableProfile(
+  terraformSha256: string,
+  xcshSha256: string,
+): OriginalXcshCreationProfile {
+  const matching = profiles.filter(
+    (profile) =>
+      profile.terraformSha256 === terraformSha256 &&
+      profile.xcProviderSha256 === xcshSha256 &&
+      isOriginalCreationScopeProfile(profile),
+  );
+  if (matching.length !== 1 || !isOriginalCreationScopeProfile(matching[0]))
+    throw new Error('Original qualified XC creation executable pair required');
+  return matching[0];
 }

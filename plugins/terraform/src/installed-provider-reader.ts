@@ -188,7 +188,7 @@ export async function openInstalledProviderReader(
     inputs.terraform?.sha256 ?? '',
     googleBindings[0][1].sha256,
   );
-  const windowVersion = ['8.10.0', '8.11.0'].includes(versionProfile.googleVersion) ? 4 : 3;
+  const windowVersion = ['8.10.0', '8.11.0', '8.12.0'].includes(versionProfile.googleVersion) ? 4 : 3;
   const windowKind =
     windowVersion === 4 ? 'original-provider-stderr-verified-window' : 'original-provider-stderr-coherent-window';
   const script = inputs['script:gcp_provider_reader.py'];

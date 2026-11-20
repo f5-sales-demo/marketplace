@@ -2066,3 +2066,12 @@ failing-first fixes for the exact current provider tuple and request correlation
 The full 21-resource graph passes real provider schema validation and compiled
 checks. Public selection/admission and every positive guest, live lifecycle,
 networking, recovery, cleanup and publication gate remain open.
+
+### Current capture profile mapping, 2026-11-20
+
+The [capture mapping receipt](gcp-current-capture-profiles-20261120.md) records
+current executable selection, accurate provider attribution and versioned
+bootstrap evidence. Full family suites, types, native component, compiled and
+packaging checks pass. Public selection and live admission retain their hold;
+every original positive guest, lifecycle/network, traffic/recovery/restoration,
+independent cleanup and final publication/installation gate remains open.

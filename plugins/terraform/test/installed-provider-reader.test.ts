@@ -618,3 +618,22 @@ test('a terminal reader with no final capture cannot claim independent child clo
   await expect(reader.close()).rejects.toThrow('closure');
   expect(run.executions()).toBe(1);
 });
+
+test('current Google8.12 preserves the original stderr window schema and closure', async () => {
+  const run = await fixture('812');
+  const baseMono = run.clock();
+  const baseEpoch = Date.now();
+  const reader = await openInstalledProviderReader(run.context, run.admission, {
+    executorFactory: run.factory,
+    clock: run.clock,
+    epochClock: () => baseEpoch + run.clock() - baseMono,
+  });
+  const pending = reader.startStderrWindow();
+  await pending.ready;
+  run.releaseWindow();
+  const window = await pending.complete;
+  expect(window.schemaVersion).toBe(4);
+  await readOriginalInstalledProviderWindowClock(window);
+  await reader.close();
+  await expect(readOriginalInstalledProviderWindow(window)).rejects.toThrow('retired');
+});
