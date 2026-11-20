@@ -7,6 +7,7 @@ import {
 } from './observer-scope';
 import { assertGcpTerraformRequestReason, type GcpTerraformRequestReason } from './request-reason';
 import { assertGcpSiteAccessProfile } from './site-access';
+import { GCP_XCSH15176_OBSERVER_ARTIFACTS } from './terraform-public-artifacts';
 import { validateIntent } from './validation';
 
 export { GCP_TERRAFORM_OBSERVER_IMAGE, type GcpTerraformObserverScope } from './observer-scope';
@@ -25,11 +26,12 @@ export function translateGcpTerraformObserverSiteCompute(
   validateIntent(intent);
   if (intent.schemaVersion === 2 && fingerprint(observer) !== fingerprint(intent.observer))
     throw new Error('Original observer scope differs from its versioned intent');
-  if (
-    !['15.15.7', '15.16.2', '15.17.3'].some(
-      (xcsh) => fingerprint(versions) === fingerprint({ terraform: '1.17.2', google: '8.11.0', xcsh }),
-    )
-  )
+  // Configuration/schema mapping only. Public selection and live capture admission remain separate gates.
+  const tuples = [
+    ...['15.15.7', '15.16.2', '15.17.3'].map((xcsh) => ({ terraform: '1.17.2', google: '8.11.0', xcsh })),
+    GCP_XCSH15176_OBSERVER_ARTIFACTS.versions,
+  ];
+  if (!tuples.some((tuple) => fingerprint(versions) === fingerprint(tuple)))
     throw new Error('Qualified exact observer Terraform/provider tuple required');
   const ceIntent = structuredClone(intent);
   ceIntent.schemaVersion = 1;

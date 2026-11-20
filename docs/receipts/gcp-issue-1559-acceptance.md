@@ -2058,3 +2058,11 @@ types and compiled source checks pass. Historical locks and public admission
 holds remain preserved. This establishes artifact/schema preparation only.
 Original GCP guest/capture, V2/default factory, complete live behavior, independent
 cleanup, current CI/review and publication/installation gates remain open.
+
+### Current observer graph mapping, 2026-11-20
+
+The [observer mapping receipt](gcp-current-observer-graph-20261120.md) records
+failing-first fixes for the exact current provider tuple and request correlation.
+The full 21-resource graph passes real provider schema validation and compiled
+checks. Public selection/admission and every positive guest, live lifecycle,
+networking, recovery, cleanup and publication gate remain open.

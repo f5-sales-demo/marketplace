@@ -87,5 +87,5 @@ test('Google8.11 request-reason emits the exact schema-qualified original header
     { project: i.project, region: i.region, request_reason: reason.reason },
   ]);
   for (const version of ['8.7.0', '8.10.0']) assertGcpTerraformRequestReason(reason, i, version);
-  expect(() => assertGcpTerraformRequestReason(reason, i, '8.12.0')).toThrow();
+  expect(() => assertGcpTerraformRequestReason(reason, i, '8.12.1')).toThrow();
 });

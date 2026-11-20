@@ -3244,7 +3244,7 @@ function assertGcpTerraformRequestReason(value, intent, googleVersion) {
     reason.scope !== 'gcp-terraform-deployment' ||
     intent.engine !== 'terraform' ||
     intent.operation !== 'deploy' ||
-    !['8.7.0', '8.10.0', '8.11.0'].includes(googleVersion) ||
+    !['8.7.0', '8.10.0', '8.11.0', '8.12.0'].includes(googleVersion) ||
     reason.intentFingerprint !== fingerprint(intent) ||
     typeof reason.reason !== 'string' ||
     !reasonPattern.test(reason.reason)
@@ -11627,11 +11627,11 @@ function translateGcpTerraformObserverSiteCompute(intent, versions, observer, re
   validateIntent(intent);
   if (intent.schemaVersion === 2 && fingerprint(observer) !== fingerprint(intent.observer))
     throw new Error('Original observer scope differs from its versioned intent');
-  if (
-    !['15.15.7', '15.16.2', '15.17.3'].some(
-      (xcsh) => fingerprint(versions) === fingerprint({ terraform: '1.17.2', google: '8.11.0', xcsh }),
-    )
-  )
+  const tuples = [
+    ...['15.15.7', '15.16.2', '15.17.3'].map((xcsh) => ({ terraform: '1.17.2', google: '8.11.0', xcsh })),
+    GCP_XCSH15176_OBSERVER_ARTIFACTS.versions,
+  ];
+  if (!tuples.some((tuple) => fingerprint(versions) === fingerprint(tuple)))
     throw new Error('Qualified exact observer Terraform/provider tuple required');
   const ceIntent = structuredClone(intent);
   ceIntent.schemaVersion = 1;
@@ -11758,6 +11758,7 @@ var init_observer_plan = __esm(() => {
   init_observer_scope();
   init_request_reason();
   init_site_access();
+  init_terraform_public_artifacts();
   init_validation();
   init_observer_scope();
 });
