@@ -1,5 +1,26 @@
 # GCP provider contract
 
+## Version selection for fresh deployments
+
+Resolve current versions from the [Terraform release catalog](https://releases.hashicorp.com/terraform/),
+[Google provider registry](https://registry.terraform.io/providers/hashicorp/google/latest)
+and [XC provider registry](https://registry.terraform.io/providers/f5-sales-demo/xcsh/latest).
+Bind the chosen artifacts, exact provider lock and supported GCP mappings to the
+new reviewed plan. Version discovery and source tests do not qualify original
+provider refresh, guest capture, networking or lifecycle execution.
+
+If the current release tuple is unqualified, return the concrete prerequisite
+and retain the explicit engine. Fresh planning must not select an older tuple
+to avoid that gate. Existing deployments retain their exact stored inputs and
+owned recovery/teardown paths; do not rewrite their locks or historical receipts.
+
+## Archived configuration-v2 acceptance
+
+The following configuration-v2 profile and dated receipts document their
+original source and versions. Their success is attributed to those campaigns.
+They do not establish current-candidate readiness or recommend versions for a
+fresh deployment.
+
 The public Terraform deployment adapter uses configuration version 2 with an
 explicitly managed boot disk. Its overall review binds the isolated saved binary,
 configuration, backend, provider lock, F5 context name and actual API endpoint,
@@ -16,11 +37,11 @@ bound to the original attempt and stable state. Missing state or replacement
 identities require reconciliation. Cleanup remains available without billing access
 and finishes only after an empty destroy plan, a matching final state snapshot,
 and eight independent absence checks.
-Legacy stored configurations retain their existing teardown behavior. Enabling
-this adapter uses the published and installed-qualified XC v15.13.0 provider,
-Terraform 1.16.6, Google 8.7.0 and the verified lock for Darwin ARM64 and Linux AMD64.
-Fresh public single-node deployment, interrupted recovery and partial cleanup
-campaigns passed; see
+Legacy stored configurations retain their existing teardown behavior. The
+archived adapter qualification used XC v15.13.0, Terraform 1.16.6, Google 8.7.0
+and its verified lock for Darwin ARM64 and Linux AMD64. Its original public
+single-node deployment, interrupted recovery and partial cleanup campaigns
+passed; see
 [the source-bound receipt](../../../../../docs/receipts/gcp-public-terraform-deployment-20261019.md).
 
 The consumer verifies the immutable `api-specs-enriched` v12.1.3 contract asset

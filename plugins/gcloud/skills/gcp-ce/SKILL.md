@@ -17,6 +17,15 @@ context. Never switch the ambient gcloud project to execute a deployment.
 Read [provider contract](references/provider-contract.md) before planning and
 [acceptance](references/acceptance.md) before reporting qualification.
 
+For fresh deployments, resolve the latest Terraform CLI, Google provider and XC
+provider releases from their official catalogs. Verify the exact downloaded
+artifacts, provider lock and current supported GCP mappings before planning.
+Archived version tuples and successful campaigns below retain their original
+attribution; they do not qualify a fresh deployment of the current candidate.
+If the current tuple lacks a verified runtime, guest capture or operation
+mapping, report that concrete blocker and keep the selected engine. A fresh plan
+must not downgrade to an archived tuple to pass an unavailable gate.
+
 1. Use `gcp_project_identity` to verify the explicit target.
 2. Use `gcp_compute_discover` with the explicit region. Pin the exact F5 image ID,
    selfLink and licenses. Unknown IAM, organization policy, capacity, NIC limits,
@@ -57,11 +66,12 @@ Read [provider contract](references/provider-contract.md) before planning and
    the overall `planHash`. Review it before supplying that exact `approvedPlanHash`
    and unchanged intent to `gcp_ce_apply` with `operation=deploy`. Resume with the
    same hash; cloud creation does not establish registration, health or traffic.
-   Fresh isolated installed native review/apply, healthy status and typed teardown
-   passed on this narrow disposable profile. Publication remains pending. Explicit
-   Terraform deployment has a candidate using XC v15.13.0 and a packaged verified
-   lock. Fresh installed single-node deployment, interrupted recovery and partial
-   disk cleanup passed; the acceptance receipt binds actual source and bundles.
+   Archived native single-node receipts record installed review/apply, healthy
+   status and typed teardown on their original narrow disposable profile.
+   Archived Terraform receipts also record single-node deployment, interrupted
+   recovery and partial disk cleanup with their exact original provider lock,
+   source and bundles. Read the attributed acceptance receipts for those versions.
+   Current-candidate installed/live qualification and publication remain required.
    Use the same exact review hash for recovery; consumed applies are inspected
    without replay. Verified partial ownership requires a separate delete-only
    cleanup review. HA, upgrade and failover remain unavailable. Do not bypass an
