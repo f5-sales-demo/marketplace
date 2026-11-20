@@ -541,6 +541,8 @@ function buildDeployActions(
             intent.resourceGroup,
             '--name',
             `${nodeName}-nic${index}`,
+            '--ip-forwarding',
+            'true',
             ...subnetArgs,
             ...publicIpArgs,
             ...nsgArgs,

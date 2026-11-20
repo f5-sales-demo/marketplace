@@ -111,6 +111,19 @@ function nics(count: number): AzureCeIntent['nics'] {
 }
 
 describe('compileAzureCePlan', () => {
+  for (const ha of [false, true]) {
+    it(`enables forwarding on every CE NIC for ${ha ? 'three-node' : 'single-node'} deployment`, () => {
+      const plan = compileAzureCePlan(intent({ topology: { ha }, nics: nics(8) }), observation());
+      const interfaces = plan.actions.filter((action) => action.kind === 'nic-create');
+      expect(interfaces).toHaveLength((ha ? 3 : 1) * 8);
+      for (const action of interfaces) {
+        const index = action.args?.indexOf('--ip-forwarding') ?? -1;
+        expect(index).toBeGreaterThanOrEqual(0);
+        expect(action.args?.[index + 1]).toBe('true');
+      }
+    });
+  }
+
   it('binds explicit task credentials and deny rules into the immutable launch', () => {
     const publicFixture = `ssh-rsa ${Buffer.from('synthetic-public-key').toString('base64')} experiment`;
     const plan = compileAzureCePlan(
