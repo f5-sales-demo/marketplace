@@ -1,11 +1,14 @@
 # Azure Customer Edge Provider Contract
 
 The provider-neutral automation contract is published at
-[`f5xc-ce-automation/v1`](https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt).
+[`f5xc-ce-automation-policy/v2`](https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt).
 `azure_compute_discover` retrieves that dedicated document, validates its identity and version,
 and records its normalized SHA-256. This reference adds only Azure-specific requirements.
 
 ## Marketplace and compute discovery
+
+Read [Marketplace terms guidance](../../azure-marketplace-terms/SKILL.md) when
+agreement resolution, purchase-plan identity or legal acceptance is needed.
 
 - Enumerate publisher, offer, image SKU, and exact versions with `az vm image
   list-publishers`, `list-offers`, `list-skus`, and `list`. User-supplied values are

@@ -1,0 +1,7 @@
+{
+  "skills": "skills",
+  "marketplace-terms": "skills/azure-marketplace-terms/SKILL.md",
+  "azure-ce": "skills/azure-ce/SKILL.md",
+  "azure-auth": "skills/azure-auth/SKILL.md",
+  "azure-index": "skills/azure-index/SKILL.md"
+}

@@ -71,11 +71,13 @@ const factory: ExtensionFactory = async (pi) => {
   const { createF5xcCeV2SiteTool } = await import('./tools/f5xc-ce-v2-site');
   const { createF5xcCeV2BootstrapTool } = await import('./tools/f5xc-ce-v2-bootstrap');
   const { createF5xcCeV2StatusTool } = await import('./tools/f5xc-ce-v2-status');
+  const { createF5xcCeV2BootstrapRevokeTool } = await import('./tools/f5xc-ce-v2-bootstrap-revoke');
   const { createF5xcCeV2CapabilitiesTool } = await import('./tools/f5xc-ce-v2-capabilities');
   pi.registerTool(presentTool(createF5xcCeV2CapabilitiesTool(pi, makeDriver)));
   pi.registerTool(presentTool(createF5xcCeV2SiteTool(pi, makeDriver)));
   pi.registerTool(presentTool(createF5xcCeV2BootstrapTool(pi, makeDriver)));
-  pi.registerTool(presentTool(createF5xcCeV2StatusTool(pi)));
+  pi.registerTool(presentTool(createF5xcCeV2StatusTool(pi, makeDriver)));
+  pi.registerTool(presentTool(createF5xcCeV2BootstrapRevokeTool(pi, makeDriver)));
 };
 
 export default factory;

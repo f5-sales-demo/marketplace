@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AzExecApi } from '../az/exec';
@@ -8,6 +8,8 @@ import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoi
 import { fingerprintObservation, sha256Hex } from '../ce/canonical';
 import { renderCeCloudInit } from '../ce/cloud-init';
 import { discoverAzureCompute } from '../ce/discovery';
+import { observeAzureHealth } from '../ce/health-observation';
+import { shutdownResourceBody, verifyShutdown } from '../ce/lifetime';
 import { consumeBootstrapRef } from '../ce/token-consumer';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
 import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
@@ -17,7 +19,6 @@ interface ApplyParams {
   planId: string;
   planSha256: string;
   bootstrapRefs?: Array<{ node: number; reference: string }>;
-  f5Evidence?: { healthyNodes?: number[]; bgpEstablished?: boolean; trafficHealthy?: boolean };
 }
 
 async function privateIp(api: AzExecApi, plan: AzureCePlan, node: number, nicIndex: number): Promise<string> {
@@ -63,6 +64,14 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     env: process.env,
   });
   const existing = await loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+  const startedAt = existing?.startedAt ?? new Date().toISOString();
+  const shutdownDeadline =
+    existing?.shutdownDeadline ??
+    (plan.intent.vm.shutdownAfterHours
+      ? new Date(
+          Math.floor((Date.parse(startedAt) + plan.intent.vm.shutdownAfterHours * 3600_000) / 60_000) * 60_000,
+        ).toISOString()
+      : undefined);
   if (existing) {
     const expectedPrefix = plan.actions.slice(0, existing.completedActionIds.length).map((action) => action.id);
     if (JSON.stringify(existing.completedActionIds) !== JSON.stringify(expectedPrefix))
@@ -86,6 +95,7 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
         brownfieldResourceIds: plan.intent.brownfield.resourceIds,
         deploymentName: plan.deploymentName,
         resourceGroup: plan.intent.resourceGroup,
+        region: plan.intent.region,
       },
       api,
     );
@@ -120,6 +130,8 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
   }
 
   const checkpoint: AzureCeCheckpoint = {
+    startedAt,
+    shutdownDeadline,
     schemaVersion: AZURE_CE_SCHEMA_VERSION,
     planId: plan.planId,
     planSha256: plan.planSha256,
@@ -127,19 +139,36 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     observationFingerprint: existing?.observationFingerprint,
     state: 'running',
   };
+  await saveCheckpoint(ctx.sessionManager, checkpoint);
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
     let launchDir: string | undefined;
     try {
       await assertActionOwnership(plan, action, api);
-      if (action.kind === 'health-gate' && action.node && !params.f5Evidence?.healthyNodes?.includes(action.node))
-        throw new Error(`F5 health evidence is missing for node ${action.node}`);
-      if (action.kind === 'bgp-gate' && !params.f5Evidence?.bgpEstablished)
-        throw new Error('F5 BGP evidence is not established');
-      if (action.kind === 'traffic-gate' && !params.f5Evidence?.trafficHealthy)
-        throw new Error('End-to-end traffic evidence is not healthy');
+      if (action.kind === 'health-gate' && action.node) {
+        const environment = { ...process.env };
+        const configured = ctx.settings?.get('bash.environment');
+        if (configured && typeof configured === 'object' && !Array.isArray(configured))
+          for (const [key, value] of Object.entries(configured))
+            if (/^XCSH_[A-Z0-9_]+$/.test(key) && typeof value === 'string') environment[key] = value;
+        const observation = await observeAzureHealth(plan, action.node, api, environment);
+        await ctx.sessionManager.saveArtifact(JSON.stringify(observation), 'azure-ce-health');
+        if (observation.status !== 'ready-for-probe')
+          throw new Error(`F5 health gate is ${observation.status}: ${observation.reason}`);
+      }
+      if (action.kind === 'bgp-gate') throw new Error('Measured Azure BGP admission is unavailable');
+      if (action.kind === 'traffic-gate') throw new Error('Measured Azure traffic admission is unavailable');
+      if (action.kind === 'vm-create' && shutdownDeadline) {
+        const protection = plan.actions.find((item) => item.kind === 'vm-shutdown-arm' && item.node === action.node);
+        if (!protection) throw new Error('Immutable plan has no pre-launch shutdown protection');
+        await verifyShutdown(plan, protection, shutdownDeadline, api);
+      }
       if (action.command && action.args) {
         const replacements = await replacementsFor(action.args, api, plan);
+        if (action.kind === 'vm-shutdown-arm') {
+          if (!shutdownDeadline) throw new Error('Durable shutdown deadline is missing');
+          replacements.__SHUTDOWN_BODY__ = JSON.stringify(shutdownResourceBody(plan, action.node!, shutdownDeadline));
+        }
         if (action.requiresBootstrap && action.node) {
           const reference = params.bootstrapRefs?.find((item) => item.node === action.node)?.reference;
           if (!reference) throw new Error(`A just-in-time bootstrap reference is required for node ${action.node}`);
@@ -160,13 +189,27 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
           replacements.__BOOTSTRAP_FILE__ = bootstrapPath;
         }
         const result = await api.exec(action.command, resolveActionArgs(action.args, plan.planSha256, replacements));
-        if (result.exitCode !== 0) throw new Error(`Azure action ${action.id} failed: ${result.stderr.slice(0, 500)}`);
+        if (result.exitCode !== 0) {
+          const artifact = await ctx.sessionManager.saveArtifact(
+            JSON.stringify({ actionId: action.id, exitCode: result.exitCode, stderr: result.stderr }),
+            'azure-ce-private-failure',
+          );
+          if (artifact) {
+            const path = await ctx.sessionManager.getArtifactPath(artifact);
+            if (path) await chmod(path, 0o600);
+          }
+          throw new Error(
+            `Azure action ${action.id} failed with exit ${result.exitCode}; diagnostic evidence retained privately`,
+          );
+        }
+        if (action.kind === 'vm-shutdown-arm') await verifyShutdown(plan, action, shutdownDeadline!, api);
       }
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
       checkpoint.failedActionId = undefined;
       const changesFingerprint =
         action.kind === 'marketplace-terms-accept' ||
+        action.kind === 'vm-create' ||
         action.kind === 'route-association-update' ||
         action.kind === 'brownfield-restore' ||
         (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0);
@@ -200,13 +243,6 @@ export function createAzureCeApplyTool(pi: PluginInterface, makeApi: (cwd: strin
       planId: Type.String(),
       planSha256: Type.String(),
       bootstrapRefs: Type.Optional(Type.Array(Type.Object({ node: Type.Number(), reference: Type.String() }))),
-      f5Evidence: Type.Optional(
-        Type.Object({
-          healthyNodes: Type.Optional(Type.Array(Type.Number())),
-          bgpEstablished: Type.Optional(Type.Boolean()),
-          trafficHealthy: Type.Optional(Type.Boolean()),
-        }),
-      ),
     }),
     async execute(
       _id: string,

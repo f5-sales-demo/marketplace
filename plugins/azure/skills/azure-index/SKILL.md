@@ -17,6 +17,14 @@ Route the user's request to the correct skill or agent.
 
 ## Routing Rules
 
+### Marketplace Terms and Purchase Plans
+
+For Marketplace terms, license acceptance, purchase-plan identity, existing
+consent, or offer visibility errors, invoke `azure:azure-marketplace-terms`.
+Read its embedded body at `xcsh://plugin/azure/marketplace-terms`. Resolve this
+provider prerequisite with native Azure tools before returning to CE deployment
+planning. A failed candidate offer does not narrow the user's image constraints.
+
 ### F5 Customer Edge
 
 Keywords and paraphrases: "Customer Edge", "F5 CE", "XC CE", "CE site",

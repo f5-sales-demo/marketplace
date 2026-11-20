@@ -82,6 +82,14 @@ export function createF5xcCeV2SiteTool(
       config: Type.Optional(
         Type.Object({
           provider: Type.Union([Type.Literal('aws'), Type.Literal('azure')]),
+          nodes: Type.Optional(
+            Type.Array(
+              Type.Object({
+                hostname: Type.String(),
+                interfaces: Type.Array(Type.Object({ name: Type.String(), mac: Type.String(), device: Type.String() })),
+              }),
+            ),
+          ),
           haMode: Type.Union([Type.Literal('one-node'), Type.Literal('three-node')]),
           vrfs: Type.Array(Type.Object({ index: Type.Number(), name: Type.String() })),
           interfaces: Type.Array(

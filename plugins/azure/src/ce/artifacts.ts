@@ -12,6 +12,7 @@ export interface SessionManagerLike {
 }
 
 export interface AzureCeToolContext {
+  settings?: { get(key: string): unknown };
   cwd: string;
   hasUI: boolean;
   ui: { confirm(title: string, message: string): Promise<boolean> };
@@ -128,8 +129,7 @@ export async function loadCheckpoint(
   try {
     files = (await readdir(artifactsDir))
       .filter((file) => file.endsWith('.azure-ce-checkpoint.log'))
-      .sort()
-      .reverse();
+      .sort((left, right) => right.localeCompare(left, 'en', { numeric: true }));
   } catch {
     return undefined;
   }
