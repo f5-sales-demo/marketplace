@@ -10,13 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.132 retains original observer installation provenance
+- **`terraform`** v2.4.133 retains original observer installation provenance
   across peer expiry and qualifies V2 clients with three guarded serial probes.
   CE scans select V1 or V2 explicitly and bind both installation and ABI receipts.
   Ownership, peer freshness, original output and single-use failures remain
   enforced. Live guest, runtime and operational gates remain open.
 
-- **`platform`** v6.3.29 rebuilds the shared CE runtime with Bun 1.4.4.
+- **`platform`** v6.3.30 rebuilds the shared CE runtime with Bun 1.4.4.
   Production operational deadlines and evidence requirements are preserved.
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
@@ -35,7 +35,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.58 rebuilds the GCP CE runtime with Bun 1.4.4.
+- **`gcloud`** v1.7.59 rebuilds the GCP CE runtime with Bun 1.4.4.
   Original observer request and compiler fingerprint checks remain enforced.
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original

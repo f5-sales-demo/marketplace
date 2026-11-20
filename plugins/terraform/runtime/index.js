@@ -101,6 +101,15 @@ var profiles = [
     googleProviderSha256: 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
     xcProviderSha256: '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0',
   },
+  {
+    terraformVersion: '1.17.2',
+    googleVersion: '8.12.0',
+    xcshVersion: '15.17.6',
+    providerLockSha256: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+    terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+    googleProviderSha256: '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0',
+    xcProviderSha256: '3c38dd6ceba946a199970effa34ce0bfcfd4348524b11ec51df3dd9124c5d65f',
+  },
 ];
 for (const profile of profiles) Object.freeze(profile);
 Object.freeze(profiles);
@@ -3703,18 +3712,24 @@ var GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
   version: '15.17.3',
   sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
 });
+var GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.17.6',
+  sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
+});
 function resolveGcpSiteAccessMapping(providerVersion) {
   if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15176_SITE_ACCESS_MAPPING.version) return GCP_XCSH15176_SITE_ACCESS_MAPPING;
   throw new GcpSiteAccessMappingUnavailable();
 }
 
 class GcpSiteAccessMappingUnavailable extends Error {
   constructor() {
     super(
-      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2 or 15.17.3 mapping',
+      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3 or 15.17.6 mapping',
     );
   }
 }

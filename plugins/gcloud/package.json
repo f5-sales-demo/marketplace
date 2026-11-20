@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-gcloud",
-  "version": "1.7.58",
+  "version": "1.7.59",
   "description": "Google Cloud authentication, CLI tools and gated Customer Edge lifecycle for xcsh",
   "main": "src/index.ts",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "xcsh": {
     "name": "GCloud",
-    "version": "1.7.58",
+    "version": "1.7.59",
     "extensions": [
       "runtime/index.js"
     ]

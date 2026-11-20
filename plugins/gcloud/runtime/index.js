@@ -1270,6 +1270,7 @@ function resolveGcpSiteAccessMapping(providerVersion) {
   if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15176_SITE_ACCESS_MAPPING.version) return GCP_XCSH15176_SITE_ACCESS_MAPPING;
   throw new GcpSiteAccessMappingUnavailable();
 }
 function validateGcpSiteAccess(value) {
@@ -1338,6 +1339,7 @@ var GCP_SITE_ACCESS_MAPPING,
   GCP_CURRENT_SITE_ACCESS_MAPPING,
   GCP_XCSH15162_SITE_ACCESS_MAPPING,
   GCP_PUBLISHED_SITE_ACCESS_MAPPING,
+  GCP_XCSH15176_SITE_ACCESS_MAPPING,
   GcpSiteAccessMappingUnavailable;
 var init_site_access = __esm(() => {
   init_discovery();
@@ -1365,10 +1367,15 @@ var init_site_access = __esm(() => {
     version: '15.17.3',
     sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
   });
+  GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.17.6',
+    sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
+  });
   GcpSiteAccessMappingUnavailable = class GcpSiteAccessMappingUnavailable extends Error {
     constructor() {
       super(
-        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2 or 15.17.3 mapping',
+        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3 or 15.17.6 mapping',
       );
     }
   };
@@ -11170,6 +11177,8 @@ var GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   GCP_XCSH15162_OBSERVER_ARTIFACTS,
   GCP_OBSERVER_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15176_OBSERVER_ARTIFACTS,
   packagedProfiles;
 var init_terraform_public_artifacts = __esm(() => {
   GCP_LEGACY_TERRAFORM_ARTIFACTS = {
@@ -11486,6 +11495,59 @@ provider "registry.terraform.io/hashicorp/google" {
     ...GCP_PUBLIC_TERRAFORM_ARTIFACTS,
     configurationVersion: 3,
   };
+  GCP_XCSH15176_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.6' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.17.6"
+  constraints = "15.17.6"
+  hashes = [
+    "h1:ENO86u3HFmLllw/yPw/XIZm/LiRL4gq0PhbBcS3STbc=",
+    "h1:QDyAkSojvGnf4QMA0WS7FKToQf3Td55yrEoilTH3yZw=",
+    "zh:6454f368f2174f52f750c7349c6557496b38e247d6052c293ba786a0018989e8",
+    "zh:6c9a88a00b6e54e3f6b81aa01409735d18b16da676d448289c7e367182090262",
+    "zh:7682d1ab71255ffebd104e6cc2af623f3e8db539b64fc842a3166df0fd3ac6bf",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:b01f4c5071604cce7eb5ad0257a78b73e409110eebe2ff9dbd18abcce7827521",
+    "zh:bebac89299b264ac2720bd3720d586e4baf6c9104c88edd876c840d6e166547b",
+    "zh:c162efa3bb6e8f448ec2b35d0d5384b00a7b6c0cf1fb3103c468b56bde390fe4",
+    "zh:c1e8960bd6866206ec84434b2c7e0c168862900c2961c1512add57c302aefd50",
+    "zh:c46ddce355b575e84d6352b59b8d18abea43136768974651fc25b1b2cb178aa3",
+    "zh:d4450445b6b7ed9b4654b7e331a4afd17702ad5242bc3c53e860d429e650aadc",
+    "zh:deaff6041070605720bb9ab3a451cb5f37d3dcf366e50b6c691a395b87898300",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.12.0"
+  constraints = "8.12.0"
+  hashes = [
+    "h1:9d+FdGigXECjhHgs8RcW5JhsTTXVNga0X1Pd4O4QHjY=",
+    "h1:es4kOf5hndCahoF3bLHmsLKX93JpkeuThvKQ4Pnm6m8=",
+    "zh:0b486637c4f4a2ff260dcf98e0ab74aa2655884c27df909fc79de9c2829ea6ef",
+    "zh:0b9c04d4bb269389d799f6b871877172d13cd059571768c6c36b28cf297b6fba",
+    "zh:0c63d340b3fda4156bccbd4f02e8ef7d320bea75bd1706573a90851e00129c47",
+    "zh:20371948b3d7f0469f2ad99608d9626a816127c9eb1b4cd007f09e1f68878728",
+    "zh:2a6d9c60699366894da043e604ebe5fee9246bb01bef73ebd100d3dbaf3e5e34",
+    "zh:47aa133c201e1edd2d1eb789f2ef4ccc769fdb49d5000b042280c2ac37acf368",
+    "zh:58e2910ee0625ecd352c2e55050ed35771ed7860dd1e738ee4b53eab695a2ee8",
+    "zh:84a44faf0dc811e48a8590e244c02ffff4a6a10095a4bc869979e7b0e94ae46d",
+    "zh:b8f42d7d79776b54d37c93b51a3f10ae45425fb91fb182bcb2a966e1bd52bdad",
+    "zh:eddf30f53a99381388ff25702ed0c727586deb8c502cd5af395dc98afb217a49",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+    "zh:f79b40a9d29763535baed6de1cd0d42960059916a1723f8fb4af8a2801dd2f4c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+  };
+  GCP_XCSH15176_OBSERVER_ARTIFACTS = {
+    ...GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+    configurationVersion: 3,
+  };
   packagedProfiles = [
     GCP_LEGACY_TERRAFORM_ARTIFACTS,
     GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
@@ -11497,6 +11559,8 @@ provider "registry.terraform.io/hashicorp/google" {
     GCP_XCSH15162_OBSERVER_ARTIFACTS,
     GCP_PUBLIC_TERRAFORM_ARTIFACTS,
     GCP_OBSERVER_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15176_OBSERVER_ARTIFACTS,
   ].filter((profile) => profile !== undefined);
   Object.freeze(packagedProfiles);
   for (const profile of packagedProfiles) {
@@ -12620,7 +12684,7 @@ function createGcpCeTools(
               profile: 'site-ssh-sli',
               required: [
                 'two-interface external-IP Terraform HA profile',
-                'published XC 15.13.0, 15.15.7 or 15.16.2 Site admin key and SLI local-service mapping',
+                'verified published XC Site admin key and SLI local-service mapping',
               ],
               mutationAttempted: false,
             },

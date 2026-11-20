@@ -2048,3 +2048,13 @@ and supporting hermetic driver. All 16 dependency checks and all 18 CI shell
 scripts pass; see the [source receipt](gcp-ci-driver-fixture-support-20261119.md).
 A separate managed-test absence finding remains queued for docs-control repair.
 Current-head CI, original GCP live/runtime and publication acceptance remain open.
+
+### Current artifact and Site schema mapping, 2026-11-20
+
+The [current mapping receipt](gcp-current-artifact-site-schema-20261120.md) records
+the exact Terraform 1.17.2 / Google 8.12.0 / XC 15.17.6 artifacts, both configuration
+graphs and current Site admin/SLI schema. Failing-first tests, full shared suites,
+types and compiled source checks pass. Historical locks and public admission
+holds remain preserved. This establishes artifact/schema preparation only.
+Original GCP guest/capture, V2/default factory, complete live behavior, independent
+cleanup, current CI/review and publication/installation gates remain open.
