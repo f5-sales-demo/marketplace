@@ -132,6 +132,53 @@ const baseFixtures: Record<string, unknown> = {
 };
 
 describe('discoverAzureCompute', () => {
+  it('observes standard regional cores when Spot quota appears first', async () => {
+    const result = await discoverAzureCompute(
+      {
+        subscriptionId: subscriptionFixture,
+        deploymentName: 'ce-demo',
+        resourceGroup: 'rg-ce-demo',
+        region: 'canadacentral',
+        requiredNics: 1,
+        nodeCount: 1,
+        brownfieldResourceIds: [],
+      },
+      api({
+        ...baseFixtures,
+        [`vm list-usage --location canadacentral --subscription ${subscriptionFixture}`]: [
+          { name: { value: 'lowPriorityCores' }, currentValue: 0, limit: 350 },
+          { name: { value: 'cores' }, currentValue: 4, limit: 32 },
+        ],
+      }),
+    );
+    expect(result.regions[0]?.quotaAvailable).toBe(28);
+  });
+
+  for (const [label, usages] of [
+    ['missing standard quota', [{ name: { value: 'lowPriorityCores' }, currentValue: 0, limit: 350 }]],
+    ['missing standard limit', [{ name: { value: 'cores' }, currentValue: 0 }]],
+  ] as const) {
+    it(`fails closed for ${label}`, async () => {
+      const result = await discoverAzureCompute(
+        {
+          subscriptionId: subscriptionFixture,
+          deploymentName: 'ce-demo',
+          resourceGroup: 'rg-ce-demo',
+          region: 'canadacentral',
+          requiredNics: 1,
+          nodeCount: 1,
+          brownfieldResourceIds: [],
+        },
+        api({
+          ...baseFixtures,
+          [`vm list-usage --location canadacentral --subscription ${subscriptionFixture}`]: usages,
+        }),
+      );
+      expect(result.regions[0]?.eligible).toBe(false);
+      expect(result.regions[0]?.reasons).toContain('quota-observation-failed');
+    });
+  }
+
   it('fails closed when current official guidance cannot be retrieved', async () => {
     const unavailable = (async () => new Response('unavailable', { status: 503 })) as typeof fetch;
     const calls: string[] = [];

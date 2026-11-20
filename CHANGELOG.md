@@ -49,7 +49,7 @@ and this project adheres to
 
 - **`aws`** v2.3.3 replaces collapsed Customer Edge summaries with complete domain evidence in expanded views, preserving literal guidance without repeating structured fields (#1679).
 
-- **`azure`** v4.7.3 embeds Marketplace terms and consent guidance with readable resource routes, resolves current certified purchase plans, enforces the automation policy, enables IP forwarding on every CE NIC, and preserves bounded native CE plans and issued bootstrap material (#1925).
+- **`azure`** v4.7.4 embeds Marketplace terms and consent guidance with readable resource routes, resolves current certified purchase plans, reads the standard regional CPU quota, enables IP forwarding on every CE NIC, enforces the automation policy, and preserves bounded native CE plans and issued bootstrap material (#1925).
 - **`aws`** v2.3.1 exposes caller identity, twelve-row lists, exact executable commands and guarded Customer Edge summaries through shared presentation. Preserve S3 prefixes, large sizes and object-key spaces; report malformed listings and failed help accurately. Requires xcsh 23.8.0 or newer (#1672).
 
 - **`salesforce`** v2.3.16 returns exact safe executed CLI argv to the model, including failed attempts and pipeline discovery, while withholding sensitive invocations and keeping shared human output concise (#1656).
