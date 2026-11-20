@@ -131,7 +131,7 @@ export async function collectOriginalGcpObserverInsertIdentity(input: OriginalGc
   const profile = resolveInstalledGcpVersionProfile(input.binding);
   if (
     !isOriginalCreationScopeProfile(profile) ||
-    profile.googleVersion !== '8.11.0' ||
+    !['8.11.0', '8.12.0'].includes(profile.googleVersion) ||
     context.owner.provider !== 'gcp' ||
     context.owner.engine !== 'terraform'
   )
@@ -185,7 +185,7 @@ export async function collectOriginalGcpObserverInsertIdentity(input: OriginalGc
     throw new Error('Original observer provider scope and request reason required');
   const expected = translateGcpTerraformObserverSiteCompute(
     intent,
-    { terraform: profile.terraformVersion, google: profile.googleVersion, xcsh: '15.17.3' },
+    { terraform: profile.terraformVersion, google: profile.googleVersion, xcsh: profile.xcshVersion },
     intent.observer,
     {
       schemaVersion: 1,

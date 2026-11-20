@@ -4,7 +4,10 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from '../../../gcloud/src/ce/terraform-public-artifacts';
+import {
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+} from '../../../gcloud/src/ce/terraform-public-artifacts';
 import { GoogleHttpRpcTraceParser, type OriginalGoogleHttpResponseObservation } from '../../src/gcp-http-rpc-trace';
 import { inspectOriginalGcpInsertBodies } from '../../src/gcp-insert-evidence';
 import { GoogleProviderLifecycleParser } from '../../src/google-provider-lifecycle';
@@ -47,10 +50,18 @@ export type WitnessInput = {
 export async function withInsertWitnesses(
   check: (value: WitnessInput, output: OriginalExecutionOutput, admission: ExecutionCaptureAdmission) => Promise<void>,
   timestampMode = 'normal',
+  googleVersion: '8.11.0' | '8.12.0' = '8.11.0',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'original-insert-witness-'));
   roots.push(root);
-  const original = sourceJoinFixture(currentBinding, '8.11.0');
+  const versionBinding =
+    googleVersion === '8.12.0'
+      ? {
+          terraformVersion: '1.17.2',
+          providerLockSha256: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+        }
+      : currentBinding;
+  const original = sourceJoinFixture(versionBinding, googleVersion);
   const configuration = original.configuration;
   if (!GCP_PUBLIC_TERRAFORM_ARTIFACTS) throw new Error('Current authenticated profile required');
   const deployment: Deployment = {
@@ -60,7 +71,8 @@ export async function withInsertWitnesses(
     scope: { cloud: 'gcp', account: 'example-project', region: 'us-central1' },
     terraformVersion: '1.17.2',
     configuration,
-    providerLock: GCP_PUBLIC_TERRAFORM_ARTIFACTS.providerLock,
+    providerLock: (googleVersion === '8.12.0' ? GCP_XCSH15176_TERRAFORM_ARTIFACTS : GCP_PUBLIC_TERRAFORM_ARTIFACTS)
+      .providerLock,
     backendIdentity: 'local:example-deployment',
   };
   let witnessParent: ExecutionCaptureAdmission | undefined;
@@ -113,7 +125,7 @@ export async function withInsertWitnesses(
       await writeFile(script, 'pass\n', { mode: 0o600 });
       let window: WitnessInput['window'] | undefined;
       let providerReader: Awaited<ReturnType<typeof openInstalledProviderReader>> | undefined;
-      const providerPath = '/example/provider/terraform-provider-google_v8.11.0_x5';
+      const providerPath = `/example/provider/terraform-provider-google_v${googleVersion}_x5`;
       const start = linuxMonotonicMs();
       const execute = signalFreeTerraformExecutor({
         python: executable,
@@ -123,7 +135,7 @@ export async function withInsertWitnesses(
         assertOriginal: async () => {},
         beforeRelease: async (admission) => {
           witnessParent = admission;
-          const run = await windowFixture('1172', admission.identity),
+          const run = await windowFixture(googleVersion === '8.12.0' ? '812' : '1172', admission.identity),
             baseMono = run.clock(),
             baseEpoch = Date.now();
           run.mutate((value) => {
@@ -143,7 +155,7 @@ export async function withInsertWitnesses(
           window = await pending.complete;
           const row = (time: number, message: string, fields: object = {}) =>
             `${JSON.stringify({ '@timestamp': new Date(baseEpoch + time).toISOString(), '@module': 'provider', '@level': 'debug', '@message': message, ...fields })}\n`;
-          const trace = traceFixture(requestFixture(), operationFixture(), '8.11.0')
+          const trace = traceFixture(requestFixture(), operationFixture(), googleVersion)
             .trimEnd()
             .split('\n')
             .map((raw) => {
@@ -191,14 +203,14 @@ export async function withInsertWitnesses(
         },
         finalCapture: async () => {
           if (!witnessParent || !window) throw new Error('Original descriptor/window fixture required');
-          const ui = new TerraformApplyHookParser(profilePlan, currentBinding, configuration);
+          const ui = new TerraformApplyHookParser(profilePlan, versionBinding, configuration);
           const lifecycle = new GoogleProviderLifecycleParser(
             { providerPath, planSha256: originalPlan.receipt.planSha256 },
-            currentBinding,
+            versionBinding,
           );
           const http = new GoogleHttpRpcTraceParser(
             { ...scope, planSha256: originalPlan.receipt.planSha256 },
-            currentBinding,
+            versionBinding,
           );
           const actions: WitnessInput['started'][] = [],
             rpcs: WitnessInput['rpc'][] = [];
@@ -219,14 +231,14 @@ export async function withInsertWitnesses(
           ui.finishOriginal(witnessParent.output, completion);
           lifecycle.finishOriginal(witnessParent.output, completion);
           http.finishOriginal(witnessParent.output, completion);
-          const insert = inspectOriginalGcpInsertBodies(http.consumeBodies(httpCandidates[0]), currentBinding);
+          const insert = inspectOriginalGcpInsertBodies(http.consumeBodies(httpCandidates[0]), versionBinding);
           await check(
             {
               earlyResponse,
               originalPlan,
               configuration,
               providerPath,
-              binding: currentBinding,
+              binding: versionBinding,
               insert,
               started: actions[0],
               completed: actions[1],

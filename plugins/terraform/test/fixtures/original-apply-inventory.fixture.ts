@@ -37,6 +37,7 @@ export async function withApplyInventory(
   expectedOutcome?: 'deadline',
   configuration?: (intent: GcpCeIntent) => string,
   prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
+  providerLock?: string,
 ) {
   await fixture(
     async (context, store, invocation) => {
@@ -211,5 +212,6 @@ export async function withApplyInventory(
     () => false,
     configuration,
     prepareIntent,
+    providerLock,
   );
 }

@@ -76,6 +76,7 @@ export async function fixture(
   expired: () => boolean = () => false,
   configuration?: (intent: GcpCeIntent) => string,
   prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
+  providerLock = GCP_PUBLIC_TERRAFORM_ARTIFACTS.providerLock,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'original-inventory-scope-'));
   roots.push(root);
@@ -150,7 +151,7 @@ export async function fixture(
     scope: { cloud: 'gcp', account: intent.project, region: intent.region },
     terraformVersion: '1.17.2',
     configuration: configuration?.(intent) ?? '{"terraform":{"required_version":"= 1.17.2"}}',
-    providerLock: GCP_PUBLIC_TERRAFORM_ARTIFACTS.providerLock,
+    providerLock,
     backendIdentity: `local:${owner.deploymentId}`,
   };
   const runner = new TerraformRunner(

@@ -7820,7 +7820,7 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
   const profile = resolveInstalledGcpVersionProfile(input.binding);
   if (
     !isOriginalCreationScopeProfile(profile) ||
-    profile.googleVersion !== '8.11.0' ||
+    !['8.11.0', '8.12.0'].includes(profile.googleVersion) ||
     context.owner.provider !== 'gcp' ||
     context.owner.engine !== 'terraform'
   )
@@ -7870,7 +7870,7 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
     throw new Error('Original observer provider scope and request reason required');
   const expected = translateGcpTerraformObserverSiteCompute(
     intent,
-    { terraform: profile.terraformVersion, google: profile.googleVersion, xcsh: '15.17.3' },
+    { terraform: profile.terraformVersion, google: profile.googleVersion, xcsh: profile.xcshVersion },
     intent.observer,
     {
       schemaVersion: 1,
@@ -17286,7 +17286,7 @@ function metadata4(request) {
 function projectOriginalComputeInsert(input, binding) {
   const profile = resolveInstalledGcpVersionProfile(binding);
   if (
-    !['8.10.0', '8.11.0'].includes(profile.googleVersion) ||
+    !['8.10.0', '8.11.0', '8.12.0'].includes(profile.googleVersion) ||
     input.googleProviderVersion !== profile.googleVersion ||
     input.rpc !== 'ApplyResourceChange' ||
     input.resourceType !== 'google_compute_instance' ||
@@ -17385,6 +17385,18 @@ function projectOriginalComputeInsert(input, binding) {
     applyRpcQualified: false,
     originalInsertQualified: false,
   });
+  return candidate;
+}
+function inspectOriginalGcpInsertBodies(input, binding) {
+  assertOriginalGoogleHttpRpcBodies(input);
+  const projection = projectOriginalComputeInsert(input, binding);
+  const candidate = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-compute-instance-insert-http-candidate',
+    ...projection,
+    servedRecordSha256: input.servedRecordSha256,
+  });
+  insertOrigins.set(candidate, input);
   return candidate;
 }
 var earlyBodyOrigins = new WeakMap();
@@ -17574,10 +17586,10 @@ function joinOriginalGcpInsertSource(input) {
   )
     throw new Error('Original lifecycle RPC and insert source records differ');
   if (
-    profile.googleVersion === '8.11.0' &&
+    ['8.11.0', '8.12.0'].includes(profile.googleVersion) &&
     (window.schemaVersion !== 4 || window.kind !== 'original-provider-stderr-verified-window')
   )
-    throw new Error('Original Google8.11 verified window required');
+    throw new Error(`Original Google${profile.googleVersion} verified window required`);
   if (
     ![3, 4].includes(window.schemaVersion) ||
     !['original-provider-stderr-coherent-window', 'original-provider-stderr-verified-window'].includes(window.kind) ||
@@ -18798,6 +18810,7 @@ export {
   factory as default,
   GoogleHttpRpcTraceParser,
   handoffOriginalEarlyGcpVmEvidence,
+  inspectOriginalGcpInsertBodies,
   inspectOriginalGcpInventoryScope,
   joinOriginalGcpBootstrapVm,
   joinOriginalGcpInsertAuditEvidence,

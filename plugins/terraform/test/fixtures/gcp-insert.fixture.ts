@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { openGcpCloudSerialReader } from '../../src/gcp-cloud-serial-reader';
 import { GoogleHttpRpcTraceParser } from '../../src/gcp-http-rpc-trace';
 import { inspectOriginalGcpInsertBodies, joinOriginalGcpInsertSource } from '../../src/gcp-insert-evidence';
+import { resolveInstalledGcpVersionProfile } from '../../src/installed-version-profile';
 export const binding = {
   terraformVersion: '1.17.1',
   providerLockSha256: 'fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
@@ -165,10 +166,7 @@ export function sourceJoinFixture(
     group: 1234,
     start: '200',
     boot: parent.boot,
-    executable_sha256:
-      googleVersion === '8.11.0'
-        ? 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5'
-        : 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
+    executable_sha256: resolveInstalledGcpVersionProfile(versionBinding).googleProviderSha256,
   };
   const resource = {
     name: node,
@@ -280,7 +278,7 @@ export async function vmJoinFixture(
 ) {
   const input = sourceJoinFixture(versionBinding, googleVersion, request, planSha256);
   const source = joinOriginalGcpInsertSource(
-    googleVersion === '8.11.0'
+    ['8.11.0', '8.12.0'].includes(googleVersion)
       ? { ...input, window: { ...input.window, schemaVersion: 4, kind: 'original-provider-stderr-verified-window' } }
       : input,
   );

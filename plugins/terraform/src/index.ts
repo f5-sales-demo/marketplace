@@ -97,6 +97,7 @@ export { joinOriginalGcpInsertAuditEvidence, type OriginalGcpInsertAuditJoinInpu
 export {
   collectOriginalEarlyGcpInsertIdentity,
   collectOriginalGcpInsertWitnesses,
+  inspectOriginalGcpInsertBodies,
   readOriginalEarlyGcpInsertBodies,
   readOriginalEarlyGcpInsertIdentity,
   readOriginalGcpInsertWitnesses,

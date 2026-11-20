@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { translateGcpTerraformObserverSiteCompute } from '../../../gcloud/src/ce/observer-plan';
 import { gcpTerraformObserverIdentity } from '../../../gcloud/src/ce/observer-scope';
 import { createGcpTerraformRequestReason } from '../../../gcloud/src/ce/request-reason';
+import { GCP_XCSH15176_OBSERVER_ARTIFACTS } from '../../../gcloud/src/ce/terraform-public-artifacts';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { openInstalledGcpCloudSerialReader } from '../../src/gcp-cloud-serial-reader';
@@ -20,7 +21,7 @@ import { operationFixture, scope, traceFixture } from './gcp-insert.fixture';
 import { withApplyInventory } from './original-apply-inventory.fixture';
 
 type Json = Record<string, unknown>;
-const versions = { terraform: '1.17.2', google: '8.11.0', xcsh: '15.17.3' };
+const legacyVersions = { terraform: '1.17.2', google: '8.11.0', xcsh: '15.17.3' };
 export interface ObserverInsertFixtureInput {
   callback: OriginalApplyCallbackContext;
   baseline: OriginalApplyGcpInventory;
@@ -41,7 +42,9 @@ export async function withObserverInsert(
   mutateRequest?: (request: Json, operation: Json) => void,
   finalRun?: (callback: OriginalApplyCallbackContext) => Promise<void>,
   prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
+  latest = false,
 ) {
+  const versions = latest ? { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.6' } : legacyVersions;
   let intent: GcpCeIntent | undefined;
   let reason = '',
     request: Json | undefined,
@@ -49,7 +52,9 @@ export async function withObserverInsert(
   let parser: GoogleHttpRpcTraceParser | undefined;
   const binding = {
     terraformVersion: '1.17.2',
-    providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+    providerLockSha256: latest
+      ? 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5'
+      : 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
   };
   await withApplyInventory(
     async ({ packet, before }) => {
@@ -242,7 +247,7 @@ export async function withObserverInsert(
       const lines = traceFixture(
         request as unknown as Parameters<typeof traceFixture>[0],
         operation as unknown as Parameters<typeof traceFixture>[1],
-        '8.11.0',
+        versions.google,
       )
         .replaceAll('us-central1-a', observer.zone)
         .replaceAll('xcsh-1559-example', reason)
@@ -268,5 +273,6 @@ export async function withObserverInsert(
       );
     },
     prepareIntent,
+    latest ? GCP_XCSH15176_OBSERVER_ARTIFACTS.providerLock : undefined,
   );
 }

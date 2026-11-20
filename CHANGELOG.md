@@ -10,11 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.137 retains original observer installation provenance
-  across peer expiry and qualifies V2 clients with three guarded serial probes.
-  CE scans select V1 or V2 explicitly and bind both installation and ABI receipts.
-  Ownership, peer freshness, original output and single-use failures remain
-  enforced. Live guest, runtime and operational gates remain open.
+- **`terraform`** v2.4.138 maps the pinned Google 8.12.0 CE and observer
+  insertion bodies and derives observer configuration from the exact XC provider
+  profile. Original source provenance and verified provider windows remain required.
+  Live capture and creation admission remain held.
 
 - **`platform`** v6.3.30 rebuilds the shared CE runtime with Bun 1.4.4.
   Production operational deadlines and evidence requirements are preserved.
