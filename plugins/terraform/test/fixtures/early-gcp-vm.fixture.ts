@@ -1,4 +1,5 @@
 /** Original plan, callback, descriptor and cloud-reader issuers; HTTP/serial replies are offline fixtures. */
+import { GCP_XCSH15176_TERRAFORM_ARTIFACTS } from '../../../gcloud/src/ce/terraform-public-artifacts';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import { openInstalledGcpCloudSerialReader } from '../../src/gcp-cloud-serial-reader';
 import { GoogleHttpRpcTraceParser, type OriginalGoogleHttpResponseObservation } from '../../src/gcp-http-rpc-trace';
@@ -22,6 +23,7 @@ export interface EarlyVmFixtureState {
   vm: Json;
   serialReads: number;
   vmUnavailable?: boolean;
+  beforeVmRead?: () => Promise<void>;
   mutateDuringSerial?: () => void;
 }
 export interface EarlyVmFixtureInput {
@@ -31,7 +33,7 @@ export interface EarlyVmFixtureInput {
   reader: Awaited<ReturnType<typeof openInstalledGcpCloudSerialReader>>;
   state: EarlyVmFixtureState;
 }
-const binding = {
+const retainedBinding = {
   terraformVersion: '1.17.2',
   providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
 };
@@ -39,11 +41,19 @@ export async function withEarlyVmFixture(
   run: (input: EarlyVmFixtureInput) => Promise<void>,
   finalRun?: (input: EarlyVmFixtureInput) => Promise<void>,
   expectedOutcome?: 'deadline',
+  latest = false,
 ) {
+  const binding = latest
+    ? {
+        terraformVersion: '1.17.2',
+        providerLockSha256: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+      }
+    : retainedBinding;
   let state: EarlyVmFixtureState | undefined;
   let parser: GoogleHttpRpcTraceParser | undefined;
   let beforeInput: EarlyVmFixtureInput | undefined;
   let fetcher: typeof fetch | undefined;
+  const unavailableTargets = new Set<string>();
   let project = '',
     zone = '',
     node = '';
@@ -93,10 +103,14 @@ export async function withEarlyVmFixture(
               contents,
             });
           }
-          if (path === `/compute/v1/projects/${project}/zones/${zone}/instances/${node}`)
+          if (path === `/compute/v1/projects/${project}/zones/${zone}/instances/${node}`) {
+            await state.beforeVmRead?.();
             return state.vmUnavailable
               ? Response.json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, { status: 404 })
               : Response.json(state.vm);
+          }
+          if (unavailableTargets.has(path))
+            return Response.json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, { status: 404 });
           throw new Error('Unexpected original fixture cloud request');
         }) as typeof fetch;
         const reader = await openInstalledGcpCloudSerialReader(before.original, undefined, fetcher);
@@ -136,6 +150,14 @@ export async function withEarlyVmFixture(
         const originalPlan = await context.readOriginalPlanSource?.();
         if (!originalPlan) throw new Error('Original plan fixture required');
         const saved = (await store.read('gcp-terraform-input-identity.json')) as { intent: GcpCeIntent };
+        for (const row of originalPlan.resources.filter((row) => row.type === 'google_compute_instance')) {
+          const name = row.fields.name,
+            zone = row.fields.zone;
+          if (name?.status === 'known' && zone?.status === 'known')
+            unavailableTargets.add(
+              `/compute/v1/projects/${context.owner.account}/zones/${zone.value}/instances/${name.value}`,
+            );
+        }
         const resource = originalPlan.resources.find((row) => row.type === 'google_compute_instance');
         const value = (key: string) => {
           const field = resource?.fields[key];
@@ -204,7 +226,7 @@ export async function withEarlyVmFixture(
             })),
           },
         };
-        const lines = traceFixture(request, operation, '8.11.0')
+        const lines = traceFixture(request, operation, latest ? '8.12.0' : '8.11.0')
           .replaceAll('us-central1-a', zone)
           .trimEnd()
           .split('\n')
@@ -218,6 +240,9 @@ export async function withEarlyVmFixture(
         return { prefix: `${lines.join('\n')}\n`, tail: `${last}\n` };
       },
       expectedOutcome,
+      undefined,
+      undefined,
+      latest ? GCP_XCSH15176_TERRAFORM_ARTIFACTS.providerLock : undefined,
     );
   } finally {
     await beforeInput?.reader.close();

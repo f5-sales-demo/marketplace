@@ -3,7 +3,10 @@ import { constants } from 'node:fs';
 import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  assertOriginalGcpKeyScanIdentity,
+  assertOriginalGcpKeyScanInputs,
   bindOriginalGcpObserverKeyScanCommand,
+  closeOriginalGcpKeyScanCommand,
   type OriginalGcpKeyScanCommand,
   readOriginalGcpKeyScanCommand,
 } from './gcp-keyscan-command';
@@ -94,10 +97,17 @@ export async function openGcpObserverWireKeyReader(
 ) {
   const executorFactory = options.executorFactory;
   const command = await bindOriginalGcpObserverKeyScanCommand(vm, callback, profile);
-  const original = await readOriginalGcpKeyScanCommand(command);
   const root = join(callback.original.executionDirectory, `gcp-wire-key-readers-${randomUUID()}`);
-  await mkdir(root, { mode: 0o700 });
-  const directory = await lstat(root, { bigint: true });
+  const { original, directory } = await (async () => {
+    try {
+      const original = await readOriginalGcpKeyScanCommand(command);
+      await mkdir(root, { mode: 0o700 });
+      return { original, directory: await lstat(root, { bigint: true }) };
+    } catch (error) {
+      closeOriginalGcpKeyScanCommand(command);
+      throw error;
+    }
+  })();
   let retired = false;
   let once = false;
   let pending: Promise<OriginalGcpObserverWireKeys> | undefined;
@@ -120,6 +130,16 @@ export async function openGcpObserverWireKeyReader(
     if (retired) throw new Error('Original observer wire-key reader retired');
     await assertRoot();
     await readOriginalGcpKeyScanCommand(command);
+  };
+  const inputGuard = async () => {
+    if (retired) throw new Error('Original observer wire-key reader retired');
+    await assertRoot();
+    await assertOriginalGcpKeyScanInputs(command);
+  };
+  const identityGuard = async () => {
+    if (retired) throw new Error('Original observer wire-key reader retired');
+    await assertRoot();
+    await assertOriginalGcpKeyScanIdentity(command);
   };
   // Retained logs may be empty. This admission is confined to this owned capture
   // directory and never changes executable or installed-input admission.
@@ -217,8 +237,8 @@ export async function openGcpObserverWireKeyReader(
       timeoutMs: 60000,
       startupTimeoutMs: 15000,
       maxOutputBytes: maximum,
-      assertOriginal: guard,
-      assertOriginalIdentity: guard,
+      assertOriginal: inputGuard,
+      assertOriginalIdentity: identityGuard,
       assertFinalInputs: guard,
       beforeRelease: async (value) => {
         await guard();
@@ -416,6 +436,7 @@ export async function openGcpObserverWireKeyReader(
         closure = (async () => {
           if (pending) await pending.catch(() => undefined);
           retired = true;
+          closeOriginalGcpKeyScanCommand(command);
           await assertRoot();
           try {
             await lstat(join(root, '.terraform-executor-lock'));

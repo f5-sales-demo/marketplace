@@ -113,3 +113,40 @@ test('retired original clients permanently retire a key-scan command', async () 
     await expect(command.readOriginalGcpKeyScanCommand(ref)).rejects.toThrow('retired');
   });
 }, 60000);
+
+test('closing the original command during a VM read cannot issue a late admitted view', async () => {
+  await withObserverInsert(async (input) => {
+    const identity = await observer.collectOriginalGcpObserverInsertIdentity(input);
+    const vm = await observer.collectOriginalGcpObserverVmEvidence({
+      identity,
+      callback: input.callback,
+      reader: input.cloudReader,
+    });
+    const profile = await clients();
+    const ref = await command.bindOriginalGcpObserverKeyScanCommand(vm, input.callback, profile);
+    const entered = Promise.withResolvers<void>(),
+      release = Promise.withResolvers<void>();
+    let first = true;
+    input.cloudHook.run = async () => {
+      if (first) {
+        first = false;
+        entered.resolve();
+        await release.promise;
+      }
+    };
+    let pending: ReturnType<typeof command.readOriginalGcpKeyScanCommand> | undefined;
+    try {
+      pending = command.readOriginalGcpKeyScanCommand(ref);
+      await entered.promise;
+      command.closeOriginalGcpKeyScanCommand(ref);
+      release.resolve();
+      await expect(pending).rejects.toThrow('retired');
+    } finally {
+      release.resolve();
+      await pending?.catch(() => undefined);
+      input.cloudHook.run = undefined;
+      command.closeOriginalGcpKeyScanCommand(ref);
+      closeOriginalGcpSshClientProfile(profile);
+    }
+  });
+}, 60000);

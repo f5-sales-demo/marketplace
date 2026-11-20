@@ -10,6 +10,8 @@ test('compiled Terraform plugin exports original insertion evidence consumers', 
     'readOriginalExecutionPrefix',
     'collectOriginalGcpInsertWitnesses',
     'collectOriginalEarlyGcpInsertIdentity',
+    'openInstalledVmCapture',
+    'assertOriginalGcpObserverInsertContext',
     'readOriginalEarlyGcpInsertIdentity',
     'readOriginalGcpInsertWitnesses',
   ])
@@ -29,4 +31,18 @@ test('compiled early source consumers reject unissued prefix and response refere
   await expect(runtime.readOriginalGoogleHttpResponseSource({})).rejects.toThrow('Original');
   expect(typeof runtime.GoogleHttpRpcTraceParser.prototype.takeOriginalResponses).toBe('function');
   await expect(runtime.readOriginalEarlyGcpInsertIdentity({})).rejects.toThrow('Original');
+});
+
+test('compiled VM collector refuses unissued callback, baseline and reader inputs', async () => {
+  const runtime = await import(join(import.meta.dir, '../runtime/index.js'));
+  await expect(
+    runtime.openInstalledVmCapture({ callback: { phase: 'before' }, baseline: {}, reader: {} }),
+  ).rejects.toThrow('Original');
+});
+
+test('compiled observer wire capture exposes its original issuer and refuses unissued sources', async () => {
+  const runtime = await import(join(import.meta.dir, '../runtime/index.js'));
+  expect(typeof runtime.openGcpObserverWireKeyReader).toBe('function');
+  await expect(runtime.openGcpObserverWireKeyReader({}, { phase: 'before' }, {})).rejects.toThrow('Original');
+  await expect(runtime.readOriginalGcpObserverWireKeys({})).rejects.toThrow('Original');
 });

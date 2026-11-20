@@ -35,7 +35,7 @@ export interface ObserverInsertFixtureInput {
   vm: Json;
   disk: Json;
   serialHook: { run?: () => void; contents?: string };
-  cloudHook: { run?: (path: string) => void };
+  cloudHook: { run?: (path: string) => void | Promise<void> };
 }
 export async function withObserverInsert(
   run: (value: ObserverInsertFixtureInput) => Promise<void>,
@@ -147,13 +147,13 @@ export async function withObserverInsert(
         users: [`${prefix}/zones/${observer.zone}/instances/${observer.name}`],
       };
       const serialHook: { run?: () => void; contents?: string } = {};
-      const cloudHook: { run?: (path: string) => void } = {};
+      const cloudHook: { run?: (path: string) => void | Promise<void> } = {};
       const cloudReader = await openInstalledGcpCloudSerialReader(before.original, undefined, (async (
         url: string | URL | Request,
       ) => {
         const parsed = new URL(String(url)),
           path = parsed.pathname;
-        cloudHook.run?.(path);
+        await cloudHook.run?.(path);
         if (path === '/token')
           return Response.json({ access_token: 'synthetic', token_type: 'Bearer', expires_in: 3599 });
         if (path === '/oauth2/v2/tokeninfo') return Response.json(authInfo);

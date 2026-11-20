@@ -343,3 +343,116 @@ test('native final key scanning consumes the actual parent reserve without relax
     },
   );
 }, 60000);
+
+function startupHooks(policy: executor.SignalFreeExecutionPolicy) {
+  const identity = policy.assertOriginalIdentity,
+    beforeRelease = policy.beforeRelease;
+  if (!identity || !beforeRelease) throw new Error('Original startup identity and release hooks required');
+  return { identity, beforeRelease };
+}
+
+test('startup identity polling keeps source leases without replaying cloud observations', async () => {
+  await withObserverInsert(async (input) => {
+    const profile = await clients(),
+      target = await vm(input);
+    let reads = 0;
+    input.cloudHook.run = () => {
+      reads++;
+    };
+    const reader = await wire.openGcpObserverWireKeyReader(target, input.callback, profile, {
+      executorFactory: async (policy) => {
+        const { identity, beforeRelease } = startupHooks(policy);
+        const initial = reads;
+        for (let round = 0; round < 3; round++) await identity();
+        expect(reads).toBe(initial);
+        input.vm.id = '18446744073709551610';
+        await expect(beforeRelease({} as executor.ExecutionCaptureAdmission)).rejects.toThrow(
+          'Original VM identity changed during cloud capture',
+        );
+        throw new Error('Offline policy inspected');
+      },
+    });
+    try {
+      await expect(reader.scan()).rejects.toThrow('Offline policy inspected');
+    } finally {
+      await reader.close();
+      closeOriginalGcpSshClientProfile(profile);
+    }
+  });
+}, 60000);
+
+test('startup identity polling permanently rejects a replaced original client file', async () => {
+  await withObserverInsert(async (input) => {
+    const profile = await clients(),
+      target = await vm(input);
+    const client = (await readOriginalGcpSshClientProfile(profile)).files['ssh-keyscan'];
+    const originalBytes = await readFile(client.path);
+    const reader = await wire.openGcpObserverWireKeyReader(target, input.callback, profile, {
+      executorFactory: async (policy) => {
+        const { identity } = startupHooks(policy);
+        await identity();
+        await rename(client.path, `${client.path}.original`);
+        try {
+          await writeFile(client.path, originalBytes, { mode: 0o500 });
+          await expect(identity()).rejects.toThrow();
+        } finally {
+          await rm(client.path);
+          await rename(`${client.path}.original`, client.path);
+        }
+        await expect(identity()).rejects.toThrow('retired');
+        throw new Error('Offline client replacement inspected');
+      },
+    });
+    try {
+      await expect(reader.scan()).rejects.toThrow('Offline client replacement inspected');
+    } finally {
+      await reader.close();
+      closeOriginalGcpSshClientProfile(profile);
+    }
+  });
+}, 60000);
+
+test('delayed original cloud observations cannot consume repeated startup polling budgets', async () => {
+  await withObserverInsert(async (input) => {
+    const profile = await clients(),
+      target = await vm(input);
+    let capture: executor.FinalExecutionCapture | undefined;
+    const reader = await wire.openGcpObserverWireKeyReader(target, input.callback, profile, {
+      executorFactory: async (policy) => {
+        const { beforeRelease } = startupHooks(policy);
+        // The original before-release VM validation still incurs both real
+        // offline cloud observations; continuous local polls must not repeat them.
+        input.cloudHook.run = async () => {
+          await Bun.sleep(2000);
+        };
+        return fixtureExecutor(
+          {
+            ...policy,
+            beforeRelease: async (admission) => {
+              await beforeRelease(admission);
+              input.cloudHook.run = undefined;
+            },
+            finalCapture: async (value) => {
+              capture = value;
+              await policy.finalCapture(value);
+            },
+          },
+          `${line}\n`,
+        );
+      },
+    });
+    try {
+      const ref = await reader.scan();
+      expect((await wire.readOriginalGcpObserverWireKeys(ref)).knownHostsLine).toBe(line);
+      expect(capture?.submitted).toBe(true);
+      expect(capture?.reason).toBeUndefined();
+      expect(capture?.actualExitCode).toBe(0);
+      expect(capture?.originalGroupClosed).toBe(true);
+      expect(capture?.signalsSent).toBe(false);
+    } finally {
+      input.cloudHook.run = undefined;
+      await reader.close();
+      closeOriginalGcpSshClientProfile(profile);
+    }
+  });
+}, 60000);

@@ -10,10 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.138 maps the pinned Google 8.12.0 CE and observer
-  insertion bodies and derives observer configuration from the exact XC provider
-  profile. Original source provenance and verified provider windows remain required.
-  Live capture and creation admission remain held.
+- **`terraform`** v2.4.139 adds an original VM and serial capture stage with
+  scoped insertion identities, asynchronous observation, durable partial evidence
+  and the unchanged final reserve. Monitored key-scan input leases keep repeated
+  cloud observations outside continuous startup polling; full VM ownership checks
+  remain at release and evidence boundaries. Ownership changes and copied sources
+  are refused. Guest and traffic acceptance and default creation admission remain held.
 
 - **`platform`** v6.3.30 rebuilds the shared CE runtime with Bun 1.4.4.
   Production operational deadlines and evidence requirements are preserved.

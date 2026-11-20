@@ -122,6 +122,20 @@ export async function readOriginalGcpObserverInsertIdentity(value: unknown, fina
   if (!source) throw new Error('Original observer insertion reference required');
   return source.read(final);
 }
+/** Bind the insertion source to the actual original capture and baseline. */
+export async function assertOriginalGcpObserverInsertContext(
+  value: unknown,
+  callback: OriginalApplyCallbackContext,
+  baseline: OriginalApplyGcpInventory,
+) {
+  const source =
+    value && typeof value === 'object' ? origins.get(value as OriginalGcpObserverInsertIdentity) : undefined;
+  if (!source || source.context !== callback.original || source.baseline !== baseline)
+    throw new Error('Original observer insertion context and baseline required');
+  await assertOriginalApplyGcpInventoryCallback(baseline, callback);
+  return source.read(callback.phase === 'after' ? callback : undefined);
+}
+
 /** Original source correspondence only; actual VM/disk/NIC/SSH and authorization remain separate gates. */
 export async function collectOriginalGcpObserverInsertIdentity(input: OriginalGcpObserverInsertInput) {
   const { callback, baseline, response, imageReader, image } = input;

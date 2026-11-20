@@ -4,7 +4,12 @@ import { lstat, mkdir, open, readFile, readlink, realpath, stat, writeFile } fro
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { acquireProcessLock, assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import { type TerraformFailureCategory, terraformFailureCategories } from './failure';
-import { type OriginalGcpKeyScanCommand, readOriginalGcpKeyScanCommand } from './gcp-keyscan-command';
+import {
+  assertOriginalGcpKeyScanIdentity,
+  assertOriginalGcpKeyScanInputs,
+  type OriginalGcpKeyScanCommand,
+  readOriginalGcpKeyScanCommand,
+} from './gcp-keyscan-command';
 import {
   assertOriginalGcpObserverClientDeliveryIdentity,
   assertOriginalGcpObserverClientDeliveryInputs,
@@ -468,16 +473,20 @@ export async function signalFreeGcpKeyScanExecutor(
     startupTimeoutMs: input.startupTimeoutMs ?? 15000,
     maxOutputBytes: input.maxOutputBytes ?? 65536,
     assertOriginal: async () => {
-      await readOriginalGcpKeyScanCommand(command);
+      await assertOriginalGcpKeyScanInputs(command);
       await input.assertOriginal();
     },
     assertOriginalIdentity: async () => {
-      await readOriginalGcpKeyScanCommand(command);
+      await assertOriginalGcpKeyScanIdentity(command);
       await (input.assertOriginalIdentity ?? input.assertOriginal)();
     },
     assertFinalInputs: async () => {
       await readOriginalGcpKeyScanCommand(command);
       await (input.assertFinalInputs ?? input.assertOriginal)();
+    },
+    beforeRelease: async (admission: ExecutionCaptureAdmission) => {
+      await readOriginalGcpKeyScanCommand(command);
+      await input.beforeRelease?.(admission);
     },
   };
   const reserve = callback.phase === 'after' ? callback.reserve : undefined;

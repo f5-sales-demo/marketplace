@@ -142,6 +142,7 @@ export {
   readOriginalGcpObserverImageEvidence,
 } from './gcp-observer-image';
 export {
+  assertOriginalGcpObserverInsertContext,
   collectOriginalGcpObserverInsertIdentity,
   collectOriginalGcpObserverSerialEvidence,
   collectOriginalGcpObserverVmEvidence,
@@ -160,6 +161,11 @@ export {
   readOriginalGcpCeTrustMaterial,
   readOriginalGcpObserverTrustMaterial,
 } from './gcp-observer-trust-material';
+export {
+  type OriginalGcpObserverWireKeys,
+  openGcpObserverWireKeyReader,
+  readOriginalGcpObserverWireKeys,
+} from './gcp-observer-wire-key-reader';
 export {
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,
@@ -186,5 +192,6 @@ export {
   readOriginalInstalledProviderWindow,
   readOriginalInstalledProviderWindowClock,
 } from './installed-provider-reader';
+export { type InstalledVmCaptureInput, openInstalledVmCapture } from './installed-vm-capture';
 export { readOriginalExecutionPrefix } from './original-output-stream';
 export { readOriginalTerraformApplyHookSource, TerraformApplyHookParser } from './terraform-apply-hooks';
