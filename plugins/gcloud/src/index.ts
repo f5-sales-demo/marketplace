@@ -72,8 +72,9 @@ const factory: ExtensionFactory = async (pi) => {
     name: 'Google Cloud',
     plugin: 'gcloud',
     kind: 'network',
+    dependencies: ['platform'],
     setup: {
-      pluginDependencies: [],
+      pluginDependencies: ['platform'],
       requiredEnvironment: [],
       profileFields: ['accounts'],
       steps: [

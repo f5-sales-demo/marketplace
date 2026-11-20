@@ -1,0 +1,36 @@
+{
+  "contractId": "f5xc-gcp-byol-terms/v1",
+  "publisherProject": "f5-7626-networks-public",
+  "billingService": "f5-distributed-cloud-customer-edge.endpoints.f5-7626-networks-public.cloud.goog",
+  "productUrl": "https://console.cloud.google.com/marketplace/product/f5-7626-networks-public/f5-distributed-cloud-customer-edge",
+  "configurationUrl": "https://console.cloud.google.com/marketplace/vm/config/f5-7626-networks-public/f5-distributed-cloud-customer-edge",
+  "productType": "BYOL",
+  "acceptanceMechanism": "explicit-authorization-for-access-or-use",
+  "evidence": {
+    "source": "authenticated Chrome CDP product and launch-form observation",
+    "imageVersion": "f5xc-ce-crt-20260801-0205-byol",
+    "observedSeparatePurchaseOrConsentControl": false,
+    "softwareLicenseAcquired": false,
+    "deploymentSubmitted": false,
+    "imageId": "1689146860273445475",
+    "licenseId": "2214615995702558918",
+    "licenseCode": "8535603005418881222",
+    "licenseSelfLink": "https://www.googleapis.com/compute/v1/projects/f5-7626-networks-public/global/licenses/cloud-marketplace-59c41a5addf4dd72-df1ebeb69c0ba664"
+  },
+  "documents": [
+    {
+      "role": "google-marketplace",
+      "url": "https://cloud.google.com/terms/marketplace/launcher?hl=en_US",
+      "version": "November 13, 2025",
+      "digestKind": "normalized-current-legal-text",
+      "sha256": "sha256:0b7cc7b34a8cf50f1da72c4e73905b7d640e3084a3ee6599d768a73e5118e14a"
+    },
+    {
+      "role": "f5-platform",
+      "url": "https://www.f5.com/pdf/customer-support/eusa.pdf",
+      "version": "July 1, 2026",
+      "digestKind": "document-bytes",
+      "sha256": "sha256:48ca1f9f22f4b399213e723de36c9853ad767283645b0721e5b74452b3862b97"
+    }
+  ]
+}

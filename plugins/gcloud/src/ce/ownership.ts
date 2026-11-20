@@ -1,3 +1,4 @@
+import { fingerprint } from './discovery';
 import type { GcpOperationStore } from './native-operation';
 import type { GcpCeEngine } from './types';
 
@@ -30,6 +31,15 @@ const COLLECTIONS = {
 } as const;
 export function validateGcpResourceIdentity(resource: GcpResourceIdentity) {
   if (
+    !resource ||
+    typeof resource !== 'object' ||
+    Array.isArray(resource) ||
+    Object.keys(resource).some(
+      (key) => !['id', 'selfLink', 'kind', 'project', 'deploymentName', 'siteName', 'nodeName', 'engine'].includes(key),
+    )
+  )
+    throw new Error('Unexpected GCP ownership identity fields');
+  if (
     !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
     !/^\d+$/.test(resource.id) ||
     !['native', 'terraform'].includes(resource.engine)
@@ -43,9 +53,28 @@ export function validateGcpResourceIdentity(resource: GcpResourceIdentity) {
   const suffix = resource.selfLink.slice(prefix.length);
   if (
     !resource.selfLink.startsWith(prefix) ||
-    !new RegExp(`^(?:global|zones/[a-z0-9-]+|regions/[a-z0-9-]+)/${collection}/[a-z][a-z0-9-]{0,62}$`).test(suffix)
+    !new RegExp(
+      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
+    ).test(suffix)
   )
     throw new Error('Resource must have an exact scoped selfLink');
+}
+
+export async function readGcpResourceInventory(
+  store: GcpOperationStore,
+  scope: Pick<GcpResourceIdentity, 'project' | 'deploymentName' | 'engine'>,
+): Promise<GcpResourceIdentity[]> {
+  const ledger = (await store.read('gcp-resources.json')) as Ledger;
+  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, scope) || !Array.isArray(ledger.resources))
+    throw new Error('GCP ownership ledger is unavailable');
+  const links = new Set<string>();
+  for (const resource of ledger.resources) {
+    validateGcpResourceIdentity(resource);
+    if (!sameScope(resource, scope) || links.has(resource.selfLink))
+      throw new Error('GCP ledger contains mixed ownership or duplicate identities');
+    links.add(resource.selfLink);
+  }
+  return structuredClone(ledger.resources);
 }
 function sameScope(
   a: Pick<GcpResourceIdentity, 'project' | 'deploymentName' | 'engine'>,
@@ -72,9 +101,9 @@ export async function recordGcpResource(store: GcpOperationStore, resource: GcpR
   }
   if (ledger?.schemaVersion !== 1 || !sameScope(ledger, resource) || !Array.isArray(ledger.resources))
     throw new Error('GCP ledger scope differs');
-  for (const existing of ledger.resources) validateGcpResourceIdentity(existing);
+  if (ledger.resources.length) await readGcpResourceInventory(store, resource);
   const prior = ledger.resources.find((r) => r.selfLink === resource.selfLink);
-  if (prior && JSON.stringify(prior) !== JSON.stringify(resource))
+  if (prior && fingerprint(prior) !== fingerprint(resource))
     throw new Error('GCP resource identity changed; explicit replacement required');
   if (!prior) {
     ledger.resources.push(structuredClone(resource));
@@ -88,13 +117,11 @@ export async function assertGcpResourceOwnership(
   observed: Pick<GcpResourceIdentity, 'id' | 'selfLink'>,
 ): Promise<void> {
   validateGcpResourceIdentity(expected);
-  const ledger = (await store.read('gcp-resources.json')) as Ledger;
-  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, expected) || !Array.isArray(ledger.resources))
-    throw new Error('GCP ownership ledger is unavailable');
-  const owned = ledger.resources.find((r) => r.id === expected.id && r.selfLink === expected.selfLink);
+  const resources = await readGcpResourceInventory(store, expected);
+  const owned = resources.find((r) => r.id === expected.id && r.selfLink === expected.selfLink);
   if (
     !owned ||
-    JSON.stringify(owned) !== JSON.stringify(expected) ||
+    fingerprint(owned) !== fingerprint(expected) ||
     observed.id !== expected.id ||
     observed.selfLink !== expected.selfLink
   )

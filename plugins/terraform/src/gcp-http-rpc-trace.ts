@@ -1,0 +1,631 @@
+import { createHash, type Hash } from 'node:crypto';
+import { decodeEvidenceObject } from './evidence-json';
+import { isEvidenceRfc3339 } from './evidence-rfc3339';
+import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
+import {
+  type OriginalExecutionOutput,
+  type OriginalExecutionPrefix,
+  type OriginalOutputChunk,
+  type OriginalOutputCompletion,
+  readOriginalExecutionChunk,
+  readOriginalExecutionCompletion,
+  readOriginalExecutionPrefix,
+} from './original-output-stream';
+
+type Json = Record<string, unknown>;
+type Rpc = 'ReadDataSource' | 'ReadResource' | 'ApplyResourceChange';
+export interface GoogleHttpRpcTraceScope {
+  readonly rpc: Rpc;
+  readonly resourceType: string;
+  readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  readonly url: string;
+  readonly requestReason: string;
+  readonly planSha256: string;
+  /** Compiled reviewed instance identity for same-zone serialized inserts. */
+  readonly instanceName?: string;
+}
+export interface GoogleHttpRpcTraceCandidate {
+  readonly rpcRequestId: string;
+  readonly rpc: Rpc;
+  readonly resourceType: string;
+  readonly method: string;
+  readonly url: string;
+  readonly status: number;
+  readonly requestReasonSha256: string;
+  readonly requestBodySha256: string;
+  readonly responseBodySha256: string;
+  readonly requestRecordsSha256: string;
+  readonly responseRecordsSha256: string;
+  readonly receivedRecordSha256: string;
+  readonly servedRecordSha256: string;
+  readonly planSha256: string;
+  readonly applyRpcQualified: false;
+  readonly originalInsertQualified: false;
+}
+/** Private controller evidence; never part of a tool result or legacy candidate. */
+export interface OriginalGoogleHttpRpcBodies extends GoogleHttpRpcTraceCandidate {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-google-http-rpc-bodies';
+  /** Existing forwarded JSON body framing is retained; record hashes bind the exact log bytes. */
+  readonly googleProviderVersion: string;
+  readonly requestBody: string;
+  readonly responseBody: string;
+}
+export interface OriginalGoogleHttpRpcSource {
+  readonly directory: string;
+  readonly schemaVersion: 1;
+  readonly kind: 'original-google-http-rpc-source';
+  readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
+  readonly planSha256: string;
+  readonly rpcRequestId: string;
+  readonly stdoutBytes: number;
+  readonly stdoutSha256: string;
+  readonly stderrBytes: number;
+  readonly stderrSha256: string;
+  readonly applyRpcQualified: false;
+  readonly originalInsertQualified: false;
+}
+export interface OriginalGoogleHttpResponseObservation
+  extends Omit<OriginalGoogleHttpRpcBodies, 'kind' | 'servedRecordSha256'> {
+  readonly kind: 'original-google-http-response-observation';
+  readonly rpcCompletionQualified: false;
+}
+export interface OriginalGoogleHttpResponseSource extends Omit<OriginalGoogleHttpRpcSource, 'kind'> {
+  readonly kind: 'original-google-http-response-source';
+  readonly rpcCompletionQualified: false;
+}
+const responseOrigins = new WeakMap<
+  OriginalGoogleHttpResponseObservation,
+  () => Promise<OriginalGoogleHttpResponseSource>
+>();
+export async function readOriginalGoogleHttpResponseSource(value: unknown) {
+  const read =
+    value && typeof value === 'object'
+      ? responseOrigins.get(value as OriginalGoogleHttpResponseObservation)
+      : undefined;
+  if (!read) throw new Error('Original executor-issued HTTP response required');
+  return read();
+}
+const bodyOrigins = new WeakMap<OriginalGoogleHttpRpcBodies, () => Promise<OriginalGoogleHttpRpcSource>>();
+export async function readOriginalGoogleHttpRpcSource(value: OriginalGoogleHttpRpcBodies) {
+  const read = bodyOrigins.get(value);
+  if (!read) throw new Error('Original executor-issued HTTP bodies required');
+  return read();
+}
+const issuedBodies = new WeakSet<OriginalGoogleHttpRpcBodies>();
+export function assertOriginalGoogleHttpRpcBodies(value: OriginalGoogleHttpRpcBodies): void {
+  if (!value || !issuedBodies.has(value)) throw new Error('An original parser-issued HTTP body capability is required');
+}
+interface ActiveRpc {
+  id: string;
+  fingerprint: string;
+  eligible: boolean;
+  receivedHash: string;
+}
+interface Dump {
+  kind: 'request' | 'response';
+  marker: boolean;
+  lines: string[];
+  bytes: number;
+  hash: Hash;
+}
+interface HttpRequest {
+  method: string;
+  url: string;
+  bodyHash: string;
+  body: string;
+  recordsHash: string;
+  matching: boolean;
+}
+interface Transaction {
+  request: HttpRequest;
+  status: number;
+  body: string;
+  bodyHash: string;
+  recordsHash: string;
+}
+const providerAddress = 'registry.terraform.io/hashicorp/google';
+const maximumLine = 1024 * 1024,
+  maximumStream = 64 * 1024 * 1024,
+  maximumDump = 4 * 1024 * 1024;
+const hash = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
+const ending = '-----------------------------------------------------';
+const markers = {
+  request: '---[ REQUEST ]---------------------------------------',
+  response: '---[ RESPONSE ]--------------------------------------',
+};
+const heading = /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} \[DEBUG\] Google API (Request|Response) Details:$/;
+const text = (value: unknown) => {
+  if (typeof value !== 'string') throw new Error('Malformed original trace field');
+  for (const char of value) if (char.charCodeAt(0) < 32) throw new Error('Multiline or control trace field');
+  return value;
+};
+
+function headers(lines: string[]) {
+  const separator = lines.indexOf('');
+  if (separator < 1) throw new Error('Incomplete original HTTP headers');
+  const values = new Map<string, string[]>();
+  for (const line of lines.slice(1, separator)) {
+    const found = /^([a-zA-Z][a-zA-Z0-9-]*):[ \t]*(.*)$/.exec(line);
+    if (!found) throw new Error('Malformed original HTTP header');
+    const key = found[1].toLowerCase();
+    values.set(key, [...(values.get(key) ?? []), found[2].trim()]);
+  }
+  for (const key of ['host', 'authorization', 'content-type', 'content-length', 'x-goog-request-reason'])
+    if ((values.get(key)?.length ?? 0) > 1) throw new Error('Ambiguous original HTTP header');
+  return {
+    values,
+    body: lines
+      .slice(separator + 1)
+      .join('\n')
+      .trim(),
+  };
+}
+function jsonBody(body: string, contentType: string | undefined, required: boolean) {
+  if (!body) {
+    if (required) throw new Error('Missing original HTTP response body');
+    return hash('');
+  }
+  if (!contentType || !/^application\/json(?:\s*;.*)?$/i.test(contentType))
+    throw new Error('Original HTTP JSON content type required');
+  decodeEvidenceObject(Buffer.from(body));
+  return hash(body);
+}
+
+/** Authenticated Google version / protocol 5.11 split-record inspection.
+ * Original bytes must be retained and their producers admitted separately.
+ * Serialized RPC and HTTP pairs remain candidates; this parser never authorizes
+ * an apply, a resource incarnation, token reuse or an installed controller.
+ */
+export class GoogleHttpRpcTraceParser {
+  readonly #scope: Readonly<GoogleHttpRpcTraceScope>;
+  readonly #base: string;
+  readonly #googleVersion: string;
+  #releasedBody: OriginalGoogleHttpRpcBodies | undefined;
+  readonly #providerModule: string;
+  readonly #buffer = Buffer.allocUnsafe(maximumLine);
+  readonly #seen = new Set<string>();
+  readonly #bodies = new WeakMap<GoogleHttpRpcTraceCandidate, OriginalGoogleHttpRpcBodies>();
+  #lineBytes = 0;
+  #streamBytes = 0;
+  #failed = false;
+  #closed = false;
+  #active: ActiveRpc | undefined;
+  #dump: Dump | undefined;
+  #pending: HttpRequest | undefined;
+  #matched: Transaction | undefined;
+  #matches = 0;
+  readonly #responses: OriginalGoogleHttpResponseObservation[] = [];
+  #originOutput: OriginalExecutionOutput | undefined;
+  #originCompletion: ReturnType<typeof readOriginalExecutionCompletion> | undefined;
+  #sourceEnd = 0;
+  readonly #sourceHash = createHash('sha256');
+
+  constructor(scope: GoogleHttpRpcTraceScope, binding?: InstalledGcpVersionBinding) {
+    const googleVersion = binding ? resolveInstalledGcpVersionProfile(binding).googleVersion : '8.7.0';
+    this.#googleVersion = googleVersion;
+    this.#providerModule = `provider.terraform-provider-google_v${googleVersion}_x5`;
+    const url = new URL(scope.url);
+    const project = /^\/compute\/v1\/projects\/([a-z][a-z0-9-]{4,62})(?:\/|$)/.exec(url.pathname);
+    if (
+      !['ReadDataSource', 'ReadResource', 'ApplyResourceChange'].includes(scope.rpc) ||
+      !/^google_[a-z0-9_]+$/.test(scope.resourceType) ||
+      !['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(scope.method) ||
+      !/^[a-f0-9]{64}$/.test(scope.planSha256) ||
+      !scope.requestReason ||
+      scope.requestReason.length > 256 ||
+      url.protocol !== 'https:' ||
+      !['compute.googleapis.com', 'www.googleapis.com'].includes(url.hostname) ||
+      url.port ||
+      url.username ||
+      url.password ||
+      url.hash ||
+      !project
+    )
+      throw new Error('Fixed reviewed Google trace scope required');
+    if (
+      scope.instanceName !== undefined &&
+      (typeof scope.instanceName !== 'string' ||
+        !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(scope.instanceName) ||
+        scope.rpc !== 'ApplyResourceChange' ||
+        scope.resourceType !== 'google_compute_instance' ||
+        scope.method !== 'POST' ||
+        !/^\/compute\/v1\/projects\/[a-z][a-z0-9-]{4,62}\/zones\/[a-z][a-z0-9-]{0,62}\/instances$/.test(url.pathname))
+    )
+      throw new Error('Original named Compute insert scope required');
+    text(scope.requestReason);
+    this.#scope = Object.freeze({ ...scope });
+    this.#base = `${url.origin}/compute/v1/projects/${project[1]}/`;
+  }
+  #open() {
+    if (this.#failed) throw new Error('Original HTTP/RPC trace failed');
+    if (this.#closed) throw new Error('Original HTTP/RPC trace closed');
+  }
+  push(chunk: Uint8Array): readonly GoogleHttpRpcTraceCandidate[] {
+    this.#open();
+    if (this.#originOutput) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw new Error('Original HTTP descriptor cannot accept unowned bytes');
+    }
+    return this.#consume(chunk);
+  }
+  pushOriginal(output: OriginalExecutionOutput, chunk: OriginalOutputChunk): readonly GoogleHttpRpcTraceCandidate[] {
+    this.#open();
+    try {
+      const source = readOriginalExecutionChunk(output, chunk, 'stderr');
+      if (
+        (this.#originOutput && this.#originOutput !== output) ||
+        (!this.#originOutput && this.#streamBytes !== 0) ||
+        source.offset !== this.#sourceEnd
+      )
+        throw new Error('Original HTTP descriptor stream changed or has a gap');
+      this.#originOutput = output;
+      this.#sourceEnd = source.offset + source.bytes.length;
+      this.#sourceHash.update(source.bytes);
+      return this.#consume(source.bytes);
+    } catch (error) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw error;
+    }
+  }
+  #consume(chunk: Uint8Array): readonly GoogleHttpRpcTraceCandidate[] {
+    this.#open();
+    try {
+      this.#streamBytes += chunk.byteLength;
+      if (this.#streamBytes > maximumStream) throw new Error('Original trace stream limit exceeded');
+      const output: GoogleHttpRpcTraceCandidate[] = [];
+      let offset = 0;
+      while (offset < chunk.length) {
+        const newline = chunk.indexOf(10, offset),
+          end = newline === -1 ? chunk.length : newline;
+        if (this.#lineBytes + end - offset > maximumLine) throw new Error('Original trace line limit exceeded');
+        this.#buffer.set(chunk.subarray(offset, end), this.#lineBytes);
+        this.#lineBytes += end - offset;
+        if (newline < 0) break;
+        const candidate = this.#record(this.#buffer.subarray(0, this.#lineBytes));
+        if (candidate) output.push(candidate);
+        this.#lineBytes = 0;
+        offset = newline + 1;
+      }
+      return output;
+    } catch (error) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw error;
+    }
+  }
+  #record(raw: Uint8Array): GoogleHttpRpcTraceCandidate | undefined {
+    const record = decodeEvidenceObject(raw);
+    if (typeof record['@message'] !== 'string') throw new Error('Malformed original trace message');
+    const message = record['@message'];
+    const rpcRecord = record['@module'] === 'sdk.proto' && record.tf_provider_addr === providerAddress;
+    const httpRecord = record['@module'] === this.#providerModule;
+    if (
+      this.#active &&
+      !httpRecord &&
+      typeof record['@module'] === 'string' &&
+      record['@module'].startsWith('provider.terraform-provider-google_')
+    )
+      throw new Error('Original forwarding module differs from authenticated profile');
+    if (!rpcRecord && !httpRecord) {
+      if (this.#dump && heading.test(message)) throw new Error('Original forwarding module changed');
+      if (this.#dump?.marker && message === markers[this.#dump.kind])
+        throw new Error('Original forwarding module changed');
+      return;
+    }
+    const timestamp = text(record['@timestamp']);
+    if (!isEvidenceRfc3339(timestamp) || !['trace', 'debug', 'info', 'warn', 'error'].includes(text(record['@level'])))
+      throw new Error('Original trace envelope required');
+    if (rpcRecord) return this.#rpc(record, message, raw);
+    if (!this.#active) return;
+    if (record['@level'] === 'error' || /\[ERROR\] Google API (?:Request|Response) error:/.test(message))
+      throw new Error('Original provider HTTP dump failed');
+    const found = heading.exec(message);
+    if (found) {
+      if (this.#dump) throw new Error('Overlapping original HTTP dumps');
+      const kind = found[1] === 'Request' ? 'request' : 'response';
+      if ((kind === 'request' && this.#pending) || (kind === 'response' && !this.#pending))
+        throw new Error('Unpaired original HTTP transaction');
+      this.#dump = { kind, marker: true, lines: [], bytes: 0, hash: createHash('sha256').update(raw).update('\n') };
+      return;
+    }
+    const dump = this.#dump;
+    if (!dump) {
+      if (message === ending || message === markers.request || message === markers.response)
+        throw new Error('Unpaired original HTTP dump marker');
+      return;
+    }
+    text(message);
+    dump.hash.update(raw).update('\n');
+    if (dump.marker) {
+      if (message !== markers[dump.kind]) throw new Error('Missing original HTTP dump marker');
+      dump.marker = false;
+      return;
+    }
+    if (message === ending) {
+      this.#completeDump(dump);
+      this.#dump = undefined;
+      return;
+    }
+    dump.bytes += Buffer.byteLength(message) + 1;
+    if (dump.bytes > maximumDump) throw new Error('Original HTTP dump limit exceeded');
+    dump.lines.push(message);
+  }
+  #rpc(record: Json, message: string, raw: Uint8Array): GoogleHttpRpcTraceCandidate | undefined {
+    if (record.tf_proto_version !== '5.11') throw new Error('Pinned original Google protocol required');
+    if (this.#active && record['@level'] === 'error') throw new Error('Original provider RPC failed');
+    if (!['Received request', 'Served request'].includes(message)) return;
+    const id = text(record.tf_req_id),
+      rpc = text(record.tf_rpc);
+    if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id))
+      throw new Error('Original RPC request identity required');
+    const fingerprint = JSON.stringify([rpc, record.tf_resource_type ?? null, record.tf_data_source_type ?? null]);
+    if (message === 'Received request') {
+      if (this.#active || this.#seen.has(id)) throw new Error('Concurrent or replayed original Google RPC');
+      this.#seen.add(id);
+      this.#active = {
+        id,
+        fingerprint,
+        eligible:
+          rpc === this.#scope.rpc &&
+          (record.tf_resource_type ?? record.tf_data_source_type) === this.#scope.resourceType,
+        receivedHash: createHash('sha256').update(raw).update('\n').digest('hex'),
+      };
+      return;
+    }
+    const active = this.#active;
+    if (!active || active.id !== id || active.fingerprint !== fingerprint || this.#dump || this.#pending)
+      throw new Error('Unpaired or changed original Google RPC');
+    this.#active = undefined;
+    const transaction = this.#matched;
+    this.#matched = undefined;
+    if (!transaction) return;
+    this.#matches++;
+    if (this.#matches !== 1) throw new Error('Replayed matching original HTTP transaction');
+    const candidate = Object.freeze({
+      rpcRequestId: id,
+      rpc: this.#scope.rpc,
+      resourceType: this.#scope.resourceType,
+      method: transaction.request.method,
+      url: transaction.request.url,
+      status: transaction.status,
+      requestReasonSha256: hash(this.#scope.requestReason),
+      requestBodySha256: transaction.request.bodyHash,
+      responseBodySha256: transaction.bodyHash,
+      requestRecordsSha256: transaction.request.recordsHash,
+      responseRecordsSha256: transaction.recordsHash,
+      receivedRecordSha256: active.receivedHash,
+      servedRecordSha256: createHash('sha256').update(raw).update('\n').digest('hex'),
+      planSha256: this.#scope.planSha256,
+      applyRpcQualified: false as const,
+      originalInsertQualified: false as const,
+    });
+    this.#bodies.set(
+      candidate,
+      Object.freeze({
+        ...candidate,
+        schemaVersion: 1 as const,
+        kind: 'original-google-http-rpc-bodies' as const,
+        googleProviderVersion: this.#googleVersion,
+        requestBody: transaction.request.body,
+        responseBody: transaction.body,
+      }),
+    );
+    return candidate;
+  }
+  /** Consume one private body capability from this exact parser invocation.
+   * Original candidates remain hash-only. Cloning, cross-parser use, replay or
+   * a failed original stream cannot supply body evidence to the controller.
+   */
+  consumeBodies(candidate: GoogleHttpRpcTraceCandidate): OriginalGoogleHttpRpcBodies {
+    if (this.#failed) throw new Error('Original HTTP/RPC trace failed');
+    const bodies = this.#bodies.get(candidate);
+    if (!bodies) throw new Error('An unconsumed original HTTP candidate is required');
+    this.#bodies.delete(candidate);
+    this.#releasedBody = bodies;
+    issuedBodies.add(bodies);
+    const output = this.#originOutput;
+    if (output)
+      bodyOrigins.set(bodies, async () => {
+        if (this.#failed || !issuedBodies.has(bodies)) throw new Error('Original HTTP descriptor source failed');
+        const original = this.#originCompletion;
+        if (!original) throw new Error('Original HTTP descriptor completion required');
+        try {
+          readOriginalExecutionCompletion(output, original.completion);
+          const current = await output.finish();
+          const checked = readOriginalExecutionCompletion(output, current);
+          for (const channel of ['stdout', 'stderr'] as const)
+            if (
+              current[channel].bytes !== original.completion[channel].bytes ||
+              current[channel].sha256 !== original.completion[channel].sha256
+            )
+              throw new Error('Original HTTP descriptor bytes changed');
+          if (
+            (['pid', 'group', 'start', 'boot'] as const).some((key) => checked.identity[key] !== original.identity[key])
+          )
+            throw new Error('Original HTTP executor identity changed');
+          return Object.freeze({
+            schemaVersion: 1,
+            kind: 'original-google-http-rpc-source',
+            executor: original.identity,
+            directory: original.directory,
+            planSha256: bodies.planSha256,
+            rpcRequestId: bodies.rpcRequestId,
+            stdoutBytes: current.stdout.bytes,
+            stdoutSha256: current.stdout.sha256,
+            stderrBytes: current.stderr.bytes,
+            stderrSha256: current.stderr.sha256,
+            applyRpcQualified: false,
+            originalInsertQualified: false,
+          });
+        } catch (error) {
+          this.#failed = true;
+          issuedBodies.delete(bodies);
+          throw error;
+        }
+      });
+    return bodies;
+  }
+  takeOriginalResponses(): readonly OriginalGoogleHttpResponseObservation[] {
+    this.#open();
+    if (!this.#originOutput) throw new Error('Original executor descriptor response source required');
+    return Object.freeze(this.#responses.splice(0));
+  }
+  #observeResponse(transaction: Transaction) {
+    const output = this.#originOutput,
+      active = this.#active;
+    if (!output || !active) throw new Error('Original active response descriptor required');
+    const response: OriginalGoogleHttpResponseObservation = Object.freeze({
+      schemaVersion: 1,
+      kind: 'original-google-http-response-observation',
+      rpcRequestId: active.id,
+      rpc: this.#scope.rpc,
+      resourceType: this.#scope.resourceType,
+      method: transaction.request.method,
+      url: transaction.request.url,
+      status: transaction.status,
+      googleProviderVersion: this.#googleVersion,
+      requestReasonSha256: hash(this.#scope.requestReason),
+      requestBodySha256: transaction.request.bodyHash,
+      responseBodySha256: transaction.bodyHash,
+      requestRecordsSha256: transaction.request.recordsHash,
+      responseRecordsSha256: transaction.recordsHash,
+      receivedRecordSha256: active.receivedHash,
+      planSha256: this.#scope.planSha256,
+      requestBody: transaction.request.body,
+      responseBody: transaction.body,
+      rpcCompletionQualified: false,
+      applyRpcQualified: false,
+      originalInsertQualified: false,
+    });
+    let prefix: OriginalExecutionPrefix | undefined;
+    responseOrigins.set(response, async () => {
+      if (this.#failed) throw new Error('Original HTTP response descriptor source failed');
+      try {
+        if (!prefix) {
+          const current = await readOriginalExecutionPrefix(output);
+          if (
+            current.stderr.bytes !== this.#sourceEnd ||
+            current.stderr.sha256 !== this.#sourceHash.copy().digest('hex')
+          )
+            throw new Error('Original HTTP response descriptor prefix differs');
+          prefix = current;
+        } else await readOriginalExecutionPrefix(output, prefix);
+        if (this.#failed) throw new Error('Original HTTP response descriptor source failed during verification');
+        return Object.freeze({
+          schemaVersion: 1,
+          kind: 'original-google-http-response-source',
+          executor: prefix.identity,
+          directory: prefix.directory,
+          planSha256: response.planSha256,
+          rpcRequestId: response.rpcRequestId,
+          stdoutBytes: prefix.stdout.bytes,
+          stdoutSha256: prefix.stdout.sha256,
+          stderrBytes: prefix.stderr.bytes,
+          stderrSha256: prefix.stderr.sha256,
+          rpcCompletionQualified: false,
+          applyRpcQualified: false,
+          originalInsertQualified: false,
+        });
+      } catch (error) {
+        this.#failed = true;
+        if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+        throw error;
+      }
+    });
+    this.#responses.push(response);
+  }
+  #completeDump(dump: Dump) {
+    const parsed = headers(dump.lines),
+      recordsHash = dump.hash.digest('hex');
+    if (dump.kind === 'request') {
+      const line = /^(GET|POST|PUT|PATCH|DELETE) (\/[^ ]*) HTTP\/1\.1$/.exec(dump.lines[0]);
+      const host = parsed.values.get('host')?.[0];
+      if (!line || line[2].startsWith('//') || !host) throw new Error('Fixed original HTTP request line required');
+      const url = new URL(`https://${host}${line[2]}`);
+      if (!url.href.startsWith(this.#base) || url.username || url.password || url.hash || url.port)
+        throw new Error('Original Google HTTP target differs');
+      if (parsed.values.get('x-goog-request-reason')?.[0] !== this.#scope.requestReason)
+        throw new Error('Original reviewed HTTP request reason differs');
+      let matching = this.#active?.eligible === true && line[1] === this.#scope.method && url.href === this.#scope.url;
+      const bodyHash = jsonBody(parsed.body, parsed.values.get('content-type')?.[0], false);
+      if (matching && this.#scope.instanceName !== undefined) {
+        const named = decodeEvidenceObject(Buffer.from(parsed.body)).name;
+        if (typeof named !== 'string' || !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(named))
+          throw new Error('Original insert body instance name required');
+        matching = named === this.#scope.instanceName;
+      }
+      if (matching && (this.#matched || this.#matches)) throw new Error('Replayed matching original HTTP request');
+      this.#pending = {
+        method: line[1],
+        url: url.href,
+        matching,
+        recordsHash,
+        bodyHash,
+        body: parsed.body,
+      };
+      return;
+    }
+    const status = /^HTTP\/(?:1\.0|1\.1|2\.0) ([1-5][0-9]{2})(?: .*)?$/.exec(dump.lines[0]);
+    if (!status || !this.#pending) throw new Error('Original HTTP response identity required');
+    const bodyHash = jsonBody(parsed.body, parsed.values.get('content-type')?.[0], true);
+    if (this.#pending.matching) {
+      const transaction = {
+        request: this.#pending,
+        status: Number(status[1]),
+        bodyHash,
+        recordsHash,
+        body: parsed.body,
+      };
+      this.#matched = transaction;
+      if (this.#originOutput) this.#observeResponse(transaction);
+    }
+    this.#pending = undefined;
+  }
+  finish() {
+    this.#open();
+    if (this.#originOutput) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw new Error('Original HTTP descriptor completion required');
+    }
+    return this.#finish();
+  }
+  finishOriginal(output: OriginalExecutionOutput, completion: OriginalOutputCompletion) {
+    this.#open();
+    try {
+      const original = readOriginalExecutionCompletion(output, completion);
+      if (
+        output !== this.#originOutput ||
+        this.#sourceEnd !== completion.stderr.bytes ||
+        this.#streamBytes !== completion.stderr.bytes ||
+        this.#sourceHash.copy().digest('hex') !== completion.stderr.sha256
+      )
+        throw new Error('Original HTTP descriptor completion differs');
+      const result = this.#finish();
+      this.#originCompletion = original;
+      return result;
+    } catch (error) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw error;
+    }
+  }
+  #finish() {
+    this.#open();
+    if (this.#lineBytes || this.#active || this.#dump || this.#pending || this.#matches !== 1) {
+      this.#failed = true;
+      if (this.#releasedBody) issuedBodies.delete(this.#releasedBody);
+      throw new Error('Original HTTP/RPC trace truncated or missing matching evidence');
+    }
+    this.#closed = true;
+    return Object.freeze({
+      complete: true as const,
+      matchingTransactions: this.#matches,
+      applyRpcQualified: false as const,
+      originalInsertQualified: false as const,
+    });
+  }
+}
