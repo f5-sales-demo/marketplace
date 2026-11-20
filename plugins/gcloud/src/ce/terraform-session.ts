@@ -11,6 +11,7 @@ import { fingerprint } from './discovery';
 import { withGcpCorporateFunding } from './funding-session';
 import { translateGcpTerraformObserverSiteCompute } from './observer-plan';
 import type { GcpTerraformRequestReason } from './request-reason';
+import { resolveGcpTerraformPreparationResume } from './terraform-preparation-resume';
 import type { GcpCeIntent } from './types';
 import { validateIntent } from './validation';
 
@@ -132,7 +133,7 @@ export async function openGcpTerraformSession(
   const session = await (installedService ?? createCeTerraformService(async () => platform)).open(
     owner,
     deployment,
-    resume,
+    await resolveGcpTerraformPreparationResume(store, owner.deploymentId, resume),
   );
   return withGcpCorporateFunding(
     session,

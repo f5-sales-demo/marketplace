@@ -298,6 +298,18 @@ export function selectedGoogleAccountSha256(environment: Record<string, string |
     throw new Error('Selected Google account unavailable');
   return hash(account);
 }
+/** Resolve the ordinary configured-home route before capturing its original file identity.
+ * Explicit source paths retain their canonical-input validation. */
+export async function resolveInstalledGoogleAdcPath(
+  environment: Record<string, string | undefined>,
+  home = homedir(),
+): Promise<string> {
+  if (environment.GOOGLE_APPLICATION_CREDENTIALS !== undefined) return environment.GOOGLE_APPLICATION_CREDENTIALS;
+  return realpath(
+    join(environment.CLOUDSDK_CONFIG ?? join(home, '.config/gcloud'), 'application_default_credentials.json'),
+  );
+}
+
 /** Concrete installed server resolver. Mutations remain gated on the actual capture implementation. */
 export function createInstalledRuntimeResolver(
   environment: Record<string, string | undefined> = process.env,
@@ -340,9 +352,7 @@ export function createInstalledRuntimeResolver(
       };
     }
     const accountSha256 = selectedGoogleAccountSha256(env);
-    const sourcePath =
-      env.GOOGLE_APPLICATION_CREDENTIALS ??
-      join(env.CLOUDSDK_CONFIG ?? join(homedir(), '.config/gcloud'), 'application_default_credentials.json');
+    const sourcePath = await resolveInstalledGoogleAdcPath(env);
     const source = await owned(sourcePath, 65536);
     const credential = JSON.parse(source.bytes.toString());
     if (credential.type !== 'authorized_user' || typeof credential.client_id !== 'string')

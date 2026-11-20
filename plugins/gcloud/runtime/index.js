@@ -11763,6 +11763,57 @@ var init_observer_plan = __esm(() => {
   init_observer_scope();
 });
 
+// plugins/gcloud/src/ce/terraform-preparation-resume.ts
+import { lstat as lstat8, readdir as readdir2 } from 'node:fs/promises';
+import { join as join13 } from 'node:path';
+
+async function resolveGcpTerraformPreparationResume(store, deploymentId, resume) {
+  if (!resume) return false;
+  await store.verify();
+  if (!/^[a-z][a-z0-9-]{0,62}$/.test(deploymentId)) throw new Error('Original preparation identity required');
+  try {
+    const existing = await lstat8(join13(store.directory, deploymentId));
+    if (!existing.isDirectory() || existing.isSymbolicLink())
+      throw new Error('Original runner directory differs; reconcile preparation');
+    return resume;
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
+  const required = ['owner.json', 'gcp-terraform-input-identity.json', 'gcp-terraform-session-inputs.json'];
+  const allowed = new Set([...required, 'gcp-campaign-access', 'google-runtime-mode.json']);
+  const snapshot = async () => {
+    const names = (await readdir2(store.directory)).sort();
+    if (required.some((name) => !names.includes(name)) || names.some((name) => !allowed.has(name)))
+      throw new Error('Original preparation has missing or additional evidence; reconcile without recreation');
+    const records = [];
+    for (const name of ['', ...names]) {
+      const stat = await lstat8(join13(store.directory, name), { bigint: true });
+      const directory = name === '' || name === 'gcp-campaign-access';
+      if (
+        stat.isSymbolicLink() ||
+        (directory ? !stat.isDirectory() : !stat.isFile() || stat.nlink !== 1n) ||
+        stat.uid !== BigInt(process.getuid?.() ?? -1) ||
+        (stat.mode & 0o022n) !== 0n
+      )
+        throw new Error('Original preparation record differs; reconcile without recreation');
+      const fields = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+      records.push([name, ...fields.map((key) => stat[key].toString())]);
+    }
+    return JSON.stringify(records);
+  };
+  const before = await snapshot();
+  await store.verify();
+  let after;
+  try {
+    after = await snapshot();
+  } catch {
+    throw new Error('Original preparation changed; reconcile without recreation');
+  }
+  if (before !== after) throw new Error('Original preparation changed; reconcile without recreation');
+  return false;
+}
+var init_terraform_preparation_resume = () => {};
+
 // plugins/gcloud/src/ce/terraform-session.ts
 async function openGcpTerraformSession(platform, inputs, resume = false, installedService) {
   inputs = structuredClone(inputs);
@@ -11865,7 +11916,7 @@ async function openGcpTerraformSession(platform, inputs, resume = false, install
   const session = await (installedService ?? createCeTerraformService(async () => platform)).open(
     owner,
     deployment,
-    resume,
+    await resolveGcpTerraformPreparationResume(store, owner.deploymentId, resume),
   );
   return withGcpCorporateFunding(
     session,
@@ -11897,6 +11948,7 @@ var init_terraform_session = __esm(() => {
   init_discovery();
   init_funding_session();
   init_observer_plan();
+  init_terraform_preparation_resume();
   init_validation();
 });
 
@@ -12005,7 +12057,7 @@ var init_terraform_public_runtime = __esm(() => {
 });
 
 // plugins/gcloud/src/tools/gcp-ce.ts
-import { join as join13 } from 'node:path';
+import { join as join14 } from 'node:path';
 
 function result(tool, data, isError = false) {
   return {
@@ -12324,7 +12376,7 @@ function createGcpCeTools(
             undefined,
             signal,
           );
-          const release = await acquireProcessLock(join13(store.directory, '.gcp-deployment-lock'));
+          const release = await acquireProcessLock(join14(store.directory, '.gcp-deployment-lock'));
           try {
             if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
             if (intent.image.name.endsWith('-byol') && !params.agreement) {

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
@@ -46,7 +46,11 @@ async function fixture() {
     googleAdcEnvironment: async () => ({ GOOGLE_APPLICATION_CREDENTIALS: '/private/example-adc.json' }),
   };
   const service: CeTerraformService = {
-    open: async (_owner, deployment, resume) => {
+    open: async (owner, deployment, resume) => {
+      if (!resume) {
+        const store = await platform.storage(owner);
+        await mkdir(join(store.directory, deployment.deploymentId), { mode: 0o700 });
+      }
       opened.push({ deployment, resume });
       return session;
     },

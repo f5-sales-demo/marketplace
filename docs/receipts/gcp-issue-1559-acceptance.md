@@ -2075,3 +2075,18 @@ bootstrap evidence. Full family suites, types, native component, compiled and
 packaging checks pass. Public selection and live admission retain their hold;
 every original positive guest, lifecycle/network, traffic/recovery/restoration,
 independent cleanup and final publication/installation gate remains open.
+
+### Original preparation recovery, 2026-11-20
+
+The [preparation recovery receipt](gcp-preparation-recovery-20261120.md) records
+canonical default ADC discovery and narrowly bounded recovery of an absent
+runner directory. Historical execution and authorization evidence cannot be
+recreated. Explicit credential paths retain canonical ownership checks.
+
+Fresh production-path planning retains exactly 21 creates and the default
+capture hold. Separate saved-plan parsing and independent authenticated GETs
+verify the original resource scope, observer restrictions and 21 initial
+absences. No apply was submitted. The preceding-head presentation tracker CI
+failure and all preparation/funding failures remain retained. Current source,
+installed runtime, original guest capture, full live acceptance, parent review
+and CI, merge and qualified publication/installation remain separate gates.

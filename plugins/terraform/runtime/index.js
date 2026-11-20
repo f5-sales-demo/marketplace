@@ -15583,6 +15583,12 @@ function selectedGoogleAccountSha256(environment = process.env) {
     throw new Error('Selected Google account unavailable');
   return hash22(account);
 }
+async function resolveInstalledGoogleAdcPath(environment, home = homedir2()) {
+  if (environment.GOOGLE_APPLICATION_CREDENTIALS !== undefined) return environment.GOOGLE_APPLICATION_CREDENTIALS;
+  return realpath18(
+    join28(environment.CLOUDSDK_CONFIG ?? join28(home, '.config/gcloud'), 'application_default_credentials.json'),
+  );
+}
 function createInstalledRuntimeResolver(environment = process.env, options = {}) {
   const env = { ...environment },
     captureFactory = options.capture;
@@ -15621,9 +15627,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
       };
     }
     const accountSha256 = selectedGoogleAccountSha256(env);
-    const sourcePath =
-      env.GOOGLE_APPLICATION_CREDENTIALS ??
-      join28(env.CLOUDSDK_CONFIG ?? join28(homedir2(), '.config/gcloud'), 'application_default_credentials.json');
+    const sourcePath = await resolveInstalledGoogleAdcPath(env);
     const source = await owned(sourcePath, 65536);
     const credential = JSON.parse(source.bytes.toString());
     if (credential.type !== 'authorized_user' || typeof credential.client_id !== 'string')
