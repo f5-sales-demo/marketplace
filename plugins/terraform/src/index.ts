@@ -1,0 +1,182 @@
+export {
+  collectOriginalGcpTerraformBootstrap,
+  collectOriginalGcpTerraformBootstrapV2,
+  readOriginalGcpTerraformBootstrapJwt,
+} from './gcp-bootstrap-evidence';
+export { joinOriginalGcpBootstrapVm } from './gcp-bootstrap-vm-binding';
+export { assertOriginalInstalledGcpCloudReader, openGcpCloudSerialReader } from './gcp-cloud-serial-reader';
+export {
+  assertOriginalGcpPreapplyBootstrapContext,
+  collectOriginalGcpPreapplyBootstrap,
+  readOriginalGcpPreapplyBootstrapJwt,
+} from './gcp-preapply-bootstrap';
+export { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
+export { openInstalledBootstrapCapture } from './installed-bootstrap-capture';
+export { openInstalledXcshCreationReader, readOriginalInstalledXcshCreation } from './installed-xcsh-creation-reader';
+export {
+  assertOriginalGcpInventoryInputs,
+  assertOriginalGcpInventoryScope,
+  closeOriginalGcpInventoryScope,
+  inspectOriginalGcpInventoryScope,
+  prepareOriginalGcpInventoryScope,
+} from './original-gcp-inventory-scope';
+export { publishOriginalGcpBootstrapGrant } from './prepared-creation-scope';
+export { joinOriginalXcshCreationBody, readOriginalXcshCreationBody } from './xcsh-creation-body';
+
+import type { CeEventBus } from '../../platform/src/ce/service';
+import { bindOriginalGcpCampaignAccess, prepareOriginalGcpCampaignAccess } from './gcp-campaign-access';
+import { assertInstalledRuntime, createInstalledRuntimeResolver } from './installed-runtime';
+import { assertInstalledGcpSshClientSetup } from './installed-ssh-clients';
+import { createCeTerraformService, registerCeTerraformService, requestPlatform } from './service';
+
+export default function factory(pi: { events: CeEventBus; setLabel(label: string): void }): void {
+  pi.setLabel('Terraform CE lifecycle execution');
+  const service = createCeTerraformService(() => requestPlatform(pi.events), {
+    resolveRuntime: createInstalledRuntimeResolver(),
+  });
+  registerCeTerraformService(pi.events, {
+    ...service,
+    prepareGcpCaptureAccess: async (owner, request) => {
+      owner = structuredClone(owner);
+      request = structuredClone(request);
+      if (owner.provider !== 'gcp' || owner.engine !== 'terraform')
+        throw new Error('GCP Terraform access scope required');
+      await assertInstalledRuntime();
+      await assertInstalledGcpSshClientSetup();
+      const platform = await requestPlatform(pi.events);
+      return prepareOriginalGcpCampaignAccess(await platform.storage(owner), request);
+    },
+    bindGcpCaptureAccess: async (owner, binding) => {
+      owner = structuredClone(owner);
+      binding = structuredClone(binding);
+      if (owner.provider !== 'gcp' || owner.engine !== 'terraform')
+        throw new Error('GCP Terraform access scope required');
+      const platform = await requestPlatform(pi.events);
+      await bindOriginalGcpCampaignAccess(await platform.storage(owner), binding);
+    },
+    assertNewRuntime: async (provider: string) => {
+      if (provider === 'gcp') {
+        await assertInstalledRuntime();
+        await assertInstalledGcpSshClientSetup();
+      }
+    },
+  });
+}
+
+export {
+  closeOriginalGcpCeKeyScanCommand,
+  openOriginalGcpCeKeyScanCommand,
+  readOriginalGcpCeKeyScanCommand,
+} from './gcp-ce-keyscan-command';
+export {
+  bindOriginalQualifiedGcpCeObserverScanContext,
+  openOriginalGcpCeSliTarget,
+  readOriginalGcpCeSliSerialSource,
+  readOriginalGcpCeSliTarget,
+  readOriginalQualifiedGcpCeObserverScanContext,
+} from './gcp-ce-sli-target';
+export {
+  assertOriginalGcpCeWireKeysContext,
+  type OriginalGcpCeWireKeys,
+  openGcpCeWireKeyReader,
+  readOriginalGcpCeWireKeys,
+} from './gcp-ce-wire-key-reader';
+export {
+  GoogleHttpRpcTraceParser,
+  readOriginalGoogleHttpResponseSource,
+  readOriginalGoogleHttpRpcSource,
+} from './gcp-http-rpc-trace';
+export { joinOriginalGcpInsertAuditEvidence, type OriginalGcpInsertAuditJoinInput } from './gcp-insert-audit-evidence';
+export {
+  collectOriginalEarlyGcpInsertIdentity,
+  collectOriginalGcpInsertWitnesses,
+  readOriginalEarlyGcpInsertBodies,
+  readOriginalEarlyGcpInsertIdentity,
+  readOriginalGcpInsertWitnesses,
+} from './gcp-insert-evidence';
+export {
+  assertOriginalGcpObserverClientAbiContext,
+  openGcpObserverClientAbi,
+  readOriginalGcpObserverClientAbi,
+} from './gcp-observer-client-abi';
+export {
+  closeOriginalGcpObserverClientAbiCommand,
+  openOriginalGcpObserverClientAbiCommand,
+} from './gcp-observer-client-abi-command';
+export {
+  assertOriginalGcpObserverClientAbiRenewalContext,
+  type OriginalGcpObserverClientAbiRenewal,
+  openGcpObserverClientAbiRenewal,
+  readOriginalGcpObserverClientAbiRenewal,
+} from './gcp-observer-client-abi-renewal';
+export {
+  closeOriginalGcpObserverClientAbiRenewalCommand,
+  openOriginalGcpObserverClientAbiRenewalCommand,
+  readOriginalGcpObserverClientAbiRenewalCommand,
+} from './gcp-observer-client-abi-renewal-command';
+export {
+  assertOriginalGcpObserverClientInstallationContext,
+  closeOriginalGcpObserverClientInstallation,
+  type OriginalGcpObserverClientInstallation,
+  openOriginalGcpObserverClientInstallation,
+  readOriginalGcpObserverClientInstallation,
+} from './gcp-observer-client-delivery';
+export {
+  assertOriginalGcpCeHostTrustContext,
+  openGcpCeHostTrustReader,
+  openGcpObserverHostTrustReader,
+  readOriginalGcpCeHostTrust,
+  readOriginalGcpObserverHostTrust,
+} from './gcp-observer-host-trust-reader';
+export {
+  captureOriginalGcpObserverImage,
+  openGcpObserverImageReader,
+  readOriginalGcpObserverImageEvidence,
+} from './gcp-observer-image';
+export {
+  collectOriginalGcpObserverInsertIdentity,
+  collectOriginalGcpObserverSerialEvidence,
+  collectOriginalGcpObserverVmEvidence,
+  type OriginalGcpObserverInsertIdentity,
+  type OriginalGcpObserverInsertInput,
+  type OriginalGcpObserverVmEvidence,
+  type OriginalGcpObserverVmInput,
+  readOriginalGcpObserverInsertIdentity,
+  readOriginalGcpObserverSerialSource,
+  readOriginalGcpObserverVmEvidence,
+} from './gcp-observer-insert-evidence';
+export { assertOriginalQualifiedGcpObserverClientsContext } from './gcp-observer-qualified-clients';
+export {
+  compileOriginalGcpCeTrustMaterial,
+  compileOriginalGcpObserverTrustMaterial,
+  readOriginalGcpCeTrustMaterial,
+  readOriginalGcpObserverTrustMaterial,
+} from './gcp-observer-trust-material';
+export {
+  collectOriginalEarlyGcpSerialEvidence,
+  collectOriginalEarlyGcpVmEvidence,
+  collectOriginalFinalGcpSerialEvidence,
+  handoffOriginalEarlyGcpVmEvidence,
+  joinOriginalGcpVmEvidence,
+  type OriginalFinalGcpVmEvidence,
+  type OriginalFinalGcpVmHandoffInput,
+  type OriginalGcpSerialSource,
+  type OriginalGcpVmJoinInput,
+  readOriginalEarlyGcpSerialSource,
+  readOriginalEarlyGcpVmEvidence,
+  readOriginalFinalGcpSerialSource,
+  readOriginalFinalGcpVmEvidence,
+} from './gcp-vm-evidence';
+export { acknowledgeOriginalApplyGroupClosure } from './installed-apply-controller';
+export {
+  assertOriginalApplyGcpInventoryCallback,
+  openInstalledInitialInventory,
+  readOriginalApplyGcpInventory,
+} from './installed-initial-inventory';
+export {
+  openInstalledProviderReader,
+  readOriginalInstalledProviderWindow,
+  readOriginalInstalledProviderWindowClock,
+} from './installed-provider-reader';
+export { readOriginalExecutionPrefix } from './original-output-stream';
+export { readOriginalTerraformApplyHookSource, TerraformApplyHookParser } from './terraform-apply-hooks';

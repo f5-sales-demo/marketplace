@@ -4,6 +4,12 @@ import aws from '../plugins/aws/src/index';
 import azure from '../plugins/azure/src/index';
 import kvm from '../plugins/kvm/src/index';
 
+interface HintResult {
+  systemPrompt?: string;
+  message?: { content?: string; customType: string };
+}
+type ContextHandler = (event: { prompt?: string }, context: { cwd: string }) => Promise<HintResult | undefined>;
+
 afterEach(() => vi.restoreAllMocks());
 
 test.each([
@@ -16,11 +22,15 @@ test.each([
 ])('provider context preserves parent work: %s', async (prompt) => {
   vi.spyOn(Bun, 'spawnSync').mockImplementation(() => ({ exitCode: 0 }) as never);
   for (const factory of [aws, azure, kvm]) {
-    const handlers = new Map<string, (...args: any[]) => any>();
+    const handlers = new Map<string, ContextHandler>();
+    const registered: unknown[] = [];
     const api = {
       typebox: { Type },
+      presentation: { withPresentation: (tool: unknown) => tool },
       setLabel() {},
-      registerTool() {},
+      registerTool(tool: unknown) {
+        registered.push(tool);
+      },
       settings: { get() {} },
       integrations: {
         register() {
@@ -37,12 +47,14 @@ test.each([
           };
         },
       },
-      on(name: string, handler: (...args: any[]) => any) {
+      on(name: string, handler: ContextHandler) {
         handlers.set(name, handler);
       },
       logger: { debug() {} },
     };
     await factory(api as never);
+    expect(registered.length).toBeGreaterThan(0);
+    expect(handlers.has('before_agent_start')).toBe(factory !== kvm);
     const result = await handlers.get('before_agent_start')?.({ prompt }, { cwd: '/tmp' });
     expect(result?.systemPrompt).toBeUndefined();
     expect(result?.message?.content ?? '').not.toMatch(/Use only|ROUTE:|Do not use|Never use|before recommendations/i);

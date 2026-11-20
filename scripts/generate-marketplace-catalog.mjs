@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const pluginsRoot = join(root, 'plugins');
 const catalogPath = join(root, '.xcsh-plugin', 'marketplace.json');
 const check = process.argv.includes('--check');
+const previous = JSON.parse(await readFile(catalogPath, 'utf8'));
+const registered = new Set(previous.plugins.map((plugin) => resolve(root, plugin.source)));
 
 const directories = (await readdir(pluginsRoot, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
@@ -15,6 +17,19 @@ const directories = (await readdir(pluginsRoot, { withFileTypes: true }))
 const plugins = [];
 for (const directory of directories) {
   const manifestPath = join(pluginsRoot, directory, '.xcsh-plugin', 'plugin.json');
+  try {
+    await access(manifestPath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    if (registered.has(join(pluginsRoot, directory))) throw error;
+    try {
+      await access(join(pluginsRoot, directory, '.xcsh-plugin'));
+    } catch (declarationError) {
+      if (declarationError.code === 'ENOENT') continue;
+      throw declarationError;
+    }
+    throw error;
+  }
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   if (!manifest.marketplace || !manifest.lifecycle) {
     throw new Error(`${directory}: manifest must declare marketplace and lifecycle metadata`);
@@ -33,7 +48,7 @@ for (const directory of directories) {
 }
 
 plugins.sort((left, right) => left.order - right.order);
-const previous = JSON.parse(await readFile(catalogPath, 'utf8'));
+
 const generated = { ...previous, plugins: plugins.map(({ entry }) => entry) };
 const output = `${JSON.stringify(generated, null, 2)}\n`;
 if (check) {

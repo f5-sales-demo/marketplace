@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 2,
+  "kind": "original-gcp-observer-client-abi-renewal-source",
+  "guestHelperSha256": "49539fa92123aaee73757e000d1cfce4ab45d863236d58fcbfdbae9c57fba98d",
+  "abiHelperSha256": "4c577d5b440e95e7745f4def2d39bb33a2cd70d7f698f31c23b7fc4ca449bc03"
+}

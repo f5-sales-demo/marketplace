@@ -36,12 +36,16 @@ if ! bash scripts/check-plugin-runtime-dependencies.sh --repair; then
   exit 1
 fi
 
+# Verify driver coverage and CLI attribution before running the actual suites.
+bash tests/test-run-plugin-tests-native-only.sh || exit 1
+bash tests/test-hermetic-cli-diagnostic.sh || exit 1
+
 # Agent declarations are checked against an exact published xcsh parser and registry.
 (cd scripts/agent-validation-runtime && bun install --frozen-lockfile) || exit 1
 XCSH_VALIDATION_PACKAGE="$REPO_ROOT/scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/package.json" \
   bun scripts/validate-agent-permissions.ts || exit 1
 # Inventory discovery is isolated because registrations populate process-wide caches.
-bun test tests/presentation-tracker.test.ts tests/presentation-ownership.test.ts tests/installed-salesforce-verifier.test.ts tests/native-capture-contract.test.ts tests/marketplace-qualification.test.ts tests/marketplace-observer.test.ts tests/salesforce-lifecycle-qualification.test.ts tests/salesforce-fixture-outcomes.test.ts || exit 1
+bun test tests/presentation-tracker.test.ts tests/presentation-ownership.test.ts tests/installed-salesforce-verifier.test.ts tests/native-capture-contract.test.ts tests/gcp-ce-runtime.test.ts tests/gcp-bootstrap-bridge.test.ts tests/marketplace-qualification.test.ts tests/marketplace-observer.test.ts tests/salesforce-lifecycle-qualification.test.ts tests/salesforce-fixture-outcomes.test.ts || exit 1
 python3 tests/test_native_capture_tools.py || exit 1
 bun test scripts/presentation-inventory.test.ts scripts/salesforce-campaign-observer.test.ts scripts/observed-lifecycle-component.test.ts scripts/observe-marketplace-lifecycle.test.ts || exit 1
 (cd scripts/agent-validation-runtime && bun test .) || exit 1
@@ -113,16 +117,25 @@ done
 
 failed=()
 
-for suite in plugins/*/scripts/tests/run-tests.sh; do
-  [ -f "$suite" ] || continue
-  plugin="$(basename "$(dirname "$(dirname "$(dirname "$suite")")")")"
+for plugin_dir in plugins/*/; do
+  plugin="$(basename "$plugin_dir")"
+  suite="${plugin_dir}scripts/tests/run-tests.sh"
+  has_bun_tests=0
+  if find "$plugin_dir" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q .; then
+    has_bun_tests=1
+  fi
+  # Native-only plugins such as Terraform have no shell wrapper. Their Bun
+  # suites are still required in the normal pass with real cloud CLIs absent.
+  [ -f "$suite" ] || [ "$has_bun_tests" -eq 1 ] || continue
   printf '\n==> %s\n' "$plugin"
 
   ok=0
-  bash "$suite" || ok=1
+  if [ -f "$suite" ]; then
+    bash "$suite" || ok=1
+  fi
 
   # Only run bun tests where the plugin actually has some.
-  if find "plugins/$plugin" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q .; then
+  if [ "$has_bun_tests" -eq 1 ]; then
     # Every Bun-tested plugin must declare an exact reproducible dependency graph. Without
     # a lockfile, imports can resolve from workstation leftovers and hide a broken checkout.
     if [ ! -f "plugins/$plugin/bun.lock" ]; then

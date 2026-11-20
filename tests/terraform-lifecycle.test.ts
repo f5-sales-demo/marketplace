@@ -1,5 +1,9 @@
 import { describe, expect, it, spyOn } from 'bun:test';
-import terraformIntegration from '../plugins/terraform/extensions/integration';
+import terraformIntegration, {
+  terraformRuntimeInstallArgv,
+  terraformSshClientInstallArgv,
+  terraformVerificationArgv,
+} from '../plugins/terraform/extensions/integration';
 
 function definition() {
   let integration: { probe(): Promise<{ state: string; reason?: string }> } | undefined;
@@ -15,6 +19,31 @@ function definition() {
 }
 
 describe('Terraform lifecycle probe', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'reports unavailable SSH clients after successful CLI and runtime checks',
+    async () => {
+      for (const failure of [
+        { exitCode: 1 },
+        Object.assign(new Error('fixture missing SSH checker'), { code: 'ENOENT' }),
+      ]) {
+        let calls = 0;
+        const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+          if (++calls < 3) return { exitCode: 0 } as ReturnType<typeof Bun.spawnSync>;
+          if (failure instanceof Error) throw failure;
+          return failure as ReturnType<typeof Bun.spawnSync>;
+        });
+        try {
+          expect(await definition().probe()).toEqual({
+            state: 'setup_required',
+            reason: 'ssh_clients_missing_or_unverified',
+          });
+          expect(calls).toBe(3);
+        } finally {
+          spawn.mockRestore();
+        }
+      }
+    },
+  );
   it('reports setup required when the executable is absent', async () => {
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
       throw Object.assign(new Error('fixture missing executable'), { code: 'ENOENT' });
@@ -32,7 +61,13 @@ describe('Terraform lifecycle probe', () => {
       expect(await definition().probe()).toEqual({ state: 'setup_required', reason: 'cli_missing' });
       spawn.mockReturnValue({ exitCode: 0 } as ReturnType<typeof Bun.spawnSync>);
       expect(await definition().probe()).toEqual({ state: 'ready' });
-      expect(spawn.mock.calls).toEqual([[['terraform', 'version']], [['terraform', 'version']]]);
+      expect(spawn.mock.calls).toEqual([
+        [terraformVerificationArgv()],
+        [terraformVerificationArgv()],
+        ...(process.platform === 'linux'
+          ? [[[...terraformRuntimeInstallArgv(), '--check']], [[...terraformSshClientInstallArgv(), '--check']]]
+          : []),
+      ]);
     } finally {
       spawn.mockRestore();
     }
@@ -54,4 +89,47 @@ describe('Terraform lifecycle probe', () => {
       }
     }
   });
+
+  it.skipIf(process.platform !== 'linux')(
+    'reports the runtime prerequisite after a successful Terraform probe',
+    async () => {
+      for (const result of [
+        { exitCode: 1 },
+        Object.assign(new Error('fixture missing interpreter'), { code: 'ENOENT' }),
+      ]) {
+        let calls = 0;
+        const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+          if (++calls === 1) return { exitCode: 0 } as ReturnType<typeof Bun.spawnSync>;
+          if (result instanceof Error) throw result;
+          return result as ReturnType<typeof Bun.spawnSync>;
+        });
+        try {
+          expect(await definition().probe()).toEqual({
+            state: 'setup_required',
+            reason: 'observer_runtime_missing_or_unverified',
+          });
+          expect(calls).toBe(2);
+        } finally {
+          spawn.mockRestore();
+        }
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux')(
+    'retains unexpected runtime probe errors without suggesting a CLI install',
+    async () => {
+      const failure = Object.assign(new Error('fixture runtime access denied'), { code: 'EACCES' });
+      let calls = 0;
+      const spawn = spyOn(Bun, 'spawnSync').mockImplementation(() => {
+        if (++calls === 1) return { exitCode: 0 } as ReturnType<typeof Bun.spawnSync>;
+        throw failure;
+      });
+      try {
+        await expect(definition().probe()).rejects.toBe(failure);
+      } finally {
+        spawn.mockRestore();
+      }
+    },
+  );
 });

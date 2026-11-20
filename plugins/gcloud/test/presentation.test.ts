@@ -3,11 +3,15 @@ import { presentation } from '@f5-sales-demo/xcsh/presentation';
 import { execGcloudJson } from '../src/gcloud/exec';
 import { presentTool } from '../src/presentation';
 
+function sections<T>(value: { sections?: readonly T[] }): readonly T[] {
+  if (!value.sections) throw new Error('Expected presentation sections');
+  return value.sections;
+}
 const options = { expanded: false, isPartial: false };
 const result = (details: unknown, text = 'SYNTHETIC_CLI_MARKER') => ({ content: [{ type: 'text', text }], details });
 test('project previews declare twelve rows, exact JSON argv and one expanded evidence copy', () => {
   const rows = Array.from({ length: 13 }, (_, i) => ({
-    projectId: `synthetic-${i}`,
+    projectId: ['example-project', String(i)].join('-'),
     name: '',
     projectNumber: String(i),
     lifecycleState: 'ACTIVE',
@@ -15,8 +19,8 @@ test('project previews declare twelve rows, exact JSON argv and one expanded evi
   const tool = presentTool({ name: 'gcloud_projects_list' }, presentation);
   const args = { filter: 'name="Example $literal"', limit: 13 };
   const view = tool.presentation.result(result({ projects: rows }), options, args);
-  expect(view.sections.find((s) => s.kind === 'table')).toMatchObject({ previewRows: 12, rows });
-  expect(view.sections.find((s) => s.kind === 'code')?.argv).toEqual([
+  expect(sections(view).find((s) => s.kind === 'table')).toMatchObject({ previewRows: 12, rows });
+  expect(sections(view).find((s) => s.kind === 'code')?.argv).toEqual([
     'gcloud',
     'projects',
     'list',
@@ -26,7 +30,7 @@ test('project previews declare twelve rows, exact JSON argv and one expanded evi
   ]);
   const expanded = tool.presentation.result(result({ projects: rows }), { ...options, expanded: true }, args);
   expect(expanded.expandedEvidence).toBe('provided');
-  expect(JSON.stringify(expanded).match(/synthetic-12/g)).toHaveLength(1);
+  expect(JSON.stringify(expanded).match(/example-project-12/g)).toHaveLength(1);
 });
 test('config identity keeps every field, empty strings, zero and false', () => {
   const values = { project: '', account: '', region: 'unknown', zone: '', zero: 0, enabled: false };
@@ -35,7 +39,7 @@ test('config identity keeps every field, empty strings, zero and false', () => {
     options,
     {},
   );
-  expect(view.sections.find((s) => s.kind === 'fields' && s.title === 'Configuration identity')).toMatchObject({
+  expect(sections(view).find((s) => s.kind === 'fields' && s.title === 'Configuration identity')).toMatchObject({
     values,
     previewFields: 'all',
   });
@@ -86,13 +90,12 @@ test('discovery summarizes counts and units; unavailable plans retain false and 
     options,
     {},
   );
-  expect(view.sections.find((s) => s.title === 'Compute readiness')).toMatchObject({
+  expect(sections(view).find((s) => s.title === 'Compute readiness')).toMatchObject({
     previewFields: 'all',
     values: { 'Billing enabled': false, Images: 0, 'Machine types': 1, IAM: 'unknown' },
   });
-  expect(view.sections.find((s) => s.title === 'Machine types')?.columns).toContainEqual({
-    key: 'memoryMb',
-    label: 'Memory (MB)',
+  expect(sections(view).find((s) => s.title === 'Machine types')).toMatchObject({
+    columns: expect.arrayContaining([{ key: 'memoryMb', label: 'Memory (MB)' }]),
   });
   const plan = {
     schemaVersion: 1,
@@ -109,12 +112,12 @@ test('discovery summarizes counts and units; unavailable plans retain false and 
     options,
     {},
   );
-  expect(planned.sections.find((s) => s.title === 'Customer Edge readiness plan')).toMatchObject({
+  expect(sections(planned).find((s) => s.title === 'Customer Edge readiness plan')).toMatchObject({
     values: { Executable: false, 'Disk (GiB)': 0, Prerequisites: ['synthetic prerequisite'] },
   });
 });
 test('typed previews equal executed argv including help whitespace and literal filters', async () => {
-  const { Type } = await import('@sinclair/typebox');
+  const typebox = await import('@sinclair/typebox');
   const { createGcloudProjectsListTool } = await import('../src/tools/gcloud-projects-list');
   const { createGcloudComputeInstancesListTool } = await import('../src/tools/gcloud-compute-instances-list');
   const { createGcloudStorageBucketsListTool } = await import('../src/tools/gcloud-storage-buckets-list');
@@ -127,10 +130,10 @@ test('typed previews equal executed argv including help whitespace and literal f
     },
   });
   const cases = [
-    [createGcloudProjectsListTool({ typebox: { Type } }, api), { filter: 'name="$literal"', limit: 1 }],
-    [createGcloudComputeInstancesListTool({ typebox: { Type } }, api), { zone: 'us-central1-a', limit: 2 }],
-    [createGcloudStorageBucketsListTool({ typebox: { Type } }, api), { filter: 'location=US' }],
-    [createGcloudHelpTool({ typebox: { Type } }, api), { command_path: ' compute  instances ' }],
+    [createGcloudProjectsListTool({ typebox }, api), { filter: 'name="$literal"', limit: 1 }],
+    [createGcloudComputeInstancesListTool({ typebox }, api), { zone: 'us-central1-a', limit: 2 }],
+    [createGcloudStorageBucketsListTool({ typebox }, api), { filter: 'location=US' }],
+    [createGcloudHelpTool({ typebox }, api), { command_path: ' compute  instances ' }],
   ] as const;
   for (const [tool, input] of cases) {
     await tool.execute('synthetic', input as never, undefined, undefined, { cwd: '/synthetic' });
@@ -139,7 +142,7 @@ test('typed previews equal executed argv including help whitespace and literal f
     expect(
       presentTool(tool, presentation)
         .presentation.call(input, options)
-        .sections.find((s) => s.kind === 'code')?.argv,
+        .sections?.find((s) => s.kind === 'code')?.argv,
     ).toEqual(['gcloud', ...executed]);
   }
 });
@@ -153,15 +156,15 @@ for (const shell of ['bash', 'zsh']) {
   });
 }
 test('generic execution retains classified authentication corrective guidance', async () => {
-  const { Type } = await import('@sinclair/typebox');
+  const typebox = await import('@sinclair/typebox');
   const { createGcloudExecTool } = await import('../src/tools/gcloud-exec');
-  const tool = createGcloudExecTool({ typebox: { Type } }, () => ({
+  const tool = createGcloudExecTool({ typebox }, () => ({
     exec: async () => ({ stdout: '', stderr: 'invalid_grant: synthetic expired session', exitCode: 1 }),
   }));
   const outcome = await tool.execute('synthetic', { args: ['projects', 'list'] }, undefined, undefined, {
     cwd: '/synthetic',
   });
   expect(outcome.isError).toBe(true);
-  expect(outcome.details.errorType).toBe('session_expired');
+  expect(outcome.details?.errorType).toBe('session_expired');
   expect(outcome.content[0].text).toContain('Run: xcsh plugin setup gcloud');
 });

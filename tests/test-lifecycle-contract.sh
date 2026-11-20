@@ -19,8 +19,8 @@ const expected = new Set([
   'gitlab', 'kvm', 'platform', 'salesforce', 'terraform', 'herdr',
 ]);
 const manifests = new Map();
-for (const entry of await readdir(pluginsRoot, { withFileTypes: true })) {
-  if (!entry.isDirectory()) continue;
+for (const declared of catalog.plugins) {
+  const entry = { name: declared.name };
   const plugin = JSON.parse(await readFile(join(pluginsRoot, entry.name, '.xcsh-plugin', 'plugin.json')));
   const lifecycle = plugin.lifecycle;
   if (!lifecycle || !['content', 'on_demand', 'integrated'].includes(lifecycle.mode)) {

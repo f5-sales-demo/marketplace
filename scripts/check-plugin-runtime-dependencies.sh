@@ -13,7 +13,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 EXPECTED_XCSH="23.5.1"
-LATEST_DEVELOPMENT_XCSH="23.9.3"
+SHARED_DEVELOPMENT_XCSH="23.10.8"
 EXPECTED_ANTHROPIC="0.124.0"
 EXPECTED_ACP="1.4.0"
 EXPECTED_GOOGLE_GENAI="2.21.0"
@@ -147,8 +147,16 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   }
   # Migrate plugins individually; preserve the qualified Salesforce/discovery graph.
   # The exact minimum stays in peerDependencies and gets its own execution lane.
-  if [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] && [ "$development_xcsh" != "$LATEST_DEVELOPMENT_XCSH" ]; then
-    fail_static "$plugin development runtime must be its retained minimum or latest stable $LATEST_DEVELOPMENT_XCSH"
+  retained_development_xcsh=""
+  case "$plugin" in
+  aws | azure | github | gitlab) retained_development_xcsh="23.9.3" ;;
+  # Keep the separately qualified GCP lane independent of other plugin families.
+  gcloud | platform) retained_development_xcsh="23.10.13" ;;
+  esac
+  if [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] &&
+    [ "$development_xcsh" != "$SHARED_DEVELOPMENT_XCSH" ] &&
+    { [ -z "$retained_development_xcsh" ] || [ "$development_xcsh" != "$retained_development_xcsh" ]; }; then
+    fail_static "$plugin development runtime must be a retained qualified version or shared development pin $SHARED_DEVELOPMENT_XCSH"
   fi
   if ! jq -en --arg minimum "$minimum_xcsh" --arg development "$development_xcsh" \
     '($development | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) and

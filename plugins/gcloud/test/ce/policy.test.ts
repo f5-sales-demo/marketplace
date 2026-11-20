@@ -11,7 +11,7 @@ it('normalizes line endings while binding policy identity and digest', () => {
 });
 it('rejects stale identity and failed retrieval', async () => {
   expect(() => parseGcpCePolicy(policy.replace('v2', 'v1'))).toThrow('identity');
-  await expect(readGcpCePolicy((async () => new Response('', { status: 503 })) as typeof fetch)).rejects.toThrow(
-    'retrieval',
-  );
+  await expect(
+    readGcpCePolicy(Object.assign(async () => new Response('', { status: 503 }), { preconnect: () => {} })),
+  ).rejects.toThrow('retrieval');
 });
