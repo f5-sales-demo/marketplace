@@ -125,6 +125,13 @@ async function json<T>(api: AzExecApi, args: string[]): Promise<T> {
   }
 }
 
+function quotaCount(value: unknown): number | undefined {
+  const normalized = typeof value === 'string' ? value.trim() : value;
+  if (typeof normalized !== 'number' && (typeof normalized !== 'string' || !/^\d+$/.test(normalized))) return undefined;
+  const count = Number(normalized);
+  return Number.isSafeInteger(count) && count >= 0 ? count : undefined;
+}
+
 async function quotaAvailable(api: AzExecApi, region: string, subscriptionId: string): Promise<number | undefined> {
   const result = await api.exec('az', [
     'vm',
@@ -145,17 +152,9 @@ async function quotaAvailable(api: AzExecApi, region: string, subscriptionId: st
           .trim()
           .toLowerCase() === 'cores',
     );
-    const limit = cores?.limit;
-    const current = cores?.currentValue;
-    if (
-      typeof limit !== 'number' ||
-      typeof current !== 'number' ||
-      !Number.isSafeInteger(limit) ||
-      !Number.isSafeInteger(current) ||
-      limit < 0 ||
-      current < 0
-    )
-      return undefined;
+    const limit = quotaCount(cores?.limit);
+    const current = quotaCount(cores?.currentValue);
+    if (limit === undefined || current === undefined) return undefined;
     return Math.max(0, limit - current);
   } catch {
     return undefined;

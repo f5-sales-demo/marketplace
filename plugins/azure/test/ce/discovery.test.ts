@@ -132,31 +132,49 @@ const baseFixtures: Record<string, unknown> = {
 };
 
 describe('discoverAzureCompute', () => {
-  it('observes standard regional cores when Spot quota appears first', async () => {
-    const result = await discoverAzureCompute(
-      {
-        subscriptionId: subscriptionFixture,
-        deploymentName: 'ce-demo',
-        resourceGroup: 'rg-ce-demo',
-        region: 'canadacentral',
-        requiredNics: 1,
-        nodeCount: 1,
-        brownfieldResourceIds: [],
-      },
-      api({
-        ...baseFixtures,
-        [`vm list-usage --location canadacentral --subscription ${subscriptionFixture}`]: [
-          { name: { value: 'lowPriorityCores' }, currentValue: 0, limit: 350 },
-          { name: { value: 'cores' }, currentValue: 4, limit: 32 },
-        ],
-      }),
-    );
-    expect(result.regions[0]?.quotaAvailable).toBe(28);
-  });
+  for (const [encoding, usages, expected] of [
+    [
+      'numeric',
+      [
+        { name: { value: 'lowPriorityCores' }, currentValue: 0, limit: 350 },
+        { name: { value: 'cores' }, currentValue: 4, limit: 32 },
+      ],
+      28,
+    ],
+    [
+      'decimal string',
+      [
+        { name: { value: 'lowPriorityCores' }, currentValue: '0', limit: '350' },
+        { name: { value: 'cores' }, currentValue: '0', limit: '414' },
+      ],
+      414,
+    ],
+  ] as const) {
+    it(`observes ${encoding} standard regional cores when Spot quota appears first`, async () => {
+      const result = await discoverAzureCompute(
+        {
+          subscriptionId: subscriptionFixture,
+          deploymentName: 'ce-demo',
+          resourceGroup: 'rg-ce-demo',
+          region: 'canadacentral',
+          requiredNics: 1,
+          nodeCount: 1,
+          brownfieldResourceIds: [],
+        },
+        api({
+          ...baseFixtures,
+          [`vm list-usage --location canadacentral --subscription ${subscriptionFixture}`]: usages,
+        }),
+      );
+      expect(result.regions[0]?.quotaAvailable).toBe(expected);
+    });
+  }
 
   for (const [label, usages] of [
     ['missing standard quota', [{ name: { value: 'lowPriorityCores' }, currentValue: 0, limit: 350 }]],
     ['missing standard limit', [{ name: { value: 'cores' }, currentValue: 0 }]],
+    ['blank standard count', [{ name: { value: 'cores' }, currentValue: '', limit: '414' }]],
+    ['null standard limit', [{ name: { value: 'cores' }, currentValue: '0', limit: null }]],
   ] as const) {
     it(`fails closed for ${label}`, async () => {
       const result = await discoverAzureCompute(
