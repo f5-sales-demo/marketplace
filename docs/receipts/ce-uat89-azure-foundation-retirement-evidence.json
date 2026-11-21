@@ -1,0 +1,35 @@
+{
+  "candidateRevision": 89,
+  "behavior": "Exact pre-admission Azure foundation retirement; immutable authorization and manifest, independent platform/cloud absence, shared owner lock, permanent deployment barrier, empty ordinary final refresh plan and runner retirement",
+  "source": {
+    "focusedTests": 23,
+    "focusedAssertions": 60,
+    "fourPluginTests": 2079,
+    "fourPluginAssertions": 12627,
+    "fourCompilersAndBuilds": true,
+    "runtimeAssetsPublicMappingsReadinessTests": 8,
+    "runtimeAssetsPublicMappingsReadinessAssertions": 44
+  },
+  "testsUseSyntheticPlatformAndCloud": true,
+  "frozenTerraform1161AdmittedOnlyForExactRetirement": true,
+  "currentTerraformVersion": "1.16.5",
+  "frozenManifestRewritten": false,
+  "installedQualified": false,
+  "liveCleanupQualified": false,
+  "fullCeAcceptance": false,
+  "failuresPreserved": [
+    "pre-repair registered-site inventory requirement",
+    "pre-repair absent-group empty destroy rejection"
+  ],
+  "remaining": [
+    "Exact archives and installed public cleanup of retained Azure87",
+    "Fresh candidate full native/Terraform live matrix",
+    "SLI-only supported primary-owner control and original publication freshness",
+    "Six-interface transition",
+    "Historical212977ms recovery fails45000ms",
+    "Producer qualification/publication before repin",
+    "Strict AWS tombstone cleanup assertion",
+    "Scanner fleet convergence",
+    "Explicit UAT acceptance"
+  ]
+}
