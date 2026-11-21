@@ -2,7 +2,8 @@ import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import { type AzureCeToolContext, loadPlanArtifact } from '../ce/artifacts';
 import { sha256Hex } from '../ce/canonical';
-import { summarizeF5Evidence } from './azure-ce-status';
+import { withAzureCeExecution } from '../ce/execution';
+import { createAzureCeStatusTool } from './azure-ce-status';
 import { makeExecApi } from './shared';
 
 interface ActiveTarget {
@@ -77,7 +78,7 @@ export function createAzureCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: st
     name: 'azure_ce_diagnose',
     label: 'Diagnose Azure Customer Edge',
     description:
-      'Run passive or explicitly approved active CE diagnostics across VM provisioning, boot, NIC/effective NSG/routes, Network Watcher, Route Server/BGP, and supplied non-secret F5 evidence. Raw guest/user data is never returned.',
+      'Run passive or explicitly approved active CE diagnostics across VM provisioning, boot, NIC/effective NSG/routes, Network Watcher, Route Server/BGP, and live F5 site and registration observations. Raw guest/user data is never returned.',
     parameters: Type.Object({
       planId: Type.String(),
       planSha256: Type.String(),
@@ -91,16 +92,6 @@ export function createAzureCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: st
           localPort: Type.Number(),
         }),
       ),
-      f5Evidence: Type.Optional(
-        Type.Object({
-          siteState: Type.Optional(Type.String()),
-          nodes: Type.Optional(
-            Type.Array(Type.Object({ name: Type.String(), registration: Type.String(), health: Type.String() })),
-          ),
-          bgpEstablished: Type.Optional(Type.Boolean()),
-          learnedRouteCount: Type.Optional(Type.Number()),
-        }),
-      ),
     }),
     async execute(
       _id: string,
@@ -111,11 +102,13 @@ export function createAzureCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: st
         activeTarget?: ActiveTarget;
         f5Evidence?: unknown;
       },
-      _signal: AbortSignal | undefined,
+      signal: AbortSignal | undefined,
       _update: unknown,
       ctx: AzureCeToolContext,
     ) {
       try {
+        if ('f5Evidence' in params)
+          throw new Error('Caller-supplied F5 health evidence is unsupported; diagnostics collect live observations');
         const { plan } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
         if (params.mode === 'active') {
           if (!ctx.hasUI && process.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
@@ -130,7 +123,7 @@ export function createAzureCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: st
             throw new Error('Active diagnostics were not approved');
           if (params.activeTarget) validateActiveTarget(params.activeTarget);
         }
-        const api = makeApi(ctx.cwd);
+        const api = withAzureCeExecution(makeApi(ctx.cwd), signal);
         const commands: Array<{ category: string; args: string[] }> = [];
         for (let node = 1; node <= plan.topology.nodeCount; node++) {
           const vmName = `${plan.deploymentName}-${node}`;
@@ -318,6 +311,13 @@ export function createAzureCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: st
         }
         const diagnostics = [];
         for (const command of commands) diagnostics.push(await collect(api, command.args, command.category));
+        const status = await createAzureCeStatusTool(pi, makeApi).execute(
+          _id,
+          { planId: params.planId, planSha256: params.planSha256 },
+          signal,
+          _update,
+          ctx,
+        );
         const failures = diagnostics.filter((item) => !item.ok || item.errorsDetected);
         return {
           content: [
@@ -330,7 +330,7 @@ export function createAzureCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: st
             tool: 'azure_ce_diagnose',
             mode: params.mode,
             diagnostics,
-            f5: summarizeF5Evidence(params.f5Evidence),
+            f5: status.details.evidence?.f5 ?? { status: 'unknown', reason: 'status-observation-unavailable' },
           },
         };
       } catch (error) {

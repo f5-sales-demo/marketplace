@@ -1,0 +1,17 @@
+{
+  "status": "observed-no-owned-cloud-or-api-resources",
+  "candidateRevision": 118,
+  "sourceCommit": "e47d1057567a0d11440b762fa4fae91a87acac87",
+  "scope": "ce-r118-q-8e7ecc46",
+  "sourcePlanSha256": "8d9f6ef312880b6f4958a72e9ee1752cf7456944a0655ad8e944ddb80e356489",
+  "observedAt": "2026-10-23T15:45:33.302Z",
+  "independentOwnershipInventoryAbsence": true,
+  "independentApiTokenInterfaceAbsence": true,
+  "publicTeardownPassed": false,
+  "runnerInputsRetired": false,
+  "failure": "Invalid AWS retirement inventory binding on valid empty destroy-plan inventory",
+  "launchedCloudCleanupQualified": false,
+  "watchdogArmingQualified": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
