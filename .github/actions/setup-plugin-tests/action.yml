@@ -1,0 +1,29 @@
+---
+name: Set up isolated plugin test runtime
+description: Install pinned Bun, qualification shells and Python fixture dependencies in runner temporary storage.
+outputs:
+  python-site:
+    description: Isolated Python fixture dependency path
+    value: ${{ steps.python.outputs.site }}
+runs:
+  using: composite
+  steps:
+    - name: Install bun
+      shell: bash
+      run: ./scripts/install-ci-bun.sh
+    - name: Check Bun lockfile compatibility
+      shell: bash
+      run: ./scripts/check-ci-bun-lockfile-compatibility.sh
+    - name: Install isolated Bash/Zsh qualification shell
+      shell: bash
+      run: ./scripts/install-ci-zsh.sh
+    - name: Prepare isolated Python fixture dependencies
+      id: python
+      shell: bash
+      run: |
+        set -euo pipefail
+        plugin_test_python_root=$(mktemp -d "$RUNNER_TEMP/plugin-tests-python.XXXXXX")
+        python3 -m venv "$plugin_test_python_root"
+        "$plugin_test_python_root/bin/python3" -m pip install 'PyYAML==6.0.3'
+        plugin_test_python_site=$("$plugin_test_python_root/bin/python3" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
+        printf 'site=%s\n' "$plugin_test_python_site" >> "$GITHUB_OUTPUT"
