@@ -1,0 +1,144 @@
+{
+  "candidateRevision": 87,
+  "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+  "cliVersion": "23.9.3",
+  "installedAssetDigestsVerified": true,
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "8c3a70707da90fea681a094066664971e35449bc1548cc869d9a3c4c9eb10719"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc"
+    }
+  ],
+  "discovery": "current-live-Azure",
+  "results": [
+    {
+      "cloud": "azure",
+      "engine": "native",
+      "profile": "independent-sites",
+      "executionModel": "three-separate-single-site-plans",
+      "independentSiteCount": 3,
+      "distinctSiteDeploymentAndResourceGroupBindingsVerified": true,
+      "disjointSubnetInputsVerified": true,
+      "members": [
+        {
+          "siteOrdinal": 1,
+          "planId": "azure-ce-86c01fb12660741ca875f0b7",
+          "planSha256": "86c01fb12660741ca875f0b709e1287d84a3a44a5099ac1987048265da00c43c",
+          "privateResultSha256": "6294a671366f2e1fcd4f470d7e351edc26c19701e0bc2933c8eb2fd6f3782942",
+          "nodeCount": 1,
+          "plannedInterfaces": 2
+        },
+        {
+          "siteOrdinal": 2,
+          "planId": "azure-ce-07e35503939e143fa26b227e",
+          "planSha256": "07e35503939e143fa26b227e0523a61cf647db901fb463ac4c689f16432ecd54",
+          "privateResultSha256": "36d9016ea4906873d8b04a60e694dc8d64cbc1abfd386a2d61f6a5da5af66a41",
+          "nodeCount": 1,
+          "plannedInterfaces": 2
+        },
+        {
+          "siteOrdinal": 3,
+          "planId": "azure-ce-43d752fffa26d13a6f0207bd",
+          "planSha256": "43d752fffa26d13a6f0207bdf1fb2a294c9393672c2a0d2eb4d42ac8945c71d3",
+          "privateResultSha256": "715c78f4bab5ae701eed09bc8a6f7b357b8c3ae88df8847496497465c0df2ab1",
+          "nodeCount": 1,
+          "plannedInterfaces": 2
+        }
+      ]
+    },
+    {
+      "cloud": "azure",
+      "engine": "terraform",
+      "profile": "independent-sites",
+      "executionModel": "three-separate-single-site-plans",
+      "independentSiteCount": 3,
+      "distinctSiteDeploymentAndResourceGroupBindingsVerified": true,
+      "disjointSubnetInputsVerified": true,
+      "members": [
+        {
+          "siteOrdinal": 1,
+          "planId": "azure-ce-bc085b582001a785f63046f8",
+          "planSha256": "bc085b582001a785f63046f8a14927d97b21901b82689c80bee4af78182cc5f8",
+          "privateResultSha256": "3235eb86c479aea5967710e24724a142c7ddcb3151240a41c1028e771c24f896",
+          "nodeCount": 1,
+          "plannedInterfaces": 2
+        },
+        {
+          "siteOrdinal": 2,
+          "planId": "azure-ce-4eb550b9a5043599f68befc9",
+          "planSha256": "4eb550b9a5043599f68befc96dc98d570d9fa5b8f03c2e64b11d4e5ae6962854",
+          "privateResultSha256": "4856c1ba027f8b2ad278fc4ad763d0b6b475c03310b08755ff5a7bebc7ad2b7a",
+          "nodeCount": 1,
+          "plannedInterfaces": 2
+        },
+        {
+          "siteOrdinal": 3,
+          "planId": "azure-ce-22b3b730ef9bcb3805aec51b",
+          "planSha256": "22b3b730ef9bcb3805aec51bb5051dc74c9caf09f4b4b1961de9582724106d5f",
+          "privateResultSha256": "fb9c5f022a8b363b946b7f733739ef5702984cd27c488fc7a437a330a3565d1a",
+          "nodeCount": 1,
+          "plannedInterfaces": 2
+        }
+      ]
+    }
+  ],
+  "trace": [
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:58:45.256Z",
+      "completedAt": "2026-10-21T19:58:45.262Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:58:45.262Z",
+      "completedAt": "2026-10-21T19:58:45.265Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:58:45.265Z",
+      "completedAt": "2026-10-21T19:58:45.267Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:58:45.267Z",
+      "completedAt": "2026-10-21T19:58:45.269Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:58:45.269Z",
+      "completedAt": "2026-10-21T19:58:45.271Z",
+      "isError": false
+    },
+    {
+      "tool": "azure_ce_plan",
+      "startedAt": "2026-10-21T19:58:45.271Z",
+      "completedAt": "2026-10-21T19:58:45.273Z",
+      "isError": false
+    }
+  ],
+  "cloudMutation": false,
+  "creationQualified": false,
+  "lifecycleQualified": false,
+  "fullCeAcceptance": false,
+  "automated": {
+    "tests": 98,
+    "assertions": 540,
+    "passed": true
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "provenance": {
+    "repository": "f5-sales-demo/api-specs-enriched",
+    "tag": "v12.3.0",
+    "commit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+    "fingerprint": "sha256:91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5",
+    "operationSha256": "3b728bfd6ca598c5e27989a604f5d561dcfe66aa3c3057314779a85265b53108"
+  },
+  "paths": {
+    "/api/register/namespaces/{namespace}/registrations/{name}": {
+      "delete": {
+        "operationId": "ves.io.schema.registration.CustomAPI.Delete",
+        "parameters": [
+          {
+            "name": "namespace",
+            "description": "Namespace\nNamespace in which the configuration object is present.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Namespace",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "ns1"
+          },
+          {
+            "name": "name",
+            "description": "Name\nName of the configuration object.",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Name",
+            "schema": {
+              "type": "string"
+            },
+            "x-f5xc-example": "name"
+          },
+          {
+            "name": "fail_if_referred",
+            "description": "Fail the DELETE operation if this object is being referred by other objects.",
+            "in": "query",
+            "required": false,
+            "x-displayname": "Fail-If-Referred.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

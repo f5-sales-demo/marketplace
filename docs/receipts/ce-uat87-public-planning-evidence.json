@@ -1,0 +1,44 @@
+{
+  "candidateRevision": 87,
+  "sourceCommit": "9d37b0a34cc404cb1c48707dfb116d292b6cffc5",
+  "results": [
+    {
+      "cloud": "aws",
+      "engine": "native",
+      "planId": "aws-ce-5fa407ea95d04b2787234693",
+      "planSha256": "5fa407ea95d04b27872346930745a27ced77f0c5975354b7ef29fa2f9e608581",
+      "nodeCount": 1
+    },
+    {
+      "cloud": "azure",
+      "engine": "native",
+      "planId": "azure-ce-683d7da83105ae41de0005d0",
+      "planSha256": "683d7da83105ae41de0005d064daf50bf5beb20c9712f33ba36c5f36ec068ad1",
+      "nodeCount": 1
+    },
+    {
+      "cloud": "aws",
+      "engine": "terraform",
+      "planId": "aws-ce-cece54e33ae4d4316795dd6f",
+      "planSha256": "cece54e33ae4d4316795dd6fee46e6542bfd624343bf4c3db9e891ec99431dcf",
+      "nodeCount": 1
+    },
+    {
+      "cloud": "azure",
+      "engine": "terraform",
+      "planId": "azure-ce-b8381a060e49da93ce112dee",
+      "planSha256": "b8381a060e49da93ce112deec77786efab9e1161b29795bf36d7dd514a659150",
+      "nodeCount": 1
+    }
+  ],
+  "cloudMutation": false,
+  "fullCeAcceptance": false,
+  "cliVersion": "23.9.3",
+  "installedAssetDigestsVerified": true,
+  "discovery": "current-live-AWS-and-Azure",
+  "automated": {
+    "tests": 98,
+    "assertions": 540,
+    "passed": true
+  }
+}
