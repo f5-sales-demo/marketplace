@@ -2120,3 +2120,13 @@ view; ownership and input failures remain permanent. This qualifies one source
 boundary only. Complete factory composition and other reader/VM/access/guest
 expiry paths, full inventory throughput, real runtime/live behavior, cleanup,
 CI/review and publication/installation remain open.
+
+## Continuous provider observation source
+
+The [provider bridge source receipt](gcp-provider-window-bridge-source-20261121.md)
+records conservative continuous RPC coverage across overlapping original
+observations of the same provider incarnation and FIFO. Gaps, clock jumps,
+copied/replaced evidence and restoration remain refused. Native source tests
+and independent archive hashes pass. Factory integration, complete guest
+coverage and every original installed/live/cleanup/CI/review/delivery gate
+remain open.

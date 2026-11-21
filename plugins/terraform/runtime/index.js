@@ -17612,12 +17612,6 @@ async function corroborateOriginalGoogleRpcProvider(input) {
     temporalWindows.push({ lowerEpochMs: firstUpper, upperEpochMs: lastLower });
     witnesses.push(witness);
   }
-  if (
-    !temporalWindows.some(
-      (window) => source.receivedEpochMs >= window.lowerEpochMs && source.servedEpochMs <= window.upperEpochMs,
-    )
-  )
-    throw new Error('Original RPC temporal interval is outside independent provider observations');
   const original = witnesses[0];
   for (const witness of witnesses)
     if (
@@ -17625,13 +17619,33 @@ async function corroborateOriginalGoogleRpcProvider(input) {
       JSON.stringify(witness.stderr) !== JSON.stringify(original.stderr)
     )
       throw new Error('Original RPC provider or FIFO changed between windows');
+  const coverage = [];
+  for (const window of [...temporalWindows].sort((a, b) => a.lowerEpochMs - b.lowerEpochMs)) {
+    if (window.upperEpochMs < window.lowerEpochMs)
+      throw new Error('Original provider temporal observation interval is insufficient');
+    const previous = coverage.at(-1);
+    if (previous && window.lowerEpochMs <= previous.upperEpochMs)
+      previous.upperEpochMs = Math.max(previous.upperEpochMs, window.upperEpochMs);
+    else coverage.push({ ...window });
+  }
+  if (
+    !coverage.some(
+      (window) => source.receivedEpochMs >= window.lowerEpochMs && source.servedEpochMs <= window.upperEpochMs,
+    )
+  )
+    throw new Error('Original RPC temporal interval is outside independent provider observations');
   for (const window of windows) {
     await readOriginalInstalledProviderWindow(window);
     await readOriginalInstalledProviderWindowClock(window);
   }
   readOriginalGoogleProviderRpcSource(rpc);
   return Object.freeze({
-    schemaVersion: 2,
+    ...(windows.length > 1
+      ? {
+          schemaVersion: 3,
+          rpcTemporalCoverage: Object.freeze(coverage.map((window) => Object.freeze({ ...window }))),
+        }
+      : { schemaVersion: 2 }),
     kind: 'original-descriptor-provider-correspondence',
     executor: source.executor,
     providerPid: original.candidate.pid,
