@@ -1,0 +1,94 @@
+{
+  "observedAt": "2026-10-22T08:59:30.034861+00:00",
+  "candidateRevision": 101,
+  "sourceCommit": "e443d485566cf03d80ac7880ff9460d744139bbf",
+  "cliVersion": "23.9.3",
+  "sanitized": true,
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "a596fb457a031e98a6879ea43f6ac5b11bf0a4a6ec7f52080e4b3c372b168dd8"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "8057d507087209ff3434d8afc7542da21be71fa76cf628c4ee96a2d7874e325c"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "43a3eef242dfaf0b8ddeb49de0c93fa3faedf0c60b6ac6aadeec63572391f295"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "08cf4c44d5ea12517eebb88ce27d8709508ebbf3397b0649275a8f5c805ce3f6"
+    }
+  ],
+  "discovery": {
+    "passed": true,
+    "regionCount": 34,
+    "eligibleRegions": 8
+  },
+  "planning": {
+    "passed": true,
+    "profile": "single-site",
+    "plans": [
+      {
+        "engine": "terraform",
+        "planId": "aws-ce-322dc4bdbe0ef01468458531",
+        "planSha256": "322dc4bdbe0ef0146845853196cdf1ec9aa767e08de471b165fb33304029adb4",
+        "nodeCount": 1
+      },
+      {
+        "engine": "native",
+        "planId": "aws-ce-e525ac41ba34c087358b0029",
+        "planSha256": "e525ac41ba34c087358b002974fd220eeb3ddfe0116c3415ce15946ec25ba2c0",
+        "nodeCount": 1
+      }
+    ]
+  },
+  "inventory": {
+    "publicToolPassed": true,
+    "regions": ["us-east-2"],
+    "deploymentSpecificInventoryQualified": false
+  },
+  "cloudMutationPerformed": false,
+  "liveLifecycleAcceptance": false,
+  "fullCeAcceptance": false,
+  "trace": [
+    {
+      "tool": "aws_sts_whoami",
+      "startedAt": "2026-10-22T08:56:54.764Z",
+      "completedAt": "2026-10-22T08:56:55.340Z",
+      "isError": false
+    },
+    {
+      "tool": "f5xc_ce_v2_capabilities",
+      "startedAt": "2026-10-22T08:56:55.340Z",
+      "completedAt": "2026-10-22T08:57:07.334Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_compute_discover",
+      "startedAt": "2026-10-22T08:57:07.334Z",
+      "completedAt": "2026-10-22T08:58:43.016Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T08:58:45.509Z",
+      "completedAt": "2026-10-22T08:58:45.527Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T08:58:48.186Z",
+      "completedAt": "2026-10-22T08:58:48.204Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_inventory",
+      "startedAt": "2026-10-22T08:58:50.883Z",
+      "completedAt": "2026-10-22T08:58:53.276Z",
+      "isError": false
+    }
+  ]
+}
