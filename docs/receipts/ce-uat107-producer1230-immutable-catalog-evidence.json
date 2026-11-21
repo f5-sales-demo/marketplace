@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "sanitized": true,
+  "observedAt": "2026-10-22T23:08:02.891838+00:00",
+  "candidateRevision": 107,
+  "producerRelease": "v12.3.0",
+  "resolvedCommit": "7f61de00a1048a801c4be6bea9c462803fd1e3ae",
+  "tagObjectSha": "9f94f6c0790543d601e88ad20a4719b9ad1b64c3",
+  "immutableReleaseVerified": true,
+  "assetDigests": {
+    "openapi.json": "sha256:91411ef102ecdb5564f7d3b188407c7d1468d6f9949ca4e5634e420ed1dca8b5",
+    "smsv2-contract.json": "sha256:050f7dd1bb25d2ff0b915278b2ddc5ada1321ec6e4996f84f753691d09aa5d08",
+    "smsv2-contract-manifest.json": "sha256:ed63843635fa819d4c6d28578405fcfed9d4040d0feecd6bedbc2d630891b3af",
+    "smsv2-evidence-receipt.json": "sha256:887e4e77b61f604ce56ad3125244d5b9c252fb7a808628ea5fc6c92d21359932"
+  },
+  "releaseManifestVerified": true,
+  "exactReadResponseAnnotationsAndMappingsVerified": true,
+  "freshCatalogReads": [
+    {
+      "kind": "groups",
+      "operationId": "ves.io.schema.api_group.API.List",
+      "httpStatus": 200,
+      "itemCount": 223,
+      "schemaErrorCount": 0,
+      "schemaValidated": true,
+      "responseSha256": "sha256:a5bae11d6d0c35da465ea9757a71559653132edef17acda4acdff1b0fbdbabb4"
+    },
+    {
+      "kind": "elements",
+      "operationId": "ves.io.schema.api_group_element.API.List",
+      "httpStatus": 200,
+      "itemCount": 2789,
+      "schemaErrorCount": 0,
+      "schemaValidated": true,
+      "responseSha256": "sha256:cd94a24c5d8f64f233b896322d1ed27c2fb9f0e85ecf0dd13861b81dc27c6bab"
+    },
+    {
+      "kind": "roles",
+      "operationId": "ves.io.schema.role.API.List",
+      "httpStatus": 200,
+      "itemCount": 106,
+      "schemaErrorCount": 0,
+      "schemaValidated": true,
+      "responseSha256": "sha256:87e83c783997c605b890abb1ac684dd0436e5624a19eb1a8f10b2c59c893b911"
+    },
+    {
+      "kind": "expanded-groups",
+      "operationId": "ves.io.schema.api_group.API.List",
+      "httpStatus": 200,
+      "itemCount": 223,
+      "schemaErrorCount": 0,
+      "schemaValidated": true,
+      "responseSha256": "sha256:5a5d4ddb3c1c8809298c777ee5b147c26232995c5ba8ac1fc374598089b2aefa"
+    },
+    {
+      "kind": "expanded-elements",
+      "operationId": "ves.io.schema.api_group_element.API.List",
+      "httpStatus": 200,
+      "itemCount": 2789,
+      "schemaErrorCount": 0,
+      "schemaValidated": true,
+      "responseSha256": "sha256:6e560080762abe80104f5c3d46bc2dec34f41d88b0fa44b48d20cdaccb926fb5"
+    },
+    {
+      "kind": "custom-roles",
+      "operationId": "ves.io.schema.role.CustomAPI.CustomList",
+      "httpStatus": 200,
+      "itemCount": 103,
+      "schemaErrorCount": 0,
+      "schemaValidated": true,
+      "responseSha256": "sha256:59a73c1d2d7d320053978bec7f19154dc7b25aba68a177a5839553915aa63ecd"
+    }
+  ],
+  "fullCatalogEnvelopesValidated": true,
+  "observedCompleteGroups": ["f5xc-site-management-standard-monitor", "ves-io-general-write"],
+  "unknownGroupCount": 4,
+  "duplicateRolesRejected": 3,
+  "effectivePrincipalQualified": false,
+  "credentialsOrAssignmentsChanged": false,
+  "owningDocumentationCompletionPending": false,
+  "freshCePublishedAssetQualificationPending": true,
+  "installedConsumerProducerPin": "v12.2.0",
+  "consumerRepinned": false,
+  "fullProducer1930Acceptance": false,
+  "releaseReady": false,
+  "fullCeAcceptance": false
+}

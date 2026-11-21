@@ -1,0 +1,77 @@
+{
+  "candidateRevision": 91,
+  "sourceCommit": "c25d01b0ae4bb828e2afec9152e579ea6178e397",
+  "cliVersion": "23.9.3",
+  "installedRuntimeDigests": [
+    {
+      "plugin": "platform",
+      "sha256": "208c55c5ce5e8b0a832728b6e450c88b5a15194de64394e19b39909adb23f1a2"
+    },
+    {
+      "plugin": "aws",
+      "sha256": "5c3b40a671876dcdb5bf97dbd23e08dfc9644a08a4260a47f96e1ea4838909c4"
+    },
+    {
+      "plugin": "azure",
+      "sha256": "1f033589d5b2aa325a685c7b5741aa9dc7f8c58e3b52bffcba6f19d5a5ae4346"
+    },
+    {
+      "plugin": "terraform",
+      "sha256": "1b3471d2cc9f6b5666e6369a992422b094c3e1ec06fcce5a175f516242ecf0dc"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "aws_compute_discover",
+      "startedAt": "2026-10-22T02:44:54.578Z",
+      "completedAt": "2026-10-22T02:46:46.426Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T02:48:41.803Z",
+      "completedAt": "2026-10-22T02:48:41.834Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T02:48:41.834Z",
+      "completedAt": "2026-10-22T02:48:41.853Z",
+      "isError": false
+    }
+  ],
+  "cloudMutationRequested": false,
+  "fullCeAcceptance": false,
+  "regions": 34,
+  "eligibleRegions": 4,
+  "marketplaceAgreementActive": true,
+  "requiredEnis": 2,
+  "nodeCount": 3,
+  "discoveryProfiles": ["independent-sites", "three-node-ha"],
+  "planningResults": [
+    {
+      "cloud": "aws",
+      "engine": "native",
+      "profile": "independent-sites",
+      "planSha256": "70580597e87b6c1c6c8f2bf9927d549d91458947e4c22a6c36dd05c2bbbe48a9",
+      "nodeCount": 3,
+      "distinctSiteBindings": 3,
+      "plannedInterfaces": 6,
+      "routingProfile": "nlb-ingress",
+      "privateResultSha256": "63c81b3013ffa42f7b8ef5fe49f0f992203ca8042c5d3e0e2259cd9db4012130"
+    },
+    {
+      "cloud": "aws",
+      "engine": "terraform",
+      "profile": "independent-sites",
+      "planSha256": "8bce98b7c7409ead6ef1192e4a951681e4954562421a404c68d47bddfa42bb1b",
+      "nodeCount": 3,
+      "distinctSiteBindings": 3,
+      "plannedInterfaces": 6,
+      "routingProfile": "nlb-ingress",
+      "privateResultSha256": "88f3825586eb477e23b901f8f9965c0e5037867ed6ce5412c76dcf8bfe1839d0"
+    }
+  ],
+  "creationQualified": false,
+  "lifecycleQualified": false
+}
