@@ -1,0 +1,2710 @@
+{
+  "provenance": {
+    "release": "v6.1.2",
+    "commit": "a5fa987f876db955666bd94fefed35f283bb5364",
+    "sha256": "66f3c819e6c1cdc96dadcee513cf0b5af74b70b5d603d28f70578e6f206cfef7",
+    "root": "viewsorigin_poolCreateSpecType"
+  },
+  "schemas": {
+    "clusterCircuitBreaker": {
+      "type": "object",
+      "description": "CircuitBreaker provides a mechanism for watching failures in upstream connections or requests\nand if the failures reach a certain threshold, automatically fail subsequent requests which\nallows to apply back pressure on downstream quickly.",
+      "title": "CircuitBreaker",
+      "x-displayname": "Circuit Breaker.",
+      "x-ves-displayorder": "1,2,3,4,5",
+      "x-ves-proto-message": "ves.io.schema.cluster.CircuitBreaker",
+      "properties": {
+        "connection_limit": {
+          "type": "integer",
+          "description": "The maximum number of connections that loadbalancer will establish to all hosts in an upstream cluster.\nIn practice this is only applicable to TCP and HTTP/1.1 clusters since HTTP/2 uses a single connection to each host.\nRemove endpoint out of load balancing decision, if number of connections reach connection limit.",
+          "title": "connection_limit",
+          "format": "int64",
+          "x-displayname": "Connection Limit.",
+          "x-ves-example": "100",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-example": "100",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-description-short": "The maximum number of connections that loadbalancer will establish to all hosts in an upstream cluster.",
+          "x-f5xc-description-medium": "The maximum number of connections that loadbalancer will establish to all hosts in an upstream cluster. In practice this is only applicable to TCP and HTTP/1.1 clusters since HTTP/2 uses a single connection to each host. Remove endpoint out of load balancing decision, if number of connections...",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/b4c2ba70a96e2c887ff6682d2019105f072bb9ee4db75c22062f006b555cfb34"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "max_requests": {
+          "type": "integer",
+          "description": "The maximum number of requests that can be outstanding to all hosts in a cluster at any given time.\nIn practice this is applicable to HTTP/2 clusters since HTTP/1.1 clusters are governed by the\nmaximum connections (connection_limit).\nRemove endpoint out of load balancing decision, if requests exceed this count.",
+          "title": "max_requests",
+          "format": "int64",
+          "x-displayname": "Maximum Request Count.",
+          "x-ves-example": "10",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-example": "10",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-description-short": "The maximum number of requests that can be outstanding to all hosts in a cluster at any given time.",
+          "x-f5xc-description-medium": "The maximum number of requests that can be outstanding to all hosts in a cluster at any given time. In practice this is applicable to HTTP/2 clusters since HTTP/1.1 clusters are governed by the maximum connections (connection_limit). Remove endpoint out of load balancing decision, if requests...",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/b4c2ba70a96e2c887ff6682d2019105f072bb9ee4db75c22062f006b555cfb34"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "pending_requests": {
+          "type": "integer",
+          "description": "The maximum number of requests that will be queued while waiting for a ready connection pool connection.\nSince HTTP/2 requests are sent over a single connection, this circuit breaker only comes into play as the\ninitial connection is created, as requests will be multiplexed immediately afterwards. For HTTP/1.1, requests\nare added to the list of pending requests whenever there aren’t enough upstream connections available to\nimmediately dispatch the request, so this circuit breaker will remain in play for the lifetime of the process.\nRemove endpoint out of load balancing decision, if pending request reach pending_request.",
+          "title": "pending_requests",
+          "format": "int64",
+          "x-displayname": "Pending Requests.",
+          "x-ves-example": "20",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-example": "20",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-description-short": "The maximum number of requests that will be queued while waiting for a ready connection pool connection.",
+          "x-f5xc-description-medium": "The maximum number of requests that will be queued while waiting for a ready connection pool connection. Since HTTP/2 requests are sent over a single connection, this circuit breaker only comes into play as the initial connection is created, as requests will be multiplexed immediately...",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/b4c2ba70a96e2c887ff6682d2019105f072bb9ee4db75c22062f006b555cfb34"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "priority": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaRoutingPriority"
+            }
+          ],
+          "x-f5xc-example": "10",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "retries": {
+          "type": "integer",
+          "description": "The maximum number of retries that can be outstanding to all hosts in a cluster at any given time.\nRemove endpoint out of load balancing decision, if retries for request exceed this count.",
+          "title": "retries",
+          "format": "int64",
+          "x-displayname": "Retry Count.",
+          "x-ves-example": "10",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-example": "10",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "32768"
+          },
+          "x-f5xc-description-short": "The maximum number of retries that can be outstanding to all hosts in a cluster at any given time.",
+          "x-f5xc-description-medium": "The maximum number of retries that can be outstanding to all hosts in a cluster at any given time. Remove endpoint out of load balancing decision, if retries for request exceed this count.",
+          "x-f5xc-constraints": {
+            "constraintType": "number",
+            "category": "discovery",
+            "minimum": 0,
+            "maximum": 32768,
+            "multipleOf": 1,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+            },
+            "deterministic": true
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "CircuitBreaker provides a mechanism for watching failures in upstream connections or requests and if the failures reach a certain threshold...",
+      "x-f5xc-description-medium": "CircuitBreaker provides a mechanism for watching failures in upstream connections or requests and if the failures reach a certain threshold, automatically fail subsequent requests which allows to apply back pressure on downstream quickly.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for clusterCircuitBreaker",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "clusterEndpointSelectionPolicy": {
+      "type": "string",
+      "description": "Policy for selection of endpoints from local site/remote site/both\n\nConsider both remote and local endpoints for load balancing\nLOCAL_ONLY: Consider only local endpoints for load balancing\nEnable this policy to load balance ONLY among locally discovered endpoints\nPrefer the local endpoints for load balancing. If local endpoints are not present\nremote endpoints will be considered.",
+      "title": "EndpointSelectionPolicy",
+      "enum": ["DISTRIBUTED", "LOCAL_ONLY", "LOCAL_PREFERRED"],
+      "default": "DISTRIBUTED",
+      "x-displayname": "Endpoint Selection Policy.",
+      "x-ves-proto-enum": "ves.io.schema.cluster.EndpointSelectionPolicy",
+      "x-f5xc-description-short": "Policy for selection of endpoints from local site/remote site/both Consider both remote and local endpoints for load balancing LOCAL_ONLY...",
+      "x-f5xc-description-medium": "Policy for selection of endpoints from local site/remote site/both Consider both remote and local endpoints for load balancing LOCAL_ONLY: Consider only local endpoints for load balancing Enable this policy to load balance ONLY among locally discovered endpoints Prefer the local endpoints for...",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for clusterEndpointSelectionPolicy",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "\"DISTRIBUTED\"",
+        "example_yaml": "DISTRIBUTED\n..."
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "clusterEndpointSubsetSelectorType": {
+      "type": "object",
+      "description": "Upstream cluster may be configured to divide its endpoints into subsets based on metadata\nattached to the endpoints. Routes may then specify the metadata that a endpoint must match in\norder to be selected by the load balancer.\nList of keys that define a cluster subset. Each endpoint that has a metadata value for all of\nthe keys in the definition is added to that subset. If no endpoint has all the keys, no subsets\nresult from the definition. A single endpoint may appear in multiple subsets if it matches\nmultiple definitions.",
+      "title": "EndpointSubsetSelectorType",
+      "x-displayname": "Endpoint Subset Selector.",
+      "x-ves-proto-message": "ves.io.schema.cluster.EndpointSubsetSelectorType",
+      "properties": {
+        "keys": {
+          "type": "array",
+          "description": "List of keys that define a cluster subset class.",
+          "title": "keys",
+          "maxItems": 16,
+          "items": {
+            "type": "string"
+          },
+          "x-displayname": "Keys",
+          "x-ves-example": "Production.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/65745c715b848b06c66d81f36e6f39a5b3daf606275cf8ae4a6a066de8aa63f4"
+          },
+          "x-f5xc-example": "production",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/65745c715b848b06c66d81f36e6f39a5b3daf606275cf8ae4a6a066de8aa63f4"
+          },
+          "x-f5xc-description-short": "List of keys that define a cluster subset class.",
+          "x-f5xc-constraints": {
+            "constraintType": "array",
+            "category": "discovery",
+            "maxItems": 16,
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Upstream cluster may be configured to divide its endpoints into subsets based on metadata attached to the endpoints.",
+      "x-f5xc-description-medium": "Upstream cluster may be configured to divide its endpoints into subsets based on metadata attached to the endpoints. Routes may then specify the metadata that a endpoint must match in order to be selected by the load balancer. List of keys that define a cluster subset.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for clusterEndpointSubsetSelectorType",
+        "required_fields": ["keys"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"keys\": [\n    \"value\"\n  ]\n}",
+        "example_yaml": "keys:\n- value"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "clusterHttp1ProtocolOptions": {
+      "type": "object",
+      "description": "HTTP/1.1 Protocol OPTIONS for upstream connections.",
+      "title": "Http1ProtocolOptions",
+      "x-displayname": "HTTP/1.1 Protocol OPTIONS.",
+      "x-ves-proto-message": "ves.io.schema.cluster.Http1ProtocolOptions",
+      "properties": {
+        "header_transformation": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/cad503a9d2323e42cae21c88f0f7e9e11c62ab984245237b4e58bbc14f7f1889"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "HTTP/1.1 Protocol OPTIONS for upstream connections.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for clusterHttp1ProtocolOptions",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "clusterHttp2ProtocolOptions": {
+      "type": "object",
+      "description": "Http2 Protocol OPTIONS for upstream connections.",
+      "title": "Http2ProtocolOptions",
+      "x-displayname": "Http2 Protocol OPTIONS.",
+      "x-ves-proto-message": "ves.io.schema.cluster.Http2ProtocolOptions",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable/disable HTTP2 Protocol for upstream connections.",
+          "title": "enabled",
+          "format": "boolean",
+          "x-displayname": "HTTP2 Enabled.",
+          "x-f5xc-example": "True",
+          "x-f5xc-description-short": "Enable/disable HTTP2 Protocol for upstream connections.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Http2 Protocol OPTIONS for upstream connections.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for clusterHttp2ProtocolOptions",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "clusterLoadbalancerAlgorithm": {
+      "type": "string",
+      "description": "Different load balancing algorithms supported\nWhen a connection to a endpoint in an upstream cluster is required, the load balancer uses loadbalancer_algorithm\nto determine which host is selected.\n\n- ROUND_ROBIN: ROUND_ROBIN\n\nPolicy in which each healthy/available upstream endpoint is selected in round robin order.\n- LEAST_REQUEST: LEAST_REQUEST\n\nPolicy in which loadbalancer picks the upstream endpoint which has the fewest active requests\n- RING_HASH: RING_HASH\n\nPolicy implements consistent hashing to upstream endpoints using ring hash of endpoint names\nHash of the incoming request is calculated using request hash policy.\nThe ring/modulo hash load balancer implements consistent hashing to upstream hosts.\nThe algorithm is based on mapping all hosts onto a circle such that the addition or\nremoval of a host from the host set changes only affect 1/N requests. This technique\nis also commonly known as “ketama” hashing. A consistent hashing load balancer is only\neffective when protocol routing is used that specifies a value to hash on. The minimum\nring size governs the replication factor for each host in the ring. For example, if the\nminimum ring size is 1024 and there are 16 hosts, each host will be replicated 64 times.\n- RANDOM: RANDOM\n\nPolicy in which each available upstream endpoint is selected in random order.\nThe random load balancer selects a random healthy host. The random load balancer generally\nperforms better than round robin if no health checking policy is configured. Random selection\navoids bias towards the host in the set that comes after a failed host.\n- LB_OVERRIDE: Load Balancer Override\n\nHash policy is taken from from the load balancer which is using this origin pool.",
+      "title": "LoadbalancerAlgorithm",
+      "enum": ["ROUND_ROBIN", "LEAST_REQUEST", "RING_HASH", "RANDOM", "LB_OVERRIDE"],
+      "default": "ROUND_ROBIN",
+      "x-displayname": "Load Balancer Algorithm.",
+      "x-ves-proto-enum": "ves.io.schema.cluster.LoadbalancerAlgorithm",
+      "x-f5xc-description-short": "Different load balancing algorithms supported When a connection to a endpoint in an upstream cluster is required, the load balancer uses...",
+      "x-f5xc-description-medium": "Different load balancing algorithms supported When a connection to a endpoint in an upstream cluster is required, the load balancer uses loadbalancer_algorithm to determine which host is selected. - ROUND_ROBIN: ROUND_ROBIN Policy in which each healthy/available upstream endpoint is selected in...",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for clusterLoadbalancerAlgorithm",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "\"ROUND_ROBIN\"",
+        "example_yaml": "ROUND_ROBIN\n..."
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "clusterOutlierDetectionType": {
+      "type": "object",
+      "description": "Outlier detection and ejection is the process of dynamically determining whether some number\nof hosts in an upstream cluster are performing unlike the others and removing them from the\nhealthy load balancing set. Outlier detection is a form of passive health checking.\n\nAlgorithm\n\n1. A endpoint is determined to be an outlier (based on configured number of consecutive_5xx\nor consecutive_gateway_failures) .\n2. If no endpoints have been ejected, loadbalancer will eject the host immediately.\nOtherwise, it checks to make sure the number of ejected hosts is below the allowed threshold\n(specified via max_ejection_percent setting). If the number of ejected hosts is above the\nthreshold, the host is not ejected.\n3. The endpoint is ejected for some number of milliseconds. Ejection means that the endpoint is marked\nunhealthy and will not be used during load balancing. The number of milliseconds is equal to the\nbase_ejection_time value multiplied by the number of times the host has been ejected.\n4. An ejected endpoint will automatically be brought back into service after the ejection time\nhas been satisfied.",
+      "title": "OutlierDetectionType",
+      "x-displayname": "Outlier Detection.",
+      "x-ves-displayorder": "1,2,3,4,5",
+      "x-ves-proto-message": "ves.io.schema.cluster.OutlierDetectionType",
+      "properties": {
+        "base_ejection_time": {
+          "type": "integer",
+          "description": "The base time that a host is ejected for. The real time is equal to the\nbase time multiplied by the number of times the host has been ejected.\nThis causes hosts to GET ejected for longer periods if they continue to fail.\nDefaults to 30000ms or 30s. Specified in milliseconds.",
+          "title": "base_ejection_time",
+          "format": "int64",
+          "x-displayname": "Base Ejection Time.",
+          "x-ves-example": "20000",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1800000"
+          },
+          "x-f5xc-example": "20000",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1800000"
+          },
+          "x-f5xc-description-short": "The base time that a host is ejected for. The real time is equal to the base time multiplied by the number of times the host has been ejected.",
+          "x-f5xc-description-medium": "The base time that a host is ejected for. The real time is equal to the base time multiplied by the number of times the host has been ejected. This causes hosts to GET ejected for longer periods if they continue to fail.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/248180eafd7d8c3c0724f14ccf300843f1740f757d38c6860413a7ea551aefdf"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "consecutive_5xx": {
+          "type": "integer",
+          "description": "If an upstream endpoint returns some number of consecutive 5xx, it will be ejected.\nNote that in this case a 5xx means an actual 5xx respond code, or an event that would\ncause the HTTP router to return one on the upstream’s behalf(reset, connection failure, etc.)\nconsecutive_5xx indicates the number of consecutive 5xx responses required before\na consecutive 5xx ejection occurs. Defaults to 5.",
+          "title": "consecutive_5xx",
+          "format": "int64",
+          "x-displayname": "Consecutive 5xx Count.",
+          "x-ves-example": "3",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1024"
+          },
+          "x-f5xc-example": "3",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1024"
+          },
+          "x-f5xc-description-short": "If an upstream endpoint returns some number of consecutive 5xx, it will be ejected.",
+          "x-f5xc-description-medium": "If an upstream endpoint returns some number of consecutive 5xx, it will be ejected. Note that in this case a 5xx means an actual 5xx respond code, or an event that would cause the HTTP router to return one on the upstream’s behalf(reset, connection failure, etc.) consecutive_5xx indicates the...",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/e2c22591716b83c09f8e14ff9bf77ac059e6a9237f2c421e4bc0beca1aecd181"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "consecutive_gateway_failure": {
+          "type": "integer",
+          "description": "If an upstream endpoint returns some number of consecutive “gateway errors”\n(502, 503 or 504 status code), it will be ejected. Note that this includes events\nthat would cause the HTTP router to return one of these status codes on the\nupstream’s behalf (reset, connection failure, etc.).\nConsecutive_gateway_failure indicates the number of consecutive gateway failures\nbefore a consecutive gateway failure ejection occurs. Defaults to 5.",
+          "title": "consecutive_gateway_failure",
+          "format": "int64",
+          "x-displayname": "Consecutive Gateway Failure.",
+          "x-ves-example": "5",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1024"
+          },
+          "x-f5xc-example": "5",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1024"
+          },
+          "x-f5xc-description-short": "If an upstream endpoint returns some number of consecutive “gateway errors” (502, 503 or 504 status code), it will be ejected.",
+          "x-f5xc-description-medium": "If an upstream endpoint returns some number of consecutive “gateway errors” (502, 503 or 504 status code), it will be ejected. Note that this includes events that would cause the HTTP router to return one of these status codes on the upstream’s behalf (reset, connection failure, etc.)...",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/e2c22591716b83c09f8e14ff9bf77ac059e6a9237f2c421e4bc0beca1aecd181"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "interval": {
+          "type": "integer",
+          "description": "The time interval between ejection analysis sweeps. This can result in\nboth new ejections as well as endpoints being returned to service. Defaults\nto 10000ms or 10s. Specified in milliseconds.",
+          "title": "interval",
+          "format": "int64",
+          "x-displayname": "Interval",
+          "x-ves-example": "5000",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "600000"
+          },
+          "x-f5xc-example": "5000",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "600000"
+          },
+          "x-f5xc-description-short": "The time interval between ejection analysis sweeps. This can result in both new ejections as well as endpoints being returned to service.",
+          "x-f5xc-description-medium": "The time interval between ejection analysis sweeps. This can result in both new ejections as well as endpoints being returned to service. Defaults to 10000ms or 10s.",
+          "x-f5xc-constraints": {
+            "constraintType": "number",
+            "category": "discovery",
+            "minimum": 1,
+            "maximum": 600000,
+            "multipleOf": 1,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+            },
+            "deterministic": true
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "max_ejection_percent": {
+          "type": "integer",
+          "description": "The maximum % of an upstream cluster that can be ejected due to outlier\ndetection. Defaults to 10% but will eject at least one host regardless of the value.",
+          "title": "max_ejection_percent",
+          "format": "int64",
+          "x-displayname": "Max Ejection Percentage.",
+          "x-ves-example": "20",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "100"
+          },
+          "x-f5xc-example": "20",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "100"
+          },
+          "x-f5xc-description-short": "The maximum % of an upstream cluster that can be ejected due to outlier detection.",
+          "x-f5xc-description-medium": "The maximum % of an upstream cluster that can be ejected due to outlier detection. Defaults to 10% but will eject at least one host regardless of the value.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/38da23e49fa06e074242027a5132d0c738b4cc28e3d221d91cc1bab96369c8c1"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Outlier detection and ejection is the process of dynamically determining whether some number of hosts in an upstream cluster are performing unlike...",
+      "x-f5xc-description-medium": "Outlier detection and ejection is the process of dynamically determining whether some number of hosts in an upstream cluster are performing unlike the others and removing them from the healthy load balancing set. Outlier detection is a form of passive health checking. Algorithm 1.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for clusterOutlierDetectionType",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "ioschemaEmpty": {
+      "$ref": "./shared-schema-components.json#/6a7439ed4ce120114518e15b88e87496dadda0bb4c8ec436d9db33a38db630e6"
+    },
+    "origin_poolOriginPoolAdvancedOptions__ves_io_schema_views_origin_pool": {
+      "type": "object",
+      "description": "Configure Advanced OPTIONS for origin pool.",
+      "title": "Origin Pool Advanced Options",
+      "x-displayname": "Origin Pool Advanced OPTIONS.",
+      "x-ves-oneof-field-circuit_breaker_choice": "[\"circuit_breaker\",\"default_circuit_breaker\",\"disable_circuit_breaker\"]",
+      "x-ves-oneof-field-http_protocol_type": "[\"auto_http_config\",\"http1_config\",\"http2_options\"]",
+      "x-ves-oneof-field-lb_source_ip_persistence_choice": "[\"disable_lb_source_ip_persistence\",\"enable_lb_source_ip_persistence\"]",
+      "x-ves-oneof-field-max_requests_per_connection_choice": "[\"max_requests_per_connection\",\"no_request_limit_per_connection\"]",
+      "x-ves-oneof-field-outlier_detection_choice": "[\"disable_outlier_detection\",\"outlier_detection\"]",
+      "x-ves-oneof-field-panic_threshold_type": "[\"no_panic_threshold\",\"panic_threshold\"]",
+      "x-ves-oneof-field-proxy_protocol_choice": "[\"disable_proxy_protocol\",\"proxy_protocol_v1\",\"proxy_protocol_v2\"]",
+      "x-ves-oneof-field-subset_choice": "[\"disable_subsets\",\"enable_subsets\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginPoolAdvancedOptions",
+      "properties": {
+        "auto_http_config": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "circuit_breaker": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/clusterCircuitBreaker"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for circuit breaker.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "connection_timeout": {
+          "type": "integer",
+          "description": "The timeout for new network connections to endpoints in the cluster.\nThis is specified in milliseconds. The default value is 2 seconds.",
+          "title": "connection_timeout",
+          "format": "int64",
+          "x-displayname": "Connection Timeout.",
+          "x-ves-example": "4000",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1800000"
+          },
+          "x-f5xc-example": "4000",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "1800000"
+          },
+          "x-f5xc-description-short": "The timeout for new network connections to endpoints in the cluster. This is specified in milliseconds.",
+          "x-f5xc-description-medium": "The timeout for new network connections to endpoints in the cluster. This is specified in milliseconds. The default value is 2 seconds.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/248180eafd7d8c3c0724f14ccf300843f1740f757d38c6860413a7ea551aefdf"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "default_circuit_breaker": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for default circuit breaker.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "disable_circuit_breaker": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable circuit breaker.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "disable_lb_source_ip_persistence": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-wire-name": "disable_lb_source_ip_persistance",
+          "description": "IP address configuration",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "disable_outlier_detection": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable outlier detection.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "disable_proxy_protocol": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable proxy protocol.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "disable_subsets": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable subsets.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "enable_lb_source_ip_persistence": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-wire-name": "enable_lb_source_ip_persistance",
+          "description": "IP address configuration",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "enable_subsets": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/f11c93b5978def03c3f68e5910f819f5e0d9d6f6cfa3681bc2e726ee089bccb2"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for enable subsets.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "http1_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/clusterHttp1ProtocolOptions"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "http2_options": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/clusterHttp2ProtocolOptions"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for http2 options.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "http_idle_timeout": {
+          "type": "integer",
+          "description": "The idle timeout for upstream connection pool connections. The idle timeout is defined as the\nperiod in which there are no active requests. When the idle timeout is reached the connection\nwill be closed. Note that request based timeouts mean that HTTP/2 PINGs will not keep the connection alive.\nThis is specified in milliseconds. The default value is 5 minutes.",
+          "title": "http_idle_timeout",
+          "format": "int64",
+          "x-displayname": "HTTP Idle Timeout.",
+          "x-ves-example": "60000",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "600000"
+          },
+          "x-f5xc-example": "60000",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "600000"
+          },
+          "x-f5xc-description-short": "The idle timeout for upstream connection pool connections. The idle timeout is defined as the period in which there are no active requests.",
+          "x-f5xc-description-medium": "The idle timeout for upstream connection pool connections. The idle timeout is defined as the period in which there are no active requests. When the idle timeout is reached the connection will be closed.",
+          "x-f5xc-constraints": {
+            "constraintType": "number",
+            "category": "discovery",
+            "maximum": 600000,
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "x-field-mutability": "read-only"
+        },
+        "max_requests_per_connection": {
+          "type": "integer",
+          "description": "Exclusive with [no_request_limit_per_connection]\nSets the maximum number of requests allowed per connection to the origin server.\nEnter a value >=1 to define the request limit per connection.",
+          "title": "Maximum Requests Per Connection",
+          "format": "int64",
+          "x-displayname": "Maximum Requests Per Connection.",
+          "x-ves-example": "100",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.gte": "1"
+          },
+          "x-f5xc-example": "100",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.gte": "1"
+          },
+          "x-f5xc-description-short": "Exclusive with [no_request_limit_per_connection] Sets the maximum number of requests allowed per connection to the origin server.",
+          "x-f5xc-description-medium": "Exclusive with [no_request_limit_per_connection] Sets the maximum number of requests allowed per connection to the origin server. Enter a value >=1 to define the request limit per connection.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/a0c4b15b160a2ad71fa00bcd564b6352629bd7e5795e6e17994feec8be537cc2"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "no_panic_threshold": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for no panic threshold.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "no_request_limit_per_connection": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for no request limit per connection.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "outlier_detection": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/clusterOutlierDetectionType"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for outlier detection.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "panic_threshold": {
+          "type": "integer",
+          "description": "Exclusive with [no_panic_threshold]\n\nConfigure a threshold (percentage of unhealthy endpoints) below which\nall endpoints will be considered for load balancing ignoring its health status.",
+          "title": "Panic threshold",
+          "format": "int64",
+          "x-displayname": "Panic threshold.",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "100"
+          },
+          "x-f5xc-example": "25",
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "100"
+          },
+          "x-f5xc-description-short": "Exclusive with [no_panic_threshold] Configure a threshold (percentage of unhealthy endpoints) below which all endpoints will be considered for...",
+          "x-f5xc-description-medium": "Exclusive with [no_panic_threshold] Configure a threshold (percentage of unhealthy endpoints) below which all endpoints will be considered for load balancing ignoring its health status.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/38da23e49fa06e074242027a5132d0c738b4cc28e3d221d91cc1bab96369c8c1"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "proxy_protocol_v1": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for proxy protocol v1.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "proxy_protocol_v2": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for proxy protocol v2.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Configure Advanced OPTIONS for origin pool.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginPoolAdvancedOptions",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginPoolDefaultSubset": {
+      "type": "object",
+      "description": "Default Subset definition.",
+      "title": "Origin Pool Default Subset",
+      "x-displayname": "Origin Pool Default Subset.",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginPoolDefaultSubset",
+      "properties": {
+        "default_subset": {
+          "type": "object",
+          "description": "List of key-value pairs that define default subset.\nWhich gets used when route specifies no metadata or no subset matching the metadata exists.",
+          "title": "default_subset",
+          "x-displayname": "Default Subset for Origin Pool.",
+          "x-ves-example": "Key:value",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.map.max_pairs": "32"
+          },
+          "x-f5xc-example": "key:value",
+          "x-validation-rules": {
+            "ves.io.schema.rules.map.max_pairs": "32"
+          },
+          "x-f5xc-description-short": "List of key-value pairs that define default subset. Which gets used when route specifies no metadata or no subset matching the metadata exists.",
+          "x-f5xc-description-medium": "List of key-value pairs that define default subset. Which gets used when route specifies no metadata or no subset matching the metadata exists.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginPoolDefaultSubset",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginPoolSubsets": {
+      "type": "object",
+      "description": "Configure subset OPTIONS for origin pool.",
+      "title": "Origin Pool Subset Options",
+      "x-displayname": "Origin Pool Subset OPTIONS.",
+      "x-ves-oneof-field-fallback_policy_choice": "[\"any_endpoint\",\"default_subset\",\"fail_request\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginPoolSubsets",
+      "properties": {
+        "any_endpoint": {
+          "$ref": "./shared-schema-components.json#/81277297554357d1cea705844ff048a34f206230df0598c01955e98ac50ba6cc"
+        },
+        "default_subset": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/8cc0f3bc96cd5557103956eec9bf8fdf63265940ae8d2eff88ae4a02a1a1b009"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for default subset.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "endpoint_subsets": {
+          "type": "array",
+          "description": "List of subset class. Subsets class is defined using list of keys. Every unique combination of values of these keys form a subset within the class.",
+          "title": "Origin Server Subsets Classes",
+          "maxItems": 32,
+          "items": {
+            "$ref": "./shared-schema-components.json#/2b3c1ee05f0852dbb9f50a7f9ba5c6688a2036c5fdfde61bf48a7b6e610599ca"
+          },
+          "x-displayname": "Origin Server Subsets Classes.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/68d6cadb38a1d61e8889cd32eeb28ac17777ebd7545d6865530abc9961d38928"
+          },
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/68d6cadb38a1d61e8889cd32eeb28ac17777ebd7545d6865530abc9961d38928"
+          },
+          "x-f5xc-example": "{\"key\": \"value\"}",
+          "x-f5xc-description-short": "List of subset class. Subsets class is defined using list of keys.",
+          "x-f5xc-description-medium": "List of subset class. Subsets class is defined using list of keys. Every unique combination of values of these keys form a subset within the class.",
+          "x-f5xc-constraints": {
+            "constraintType": "array",
+            "category": "discovery",
+            "maxItems": 32,
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        },
+        "fail_request": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for fail request.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Configure subset OPTIONS for origin pool.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginPoolSubsets",
+        "required_fields": ["endpoint_subsets"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"endpoint_subsets\": [\n    {\n      \"keys\": [\n        \"value\"\n      ]\n    }\n  ]\n}",
+        "example_yaml": "endpoint_subsets:\n- keys:\n  - value"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerCBIPService": {
+      "type": "object",
+      "description": "Specify origin server with Classic BIG-IP Service (Virtual Server)",
+      "title": "OriginServerCBIPService",
+      "x-displayname": "Discovered Classic BIG-IP Service Name.",
+      "x-ves-displayorder": "1",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerCBIPService",
+      "properties": {
+        "service_name": {
+          "type": "string",
+          "description": "Name of the discovered Classic BIG-IP virtual server to be used as origin.",
+          "title": "Service Name",
+          "x-displayname": "Service Name.",
+          "x-ves-example": "Cbip-vs1-dev.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "cbip-vs1-dev",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-description-short": "Name of the discovered Classic BIG-IP virtual server to be used as origin.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with Classic BIG-IP Service (Virtual Server).",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerCBIPService",
+        "required_fields": ["service_name"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"service_name\": \"cbip-vs1-dev\"\n}",
+        "example_yaml": "service_name: cbip-vs1-dev"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerConsulService": {
+      "type": "object",
+      "description": "Specify origin server with HashiCorp Consul service name and site information.",
+      "title": "OriginServerConsulService",
+      "x-displayname": "Consul Service Name on given Sites.",
+      "x-ves-displayorder": "1,2,3",
+      "x-ves-oneof-field-network_choice": "[\"inside_network\",\"outside_network\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerConsulService",
+      "properties": {
+        "inside_network": {
+          "$ref": "./shared-schema-components.json#/674932f322d7a0b2f9cc87e4bd277b67f5235c8cad23d9192a105cdede13cc82"
+        },
+        "outside_network": {
+          "$ref": "./shared-schema-components.json#/d18b22f48228927eb8b2c9aa6c47f0881319cd5887bbe1f50f44d54974d16445"
+        },
+        "service_name": {
+          "type": "string",
+          "description": "Consul service name of this origin server will be listed, including cluster-ID.\nThe format is servicename:cluster-ID.",
+          "title": "Service Name",
+          "x-displayname": "Service Name.",
+          "x-ves-example": "Matching:production.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-example": "matching:production",
+          "x-validation-rules": {
+            "ves.io.schema.rules.message.required": "true"
+          },
+          "x-f5xc-description-short": "Consul service name of this origin server will be listed, including cluster-ID. The format is servicename:cluster-ID.",
+          "x-f5xc-description-medium": "Consul service name of this origin server will be listed, including cluster-ID. The format is servicename:cluster-ID.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        },
+        "site_locator": {
+          "$ref": "./shared-schema-components.json#/3ce755583c701f0ee9eb23893535d648a1ae2797ef5c46047c9811448a89f4e0"
+        },
+        "snat_pool": {
+          "$ref": "./shared-schema-components.json#/597eda929910967b8d22db40c4dae7c91590d03475cae0b4ee18a5a0b9d0ee35"
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with HashiCorp Consul service name and site information.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerConsulService",
+        "required_fields": ["service_name"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"service_name\": \"matching:production\"\n}",
+        "example_yaml": "service_name: matching:production"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerCustomEndpoint": {
+      "type": "object",
+      "description": "Specify origin server with a reference to endpoint object.",
+      "title": "OriginServerCustomEndpoint",
+      "x-displayname": "Custom Endpoint Object for Origin Server.",
+      "x-ves-displayorder": "1",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerCustomEndpoint",
+      "properties": {
+        "endpoint": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ],
+          "x-f5xc-example": "https://api.example.com/v1/users",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with a reference to endpoint object.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerCustomEndpoint",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerK8SService": {
+      "type": "object",
+      "description": "Specify origin server with K8s service name and site information.",
+      "title": "OriginServerK8SService",
+      "x-displayname": "K8s Service Name on given Sites.",
+      "x-ves-displayorder": "10,12,2,3",
+      "x-ves-oneof-field-network_choice": "[\"inside_network\",\"outside_network\",\"vk8s_networks\"]",
+      "x-ves-oneof-field-service_info": "[\"service_name\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerK8SService",
+      "properties": {
+        "inside_network": {
+          "$ref": "./shared-schema-components.json#/674932f322d7a0b2f9cc87e4bd277b67f5235c8cad23d9192a105cdede13cc82"
+        },
+        "outside_network": {
+          "$ref": "./shared-schema-components.json#/d18b22f48228927eb8b2c9aa6c47f0881319cd5887bbe1f50f44d54974d16445"
+        },
+        "protocol": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/origin_poolProtocolType"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "service_name": {
+          "type": "string",
+          "description": "Exclusive with []\nK8s service name of the origin server will be listed, including the namespace and cluster-ID.\nFor vK8s services, you need to enter a string with the format servicename.namespace:example-namespace\"frontend\",\nnamespace is \"speedtest\" and cluster-ID is \"prod\", then you will enter \"frontend.speedtest:prod\".\nBoth namespace and cluster-ID are optional.",
+          "title": "Service Name",
+          "x-displayname": "Service Name.",
+          "x-ves-example": "matching.default:production.",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/2eb09e1853693ecfa93ac3ecf7bdfc516f97ca70dc399de5d8a5ae4a93999ff7"
+          },
+          "x-f5xc-example": "matching.default:production",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/2eb09e1853693ecfa93ac3ecf7bdfc516f97ca70dc399de5d8a5ae4a93999ff7"
+          },
+          "x-f5xc-description-short": "Exclusive with [] K8s service name of the origin server will be listed, including the namespace and cluster-ID.",
+          "x-f5xc-description-medium": "Exclusive with [] K8s service name of the origin server will be listed, including the namespace and cluster-ID. For vK8s services, you need to enter a string with the format servicename.namespace:example-namespace\"frontend\", namespace is \"speedtest\" and cluster-ID is \"prod\", then you will enter...",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "site_locator": {
+          "$ref": "./shared-schema-components.json#/3ce755583c701f0ee9eb23893535d648a1ae2797ef5c46047c9811448a89f4e0"
+        },
+        "snat_pool": {
+          "$ref": "./shared-schema-components.json#/597eda929910967b8d22db40c4dae7c91590d03475cae0b4ee18a5a0b9d0ee35"
+        },
+        "vk8s_networks": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for vk8s networks.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with K8s service name and site information.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerK8SService",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerPrivateIP": {
+      "type": "object",
+      "description": "Specify origin server with private or public IP address and site information.",
+      "title": "OriginServerPrivateIP",
+      "x-displayname": "IP address on given Sites.",
+      "x-ves-displayorder": "10,2,3",
+      "x-ves-oneof-field-network_choice": "[\"inside_network\",\"outside_network\",\"segment\"]",
+      "x-ves-oneof-field-private_ip_choice": "[\"ip\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerPrivateIP",
+      "properties": {
+        "inside_network": {
+          "$ref": "./shared-schema-components.json#/674932f322d7a0b2f9cc87e4bd277b67f5235c8cad23d9192a105cdede13cc82"
+        },
+        "ip": {
+          "type": "string",
+          "x-ves-example": "192.0.2.132.",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.string.ipv4": "true"
+          },
+          "x-f5xc-example": "192.0.2.132",
+          "x-validation-rules": {
+            "ves.io.schema.rules.string.ipv4": "true"
+          },
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/b1f93d3872f57ab0815a73c05d2908b54160fe99a6957da6113573573c1c1188"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "description": "Exclusive with []\nPrivate IPv4 address.",
+          "title": "IP",
+          "x-displayname": "IP"
+        },
+        "outside_network": {
+          "$ref": "./shared-schema-components.json#/d18b22f48228927eb8b2c9aa6c47f0881319cd5887bbe1f50f44d54974d16445"
+        },
+        "segment": {
+          "$ref": "./shared-schema-components.json#/8f037236da9283d84fcd135ca8990631eb3eb1f170d6be18360822b8b1e67590"
+        },
+        "site_locator": {
+          "$ref": "./shared-schema-components.json#/3ce755583c701f0ee9eb23893535d648a1ae2797ef5c46047c9811448a89f4e0"
+        },
+        "snat_pool": {
+          "$ref": "./shared-schema-components.json#/597eda929910967b8d22db40c4dae7c91590d03475cae0b4ee18a5a0b9d0ee35"
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with private or public IP address and site information.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerPrivateIP",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerPrivateName": {
+      "type": "object",
+      "description": "Specify origin server with private or public DNS name and site information.",
+      "title": "OriginServerPrivateName",
+      "x-displayname": "DNS Name on given Sites.",
+      "x-ves-displayorder": "1,6,2,3",
+      "x-ves-oneof-field-network_choice": "[\"inside_network\",\"outside_network\",\"segment\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerPrivateName",
+      "properties": {
+        "dns_name": {
+          "$ref": "./shared-schema-components.json#/4608a1488dc7146d285b5a5e22787293f715a72adc1cc9b0b46613ec0b29ba50"
+        },
+        "inside_network": {
+          "$ref": "./shared-schema-components.json#/674932f322d7a0b2f9cc87e4bd277b67f5235c8cad23d9192a105cdede13cc82"
+        },
+        "outside_network": {
+          "$ref": "./shared-schema-components.json#/d18b22f48228927eb8b2c9aa6c47f0881319cd5887bbe1f50f44d54974d16445"
+        },
+        "refresh_interval": {
+          "$ref": "./shared-schema-components.json#/d13bbff8b4123583a93b71909069f533500d55d6d4b83b0894bc1cec2cc39b99"
+        },
+        "segment": {
+          "$ref": "./shared-schema-components.json#/8f037236da9283d84fcd135ca8990631eb3eb1f170d6be18360822b8b1e67590"
+        },
+        "site_locator": {
+          "$ref": "./shared-schema-components.json#/3ce755583c701f0ee9eb23893535d648a1ae2797ef5c46047c9811448a89f4e0"
+        },
+        "snat_pool": {
+          "$ref": "./shared-schema-components.json#/597eda929910967b8d22db40c4dae7c91590d03475cae0b4ee18a5a0b9d0ee35"
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with private or public DNS name and site information.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerPrivateName",
+        "required_fields": ["dns_name"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"dns_name\": \"value\"\n}",
+        "example_yaml": "dns_name: value"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerPublicIP": {
+      "type": "object",
+      "description": "Specify origin server with public IP address.",
+      "title": "OriginServerPublicIP",
+      "x-displayname": "Public IP",
+      "x-ves-displayorder": "2",
+      "x-ves-oneof-field-public_ip_choice": "[\"ip\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerPublicIP",
+      "properties": {
+        "ip": {
+          "type": "string",
+          "x-ves-example": "192.0.2.132.",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.string.ipv4": "true"
+          },
+          "x-f5xc-example": "192.0.2.132",
+          "x-validation-rules": {
+            "ves.io.schema.rules.string.ipv4": "true"
+          },
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/b1f93d3872f57ab0815a73c05d2908b54160fe99a6957da6113573573c1c1188"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "description": "Exclusive with []\nPublic IPv4 address.",
+          "title": "IP",
+          "x-displayname": "Public IPv4."
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with public IP address.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerPublicIP",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerPublicName": {
+      "type": "object",
+      "description": "Specify origin server with public DNS name.",
+      "title": "OriginServerPublicName",
+      "x-displayname": "Public DNS Name.",
+      "x-ves-displayorder": "1,2",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerPublicName",
+      "properties": {
+        "dns_name": {
+          "type": "string",
+          "description": "DNS Name",
+          "title": "DNS name",
+          "minLength": 1,
+          "maxLength": 256,
+          "x-displayname": "DNS Name",
+          "x-ves-example": "Value",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/491e53d0d18e8f6ea08e15caffac2f692461490575fa4f82291c9a00bc53c718"
+          },
+          "x-f5xc-example": "value",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/491e53d0d18e8f6ea08e15caffac2f692461490575fa4f82291c9a00bc53c718"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "discovery",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+            "characterSet": {
+              "$ref": "./shared-schema-components.json#/73163f154f4321b49b77ff19b688d455b825ac41b7f97a337faafa9dd3f88b0c"
+            },
+            "format": "hostname",
+            "formatDescription": "RFC 1123 FQDN: lowercase, dot-separated labels, max 253 chars total",
+            "validation": {
+              "rfc": "RFC 1123"
+            },
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            },
+            "deterministic": true
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        },
+        "refresh_interval": {
+          "$ref": "./shared-schema-components.json#/d13bbff8b4123583a93b71909069f533500d55d6d4b83b0894bc1cec2cc39b99"
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with public DNS name.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerPublicName",
+        "required_fields": ["dns_name"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"dns_name\": \"value\"\n}",
+        "example_yaml": "dns_name: value"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerType": {
+      "type": "object",
+      "description": "Various OPTIONS to specify origin server.",
+      "title": "OriginServerType",
+      "x-displayname": "Origin Server.",
+      "x-ves-oneof-field-choice": "[\"cbip_service\",\"consul_service\",\"custom_endpoint_object\",\"k8s_service\",\"private_ip\",\"private_name\",\"public_ip\",\"public_name\",\"vn_private_ip\",\"vn_private_name\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerType",
+      "properties": {
+        "cbip_service": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/d01e6838dc9b3f1d4538b0b126f271745bb14e34874a9e5ef35e7fcea040b0fc"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "consul_service": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/483229e6ddf87c2d6780bed07b736598fabfb4c5c721b5b1ac1613431a5445f3"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for consul service.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "custom_endpoint_object": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/ac1e4491f6440587f3190328a212fcfc71516fcfe33f15e86cadeb759820ed05"
+            }
+          ],
+          "x-f5xc-example": "{\"key\": \"value\"}",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "k8s_service": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/318d58a0735019d73e8b702732f9e5765669f703c4ad664a66eebc9db7f64580"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for k8s service.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "description": "Add Labels for this origin server, these labels can be used to form subset.",
+          "title": "Origin Server Labels",
+          "x-displayname": "Origin Server Labels.",
+          "x-ves-example": "Value",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "x-f5xc-example": "value",
+          "x-f5xc-description-short": "Add Labels for this origin server, these labels can be used to form subset.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "private_ip": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/38288c361ec8374a56b22a5720ad7ccff203f2a1b8d525c4bda36308cd50b385"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "private_name": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/b83b2a166c3eb6d3fd11ff8a871febe999b3a54ee074dbffb95b3a5378ab3442"
+            }
+          ],
+          "x-f5xc-example": "example-resource",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "public_ip": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/b4a03fcfc07075cb1de89cded6334370348d3eda3382f3bca08d2caec62b5624"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "public_name": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/39be0badaa54ed4dcb030d0ffc23bdad713897a8cd064fa52a1baa02c274e527"
+            }
+          ],
+          "x-f5xc-example": "example-resource",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "vn_private_ip": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/0f770498c6fb007ae945f9fb7981904c2c1e87c148e81fc700a276df2ba6824d"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "vn_private_name": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/1823f80d28979bb717e88ba08832828793911adf3cfe9f29496512db97a2048d"
+            }
+          ],
+          "x-f5xc-example": "example-resource",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Various OPTIONS to specify origin server.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerType",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerVirtualNetworkIP": {
+      "type": "object",
+      "description": "Specify origin server with IP on Virtual Network.",
+      "title": "OriginServerVirtualNetworkIP",
+      "x-displayname": "IP address Virtual Network.",
+      "x-ves-displayorder": "10,2",
+      "x-ves-oneof-field-virtual_network_ip_choice": "[\"ip\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerVirtualNetworkIP",
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "Exclusive with []\nIPv4 address.",
+          "title": "IPV4",
+          "x-displayname": "IPv4",
+          "x-ves-example": "192.0.2.242.",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.string.ipv4": "true"
+          },
+          "x-f5xc-example": "192.0.2.242",
+          "x-validation-rules": {
+            "ves.io.schema.rules.string.ipv4": "true"
+          },
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/b1f93d3872f57ab0815a73c05d2908b54160fe99a6957da6113573573c1c1188"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "virtual_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for virtual network.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with IP on Virtual Network.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerVirtualNetworkIP",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolOriginServerVirtualNetworkName": {
+      "type": "object",
+      "description": "Specify origin server with DNS name on Virtual Network.",
+      "title": "OriginServerVirtualNetworkName",
+      "x-displayname": "DNS Name on Virtual Network.",
+      "x-ves-displayorder": "1,2",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.OriginServerVirtualNetworkName",
+      "properties": {
+        "dns_name": {
+          "$ref": "./shared-schema-components.json#/4608a1488dc7146d285b5a5e22787293f715a72adc1cc9b0b46613ec0b29ba50"
+        },
+        "private_network": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for private network.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Specify origin server with DNS name on Virtual Network.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolOriginServerVirtualNetworkName",
+        "required_fields": ["dns_name"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"dns_name\": \"value\"\n}",
+        "example_yaml": "dns_name: value"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolProtocolType": {
+      "type": "string",
+      "description": "Type of protocol\n\n- PROTOCOL_TCP: TCP\n\n- PROTOCOL_UDP: UDP.",
+      "title": "Protocol Type",
+      "enum": ["PROTOCOL_TCP", "PROTOCOL_UDP"],
+      "default": "PROTOCOL_TCP",
+      "x-displayname": "Protocol Type.",
+      "x-ves-proto-enum": "ves.io.schema.views.origin_pool.ProtocolType",
+      "x-f5xc-description-short": "Type of protocol - PROTOCOL_TCP: TCP - PROTOCOL_UDP: UDP.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolProtocolType",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "\"PROTOCOL_TCP\"",
+        "example_yaml": "PROTOCOL_TCP\n..."
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolTlsCertificatesType": {
+      "type": "object",
+      "description": "MTLS Client Certificate.",
+      "title": "TlsCertificatesType",
+      "x-displayname": "MTLS Certificate.",
+      "x-ves-displayorder": "1",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.TlsCertificatesType",
+      "properties": {
+        "tls_certificates": {
+          "type": "array",
+          "description": "MTLS Client Certificate.",
+          "title": "mTLS certificate",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/components/schemas/schemaTlsCertificateType"
+          },
+          "x-displayname": "MTLS Client Certificate.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/40fa723b12f5717f81ef8d83b754b99a159baa2004aaf0ead352677725069531"
+          },
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/40fa723b12f5717f81ef8d83b754b99a159baa2004aaf0ead352677725069531"
+          },
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/d9f3191b062eddcd8f30a5ffeb024e6b16a92672bce818295226f9f98210e405"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolTlsCertificatesType",
+        "required_fields": ["tls_certificates"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"tls_certificates\": [\n    {\n      \"certificate_url\": \"value\"\n    }\n  ]\n}",
+        "example_yaml": "tls_certificates:\n- certificate_url: value"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolUpstreamTlsParameters": {
+      "type": "object",
+      "description": "Upstream TLS Parameters.",
+      "title": "UpstreamTlsParameters",
+      "x-displayname": "TLS Parameters for Origin Servers.",
+      "x-ves-displayorder": "10,2,8,9,15",
+      "x-ves-oneof-field-max_session_keys_type": "[\"default_session_key_caching\",\"disable_session_key_caching\",\"max_session_keys\"]",
+      "x-ves-oneof-field-mtls_choice": "[\"no_mtls\",\"use_mtls\",\"use_mtls_obj\"]",
+      "x-ves-oneof-field-server_validation_choice": "[\"skip_server_verification\",\"use_server_verification\",\"volterra_trusted_ca\"]",
+      "x-ves-oneof-field-sni_choice": "[\"disable_sni\",\"sni\",\"use_host_header_as_sni\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.UpstreamTlsParameters",
+      "properties": {
+        "default_session_key_caching": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for default session key caching.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "disable_session_key_caching": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable session key caching.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "disable_sni": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable sni.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "max_session_keys": {
+          "type": "integer",
+          "description": "Exclusive with [default_session_key_caching disable_session_key_caching]\n\nNumber of session keys that are cached.",
+          "title": "Max Session Keys Cached",
+          "format": "int64",
+          "x-displayname": "Max Session Keys Cached.",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/8b47d8624dc62c5bb93960a6703caa37a0868e094a5140a437b961cddfc3b634"
+          },
+          "x-f5xc-example": "25",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/8b47d8624dc62c5bb93960a6703caa37a0868e094a5140a437b961cddfc3b634"
+          },
+          "x-f5xc-description-short": "Exclusive with [default_session_key_caching disable_session_key_caching] Number of session keys that are cached.",
+          "x-f5xc-description-medium": "Exclusive with [default_session_key_caching disable_session_key_caching] Number of session keys that are cached.",
+          "x-f5xc-constraints": {
+            "constraintType": "number",
+            "category": "discovery",
+            "minimum": 2,
+            "maximum": 64,
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "no_mtls": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "skip_server_verification": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "sni": {
+          "type": "string",
+          "description": "Exclusive with [disable_sni use_host_header_as_sni]\nSNI value to be used.",
+          "title": "sni",
+          "maxLength": 256,
+          "x-displayname": "SNI Value",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/2aac66416f25d9d62fa61bc8f43f11d506f1da7ec27184906a551a86b45e7a9a"
+          },
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/2aac66416f25d9d62fa61bc8f43f11d506f1da7ec27184906a551a86b45e7a9a"
+          },
+          "x-f5xc-description-short": "Exclusive with [disable_sni use_host_header_as_sni] SNI value to be used.",
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "discovery",
+            "maxLength": 256,
+            "format": "hostname",
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "tls_config": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsTlsConfig"
+            }
+          ],
+          "x-f5xc-constraints": {
+            "constraintType": "object",
+            "category": "tls",
+            "deterministic": true,
+            "metadata": {
+              "source": "api-probed",
+              "confidence": 0.99,
+              "category": "tls",
+              "note": "Required when use_tls is selected — API returns 400 if nil",
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "use_host_header_as_sni": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "use_mtls": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/e2ca94631b361607cc3b8a46da9d57ab76a6451e56b86d4a7f1e709a43ffb877"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "use_mtls_obj": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for use mtls obj.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "use_server_verification": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/a701bcd73c3268207ad904af7bb36cee1c44cadc29d2fc00b9c3fd4855011e5a"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for use server verification.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "volterra_trusted_ca": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for volterra trusted ca.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolUpstreamTlsParameters",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "origin_poolUpstreamTlsValidationContext": {
+      "type": "object",
+      "description": "Upstream TLS Validation Context.",
+      "title": "UpstreamTlsValidationContext",
+      "x-displayname": "TLS Validation Context for Origin Servers.",
+      "x-ves-oneof-field-trusted_ca_choice": "[\"trusted_ca\",\"trusted_ca_url\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.UpstreamTlsValidationContext",
+      "properties": {
+        "trusted_ca": {
+          "$ref": "./shared-schema-components.json#/8f037236da9283d84fcd135ca8990631eb3eb1f170d6be18360822b8b1e67590"
+        },
+        "trusted_ca_url": {
+          "type": "string",
+          "description": "Exclusive with [trusted_ca]\nUpload a Root CA Certificate specifically for this Origin Pool for verification of server's certificate.",
+          "title": "trusted_ca_url",
+          "minLength": 1,
+          "maxLength": 131072,
+          "x-displayname": "Inline Root CA Certificate (legacy)",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/c9bd62bd58487595b3b8a853fd18af4b40656df9fc48408ef5c8f0784a4d6633"
+          },
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/c9bd62bd58487595b3b8a853fd18af4b40656df9fc48408ef5c8f0784a4d6633"
+          },
+          "x-f5xc-description-short": "Exclusive with [trusted_ca] Upload a Root CA Certificate specifically for this Origin Pool for verification of server's certificate.",
+          "x-f5xc-description-medium": "Exclusive with [trusted_ca] Upload a Root CA Certificate specifically for this Origin Pool for verification of server's certificate.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/2c90f8323221c5684f658c477a8d6afa6abd48d498751c8ee7268c9ece48a6ef"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for origin_poolUpstreamTlsValidationContext",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    },
+    "schemaBlindfoldSecretInfoType": {
+      "type": "object",
+      "description": "BlindfoldSecretInfoType specifies information about the Secret managed by F5XC Secret Management.",
+      "title": "BlindfoldSecretInfoType",
+      "x-displayname": "Blindfold Secret.",
+      "x-ves-displayorder": "3,1,2",
+      "x-ves-proto-message": "ves.io.schema.BlindfoldSecretInfoType",
+      "properties": {
+        "decryption_provider": {
+          "type": "string",
+          "description": "Name of the Secret Management Access object that contains information about the backend Secret Management service.",
+          "title": "Decryption Provider",
+          "x-displayname": "Decryption Provider.",
+          "x-ves-example": "Value",
+          "x-f5xc-example": "value",
+          "x-f5xc-description-short": "Name of the Secret Management Access object that contains information about the backend Secret Management service.",
+          "x-f5xc-description-medium": "Name of the Secret Management Access object that contains information about the backend Secret Management service.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "location": {
+          "type": "string",
+          "description": "Location is the uri_ref. It could be in URL format for string:///\nOr it could be a path if the store provider is an HTTP/HTTPS location.",
+          "title": "Location",
+          "x-displayname": "Location",
+          "x-ves-example": "String:///U2VjcmV0SW5mb3JtYXRpb24=.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/1937029f8649b99d978effd95ec66aa09a28c512350ea9f50c2afcc129c73384"
+          },
+          "x-f5xc-sensitive": true,
+          "x-f5xc-example": "string:///U2VjcmV0SW5mb3JtYXRpb24=",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/1937029f8649b99d978effd95ec66aa09a28c512350ea9f50c2afcc129c73384"
+          },
+          "x-f5xc-description-short": "Location is the uri_ref. It could be in URL format for string:/// Or it could be a path if the store provider is an HTTP/HTTPS location.",
+          "x-f5xc-description-medium": "Location is the uri_ref. It could be in URL format for string:/// Or it could be a path if the store provider is an HTTP/HTTPS location.",
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "content",
+            "minLength": 4,
+            "maxLength": 131072,
+            "format": "uri",
+            "deterministic": true,
+            "metadata": {
+              "source": "manual-override",
+              "confidence": 1.0,
+              "category": "content",
+              "note": "Blindfold envelope encryption (AES-256-GCM + RSA-OAEP) of an RSA-2048 TLS private key produces ~3700 char string:/// URL. 128KB max secret size = ~175KB base64. Discovery reported 1024 which is incorrect.",
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "store_provider": {
+          "type": "string",
+          "description": "Name of the Secret Management Access object that contains information about the store to GET encrypted bytes\nThis field needs to be provided only if the URL scheme is not string:///.",
+          "title": "Store Provider",
+          "x-displayname": "Store Provider.",
+          "x-ves-example": "Value",
+          "x-f5xc-example": "value",
+          "x-f5xc-description-short": "Name of the Secret Management Access object that contains information about the store to GET encrypted bytes This field needs to be provided only...",
+          "x-f5xc-description-medium": "Name of the Secret Management Access object that contains information about the store to GET encrypted bytes This field needs to be provided only if the URL scheme is not string:///.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "BlindfoldSecretInfoType specifies information about the Secret managed by F5XC Secret Management.",
+      "x-f5xc-minimum-configuration": {
+        "$ref": "./shared-schema-components.json#/ba9762c91980f195143200e12ae37f036fb68d2e982c1144a2718369085581f2"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaClearSecretInfoType": {
+      "type": "object",
+      "description": "ClearSecretInfoType specifies information about the Secret that is not encrypted.",
+      "title": "ClearSecretInfoType",
+      "x-displayname": "In-Clear Secret.",
+      "x-ves-displayorder": "2,1",
+      "x-ves-proto-message": "ves.io.schema.ClearSecretInfoType",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Name of the Secret Management Access object that contains information about the store to GET encrypted bytes\nThis field needs to be provided only if the URL scheme is not string:///.",
+          "title": "Provider",
+          "x-displayname": "Provider",
+          "x-ves-example": "Box-provider.",
+          "x-f5xc-example": "box-provider",
+          "x-f5xc-description-short": "Name of the Secret Management Access object that contains information about the store to GET encrypted bytes This field needs to be provided only...",
+          "x-f5xc-description-medium": "Name of the Secret Management Access object that contains information about the store to GET encrypted bytes This field needs to be provided only if the URL scheme is not string:///.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "url": {
+          "type": "string",
+          "description": "URL of the secret. Currently supported URL schemes is string:///.\nFor string:/// scheme, Secret needs to be encoded Base64 format.\nWhen asked for this secret, caller will GET Secret bytes after Base64 decoding.",
+          "title": "URL",
+          "maxLength": 131072,
+          "x-displayname": "URL",
+          "x-ves-example": "String:///U2VjcmV0SW5mb3JtYXRpb24=.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/23c2d7baa3d844ad5d6703c80d8bb3c81cb848373265a191b9b6874a79806a1a"
+          },
+          "x-f5xc-sensitive": true,
+          "x-f5xc-example": "string:///U2VjcmV0SW5mb3JtYXRpb24=",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/23c2d7baa3d844ad5d6703c80d8bb3c81cb848373265a191b9b6874a79806a1a"
+          },
+          "x-f5xc-description-short": "URL of the secret. Currently supported URL schemes is string:///.",
+          "x-f5xc-description-medium": "URL of the secret. Currently supported URL schemes is string:///. For string:/// scheme, Secret needs to be encoded Base64 format. When asked for this secret, caller will GET Secret bytes after Base64 decoding.",
+          "format": "uri",
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "discovery",
+            "maxLength": 131072,
+            "format": "uri",
+            "minLength": 1,
+            "pattern": "^(https?|ftp)://[^\\s/$.?#].[^\\s]*$",
+            "formatDescription": "RFC 3986 URI with scheme (http, https, ftp)",
+            "validation": {
+              "rfc": "RFC 3986"
+            },
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            },
+            "deterministic": true,
+            "byteLength": {
+              "max": 131072
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        }
+      },
+      "x-f5xc-description-short": "ClearSecretInfoType specifies information about the Secret that is not encrypted.",
+      "x-f5xc-minimum-configuration": {
+        "$ref": "./shared-schema-components.json#/44e73f8e23057a6fce409eebfc422f81e2e8567ce362dc368abaae554db96a76"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaHashAlgorithm": {
+      "type": "string",
+      "description": "Specifies the Hash Algorithm to be used\n\nInvalid hash algorithm\nsha256 hash algorithm\nsha1 hash algorithm.",
+      "title": "HashAlgoritm",
+      "enum": ["INVALID_HASH_ALGORITHM", "SHA256", "SHA1"],
+      "default": "INVALID_HASH_ALGORITHM",
+      "x-displayname": "Hash Algorithm.",
+      "x-ves-proto-enum": "ves.io.schema.HashAlgorithm",
+      "x-f5xc-description-short": "Specifies the Hash Algorithm to be used Invalid hash algorithm sha256 hash algorithm sha1 hash algorithm.",
+      "x-f5xc-description-medium": "Specifies the Hash Algorithm to be used Invalid hash algorithm sha256 hash algorithm sha1 hash algorithm.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for schemaHashAlgorithm",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "\"INVALID_HASH_ALGORITHM\"",
+        "example_yaml": "INVALID_HASH_ALGORITHM\n..."
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaHashAlgorithms": {
+      "type": "object",
+      "description": "Specifies the hash algorithms to be used.",
+      "title": "HashAlgorithms",
+      "x-displayname": "Hash Algorithms.",
+      "x-ves-proto-message": "ves.io.schema.HashAlgorithms",
+      "properties": {
+        "hash_algorithms": {
+          "type": "array",
+          "description": "Ordered list of hash algorithms to be used.",
+          "title": "Hash Algorithms",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/components/schemas/schemaHashAlgorithm"
+          },
+          "x-displayname": "Hash Algorithms.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/1b14578c923a8ec82ac410c1c3c79b78af49f22ff6aafd6ba7147837c0ddbf80"
+          },
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/1b14578c923a8ec82ac410c1c3c79b78af49f22ff6aafd6ba7147837c0ddbf80"
+          },
+          "x-f5xc-description-short": "Ordered list of hash algorithms to be used.",
+          "x-f5xc-constraints": {
+            "constraintType": "array",
+            "category": "discovery",
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Specifies the hash algorithms to be used.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for schemaHashAlgorithms",
+        "required_fields": ["hash_algorithms"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"hash_algorithms\": [\n    \"INVALID_HASH_ALGORITHM\"\n  ]\n}",
+        "example_yaml": "hash_algorithms:\n- INVALID_HASH_ALGORITHM"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaHeaderTransformationType": {
+      "type": "object",
+      "description": "Header Transformation OPTIONS for HTTP/1.1 request/response headers.",
+      "title": "HeaderTransformationType",
+      "x-displayname": "Header Transformation.",
+      "x-ves-displayorder": "1",
+      "x-ves-oneof-field-header_transformation_choice": "[\"default_header_transformation\",\"preserve_case_header_transformation\",\"proper_case_header_transformation\"]",
+      "x-ves-proto-message": "ves.io.schema.HeaderTransformationType",
+      "properties": {
+        "default_header_transformation": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Use the platform's current default HTTP header transformation behavior.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "description": "Use the platform's current default HTTP header transformation behavior."
+        },
+        "preserve_case_header_transformation": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Preserve HTTP header-name case when upstream case must remain unchanged.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "description": "Preserve HTTP header-name case when upstream case must remain unchanged."
+        },
+        "proper_case_header_transformation": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Transform HTTP header names to proper case when explicit transformation is required.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "description": "Transform HTTP header names to proper case when explicit transformation is required."
+        }
+      },
+      "x-f5xc-description-short": "Header Transformation OPTIONS for HTTP/1.1 request/response headers.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for schemaHeaderTransformationType",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaRoutingPriority": {
+      "type": "string",
+      "description": "Priority routing for each request.\nDifferent connection pools are used based on the priority selected for the request.\nAlso, circuit-breaker configuration at destination cluster is chosen based on selected priority.\n\nDefault routing mechanism\nHigh-Priority routing mechanism.",
+      "title": "RoutingPriority",
+      "enum": ["DEFAULT", "HIGH"],
+      "default": "DEFAULT",
+      "x-displayname": "Routing Priority.",
+      "x-ves-proto-enum": "ves.io.schema.RoutingPriority",
+      "x-f5xc-description-short": "Priority routing for each request. Different connection pools are used based on the priority selected for the request.",
+      "x-f5xc-description-medium": "Priority routing for each request. Different connection pools are used based on the priority selected for the request. Also, circuit-breaker configuration at destination cluster is chosen based on selected priority.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for schemaRoutingPriority",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "\"DEFAULT\"",
+        "example_yaml": "DEFAULT\n..."
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaSecretType": {
+      "$ref": "./shared-schema-components.json#/f798203ea54cf64222c8b203862e1e4c4a4f40e35f0fe1db8bc1cce654ffc31d"
+    },
+    "schemaTlsCertificateType": {
+      "type": "object",
+      "description": "Handle to fetch certificate and key.",
+      "title": "TlsCertificateType",
+      "x-displayname": "TLS Certificate.",
+      "x-ves-oneof-field-ocsp_stapling_choice": "[\"custom_hash_algorithms\",\"disable_ocsp_stapling\",\"use_system_defaults\"]",
+      "x-ves-proto-message": "ves.io.schema.TlsCertificateType",
+      "properties": {
+        "certificate_url": {
+          "type": "string",
+          "description": "TLS certificate.\nCertificate or certificate chain in PEM format including the PEM headers.",
+          "title": "certificate_url",
+          "minLength": 1,
+          "maxLength": 131072,
+          "x-displayname": "Certificate.",
+          "x-ves-example": "Value",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/df9694273c130e3ddf2638f602b1bb573b1df7a8bf256ecab977c53ca5735f40"
+          },
+          "x-f5xc-example": "value",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/df9694273c130e3ddf2638f602b1bb573b1df7a8bf256ecab977c53ca5735f40"
+          },
+          "x-f5xc-description-short": "TLS certificate. Certificate or certificate chain in PEM format including the PEM headers.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/2c90f8323221c5684f658c477a8d6afa6abd48d498751c8ee7268c9ece48a6ef"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        },
+        "custom_hash_algorithms": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaHashAlgorithms"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for custom hash algorithms.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Description for the certificate.",
+          "title": "description",
+          "x-displayname": "Description.",
+          "x-ves-example": "Certificate used in production environment.",
+          "x-f5xc-example": "Certificate used in production environment",
+          "x-f5xc-constraints": {
+            "constraintType": "string",
+            "category": "content",
+            "maxLength": 1024,
+            "minLength": 0,
+            "characterSet": {
+              "description": "Free text with UTF-8 support"
+            },
+            "metadata": {
+              "source": "inferred",
+              "confidence": 0.8,
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "disable_ocsp_stapling": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable ocsp stapling.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "private_key": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/schemaSecretType"
+            }
+          ],
+          "x-f5xc-example": "example",
+          "x-f5xc-description-short": "Private key for asymmetric cryptography.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "use_system_defaults": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for use system defaults.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for schemaTlsCertificateType",
+        "required_fields": ["certificate_url"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"certificate_url\": \"value\"\n}",
+        "example_yaml": "certificate_url: value"
+      },
+      "x-f5xc-cli-domain": "certificates"
+    },
+    "schemaTlsProtocol": {
+      "type": "string",
+      "description": "TlsProtocol is enumeration of supported TLS versions\n\nF5 Distributed Cloud will choose the optimal TLS version.",
+      "title": "TlsProtocol",
+      "enum": ["TLS_AUTO", "TLSv1_0", "TLSv1_1", "TLSv1_2", "TLSv1_3"],
+      "default": "TLS_AUTO",
+      "x-displayname": "TLS Protocol.",
+      "x-ves-proto-enum": "ves.io.schema.TlsProtocol",
+      "x-f5xc-description-short": "TlsProtocol is enumeration of supported TLS versions F5 Distributed Cloud will choose the optimal TLS version.",
+      "x-f5xc-description-medium": "TlsProtocol is enumeration of supported TLS versions F5 Distributed Cloud will choose the optimal TLS version.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for schemaTlsProtocol",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "\"TLS_AUTO\"",
+        "example_yaml": "TLS_AUTO\n..."
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaUpstreamConnPoolReuseType": {
+      "type": "object",
+      "description": "Select upstream connection pool reuse state for every downstream connection. This configuration choice is for HTTP(S) LB only.",
+      "title": "UpstreamConnPoolReuseType",
+      "x-displayname": "Select upstream connection pool reuse state.",
+      "x-ves-oneof-field-map_downstream_to_upstream_conn_pool_type": "[\"disable_conn_pool_reuse\",\"enable_conn_pool_reuse\"]",
+      "x-ves-proto-message": "ves.io.schema.UpstreamConnPoolReuseType",
+      "properties": {
+        "disable_conn_pool_reuse": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for disable conn pool reuse.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "enable_conn_pool_reuse": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for enable conn pool reuse.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Select upstream connection pool reuse state for every downstream connection. This configuration choice is for HTTP(S) LB only.",
+      "x-f5xc-description-medium": "Select upstream connection pool reuse state for every downstream connection. This configuration choice is for HTTP(S) LB only.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for schemaUpstreamConnPoolReuseType",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "schemaviewsObjectRefType": {
+      "type": "object",
+      "description": "This type establishes a direct reference from one object(the referrer) to another(the referred).\nSuch a reference is in form of tenant/namespace/name.",
+      "title": "ObjectRefType",
+      "x-displayname": "Object reference.",
+      "x-ves-proto-message": "ves.io.schema.views.ObjectRefType",
+      "properties": {
+        "name": {
+          "$ref": "./shared-schema-components.json#/784881d9a93f33c558d1fe7beb95b9c978a3dbe1f69676a2b13f943a7ab57159"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
+          "title": "namespace",
+          "maxLength": 64,
+          "x-displayname": "Namespace",
+          "x-ves-example": "Ns1",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.string.max_bytes": "64"
+          },
+          "x-f5xc-example": "ns1",
+          "x-validation-rules": {
+            "ves.io.schema.rules.string.max_bytes": "64"
+          },
+          "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+          "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/b80e0bb0666313f2e3719a3e7b08079d3ced768e3c62a147d0c616d10916da83"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        },
+        "tenant": {
+          "type": "string",
+          "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
+          "title": "tenant",
+          "maxLength": 64,
+          "x-displayname": "Tenant",
+          "x-ves-example": "Example-corp.",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.string.max_bytes": "64"
+          },
+          "x-f5xc-example": "example-corp",
+          "x-validation-rules": {
+            "ves.io.schema.rules.string.max_bytes": "64"
+          },
+          "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+          "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/926dfe8abdd7629a0e1411c079d4589f8297220c5ef1705baf42dad946f7fb10"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          },
+          "readOnly": true,
+          "x-field-mutability": "read-only",
+          "x-reconciled-from-discovery": true,
+          "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+        }
+      },
+      "x-f5xc-description-short": "Type establishes a direct reference from one object(the referrer) to another(the referred).",
+      "x-f5xc-description-medium": "Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
+      "x-f5xc-minimum-configuration": {
+        "$ref": "./shared-schema-components.json#/9ca6a0eb0e2e554b1ec8329fbe93b725e0ac148e33352d589267f727ec973d50"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "viewsCustomCiphers": {
+      "type": "object",
+      "description": "This defines TLS protocol config including min/max versions and allowed ciphers.",
+      "title": "CustomCiphers",
+      "x-displayname": "Custom Ciphers.",
+      "x-ves-displayorder": "1,2,3",
+      "x-ves-proto-message": "ves.io.schema.views.CustomCiphers",
+      "properties": {
+        "cipher_suites": {
+          "type": "array",
+          "description": "The TLS listener will only support the specified cipher list.",
+          "title": "cipher_suites",
+          "items": {
+            "type": "string"
+          },
+          "x-displayname": "Cipher Suites.",
+          "x-ves-example": "TLS_AES_128_GCM_SHA256.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/d29fcdb8a08abc11b2d42c5972d3ed32e0d2b235149374f38b664a7298bec6cf"
+          },
+          "x-f5xc-example": "TLS_AES_128_GCM_SHA256",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/d29fcdb8a08abc11b2d42c5972d3ed32e0d2b235149374f38b664a7298bec6cf"
+          },
+          "x-f5xc-description-short": "The TLS listener will only support the specified cipher list.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/cf0e758d6063327edace195e21f81e931b76d8354e3146326c144c7490ab7c10"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        },
+        "max_version": {
+          "$ref": "./shared-schema-components.json#/341270e674fb5b762815cbba0c28713f4b98f003bcc64631559a7cb220825c54"
+        },
+        "min_version": {
+          "$ref": "./shared-schema-components.json#/341270e674fb5b762815cbba0c28713f4b98f003bcc64631559a7cb220825c54"
+        }
+      },
+      "x-f5xc-description-short": "Defines TLS protocol config including min/max versions and allowed ciphers.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for viewsCustomCiphers",
+        "required_fields": ["cipher_suites"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"cipher_suites\": [\n    \"value\"\n  ]\n}",
+        "example_yaml": "cipher_suites:\n- value"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "viewsPrefixStringListType": {
+      "type": "object",
+      "description": "List of IPv4 prefixes that represent an endpoint.",
+      "title": "ipv4 prefix list",
+      "x-displayname": "IPv4 Prefix List.",
+      "x-ves-proto-message": "ves.io.schema.views.PrefixStringListType",
+      "properties": {
+        "prefixes": {
+          "type": "array",
+          "description": "List of IPv4 prefixes that represent an endpoint.",
+          "title": "ipv4 prefix list",
+          "maxItems": 128,
+          "items": {
+            "type": "string"
+          },
+          "x-displayname": "IPv4 Prefix List.",
+          "x-ves-example": "192.0.2.0/24.",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/9710c7b43829e257b4078a42de6394b152225bac8cf4ce876517506b708b7d25"
+          },
+          "x-f5xc-example": "192.0.2.0/24",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/9710c7b43829e257b4078a42de6394b152225bac8cf4ce876517506b708b7d25"
+          },
+          "x-f5xc-description-short": "List of IPv4 prefixes that represent an endpoint.",
+          "x-f5xc-constraints": {
+            "constraintType": "array",
+            "category": "discovery",
+            "maxItems": 128,
+            "uniqueItems": true,
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-example": "192.0.2.0/24",
+      "x-f5xc-description-short": "List of IPv4 prefixes that represent an endpoint.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for viewsPrefixStringListType",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "viewsSiteLocator": {
+      "type": "object",
+      "description": "This message defines a reference to a site or virtual site object.",
+      "title": "SiteLocator",
+      "x-displayname": "Site or Virtual Site.",
+      "x-ves-oneof-field-choice": "[\"site\",\"virtual_site\"]",
+      "x-ves-proto-message": "ves.io.schema.views.SiteLocator",
+      "properties": {
+        "site": {
+          "$ref": "./shared-schema-components.json#/8f037236da9283d84fcd135ca8990631eb3eb1f170d6be18360822b8b1e67590"
+        },
+        "virtual_site": {
+          "$ref": "./shared-schema-components.json#/8f037236da9283d84fcd135ca8990631eb3eb1f170d6be18360822b8b1e67590"
+        }
+      },
+      "x-f5xc-description-short": "Message defines a reference to a site or virtual site object.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for viewsSiteLocator",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "other"
+    },
+    "viewsSnatPoolConfiguration": {
+      "type": "object",
+      "description": "SNAT Pool configuration.",
+      "title": "SnatPoolConfiguration",
+      "x-displayname": "SNAT Pool",
+      "x-ves-oneof-field-snat_pool_choice": "[\"no_snat_pool\",\"snat_pool\"]",
+      "x-ves-proto-message": "ves.io.schema.views.SnatPoolConfiguration",
+      "properties": {
+        "no_snat_pool": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ioschemaEmpty"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for no snat pool.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "snat_pool": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsPrefixStringListType"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for viewsSnatPoolConfiguration",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "certificates"
+    },
+    "viewsTlsConfig": {
+      "type": "object",
+      "description": "This defines various OPTIONS to configure TLS configuration parameters.",
+      "title": "TlsConfig",
+      "x-displayname": "TLS Config.",
+      "x-ves-displayorder": "5",
+      "x-ves-oneof-field-choice": "[\"custom_security\",\"default_security\",\"low_security\",\"medium_security\"]",
+      "x-ves-proto-message": "ves.io.schema.views.TlsConfig",
+      "properties": {
+        "custom_security": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/viewsCustomCiphers"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "default_security": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "low_security": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "medium_security": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        }
+      },
+      "x-f5xc-description-short": "Defines various OPTIONS to configure TLS configuration parameters.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for viewsTlsConfig",
+        "required_fields": [],
+        "mutually_exclusive_groups": [],
+        "example_json": "{}",
+        "example_yaml": "{}"
+      },
+      "x-f5xc-cli-domain": "certificates"
+    },
+    "viewsorigin_poolCreateSpecType": {
+      "type": "object",
+      "description": "Shape of the origin pool create specification.",
+      "title": "CreateSpecType",
+      "x-displayname": "Create Origin Pool.",
+      "x-ves-oneof-field-health_check_port_choice": "[\"health_check_port\",\"same_as_endpoint_port\"]",
+      "x-ves-oneof-field-port_choice": "[\"automatic_port\",\"lb_port\",\"port\"]",
+      "x-ves-oneof-field-tls_choice": "[\"no_tls\",\"use_tls\"]",
+      "x-ves-proto-message": "ves.io.schema.views.origin_pool.CreateSpecType",
+      "properties": {
+        "advanced_options": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/origin_poolOriginPoolAdvancedOptions__ves_io_schema_views_origin_pool"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for advanced options.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "automatic_port": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "endpoint_selection": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/cde6927e019428e59e9e7bbf942efcfdeb1c3723e9899b2f81661c4db60cfe1f"
+            }
+          ],
+          "x-f5xc-example": "{\"key\": \"value\"}",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "health_check_port": {
+          "type": "integer",
+          "description": "Exclusive with [same_as_endpoint_port]\nPort used for performing health check.",
+          "format": "int64",
+          "x-displayname": "Health check port.",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "65535"
+          },
+          "x-validation-rules": {
+            "ves.io.schema.rules.uint32.lte": "65535"
+          },
+          "x-f5xc-description-short": "Exclusive with [same_as_endpoint_port] Port used for performing health check.",
+          "x-f5xc-constraints": {
+            "constraintType": "number",
+            "category": "networking",
+            "minimum": 0,
+            "maximum": 65535,
+            "deterministic": true,
+            "metadata": {
+              "source": "api-probed",
+              "confidence": 0.99,
+              "category": "networking",
+              "note": "Asymmetry: port enforces [1,65535], health_check_port allows 0",
+              "validatedAt": "2026-09-03T15:40:08+00:00"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "healthcheck": {
+          "type": "array",
+          "description": "Reference to healthcheck configuration objects.",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/components/schemas/schemaviewsObjectRefType"
+          },
+          "x-displayname": "Health Check object.",
+          "x-ves-validation-rules": {
+            "ves.io.schema.rules.repeated.max_items": "4"
+          },
+          "x-validation-rules": {
+            "ves.io.schema.rules.repeated.max_items": "4"
+          },
+          "x-f5xc-description-short": "Reference to healthcheck configuration objects.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/c4ebcf044d3a3924730559839ef4a97391550f4217a5be438597c000bc798551"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "lb_port": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "loadbalancer_algorithm": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/07ad8856748de7a038eed1fe19d676a0fd4d320330724aae7f5c53cdf15acb4f"
+            }
+          ],
+          "x-f5xc-description-short": "Configuration parameter for loadbalancer algorithm.",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "no_tls": {
+          "$ref": "./shared-schema-components.json#/0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd"
+        },
+        "origin_servers": {
+          "type": "array",
+          "description": "List of origin servers in this pool.",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/components/schemas/origin_poolOriginServerType"
+          },
+          "x-displayname": "Origin Servers.",
+          "x-ves-required": "true",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/7db4b884b23fa63d3ae0e8ee266c712f7e31c672ba4363b7aa650a0cb681c397"
+          },
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/7db4b884b23fa63d3ae0e8ee266c712f7e31c672ba4363b7aa650a0cb681c397"
+          },
+          "x-f5xc-constraints": {
+            "constraintType": "array",
+            "category": "discovery",
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true,
+            "deterministic": true,
+            "metadata": {
+              "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+            }
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+          }
+        },
+        "port": {
+          "type": "integer",
+          "description": "Exclusive with [automatic_port lb_port]\nEndpoint service is available on this port.",
+          "format": "int64",
+          "x-displayname": "Port",
+          "x-ves-example": "9080",
+          "x-ves-validation-rules": {
+            "$ref": "./shared-schema-components.json#/b41018a067989a32de7d5aa72c70223dec15af3a154affa8ed074ca9a08c7f05"
+          },
+          "x-f5xc-example": "9080",
+          "x-validation-rules": {
+            "$ref": "./shared-schema-components.json#/b41018a067989a32de7d5aa72c70223dec15af3a154affa8ed074ca9a08c7f05"
+          },
+          "x-f5xc-description-short": "Exclusive with [automatic_port lb_port] Endpoint service is available on this port.",
+          "x-f5xc-constraints": {
+            "$ref": "./shared-schema-components.json#/f9b0af4f602efe26ad470f65a22e1a1f8b929cde485205faca119851eec8c925"
+          },
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "same_as_endpoint_port": {
+          "$ref": "./shared-schema-components.json#/81277297554357d1cea705844ff048a34f206230df0598c01955e98ac50ba6cc"
+        },
+        "upstream_conn_pool_reuse_type": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/746e052b9888a0d308af89eda06dab12af80bf9d8eb30d6d93e0606523afacc5"
+            }
+          ],
+          "x-f5xc-example": "{\"key\": \"value\"}",
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        },
+        "use_tls": {
+          "allOf": [
+            {
+              "$ref": "./shared-schema-components.json#/b0986be2e8f95821197ff673775967abe855c8f682509dd9f155fab6eb3386fa"
+            }
+          ],
+          "x-f5xc-required-for": {
+            "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+          }
+        }
+      },
+      "x-f5xc-description-short": "Shape of the origin pool create specification.",
+      "x-f5xc-minimum-configuration": {
+        "description": "Minimum configuration for viewsorigin_poolCreateSpecType",
+        "required_fields": ["origin_servers"],
+        "mutually_exclusive_groups": [],
+        "example_json": "{\n  \"origin_servers\": [\n    {}\n  ]\n}",
+        "example_yaml": "origin_servers:\n- {}"
+      },
+      "x-f5xc-cli-domain": "virtual"
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "provenance": {
+    "image": "quay.io/frrouting/frr@sha256:97a281a1473cae1f762ceab87cbcc53a2e102053877421e8b4606422aae45442",
+    "stdoutSha256": "a5280c40bc4382521562ea3db0b0fe168b536e84da3a3112a74bd1431946768a",
+    "scope": "isolated FRR Zebra and Linux kernel schema only",
+    "cloudQualified": false
+  },
+  "zebra": {
+    "10.30.0.0/24": {
+      "10.30.0.0/24": [
+        {
+          "prefix": "10.30.0.0/24",
+          "prefixLen": 24,
+          "protocol": "bgp",
+          "vrfId": 0,
+          "vrfName": "default",
+          "selected": true,
+          "destSelected": true,
+          "distance": 20,
+          "metric": 0,
+          "installed": true,
+          "table": 254,
+          "internalStatus": 16,
+          "internalFlags": 9,
+          "internalNextHopNum": 1,
+          "internalNextHopActiveNum": 1,
+          "nexthopGroupId": 6,
+          "installedNexthopGroupId": 6,
+          "receivedNexthopGroupId": 6,
+          "uptime": "00:00:00",
+          "nexthops": [
+            {
+              "flags": 3,
+              "fib": true,
+              "ip": "10.20.0.1",
+              "afi": "ipv4",
+              "interfaceIndex": 2,
+              "interfaceName": "slo",
+              "active": true,
+              "weight": 1
+            }
+          ]
+        }
+      ]
+    },
+    "10.250.0.10/32": {
+      "10.250.0.10/32": [
+        {
+          "prefix": "10.250.0.10/32",
+          "prefixLen": 32,
+          "protocol": "bgp",
+          "vrfId": 0,
+          "vrfName": "default",
+          "selected": true,
+          "destSelected": true,
+          "distance": 20,
+          "metric": 0,
+          "installed": true,
+          "table": 254,
+          "internalStatus": 16,
+          "internalFlags": 9,
+          "internalNextHopNum": 1,
+          "internalNextHopActiveNum": 1,
+          "nexthopGroupId": 9,
+          "installedNexthopGroupId": 9,
+          "receivedNexthopGroupId": 9,
+          "uptime": "00:00:00",
+          "nexthops": [
+            {
+              "flags": 3,
+              "fib": true,
+              "ip": "10.20.0.4",
+              "afi": "ipv4",
+              "interfaceIndex": 2,
+              "interfaceName": "slo",
+              "active": true,
+              "weight": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "kernel": {
+    "10.30.0.0/24": [
+      {
+        "dst": "10.30.0.0/24",
+        "nhid": 6,
+        "gateway": "10.20.0.1",
+        "dev": "slo",
+        "protocol": "bgp",
+        "metric": 20,
+        "flags": []
+      }
+    ],
+    "10.250.0.10/32": [
+      {
+        "dst": "10.250.0.10",
+        "nhid": 9,
+        "gateway": "10.20.0.4",
+        "dev": "slo",
+        "protocol": "bgp",
+        "metric": 20,
+        "flags": []
+      }
+    ]
+  }
+}
