@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import { decodeEvidenceObject } from '../../platform/src/ce/evidence-json';
 import type { GcpBootstrapEvidenceSource } from '../../platform/src/ce/gcp-bootstrap-evidence';
+import type { OriginalGcpBootstrapObservation } from '../../platform/src/ce/gcp-bootstrap-observation';
 import type { OriginalGcpPlatformHttpBody } from '../../platform/src/ce/gcp-http-capture';
 import { containsControlCharacters } from '../../platform/src/ce/security';
+import { assertOriginalApplyCallback, type OriginalApplyCallbackContext } from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import {
   type OriginalXcshCreationProfile,
@@ -14,6 +16,7 @@ import {
   readOriginalInstalledXcshCreation,
   readOriginalInstalledXcshTarget,
 } from './installed-xcsh-creation-reader';
+import { linuxMonotonicMs } from './linux-clock';
 import { assertPreparedCreationScopeContext, inspectPreparedCreationScope } from './prepared-creation-scope';
 
 type Target = Readonly<{ type_name: 'xcsh_token' | 'xcsh_securemesh_site_v2'; namespace: 'system'; name: string }>;
@@ -24,7 +27,8 @@ const object = (value: unknown): Json => {
   return value as Json;
 };
 export interface OriginalXcshCreationBodyEvidence {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 2 | 3;
+  readonly capturePhase?: 'after';
   readonly kind: 'original-xcsh-creation-body-candidate';
   readonly target: Target;
   readonly executor: InstalledXcshCreationResult['executor'];
@@ -39,19 +43,62 @@ export interface OriginalXcshCreationBodyEvidence {
 const issued = new WeakMap<object, () => Promise<OriginalGcpPlatformHttpBody>>();
 const contexts = new WeakMap<object, InstalledCaptureContext>();
 const providerProfiles = new WeakMap<object, OriginalXcshCreationProfile>();
+const callbacks = new WeakMap<object, OriginalApplyCallbackContext>();
 
 /** Original creation receipt and independently captured authenticated GET join.
  * This can run during the owning apply without starting a competing state read.
  * It grants no VM ownership, JWT, checkout, guest or apply authority.
  */
-export async function joinOriginalXcshCreationBody(input: {
+interface CreationBodyInput {
   context: InstalledCaptureContext;
   packet: unknown;
   result: InstalledXcshCreationResult | InstalledXcshCreationTarget;
   platform: Pick<GcpBootstrapEvidenceSource, 'assertBody'>;
   body: OriginalGcpPlatformHttpBody;
   target: Target;
-}): Promise<OriginalXcshCreationBodyEvidence> {
+}
+export function joinOriginalXcshCreationBody(input: CreationBodyInput): Promise<OriginalXcshCreationBodyEvidence> {
+  return joinCreationBody(input);
+}
+
+/** Final GETs are issued inside the actual after callback. A before body or
+ * target receipt cannot acquire final authority by supplying a later deadline. */
+export async function joinOriginalFinalXcshCreationBody(
+  input: Omit<CreationBodyInput, 'body' | 'result'> & {
+    readonly result: InstalledXcshCreationResult;
+    readonly callback: OriginalApplyCallbackContext;
+    readonly observation: OriginalGcpBootstrapObservation;
+  },
+): Promise<OriginalXcshCreationBodyEvidence> {
+  const { callback, context, result } = input;
+  if (
+    callback.phase !== 'after' ||
+    !callback.reserve ||
+    callback.original !== context ||
+    result.kind !== 'original-xcsh-creation-result' ||
+    !result.complete ||
+    (['pid', 'group', 'start', 'boot'] as const).some(
+      (key) => result.executor[key] !== callback.execution.identity[key],
+    )
+  )
+    throw new Error('Original final creation callback and completed executor required');
+  await assertOriginalApplyCallback(callback);
+  await readOriginalInstalledXcshCreation(result);
+  const requestedAt = Date.now();
+  const signal = AbortSignal.timeout(
+    Math.max(1, Math.min(60000, callback.reserve.finalDeadlineMs - linuxMonotonicMs())),
+  );
+  const body = await input.observation.read(input.target, signal);
+  await assertOriginalApplyCallback(callback);
+  if (!body || Date.parse(body.evidence.startedAt) < requestedAt)
+    throw new Error('Original fresh final creation GET required');
+  return joinCreationBody({ ...input, body }, { callback, requestedAt });
+}
+
+async function joinCreationBody(
+  input: CreationBodyInput,
+  final?: { callback: OriginalApplyCallbackContext; requestedAt: number },
+): Promise<OriginalXcshCreationBodyEvidence> {
   const { context, packet, result, body } = input;
   const target = Object.freeze({ ...input.target });
   if (typeof input.platform?.assertBody !== 'function') throw new Error('Verified Platform body source required');
@@ -66,11 +113,12 @@ export async function joinOriginalXcshCreationBody(input: {
       ? readOriginalInstalledXcshTarget(result as InstalledXcshCreationTarget)
       : readOriginalInstalledXcshCreation(result as InstalledXcshCreationResult);
   let refused = false;
+  const lifetime = () => (final ? assertOriginalApplyCallback(final.callback) : context.assertWithinDeadline());
   const verify = async () => {
     if (refused) throw new Error('Original creation body evidence retired');
     try {
       assertPreparedCreationScopeContext(packet, context);
-      await context.assertWithinDeadline();
+      await lifetime();
       await context.assertInputs();
       const scope = await inspectPreparedCreationScope(packet);
       if (
@@ -130,6 +178,7 @@ export async function joinOriginalXcshCreationBody(input: {
         now - began >= 300000
       )
         throw new Error('Original creation body freshness required');
+      if (final && began < final.requestedAt) throw new Error('Original final creation GET preceded callback');
       const value = decodeEvidenceObject(body.bytes),
         metadata = object(value.metadata),
         system = object(value.system_metadata);
@@ -146,7 +195,7 @@ export async function joinOriginalXcshCreationBody(input: {
       await assertBody(body);
       await readCreation();
       await context.assertInputs();
-      await context.assertWithinDeadline();
+      await lifetime();
       return { planSha256: scope.planSha256, identity: hash(system.uid), providerProfile };
     } catch (error) {
       refused = true;
@@ -155,7 +204,7 @@ export async function joinOriginalXcshCreationBody(input: {
   };
   const original = await verify();
   const evidence = Object.freeze({
-    schemaVersion: 2 as const,
+    ...(final ? { schemaVersion: 3 as const, capturePhase: 'after' as const } : { schemaVersion: 2 as const }),
     kind: 'original-xcsh-creation-body-candidate' as const,
     target,
     executor: Object.freeze({ ...result.executor }),
@@ -168,12 +217,23 @@ export async function joinOriginalXcshCreationBody(input: {
     bootstrapOwnershipQualified: false as const,
   });
   contexts.set(evidence, context);
+  if (final) callbacks.set(evidence, final.callback);
   providerProfiles.set(evidence, original.providerProfile);
   issued.set(evidence, async () => {
     await verify();
     return body;
   });
   return evidence;
+}
+
+/** Only bodies issued from the same original after callback compose final evidence. */
+export async function assertOriginalXcshCreationBodyCallback(
+  evidence: OriginalXcshCreationBodyEvidence,
+  callback: OriginalApplyCallbackContext,
+): Promise<void> {
+  if (callbacks.get(evidence) !== callback) throw new Error('Original final creation body callback required');
+  await assertOriginalApplyCallback(callback);
+  await readOriginalXcshCreationBody(evidence);
 }
 
 /** Retain the actual private HTTP issuer; copies or retired joins grant no access. */

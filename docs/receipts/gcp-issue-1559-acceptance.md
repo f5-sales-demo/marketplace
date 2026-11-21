@@ -2100,3 +2100,13 @@ pass within the original final reserve. Source, runtime installation, actual
 GCP guest/bootstrap behavior, full lifecycle and networking campaigns, cleanup,
 CI, review and publication remain separate gates. This source qualification
 does not complete issue 1559 or release its publication holds.
+
+## Final bootstrap source continuation
+
+The [final bootstrap source receipt](gcp-final-bootstrap-source-20261121.md)
+records actual after-callback GET joins, original identity binding, mandatory
+fresh VM handoff and permanent refusal after token restoration. Offline fixtures
+verify capture after operation expiry within the unchanged final reserve.
+Complete factory composition, expected-expiry versus integrity-failure behavior,
+realistic full-inventory throughput, supported installed/runtime acceptance and
+every original live, cleanup, CI/review and delivery gate remain open.

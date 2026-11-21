@@ -17,6 +17,7 @@ import {
 import type { InstalledCaptureContext } from './installed-capture-context';
 import type { InstalledGcpCapture } from './installed-runtime';
 import {
+  type InstalledXcshCreationResult,
   type InstalledXcshCreationTarget,
   type InstalledXcshReaderOptions,
   openInstalledXcshCreationReader,
@@ -31,7 +32,7 @@ import {
 } from './prepared-creation-scope';
 import { assertFinalReaderReserve } from './reader-final-reserve';
 import type { ExecutionCaptureAdmission } from './signal-free-executor';
-import { joinOriginalXcshCreationBody } from './xcsh-creation-body';
+import { joinOriginalFinalXcshCreationBody, joinOriginalXcshCreationBody } from './xcsh-creation-body';
 
 export interface InstalledBootstrapNodeBinding {
   readonly siteName: string;
@@ -262,6 +263,55 @@ export async function openInstalledBootstrapCapture(
     candidates.set(node.nodeName, evidence);
     return { evidence, token: tokenTarget };
   };
+  const guardFinal = async (after: OriginalApplyCallbackContext) => {
+    if (
+      closed ||
+      !finalStarted ||
+      after !== finalClosureCallback ||
+      after.original !== context ||
+      after.phase !== 'after' ||
+      !after.reserve
+    )
+      throw new Error('Original bootstrap final callback required');
+    await assertOriginalApplyCallback(after);
+    await inputs();
+    await assertOriginalApplyCallback(after);
+  };
+  const collectFinal = async (
+    node: InstalledBootstrapNodeBinding,
+    result: InstalledXcshCreationResult,
+    after: OriginalApplyCallbackContext,
+  ) => {
+    await guardFinal(after);
+    if (!observation) throw new Error('Original bootstrap observation source required');
+    const join = (type_name: 'xcsh_securemesh_site_v2' | 'xcsh_token', name: string) =>
+      joinOriginalFinalXcshCreationBody({
+        context,
+        packet,
+        result,
+        callback: after,
+        platform: source,
+        observation,
+        target: { type_name, namespace: 'system', name },
+      });
+    const evidence = await collectOriginalGcpPreapplyBootstrap({
+      site: await join('xcsh_securemesh_site_v2', node.siteName),
+      token: await join('xcsh_token', node.tokenName),
+      platform: source,
+      binding: { owner: context.owner, deploymentName: context.owner.deploymentId, ...node },
+    });
+    const prior = candidates.get(node.nodeName);
+    if (
+      !prior ||
+      prior.bootstrap.jwtSha256 !== evidence.bootstrap.jwtSha256 ||
+      prior.siteCreationSha256 !== evidence.siteCreationSha256 ||
+      prior.tokenCreationSha256 !== evidence.tokenCreationSha256
+    )
+      throw new Error('Original final bootstrap token or Site identity changed');
+    await guardFinal(after);
+    await retain('final-source-refreshed', { nodeName: node.nodeName, evidence, finalReserve: after.reserve });
+    return evidence;
+  };
   const worker: InstalledGcpCapture = {
     async start(admission, originalCallback) {
       if (started || closed) throw new Error('Original bootstrap stage already started or retired');
@@ -380,6 +430,13 @@ export async function openInstalledBootstrapCapture(
       await assertFinalReaderReserve(reserve);
       const result = outcomes[1];
       const raw = result.status === 'fulfilled' ? await readOriginalInstalledXcshCreation(result.value) : undefined;
+      const finalSources: PromiseSettledResult<OriginalGcpPreapplyBootstrapEvidence>[] = [];
+      if (result.status === 'fulfilled' && result.value.complete)
+        for (const node of nodes) {
+          const [outcome] = await Promise.allSettled([collectFinal(node, result.value, finalCallback)]);
+          finalSources.push(outcome);
+        }
+      for (const outcome of finalSources) if (outcome.status === 'rejected') failure ??= outcome.reason;
       await retain('final-capture', {
         publishedCount: grants.size,
         expectedCount: nodes.length,
@@ -388,6 +445,9 @@ export async function openInstalledBootstrapCapture(
         originalGroupClosed,
         finalReserve: reserve,
         failures: outcomes.filter((value) => value.status === 'rejected').length,
+        finalSourcesComplete:
+          finalSources.length === nodes.length && finalSources.every((value) => value.status === 'fulfilled'),
+        finalSourceFailures: finalSources.filter((value) => value.status === 'rejected').length,
         providerConsumptionQualified: false,
       });
       await assertFinalReaderReserve(reserve);
@@ -396,7 +456,9 @@ export async function openInstalledBootstrapCapture(
         outcomes.some((value) => value.status === 'rejected') ||
         result.status !== 'fulfilled' ||
         !result.value.complete ||
-        grants.size !== nodes.length
+        grants.size !== nodes.length ||
+        finalSources.length !== nodes.length ||
+        finalSources.some((value) => value.status === 'rejected')
       )
         throw new Error('Original bootstrap stage capture incomplete; retain evidence and reconcile without replay');
     },
@@ -422,11 +484,16 @@ export async function openInstalledBootstrapCapture(
       if (!pending) throw new Error('Original bootstrap stage has not started');
       return pending;
     },
-    async refreshBootstrap(nodeName: string) {
+    async refreshBootstrap(nodeName: string, after?: OriginalApplyCallbackContext) {
       if (!reader || !grants.has(nodeName)) throw new Error('Original published bootstrap node required');
       const node = nodes.find((value) => value.nodeName === nodeName);
       if (!node) throw new Error('Original published bootstrap binding required');
       try {
+        if (after) {
+          if (failure) throw new Error('Original bootstrap source retired or failed');
+          await guardFinal(after);
+          return await collectFinal(node, await reader.completed, after);
+        }
         const candidate = await collect(node, await reader.availableTargets());
         if (!candidate) throw new Error('Original bootstrap source refresh unavailable');
         return candidate.evidence;

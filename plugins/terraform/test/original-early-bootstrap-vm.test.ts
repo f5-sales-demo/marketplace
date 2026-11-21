@@ -125,6 +125,7 @@ test('original bootstrap binding hands off once to the actual final VM and callb
   let vm: Awaited<ReturnType<typeof collectOriginalEarlyGcpVmEvidence>>;
   let view: Awaited<ReturnType<typeof readOriginalEarlyGcpBootstrapVm>> | undefined;
   let close: (() => Promise<void>) | undefined;
+  let source: Awaited<ReturnType<typeof openOriginalBootstrapFixture>> | undefined;
   try {
     await withEarlyVmFixture(
       async (input) => {
@@ -138,6 +139,7 @@ test('original bootstrap binding hands off once to the actual final VM and callb
           jwt,
         );
         close = bootstrap.close;
+        source = bootstrap;
         vm = await collectOriginalEarlyGcpVmEvidence(input);
         if (!vm) throw new Error('Original early VM required');
         early = await joinOriginalEarlyGcpBootstrapVm({
@@ -150,17 +152,27 @@ test('original bootstrap binding hands off once to the actual final VM and callb
         view = await readOriginalEarlyGcpBootstrapVm(early, input.callback);
       },
       async (input) => {
-        if (!early || !vm || !view) throw new Error('Original early binding required');
+        if (!early || !vm || !view || !source) throw new Error('Original early binding required');
+        const finalBootstrap = await source.refreshFinal(input.callback);
         const finalVm = await handoffOriginalEarlyGcpVmEvidence(vm, { callback: input.callback, reader: input.reader });
         await expect(
           handoffOriginalEarlyGcpBootstrapVm(early, {
             callback: { ...input.callback, original: input.callback.original },
             vm: finalVm,
+            bootstrap: finalBootstrap,
           }),
         ).rejects.toThrow('Original');
         const handoffs = await Promise.allSettled([
-          handoffOriginalEarlyGcpBootstrapVm(early, { callback: input.callback, vm: finalVm }),
-          handoffOriginalEarlyGcpBootstrapVm(early, { callback: input.callback, vm: finalVm }),
+          handoffOriginalEarlyGcpBootstrapVm(early, {
+            callback: input.callback,
+            vm: finalVm,
+            bootstrap: finalBootstrap,
+          }),
+          handoffOriginalEarlyGcpBootstrapVm(early, {
+            callback: input.callback,
+            vm: finalVm,
+            bootstrap: finalBootstrap,
+          }),
         ]);
         expect(handoffs.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
         expect(handoffs.filter((result) => result.status === 'rejected')).toHaveLength(1);
@@ -174,7 +186,11 @@ test('original bootstrap binding hands off once to the actual final VM and callb
         expect(observed.finalDeadlineMs - observed.finalStartedMs).toBe(300000);
         expect(observed.executionAuthorized).toBe(false);
         await expect(
-          handoffOriginalEarlyGcpBootstrapVm(early, { callback: input.callback, vm: finalVm }),
+          handoffOriginalEarlyGcpBootstrapVm(early, {
+            callback: input.callback,
+            vm: finalVm,
+            bootstrap: finalBootstrap,
+          }),
         ).rejects.toThrow('claimed');
         await expect(readOriginalEarlyGcpBootstrapVm(early, input.callback)).rejects.toThrow('Original');
         await expect(readOriginalFinalGcpBootstrapVm({ ...final }, input.callback)).rejects.toThrow('Original');

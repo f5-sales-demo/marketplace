@@ -4,9 +4,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { originalGcpBootstrapSource } from '../../../platform/src/ce/gcp-bootstrap-evidence';
-import { createGcpLifecycleHttpPort } from '../../../platform/src/ce/gcp-http';
-import { openGcpLifecycleHttpCapture } from '../../../platform/src/ce/gcp-http-capture';
+import { openOriginalGcpBootstrapObservation } from '../../../platform/src/ce/gcp-bootstrap-observation';
 import { collectOriginalGcpPreapplyBootstrap } from '../../src/gcp-preapply-bootstrap';
+import type { OriginalApplyCallbackContext } from '../../src/installed-apply-controller';
 import type { InstalledCaptureContext } from '../../src/installed-capture-context';
 import { openInstalledXcshCreationReader } from '../../src/installed-xcsh-creation-reader';
 import { linuxMonotonicMs } from '../../src/linux-clock';
@@ -14,6 +14,7 @@ import { closePreparedCreationScope, prepareOriginalCreationScope } from '../../
 import type { Invocation } from '../../src/runner';
 import type { ExecutionCaptureAdmission, SignalFreeExecutionPolicy } from '../../src/signal-free-executor';
 import { joinOriginalXcshCreationBody } from '../../src/xcsh-creation-body';
+import { retainOwnedTestCapture } from '../retained-test-capture';
 
 const sha = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 export async function openOriginalBootstrapFixture(
@@ -108,10 +109,6 @@ export async function openOriginalBootstrapFixture(
     await reader.ready;
     const result = await reader.completed;
     const targets = result.targetCount;
-    const capture = await openGcpLifecycleHttpCapture(store, context.assertInputs, {
-      siteNames: [siteName],
-      tokenNames: [tokenName],
-    });
     const labels = { 'xcsh-deployment': context.owner.deploymentId, 'xcsh-engine': 'terraform' };
     const site = {
       metadata: { name: siteName, namespace: 'system', labels: { ...labels, 'ves.io/provider': 'ves-io-GOOGLE' } },
@@ -123,38 +120,84 @@ export async function openOriginalBootstrapFixture(
       system_metadata: { uid: uid(tokenName) },
       spec: { site_name: siteName, type: 1, content: jwt },
     };
-    const port = createGcpLifecycleHttpPort(
-      context.environment.XCSH_API_URL,
-      context.environment.XCSH_API_TOKEN,
-      async (url) => Response.json(String(url).includes('/tokens/') ? token : site),
-      capture,
+    let reads = 0;
+    const observation = await openOriginalGcpBootstrapObservation(
+      {
+        store,
+        origin: context.environment.XCSH_API_URL,
+        credential: context.environment.XCSH_API_TOKEN,
+        targets: [
+          { type_name: 'xcsh_securemesh_site_v2', namespace: 'system', name: siteName },
+          { type_name: 'xcsh_token', namespace: 'system', name: tokenName },
+        ],
+        assertOriginal: context.assertInputs,
+      },
+      {
+        fetcher: async (url) => {
+          reads++;
+          return Response.json(String(url).includes('/tokens/') ? token : site);
+        },
+      },
     );
-    const readBody = async (path: string, type: 'xcsh_securemesh_site_v2' | 'xcsh_token', name: string) => {
-      const response = await port.read(path);
-      if (!response) throw new Error('Original source body unavailable');
+    const readBody = async (type: 'xcsh_securemesh_site_v2' | 'xcsh_token', name: string) => {
+      const body = await observation.read({ type_name: type, namespace: 'system', name });
+      if (!body) throw new Error('Original source body unavailable');
       return joinOriginalXcshCreationBody({
         context,
         packet,
         result,
         platform: originalGcpBootstrapSource,
-        body: await capture.read(capture.evidenceFor(response)),
+        body,
         target: { type_name: type, namespace: 'system', name },
       });
     };
     const value = await collectOriginalGcpPreapplyBootstrap({
-      site: await readBody(
-        `/api/config/namespaces/system/securemesh_site_v2s/${siteName}`,
-        'xcsh_securemesh_site_v2',
-        siteName,
-      ),
-      token: await readBody(`/api/register/namespaces/system/tokens/${tokenName}`, 'xcsh_token', tokenName),
+      site: await readBody('xcsh_securemesh_site_v2', siteName),
+      token: await readBody('xcsh_token', tokenName),
       platform: originalGcpBootstrapSource,
       binding: { owner: context.owner, deploymentName: context.owner.deploymentId, siteName, nodeName, tokenName },
     });
     return {
       value,
       targets,
+      retain(label: string, outcome: 'success' | 'failure') {
+        return retainOwnedTestCapture(store.directory, label, outcome);
+      },
+      site,
+      token,
+      readCount: () => reads,
+      finalSiteInput(callback: OriginalApplyCallbackContext) {
+        return {
+          context,
+          packet,
+          result,
+          callback,
+          observation,
+          platform: originalGcpBootstrapSource,
+          target: { type_name: 'xcsh_securemesh_site_v2' as const, namespace: 'system' as const, name: siteName },
+        };
+      },
+      async refreshFinal(callback: OriginalApplyCallbackContext) {
+        const { joinOriginalFinalXcshCreationBody } = await import('../../src/xcsh-creation-body');
+        const read = (type_name: 'xcsh_securemesh_site_v2' | 'xcsh_token', name: string) =>
+          joinOriginalFinalXcshCreationBody({
+            context,
+            packet,
+            result,
+            callback,
+            platform: originalGcpBootstrapSource,
+            observation,
+            target: { type_name, namespace: 'system', name },
+          });
+        return collectOriginalGcpPreapplyBootstrap({
+          site: await read('xcsh_securemesh_site_v2', siteName),
+          token: await read('xcsh_token', tokenName),
+          platform: originalGcpBootstrapSource,
+          binding: { owner: context.owner, deploymentName: context.owner.deploymentId, siteName, nodeName, tokenName },
+        });
+      },
       async close() {
+        await observation.close();
         await reader.closeAfterExecutorExit();
         closePreparedCreationScope(packet);
       },

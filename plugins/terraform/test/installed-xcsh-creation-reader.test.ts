@@ -1442,9 +1442,15 @@ for (const stageVariant of [
   'coordinated-reader-startup',
   'coordinated-ha',
   'coordinated-uncertain',
+  'final-token-replacement',
 ] as const) {
   const coordinated = stageVariant.startsWith('coordinated-');
-  const stageCase = coordinated ? stageVariant.slice('coordinated-'.length) : stageVariant;
+  const stageCase =
+    stageVariant === 'final-token-replacement'
+      ? 'published'
+      : coordinated
+        ? stageVariant.slice('coordinated-'.length)
+        : stageVariant;
   test(`original installed bootstrap stage: ${stageVariant}`, async () => {
     await scoped(
       async (context, originalAdmission, packet) => {
@@ -1674,16 +1680,24 @@ for (const stageVariant of [
           publication: { executorFactory: publisherFactory },
         });
         const events: Record<string, unknown>[] = [];
+        let finalCallback: import('../src/installed-apply-controller').OriginalApplyCallbackContext | undefined;
+        const stageWorker = {
+          ...worker,
+          async finalCapture(...args: Parameters<typeof worker.finalCapture>) {
+            finalCallback = args[2];
+            return worker.finalCapture(...args);
+          },
+        };
         let postStartup = false;
         const { createInstalledCaptureCoordinator } = await import('../src/installed-capture-coordinator');
         const coordinatedWorker = coordinated
           ? createInstalledCaptureCoordinator(context, {
-              stages: async () => [{ name: 'bootstrap', worker }],
+              stages: async () => [{ name: 'bootstrap', worker: stageWorker }],
               persist: async (event) => {
                 events.push({ ...event });
               },
             })
-          : worker;
+          : stageWorker;
         const controller = createInstalledApplyController(context, coordinatedWorker, {
           clock: () =>
             postStartup ? Math.max(linuxMonotonicMs(), admission.startupDeadlineMs + 1) : linuxMonotonicMs(),
@@ -1754,8 +1768,22 @@ for (const stageVariant of [
             finalDeadlineMs: began + 300000,
             assertOriginal: context.assertInputs,
           });
-          if (stageCase === 'published' || stageCase === 'ha') await controller.finalCapture(finished, reserve);
-          else await expect(controller.finalCapture(finished, reserve)).rejects.toThrow();
+          if (stageCase === 'published' || stageCase === 'ha') {
+            await controller.finalCapture(finished, reserve);
+            expect(finalCallback).toBeDefined();
+            if (finalCallback) {
+              const finalBootstrap = await worker.refreshBootstrap('example-node', finalCallback);
+              const { assertOriginalGcpPreapplyBootstrapCallback } = await import('../src/gcp-preapply-bootstrap');
+              await assertOriginalGcpPreapplyBootstrapCallback(finalBootstrap, finalCallback);
+              if (stageVariant === 'final-token-replacement') {
+                token.spec.content = jwt.replace(/.$/, jwt.endsWith('A') ? 'B' : 'A');
+                await expect(worker.refreshBootstrap('example-node', finalCallback)).rejects.toThrow('changed');
+                token.spec.content = jwt;
+                await expect(worker.refreshBootstrap('example-node', finalCallback)).rejects.toThrow('retired');
+              }
+            }
+            expect(publications).toBe(1 + extra.length);
+          } else await expect(controller.finalCapture(finished, reserve)).rejects.toThrow();
           if (stageCase === 'reader-startup' || (coordinated && stageCase === 'uncertain')) {
             await expect(controller.closeAfterExecutorExit()).rejects.toThrow();
             expect(events.some((event) => event.phase === 'final-failed')).toBe(true);

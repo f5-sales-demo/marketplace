@@ -10,6 +10,7 @@ import {
   readOriginalGcpInsertSourceBodies,
 } from './gcp-insert-evidence';
 import {
+  assertOriginalGcpPreapplyBootstrapCallback,
   assertOriginalGcpPreapplyBootstrapContext,
   type OriginalGcpPreapplyBootstrapEvidence,
   readOriginalGcpPreapplyBootstrapJwt,
@@ -64,6 +65,7 @@ type BootstrapView = EarlyBootstrapView | FinalBootstrapView;
 interface FinalBootstrapHandoff {
   readonly callback: OriginalApplyCallbackContext;
   readonly vm: OriginalFinalGcpVmEvidence;
+  readonly bootstrap: OriginalGcpPreapplyBootstrapEvidence;
 }
 const finalBootstrapOrigins = new WeakMap<
   OriginalFinalGcpBootstrapVm,
@@ -122,10 +124,12 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
     handoffClaimed = false;
   let currentCallback = callback;
   let currentVm: OriginalEarlyGcpVmEvidence | OriginalFinalGcpVmEvidence = vm;
+  let currentBootstrap = bootstrap;
   const read = async (): Promise<BootstrapView> => {
     if (refused) throw new Error('Original early bootstrap VM join was refused');
     const selectedCallback = currentCallback,
-      selectedVm = currentVm;
+      selectedVm = currentVm,
+      selectedBootstrap = currentBootstrap;
     const verifyCallback = () =>
       selectedCallback.phase === 'before'
         ? assertOriginalApplyLifetime(selectedCallback)
@@ -133,18 +137,20 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
     try {
       await verifyCallback();
       await context.assertInputs();
-      await assertOriginalGcpPreapplyBootstrapContext(bootstrap, context);
+      await assertOriginalGcpPreapplyBootstrapContext(selectedBootstrap, context);
+      if (selectedCallback.phase === 'after')
+        await assertOriginalGcpPreapplyBootstrapCallback(selectedBootstrap, selectedCallback);
       await assertOriginalGcpVmCaptureCallback(selectedVm, selectedCallback);
       const inserted = await readOriginalEarlyGcpInsertIdentity(identity);
       const observed =
         selectedCallback.phase === 'after'
           ? await readOriginalFinalGcpVmEvidence(selectedVm)
           : await readOriginalEarlyGcpVmEvidence(selectedVm);
-      const base = bootstrap.bootstrap;
+      const base = selectedBootstrap.bootstrap;
       if (
         fingerprint(base.owner) !== fingerprint(context.owner) ||
         base.deploymentName !== context.owner.deploymentId ||
-        inserted.planSha256 !== bootstrap.planSha256 ||
+        inserted.planSha256 !== selectedBootstrap.planSha256 ||
         inserted.project !== context.owner.account ||
         observed.project !== inserted.project ||
         observed.nodeName !== inserted.nodeName ||
@@ -155,7 +161,7 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
         observed.operationId !== inserted.operationId ||
         (['pid', 'group', 'start', 'boot'] as const).some(
           (key) =>
-            bootstrap.executor[key] !== selectedCallback.execution.identity[key] ||
+            selectedBootstrap.executor[key] !== selectedCallback.execution.identity[key] ||
             inserted.executor[key] !== selectedCallback.execution.identity[key],
         )
       )
@@ -209,7 +215,7 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
         throw new Error('Original VM bootstrap site labels differ');
       if (!Array.isArray(metadata.items)) throw new Error('Original token-only metadata required');
       const data = metadata.items.map(object).filter((entry) => entry.key === 'user-data');
-      const jwt = await readOriginalGcpPreapplyBootstrapJwt(bootstrap);
+      const jwt = await readOriginalGcpPreapplyBootstrapJwt(selectedBootstrap);
       if (data.length !== 1 || typeof data[0].value !== 'string' || hash(data[0].value) !== inserted.bootstrapSha256)
         throw new Error('Original bootstrap token metadata differs');
       let config: Json;
@@ -238,12 +244,12 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
         Date.now() >= Date.parse(base.expiresAt)
       )
         throw new Error('Original unexpired bootstrap token differs');
-      await assertOriginalGcpPreapplyBootstrapContext(bootstrap, context);
+      await assertOriginalGcpPreapplyBootstrapContext(selectedBootstrap, context);
       await assertOriginalGcpVmCaptureCallback(selectedVm, selectedCallback);
       await readOriginalEarlyGcpInsertIdentity(identity);
       await context.assertInputs();
       await verifyCallback();
-      if (selectedCallback !== currentCallback || selectedVm !== currentVm)
+      if (selectedCallback !== currentCallback || selectedVm !== currentVm || selectedBootstrap !== currentBootstrap)
         throw new Error('Original bootstrap VM lifetime changed during source read');
       return Object.freeze({
         ...observed,
@@ -309,6 +315,32 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
         // Claim before the awaited VM check; two callers must never enter
         // the same original descriptor verification concurrently.
         await assertOriginalGcpVmCaptureCallback(input.vm, after);
+        await assertOriginalGcpPreapplyBootstrapCallback(input.bootstrap, after);
+        if (
+          (
+            [
+              'owner',
+              'deploymentName',
+              'siteName',
+              'siteUid',
+              'nodeName',
+              'tokenName',
+              'tokenUid',
+              'jwtSha256',
+              'expiresAt',
+            ] as const
+          ).some((key) => fingerprint(input.bootstrap.bootstrap[key]) !== fingerprint(bootstrap.bootstrap[key])) ||
+          input.bootstrap.xcshProviderVersion !== bootstrap.xcshProviderVersion ||
+          input.bootstrap.planSha256 !== bootstrap.planSha256 ||
+          input.bootstrap.readerRequestSha256 !== bootstrap.readerRequestSha256 ||
+          input.bootstrap.siteCreationSha256 !== bootstrap.siteCreationSha256 ||
+          input.bootstrap.tokenCreationSha256 !== bootstrap.tokenCreationSha256 ||
+          (['pid', 'group', 'start', 'boot'] as const).some(
+            (key) => input.bootstrap.executor[key] !== bootstrap.executor[key],
+          )
+        )
+          throw new Error('Original final bootstrap identity or token changed');
+        currentBootstrap = input.bootstrap;
         currentCallback = after;
         currentVm = input.vm;
         const final = await read();
@@ -322,7 +354,7 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
         });
         finalBootstrapOrigins.set(result, {
           callback: after,
-          bootstrap,
+          bootstrap: currentBootstrap,
           vm: input.vm,
           async read() {
             const view = await read();

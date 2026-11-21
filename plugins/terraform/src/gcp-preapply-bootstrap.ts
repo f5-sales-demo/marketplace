@@ -7,10 +7,12 @@ import type {
   GcpBootstrapEvidenceSource,
   OriginalGcpBootstrapEvidence,
 } from '../../platform/src/ce/gcp-bootstrap-evidence';
+import type { OriginalApplyCallbackContext } from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { assertSameOriginalInput } from './original-input-monitor';
 import {
+  assertOriginalXcshCreationBodyCallback,
   assertOriginalXcshCreationBodyContext,
   type OriginalXcshCreationBodyEvidence,
   readOriginalXcshCreationBody,
@@ -45,6 +47,7 @@ export type OriginalGcpPreapplyBootstrapEvidence = OriginalGcpPreapplyBootstrapE
   );
 const issued = new WeakMap<object, () => Promise<string>>();
 const contextChecks = new WeakMap<object, (context: InstalledCaptureContext) => Promise<void>>();
+const callbackChecks = new WeakMap<object, (callback: OriginalApplyCallbackContext) => Promise<void>>();
 export interface OriginalGcpSiteAccessConfiguration {
   readonly siteName: string;
   readonly siteUid: string;
@@ -154,6 +157,10 @@ export async function collectOriginalGcpPreapplyBootstrap(input: {
     await assertOriginalXcshCreationBodyContext(site, context);
     await assertOriginalXcshCreationBodyContext(token, context);
   });
+  callbackChecks.set(value, async (callback) => {
+    await assertOriginalXcshCreationBodyCallback(site, callback);
+    await assertOriginalXcshCreationBodyCallback(token, callback);
+  });
   let refused = false;
   issued.set(value, async () => {
     if (refused) throw new Error('Original preapply bootstrap evidence retired');
@@ -235,6 +242,16 @@ export async function assertOriginalGcpPreapplyBootstrapContext(
   const check = contextChecks.get(value);
   if (!check) throw new Error('Original preapply bootstrap context required');
   await check(context);
+}
+
+/** Fresh final Site and Token bodies must originate from this actual after callback. */
+export async function assertOriginalGcpPreapplyBootstrapCallback(
+  value: OriginalGcpPreapplyBootstrapEvidence,
+  callback: OriginalApplyCallbackContext,
+): Promise<void> {
+  const check = callbackChecks.get(value);
+  if (!check) throw new Error('Original final bootstrap callback source required');
+  await check(callback);
 }
 
 /** Exact original Site body and reviewed intent only. This configures no VM

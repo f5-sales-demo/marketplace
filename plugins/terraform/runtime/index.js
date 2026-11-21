@@ -14784,7 +14784,34 @@ var object9 = (value) => {
 var issued3 = new WeakMap();
 var contexts = new WeakMap();
 var providerProfiles = new WeakMap();
-async function joinOriginalXcshCreationBody(input) {
+var callbacks2 = new WeakMap();
+function joinOriginalXcshCreationBody(input) {
+  return joinCreationBody(input);
+}
+async function joinOriginalFinalXcshCreationBody(input) {
+  const { callback, context, result } = input;
+  if (
+    callback.phase !== 'after' ||
+    !callback.reserve ||
+    callback.original !== context ||
+    result.kind !== 'original-xcsh-creation-result' ||
+    !result.complete ||
+    ['pid', 'group', 'start', 'boot'].some((key) => result.executor[key] !== callback.execution.identity[key])
+  )
+    throw new Error('Original final creation callback and completed executor required');
+  await assertOriginalApplyCallback(callback);
+  await readOriginalInstalledXcshCreation(result);
+  const requestedAt = Date.now();
+  const signal = AbortSignal.timeout(
+    Math.max(1, Math.min(60000, callback.reserve.finalDeadlineMs - linuxMonotonicMs())),
+  );
+  const body = await input.observation.read(input.target, signal);
+  await assertOriginalApplyCallback(callback);
+  if (!body || Date.parse(body.evidence.startedAt) < requestedAt)
+    throw new Error('Original fresh final creation GET required');
+  return joinCreationBody({ ...input, body }, { callback, requestedAt });
+}
+async function joinCreationBody(input, final) {
   const { context, packet, result, body } = input;
   const target = Object.freeze({ ...input.target });
   if (typeof input.platform?.assertBody !== 'function') throw new Error('Verified Platform body source required');
@@ -14797,11 +14824,12 @@ async function joinOriginalXcshCreationBody(input) {
   const readCreation = () =>
     early ? readOriginalInstalledXcshTarget(result) : readOriginalInstalledXcshCreation(result);
   let refused = false;
+  const lifetime = () => (final ? assertOriginalApplyCallback(final.callback) : context.assertWithinDeadline());
   const verify = async () => {
     if (refused) throw new Error('Original creation body evidence retired');
     try {
       assertPreparedCreationScopeContext(packet, context);
-      await context.assertWithinDeadline();
+      await lifetime();
       await context.assertInputs();
       const scope = await inspectPreparedCreationScope(packet);
       if (
@@ -14861,6 +14889,7 @@ async function joinOriginalXcshCreationBody(input) {
         now - began >= 300000
       )
         throw new Error('Original creation body freshness required');
+      if (final && began < final.requestedAt) throw new Error('Original final creation GET preceded callback');
       const value = decodeEvidenceObject(body.bytes),
         metadata = object9(value.metadata),
         system = object9(value.system_metadata);
@@ -14877,7 +14906,7 @@ async function joinOriginalXcshCreationBody(input) {
       await assertBody(body);
       await readCreation();
       await context.assertInputs();
-      await context.assertWithinDeadline();
+      await lifetime();
       return { planSha256: scope.planSha256, identity: hash21(system.uid), providerProfile };
     } catch (error) {
       refused = true;
@@ -14886,7 +14915,7 @@ async function joinOriginalXcshCreationBody(input) {
   };
   const original = await verify();
   const evidence = Object.freeze({
-    schemaVersion: 2,
+    ...(final ? { schemaVersion: 3, capturePhase: 'after' } : { schemaVersion: 2 }),
     kind: 'original-xcsh-creation-body-candidate',
     target,
     executor: Object.freeze({ ...result.executor }),
@@ -14899,12 +14928,18 @@ async function joinOriginalXcshCreationBody(input) {
     bootstrapOwnershipQualified: false,
   });
   contexts.set(evidence, context);
+  if (final) callbacks2.set(evidence, final.callback);
   providerProfiles.set(evidence, original.providerProfile);
   issued3.set(evidence, async () => {
     await verify();
     return body;
   });
   return evidence;
+}
+async function assertOriginalXcshCreationBodyCallback(evidence, callback) {
+  if (callbacks2.get(evidence) !== callback) throw new Error('Original final creation body callback required');
+  await assertOriginalApplyCallback(callback);
+  await readOriginalXcshCreationBody(evidence);
 }
 async function readOriginalXcshCreationBody(evidence) {
   const read = issued3.get(evidence);
@@ -14930,6 +14965,7 @@ var object10 = (value) => {
 };
 var issued4 = new WeakMap();
 var contextChecks = new WeakMap();
+var callbackChecks = new WeakMap();
 var siteAccessReads = new WeakMap();
 async function collectOriginalGcpPreapplyBootstrap(input) {
   const { site, token } = input,
@@ -15016,6 +15052,10 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
   contextChecks.set(value, async (context) => {
     await assertOriginalXcshCreationBodyContext(site, context);
     await assertOriginalXcshCreationBodyContext(token, context);
+  });
+  callbackChecks.set(value, async (callback) => {
+    await assertOriginalXcshCreationBodyCallback(site, callback);
+    await assertOriginalXcshCreationBodyCallback(token, callback);
   });
   let refused = false;
   issued4.set(value, async () => {
@@ -19073,6 +19113,51 @@ async function openInstalledBootstrapCapture(input, options = {}) {
     candidates.set(node.nodeName, evidence);
     return { evidence, token: tokenTarget };
   };
+  const guardFinal = async (after) => {
+    if (
+      closed ||
+      !finalStarted ||
+      after !== finalClosureCallback ||
+      after.original !== context ||
+      after.phase !== 'after' ||
+      !after.reserve
+    )
+      throw new Error('Original bootstrap final callback required');
+    await assertOriginalApplyCallback(after);
+    await inputs();
+    await assertOriginalApplyCallback(after);
+  };
+  const collectFinal = async (node, result, after) => {
+    await guardFinal(after);
+    if (!observation) throw new Error('Original bootstrap observation source required');
+    const join = (type_name, name) =>
+      joinOriginalFinalXcshCreationBody({
+        context,
+        packet,
+        result,
+        callback: after,
+        platform: source,
+        observation,
+        target: { type_name, namespace: 'system', name },
+      });
+    const evidence = await collectOriginalGcpPreapplyBootstrap({
+      site: await join('xcsh_securemesh_site_v2', node.siteName),
+      token: await join('xcsh_token', node.tokenName),
+      platform: source,
+      binding: { owner: context.owner, deploymentName: context.owner.deploymentId, ...node },
+    });
+    const prior = candidates.get(node.nodeName);
+    if (
+      !prior ||
+      prior.bootstrap.jwtSha256 !== evidence.bootstrap.jwtSha256 ||
+      prior.siteCreationSha256 !== evidence.siteCreationSha256 ||
+      prior.tokenCreationSha256 !== evidence.tokenCreationSha256
+    )
+      throw new Error('Original final bootstrap token or Site identity changed');
+    await guardFinal(after);
+    await retain('final-source-refreshed', { nodeName: node.nodeName, evidence, finalReserve: after.reserve });
+    return evidence;
+  };
   const worker = {
     async start(admission, originalCallback) {
       if (started || closed) throw new Error('Original bootstrap stage already started or retired');
@@ -19191,6 +19276,13 @@ async function openInstalledBootstrapCapture(input, options = {}) {
       await assertFinalReaderReserve(reserve);
       const result = outcomes[1];
       const raw = result.status === 'fulfilled' ? await readOriginalInstalledXcshCreation(result.value) : undefined;
+      const finalSources = [];
+      if (result.status === 'fulfilled' && result.value.complete)
+        for (const node of nodes) {
+          const [outcome] = await Promise.allSettled([collectFinal(node, result.value, finalCallback)]);
+          finalSources.push(outcome);
+        }
+      for (const outcome of finalSources) if (outcome.status === 'rejected') failure ??= outcome.reason;
       await retain('final-capture', {
         publishedCount: grants.size,
         expectedCount: nodes.length,
@@ -19199,6 +19291,9 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         originalGroupClosed,
         finalReserve: reserve,
         failures: outcomes.filter((value) => value.status === 'rejected').length,
+        finalSourcesComplete:
+          finalSources.length === nodes.length && finalSources.every((value) => value.status === 'fulfilled'),
+        finalSourceFailures: finalSources.filter((value) => value.status === 'rejected').length,
         providerConsumptionQualified: false,
       });
       await assertFinalReaderReserve(reserve);
@@ -19207,7 +19302,9 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         outcomes.some((value) => value.status === 'rejected') ||
         result.status !== 'fulfilled' ||
         !result.value.complete ||
-        grants.size !== nodes.length
+        grants.size !== nodes.length ||
+        finalSources.length !== nodes.length ||
+        finalSources.some((value) => value.status === 'rejected')
       )
         throw new Error('Original bootstrap stage capture incomplete; retain evidence and reconcile without replay');
     },
@@ -19233,11 +19330,16 @@ async function openInstalledBootstrapCapture(input, options = {}) {
       if (!pending) throw new Error('Original bootstrap stage has not started');
       return pending;
     },
-    async refreshBootstrap(nodeName) {
+    async refreshBootstrap(nodeName, after) {
       if (!reader || !grants.has(nodeName)) throw new Error('Original published bootstrap node required');
       const node = nodes.find((value) => value.nodeName === nodeName);
       if (!node) throw new Error('Original published bootstrap binding required');
       try {
+        if (after) {
+          if (failure) throw new Error('Original bootstrap source retired or failed');
+          await guardFinal(after);
+          return await collectFinal(node, await reader.completed, after);
+        }
         const candidate = await collect(node, await reader.availableTargets());
         if (!candidate) throw new Error('Original bootstrap source refresh unavailable');
         return candidate.evidence;

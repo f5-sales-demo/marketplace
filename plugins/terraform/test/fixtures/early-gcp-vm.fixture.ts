@@ -47,6 +47,8 @@ export async function withEarlyVmFixture(
   latest = false,
   options: {
     sourceCaptureInputs?: boolean;
+    operationRemainingMs?: number;
+    completeTraceBeforeExit?: boolean;
     prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>;
     prepare?: (context: InstalledCaptureContext, store: CeDeploymentStore, state: EarlyVmFixtureState) => Promise<void>;
   } = {},
@@ -246,7 +248,9 @@ export async function withEarlyVmFixture(
           });
         const last = lines.pop();
         if (!last) throw new Error('Original served fixture line required');
-        return { prefix: `${lines.join('\n')}\n`, tail: `${last}\n` };
+        return options.completeTraceBeforeExit
+          ? { prefix: `${[...lines, last].join('\n')}\n`, tail: '' }
+          : { prefix: `${lines.join('\n')}\n`, tail: `${last}\n` };
       },
       expectedOutcome,
       undefined,
@@ -255,6 +259,7 @@ export async function withEarlyVmFixture(
       false,
       undefined,
       options.sourceCaptureInputs ?? false,
+      options.operationRemainingMs ?? 7200000,
     );
   } finally {
     await beforeInput?.reader.close();
