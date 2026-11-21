@@ -2110,3 +2110,13 @@ verify capture after operation expiry within the unchanged final reserve.
 Complete factory composition, expected-expiry versus integrity-failure behavior,
 realistic full-inventory throughput, supported installed/runtime acceptance and
 every original live, cleanup, CI/review and delivery gate remain open.
+
+## Bootstrap VM handoff after before-read expiry
+
+The [bootstrap expiry source receipt](gcp-bootstrap-before-expiry-source-20261121.md)
+records source-issued expiry classification and fresh final handoff while the
+expired before reference remains refused. Prior expiry remains in the final
+view; ownership and input failures remain permanent. This qualifies one source
+boundary only. Complete factory composition and other reader/VM/access/guest
+expiry paths, full inventory throughput, real runtime/live behavior, cleanup,
+CI/review and publication/installation remain open.

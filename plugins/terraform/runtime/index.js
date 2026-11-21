@@ -4616,6 +4616,7 @@ async function assertFinalReaderReserve(reserve) {
 // plugins/terraform/src/installed-apply-controller.ts
 var callbacks = new WeakMap();
 var lifetimes = new WeakMap();
+var operationExpiries = new WeakMap();
 var groupClosures = new WeakMap();
 var groupClosureChecks = new WeakMap();
 async function assertOriginalApplyGroupClosed(value) {
@@ -4660,8 +4661,15 @@ function createInstalledApplyController(original, worker, hooks) {
   let preparation;
   const within = async () => {
     await original.assertInputs();
-    if (now() < original.budget.start || now() >= original.budget.deadline)
-      throw new Error('Original apply operation budget exhausted');
+    const observed = now();
+    if (observed < original.budget.start || observed >= original.budget.deadline) {
+      const error = new Error('Original apply operation budget exhausted');
+      if (Number.isSafeInteger(observed) && observed >= original.budget.deadline) {
+        error.name = 'OriginalApplyOperationExpiredError';
+        operationExpiries.set(error, { original, nonce });
+      }
+      throw error;
+    }
     await original.assertWithinDeadline();
   };
   const record = async (phase, extra = {}) =>

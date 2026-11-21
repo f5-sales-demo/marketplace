@@ -6,16 +6,25 @@ import type { OriginalGcpPlatformHttpBody } from '../../platform/src/ce/gcp-http
 import {
   handoffOriginalEarlyGcpBootstrapVm,
   joinOriginalEarlyGcpBootstrapVm,
+  readOriginalEarlyGcpBootstrapVm,
   readOriginalFinalGcpBootstrapVm,
 } from '../src/gcp-bootstrap-vm-binding';
 import * as bootstrapSource from '../src/gcp-preapply-bootstrap';
 import { collectOriginalEarlyGcpVmEvidence, handoffOriginalEarlyGcpVmEvidence } from '../src/gcp-vm-evidence';
+import { isOriginalApplyLifetimeExpiry } from '../src/installed-apply-controller';
 import { linuxMonotonicMs } from '../src/linux-clock';
 import { joinOriginalFinalXcshCreationBody } from '../src/xcsh-creation-body';
 import { withEarlyVmFixture } from './fixtures/early-gcp-vm.fixture';
 import { openOriginalBootstrapFixture } from './fixtures/original-bootstrap-source.fixture';
 
-for (const mode of ['fresh', 'expired-operation', 'changed-token', 'copied-callback', 'changed-site-body'] as const)
+for (const mode of [
+  'fresh',
+  'expired-operation',
+  'changed-token',
+  'copied-callback',
+  'changed-site-body',
+  'expired-before-read',
+] as const)
   test(`final bootstrap requires fresh original GET bodies and after authority: ${mode}`, async () => {
     let jwt = '';
     let source: Awaited<ReturnType<typeof openOriginalBootstrapFixture>> | undefined;
@@ -46,12 +55,26 @@ for (const mode of ['fresh', 'expired-operation', 'changed-token', 'copied-callb
             identity: input.identity,
             vm,
           });
-          if (mode === 'expired-operation')
+          if (mode === 'expired-operation' || mode === 'expired-before-read')
             await Bun.sleep(Math.max(1, input.callback.original.budget.deadline - linuxMonotonicMs() + 5));
+          if (mode === 'expired-before-read') {
+            let failure: unknown;
+            try {
+              await readOriginalEarlyGcpBootstrapVm(early, input.callback);
+            } catch (error) {
+              failure = error;
+            }
+            expect(isOriginalApplyLifetimeExpiry(failure, input.callback)).toBe(true);
+            const forged = new Error('Original apply operation budget exhausted');
+            forged.name = 'OriginalApplyOperationExpiredError';
+            expect(isOriginalApplyLifetimeExpiry(forged, input.callback)).toBe(false);
+            expect(isOriginalApplyLifetimeExpiry(failure, { ...input.callback })).toBe(false);
+            await expect(readOriginalEarlyGcpBootstrapVm(early, input.callback)).rejects.toThrow('refused');
+          }
         },
         async (input) => {
           if (!source || !vm || !early) throw new Error('Original bootstrap sources required');
-          if (mode === 'expired-operation')
+          if (mode === 'expired-operation' || mode === 'expired-before-read')
             expect(linuxMonotonicMs()).toBeGreaterThanOrEqual(input.callback.original.budget.deadline);
           const beforeReads = source.readCount();
           if (mode === 'copied-callback') {
@@ -107,13 +130,14 @@ for (const mode of ['fresh', 'expired-operation', 'changed-token', 'copied-callb
           expect(view.instanceId).toBe(String(input.state.vm.id));
           expect(view.jwtSha256).toBe(finalBootstrap.bootstrap.jwtSha256);
           expect(view.executionAuthorized).toBe(false);
+          expect(view.originalBeforeReadExpired).toBe(mode === 'expired-before-read');
         },
-        mode === 'expired-operation' ? 'deadline' : undefined,
+        mode === 'expired-operation' || mode === 'expired-before-read' ? 'deadline' : undefined,
         true,
         {
           sourceCaptureInputs: true,
-          operationRemainingMs: mode === 'expired-operation' ? 20000 : 7200000,
-          completeTraceBeforeExit: mode === 'expired-operation',
+          operationRemainingMs: mode === 'expired-operation' || mode === 'expired-before-read' ? 20000 : 7200000,
+          completeTraceBeforeExit: mode === 'expired-operation' || mode === 'expired-before-read',
           prepare: async (context, store, state) => {
             const saved = (await store.read('gcp-terraform-input-identity.json')) as { intent: GcpCeIntent };
             const exp = Math.floor(Date.now() / 1000) + 3600;

@@ -25,6 +25,7 @@ import {
 import {
   assertOriginalApplyCallback,
   assertOriginalApplyLifetime,
+  isOriginalApplyLifetimeExpiry,
   type OriginalApplyCallbackContext,
 } from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
@@ -50,6 +51,7 @@ type EarlyBootstrapView = Awaited<ReturnType<typeof readOriginalEarlyGcpVmEviden
     jwtSha256: string;
     ownershipSha256: string;
     bootstrapCorroborated: true;
+    originalBeforeReadExpired: boolean;
     guestAcceptanceComplete: false;
   }>;
 export interface OriginalFinalGcpBootstrapVm {
@@ -59,7 +61,13 @@ export interface OriginalFinalGcpBootstrapVm {
 type FinalBootstrapView = Awaited<ReturnType<typeof readOriginalFinalGcpVmEvidence>> &
   Pick<
     EarlyBootstrapView,
-    'siteName' | 'expiresAt' | 'jwtSha256' | 'ownershipSha256' | 'bootstrapCorroborated' | 'guestAcceptanceComplete'
+    | 'siteName'
+    | 'expiresAt'
+    | 'jwtSha256'
+    | 'ownershipSha256'
+    | 'bootstrapCorroborated'
+    | 'guestAcceptanceComplete'
+    | 'originalBeforeReadExpired'
   >;
 type BootstrapView = EarlyBootstrapView | FinalBootstrapView;
 interface FinalBootstrapHandoff {
@@ -120,13 +128,15 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
     throw new Error('Original early bootstrap before callback required');
   await assertOriginalApplyLifetime(callback);
   let refused = false;
+  let beforeReadExpired = false;
   let transferred = false,
     handoffClaimed = false;
   let currentCallback = callback;
   let currentVm: OriginalEarlyGcpVmEvidence | OriginalFinalGcpVmEvidence = vm;
   let currentBootstrap = bootstrap;
   const read = async (): Promise<BootstrapView> => {
-    if (refused) throw new Error('Original early bootstrap VM join was refused');
+    if (refused || (currentCallback.phase === 'before' && beforeReadExpired))
+      throw new Error('Original early bootstrap VM join was refused');
     const selectedCallback = currentCallback,
       selectedVm = currentVm,
       selectedBootstrap = currentBootstrap;
@@ -268,10 +278,12 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
           request: inserted.requestBodySha256,
         }).slice(7),
         bootstrapCorroborated: true as const,
+        originalBeforeReadExpired: beforeReadExpired,
         guestAcceptanceComplete: false as const,
       });
     } catch (error) {
-      refused = true;
+      if (isOriginalApplyLifetimeExpiry(error, selectedCallback)) beforeReadExpired = true;
+      else refused = true;
       throw error;
     }
   };

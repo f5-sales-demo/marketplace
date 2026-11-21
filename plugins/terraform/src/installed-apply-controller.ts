@@ -24,6 +24,20 @@ export interface OriginalApplyCallbackContext {
 }
 const callbacks = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
 const lifetimes = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
+const operationExpiries = new WeakMap<object, { original: InstalledCaptureContext; nonce: string }>();
+/** Classify only an actual original controller's input-verified deadline failure.
+ * Copies, error names and caller-provided messages carry no temporal authority. */
+export function isOriginalApplyLifetimeExpiry(error: unknown, callback: OriginalApplyCallbackContext): boolean {
+  const source = error && typeof error === 'object' ? operationExpiries.get(error) : undefined;
+  return (
+    !!source &&
+    lifetimes.has(callback) &&
+    callback.phase === 'before' &&
+    source.original === callback.original &&
+    source.nonce === callback.nonce
+  );
+}
+
 const groupClosures = new WeakMap<OriginalApplyCallbackContext, (completion: unknown) => Promise<void>>();
 const groupClosureChecks = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
 /** Closure-only proof from the acknowledged original output issuer. It cannot
@@ -89,8 +103,15 @@ export function createInstalledApplyController(
   let preparation: Promise<void> | undefined;
   const within = async () => {
     await original.assertInputs();
-    if (now() < original.budget.start || now() >= original.budget.deadline)
-      throw new Error('Original apply operation budget exhausted');
+    const observed = now();
+    if (observed < original.budget.start || observed >= original.budget.deadline) {
+      const error = new Error('Original apply operation budget exhausted');
+      if (Number.isSafeInteger(observed) && observed >= original.budget.deadline) {
+        error.name = 'OriginalApplyOperationExpiredError';
+        operationExpiries.set(error, { original, nonce });
+      }
+      throw error;
+    }
     await original.assertWithinDeadline();
   };
   const record = async (phase: string, extra: Record<string, unknown> = {}) =>
