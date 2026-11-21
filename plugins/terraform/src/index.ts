@@ -187,7 +187,7 @@ export {
   readOriginalFinalGcpSerialSource,
   readOriginalFinalGcpVmEvidence,
 } from './gcp-vm-evidence';
-export { acknowledgeOriginalApplyGroupClosure } from './installed-apply-controller';
+export { acknowledgeOriginalApplyGroupClosure, assertOriginalApplyGroupClosed } from './installed-apply-controller';
 export {
   assertOriginalApplyGcpInventoryCallback,
   openInstalledInitialInventory,

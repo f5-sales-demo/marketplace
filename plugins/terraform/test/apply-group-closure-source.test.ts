@@ -2,6 +2,19 @@ import { expect, test } from 'bun:test';
 import * as controller from '../src/installed-apply-controller';
 import { withGroupClosure } from './fixtures/apply-group-closure.fixture';
 
+test('closure-only proof requires the actual acknowledged final callback and preserves the initial failure', async () => {
+  expect(typeof controller.assertOriginalApplyGroupClosed).toBe('function');
+  await withGroupClosure(async ({ before, final, completion, finished }) => {
+    await expect(controller.assertOriginalApplyGroupClosed(final)).rejects.toThrow(/acknowledged/);
+    await expect(controller.assertOriginalApplyGroupClosed(before)).rejects.toThrow(/final/);
+    await expect(controller.assertOriginalApplyGroupClosed({ ...final })).rejects.toThrow(/Original/);
+    await controller.acknowledgeOriginalApplyGroupClosure(final, completion);
+    await controller.assertOriginalApplyGroupClosed(final);
+    await controller.assertOriginalApplyGroupClosed(final);
+    expect(finished.originalGroupClosed).toBe(false);
+  });
+}, 60000);
+
 test('later original output completion closes the actual controller without rewriting its initial group snapshot', async () => {
   expect(typeof controller.acknowledgeOriginalApplyGroupClosure).toBe('function');
   const events = await withGroupClosure(async ({ final, completion, finished }) => {
@@ -76,7 +89,27 @@ test('original group closure proof retains its actual final reserve expiry', asy
   expect((await runIsolatedClockFixture('group-closure-clock.fixture.ts')).exitCode).toBe(0);
 }, 180000);
 
-import { rename, writeFile } from 'node:fs/promises';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+
+test('completed output replacement cannot restore closure proof or allow staged close', async () => {
+  let refusals = 0;
+  await expect(
+    withGroupClosure(async ({ final, completion }) => {
+      await controller.acknowledgeOriginalApplyGroupClosure(final, completion);
+      const path = final.execution.stdoutPath,
+        original = await readFile(path);
+      await rename(path, `${path}.original`);
+      await writeFile(path, original, { flag: 'wx', mode: 0o600 });
+      await expect(controller.assertOriginalApplyGroupClosed(final)).rejects.toThrow();
+      refusals++;
+      await rm(path);
+      await rename(`${path}.original`, path);
+      await expect(controller.assertOriginalApplyGroupClosed(final)).rejects.toThrow();
+      refusals++;
+    }),
+  ).rejects.toThrow();
+  expect(refusals).toBe(2);
+}, 60000);
 
 test('input mutation during durable group acknowledgement cannot close the controller after restoration', async () => {
   await expect(

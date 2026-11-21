@@ -26,3 +26,22 @@ test('an original completed stream cannot renew its final callback after reserve
     }),
   ).rejects.toThrow();
 }, 60000);
+
+test('already acknowledged closure remains inspectable after capture expiry without renewing its reserve', async () => {
+  offset = 0;
+  let verified = false;
+  await expect(
+    withGroupClosure(async (input: import('./apply-group-closure.fixture').GroupClosureFixtureInput) => {
+      if (!input.final.reserve) throw new Error('Original final reserve required');
+      const snapshot = inspectFinalReaderReserve(input.final.reserve);
+      await controller.acknowledgeOriginalApplyGroupClosure(input.final, input.completion);
+      offset = snapshot.finalDeadlineMs - originalClock() + 1;
+      await expect(controller.assertOriginalApplyCallback(input.final)).rejects.toThrow();
+      await controller.assertOriginalApplyGroupClosed(input.final);
+      verified = true;
+      expect(inspectFinalReaderReserve(input.final.reserve)).toEqual(snapshot);
+      expect(input.finished.originalGroupClosed).toBe(false);
+    }),
+  ).rejects.toThrow();
+  expect(verified).toBe(true);
+}, 60000);

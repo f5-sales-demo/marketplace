@@ -821,6 +821,13 @@ async function readOriginalExecutionPrefix(output, expected) {
     throw new Error('Original executor-issued output prefix required');
   return read(expected);
 }
+var closedOutputInputs = new WeakMap();
+async function readOriginalCompletedOutputInputs(output, completion) {
+  readOriginalExecutionCompletion(output, completion);
+  const read = closedOutputInputs.get(completion);
+  if (!read) throw new Error('Original completed output inputs required');
+  return read();
+}
 var chunkOrigins = new WeakMap();
 var completionOrigins = new WeakMap();
 function readOriginalExecutionChunk(output, chunk, channel) {
@@ -1160,6 +1167,40 @@ async function bindOriginalExecutionOutput(input) {
               if (refused) throw new Error('Original completion source is refused');
             },
           });
+          closedOutputInputs.set(completion, () =>
+            exclusive(async () => {
+              const inputs = {};
+              for (const channel of ['stdout', 'stderr']) {
+                const stream = streams[channel];
+                await guard(stream);
+                await verifyPrefix(stream);
+                const metadata = await stream.reader.stat({ bigint: true });
+                if (
+                  metadata.size !== BigInt(completion[channel].bytes) ||
+                  stream.hash.copy().digest('hex') !== completion[channel].sha256
+                )
+                  throw new OutputRefusal('Original closed output extent changed');
+                inputs[channel] = Object.freeze({
+                  path: stream.path,
+                  sha256: completion[channel].sha256,
+                  expectedIdentity: Object.freeze(
+                    Object.fromEntries(
+                      ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].map((key) => [
+                        key,
+                        String(metadata[key]),
+                      ]),
+                    ),
+                  ),
+                  expectedParentIdentity: Object.freeze(
+                    Object.fromEntries(['dev', 'ino', 'uid', 'mode'].map((key) => [key, String(stream.parent[key])])),
+                  ),
+                });
+                await guard(stream);
+              }
+              readOriginalExecutionCompletion(output, completion);
+              return Object.freeze(inputs);
+            }),
+          );
           return completion;
         });
       },
@@ -2169,7 +2210,7 @@ function assertSameOriginalInput(original, current) {
 var hash3 = (raw) => createHash6('sha256').update(raw).digest('hex');
 var maximum = 256n * 1024n * 1024n;
 var identity = (stat) => Object.fromEntries(keys2.map((key) => [key, stat[key].toString()]));
-async function metadata(path) {
+async function metadata(path, allowEmpty = false) {
   const stat = await lstat3(path, { bigint: true });
   if (
     !stat.isFile() ||
@@ -2177,15 +2218,25 @@ async function metadata(path) {
     stat.uid !== BigInt(process.getuid?.() ?? -1) ||
     stat.nlink !== 1n ||
     (stat.mode & 0o022n) !== 0n ||
-    stat.size < 1n ||
+    stat.size < (allowEmpty ? 0n : 1n) ||
     stat.size > maximum
   )
     throw new OriginalInputMonitorError('file-metadata-invalid');
   return stat;
 }
-async function monitorOriginalInputs(input) {
-  const bindings = Object.values(input).map((binding) => ({
+async function monitorOriginalInputs(input, options = {}) {
+  const empty = new Set(options.allowEmpty ?? []);
+  if (
+    Object.keys(options).some((key) => key !== 'allowEmpty') ||
+    empty.size !== (options.allowEmpty?.length ?? 0) ||
+    [...empty].some(
+      (name) => input[name]?.expectedIdentity?.size !== '0' || input[name].sha256 !== hash3(new Uint8Array()),
+    )
+  )
+    throw new Error('Explicit exact empty original input identities required');
+  const bindings = Object.entries(input).map(([name, binding]) => ({
     ...binding,
+    allowEmpty: empty.has(name),
     expectedIdentity: binding.expectedIdentity ? { ...binding.expectedIdentity } : undefined,
     expectedParentIdentity: binding.expectedParentIdentity ? { ...binding.expectedParentIdentity } : undefined,
   }));
@@ -2215,8 +2266,8 @@ async function monitorOriginalInputs(input) {
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
       const results = await Promise.allSettled(
-        originals.map(async ({ binding, file, parent }) => {
-          const current = await metadata(binding.path);
+        originals.map(async ({ binding, file, parent, allowEmpty }) => {
+          const current = await metadata(binding.path, allowEmpty);
           if (keys2.some((key) => current[key].toString() !== file[key]))
             throw new OriginalInputMonitorError('file-identity-changed');
           const currentParent = await lstat3(dirname3(binding.path), { bigint: true });
@@ -2237,7 +2288,7 @@ async function monitorOriginalInputs(input) {
           } finally {
             await handle.close();
           }
-          const after = await metadata(binding.path);
+          const after = await metadata(binding.path, allowEmpty);
           if (keys2.some((key) => after[key].toString() !== file[key]))
             throw new OriginalInputMonitorError('read-identity-changed');
           if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
@@ -2257,7 +2308,7 @@ async function monitorOriginalInputs(input) {
         !/^[a-f0-9]{64}$/.test(binding.sha256)
       )
         throw new Error('Original input monitor requires canonical reviewed bindings');
-      const stat = await metadata(binding.path);
+      const stat = await metadata(binding.path, binding.allowEmpty);
       const parent = await lstat3(dirname3(binding.path), { bigint: true });
       if (
         !parent.isDirectory() ||
@@ -2293,6 +2344,7 @@ async function monitorOriginalInputs(input) {
         binding,
         file,
         parent: parentIdentity,
+        allowEmpty: binding.allowEmpty,
       });
     }
     await inspectOriginal(true);
@@ -4565,6 +4617,12 @@ async function assertFinalReaderReserve(reserve) {
 var callbacks = new WeakMap();
 var lifetimes = new WeakMap();
 var groupClosures = new WeakMap();
+var groupClosureChecks = new WeakMap();
+async function assertOriginalApplyGroupClosed(value) {
+  const verify = value && typeof value === 'object' ? groupClosureChecks.get(value) : undefined;
+  if (!verify) throw new Error('Original final apply callback required for group closure proof');
+  await verify();
+}
 async function acknowledgeOriginalApplyGroupClosure(callback, completion) {
   const acknowledge = callback && typeof callback === 'object' ? groupClosures.get(callback) : undefined;
   if (!acknowledge) throw new Error('Original final apply callback required for group closure');
@@ -4598,6 +4656,7 @@ function createInstalledApplyController(original, worker, hooks) {
     finalStarted = false,
     groupClosed = false,
     closed = false;
+  let closureInputs;
   let preparation;
   const within = async () => {
     await original.assertInputs();
@@ -4682,6 +4741,24 @@ function createInstalledApplyController(original, worker, hooks) {
         return source;
       };
       let verificationQueue = Promise.resolve();
+      groupClosureChecks.set(value, async () => {
+        if (!groupClosed || !claimed || !acknowledgement)
+          throw new Error('Original acknowledged group closure required');
+        await acknowledgement;
+        await original.assertInputs();
+        const source = readOriginalExecutionCompletion(execution.output, claimed);
+        if (!closureInputs) throw new Error('Original acknowledged output input leases required');
+        await closureInputs.assertOriginal();
+        if (
+          !groupClosed ||
+          source.directory !== original.executionDirectory ||
+          !sameIdentity(source.identity, execution.identity) ||
+          source.completion.originalGroupClosed !== true
+        )
+          throw new Error('Original group closure proof identity or complete prefix differs');
+        await original.assertInputs();
+        readOriginalExecutionCompletion(execution.output, claimed);
+      });
       const acknowledge = async (candidate) => {
         await verifyClosure(candidate);
         if (acknowledgement) {
@@ -4694,6 +4771,13 @@ function createInstalledApplyController(original, worker, hooks) {
         acknowledgement = (async () => {
           try {
             const source = await verifyClosure(candidate);
+            const completedInputs = await readOriginalCompletedOutputInputs(execution.output, candidate);
+            closureInputs = await monitorOriginalInputs(completedInputs, {
+              allowEmpty: Object.keys(completedInputs).filter(
+                (name) => completedInputs[name].expectedIdentity?.size === '0',
+              ),
+            });
+            await closureInputs.assertOriginal();
             await record('group-closure-source', {
               originalGroupClosed: true,
               sourceStdoutBytes: source.completion.stdout.bytes,
@@ -4853,9 +4937,11 @@ function createInstalledApplyController(original, worker, hooks) {
       if (closed) return;
       if (started && (!finalStarted || !groupClosed)) throw new Error('Original apply executor closure required');
       await original.assertInputs();
+      if (closureInputs) await closureInputs.assertOriginal();
       await methods.close();
       await record('closed');
       closed = true;
+      closureInputs?.close();
     },
   };
 }
@@ -18871,6 +18957,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
     throw new Error('Original bootstrap stage creation target coverage differs');
   const savedHash = fingerprint(saved);
   let callback;
+  let finalClosureCallback;
   let actor;
   let reader;
   let observation;
@@ -19094,6 +19181,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         throw new Error('Original bootstrap final executor or budget differs');
       await assertFinalReaderReserve(reserve);
       finalStarted = true;
+      finalClosureCallback = finalCallback;
       originalGroupClosed = finished.originalGroupClosed;
       const outcomes = await Promise.allSettled([
         pending ?? Promise.reject(new Error('Original bootstrap startup incomplete')),
@@ -19125,7 +19213,8 @@ async function openInstalledBootstrapCapture(input, options = {}) {
     },
     async closeAfterExecutorExit() {
       if (closed) return;
-      if (!finalStarted || !originalGroupClosed) throw new Error('Original bootstrap stage executor closure required');
+      if (!finalStarted) throw new Error('Original bootstrap stage executor closure required');
+      if (!originalGroupClosed) await assertOriginalApplyGroupClosed(finalClosureCallback);
       await inputs();
       try {
         await reader?.closeAfterExecutorExit();
@@ -21695,6 +21784,7 @@ function factory(pi) {
 export {
   acknowledgeOriginalApplyGroupClosure,
   assertOriginalApplyGcpInventoryCallback,
+  assertOriginalApplyGroupClosed,
   assertOriginalGcpCeHostTrustContext,
   assertOriginalGcpCeWireKeysContext,
   assertOriginalGcpInventoryInputs,

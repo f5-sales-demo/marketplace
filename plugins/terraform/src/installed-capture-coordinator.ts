@@ -1,4 +1,8 @@
-import { assertOriginalApplyCallback, type OriginalApplyCallbackContext } from './installed-apply-controller';
+import {
+  assertOriginalApplyCallback,
+  assertOriginalApplyGroupClosed,
+  type OriginalApplyCallbackContext,
+} from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import type { InstalledGcpCapture } from './installed-runtime';
 import { assertFinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
@@ -261,8 +265,9 @@ export function createInstalledCaptureCoordinator(
     closeAfterExecutorExit() {
       closePromise ??= (async () => {
         if (!stages || !graphsQualified) throw new Error('Original collector closure dependencies are unavailable');
-        if (startupClaimed && (!finalClaimed || !finalPromise || !finalCapture?.originalGroupClosed))
+        if (startupClaimed && (!finalClaimed || !finalPromise || !finalCapture))
           throw new Error('Original collector final capture and parent closure required');
+        if (startupClaimed && !finalCapture?.originalGroupClosed) await assertOriginalApplyGroupClosed(after);
         closing = true;
         const failures: unknown[] = [];
         try {

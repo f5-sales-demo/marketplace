@@ -7999,7 +7999,7 @@ import { constants as constants2, watch as watch2 } from 'node:fs';
 import { lstat as lstat6, open as open2, realpath as realpath4 } from 'node:fs/promises';
 import { basename as basename3, dirname as dirname3, isAbsolute as isAbsolute4, resolve as resolve3 } from 'node:path';
 
-async function metadata2(path) {
+async function metadata2(path, allowEmpty = false) {
   const stat = await lstat6(path, { bigint: true });
   if (
     !stat.isFile() ||
@@ -8007,15 +8007,25 @@ async function metadata2(path) {
     stat.uid !== BigInt(process.getuid?.() ?? -1) ||
     stat.nlink !== 1n ||
     (stat.mode & 0o022n) !== 0n ||
-    stat.size < 1n ||
+    stat.size < (allowEmpty ? 0n : 1n) ||
     stat.size > maximum
   )
     throw new OriginalInputMonitorError('file-metadata-invalid');
   return stat;
 }
-async function monitorOriginalInputs(input) {
-  const bindings = Object.values(input).map((binding) => ({
+async function monitorOriginalInputs(input, options = {}) {
+  const empty = new Set(options.allowEmpty ?? []);
+  if (
+    Object.keys(options).some((key) => key !== 'allowEmpty') ||
+    empty.size !== (options.allowEmpty?.length ?? 0) ||
+    [...empty].some(
+      (name) => input[name]?.expectedIdentity?.size !== '0' || input[name].sha256 !== hash5(new Uint8Array()),
+    )
+  )
+    throw new Error('Explicit exact empty original input identities required');
+  const bindings = Object.entries(input).map(([name, binding]) => ({
     ...binding,
+    allowEmpty: empty.has(name),
     expectedIdentity: binding.expectedIdentity ? { ...binding.expectedIdentity } : undefined,
     expectedParentIdentity: binding.expectedParentIdentity ? { ...binding.expectedParentIdentity } : undefined,
   }));
@@ -8045,8 +8055,8 @@ async function monitorOriginalInputs(input) {
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
       const results = await Promise.allSettled(
-        originals.map(async ({ binding, file, parent }) => {
-          const current = await metadata2(binding.path);
+        originals.map(async ({ binding, file, parent, allowEmpty }) => {
+          const current = await metadata2(binding.path, allowEmpty);
           if (keys2.some((key) => current[key].toString() !== file[key]))
             throw new OriginalInputMonitorError('file-identity-changed');
           const currentParent = await lstat6(dirname3(binding.path), { bigint: true });
@@ -8067,7 +8077,7 @@ async function monitorOriginalInputs(input) {
           } finally {
             await handle.close();
           }
-          const after = await metadata2(binding.path);
+          const after = await metadata2(binding.path, allowEmpty);
           if (keys2.some((key) => after[key].toString() !== file[key]))
             throw new OriginalInputMonitorError('read-identity-changed');
           if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
@@ -8087,7 +8097,7 @@ async function monitorOriginalInputs(input) {
         !/^[a-f0-9]{64}$/.test(binding.sha256)
       )
         throw new Error('Original input monitor requires canonical reviewed bindings');
-      const stat = await metadata2(binding.path);
+      const stat = await metadata2(binding.path, binding.allowEmpty);
       const parent = await lstat6(dirname3(binding.path), { bigint: true });
       if (
         !parent.isDirectory() ||
@@ -8123,6 +8133,7 @@ async function monitorOriginalInputs(input) {
         binding,
         file,
         parent: parentIdentity,
+        allowEmpty: binding.allowEmpty,
       });
     }
     await inspectOriginal(true);

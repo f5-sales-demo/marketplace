@@ -61,7 +61,7 @@ const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex')
 const maximum = 256n * 1024n * 1024n;
 const identity = (stat: Awaited<ReturnType<typeof metadata>>) =>
   Object.fromEntries(keys.map((key) => [key, stat[key].toString()])) as Record<(typeof keys)[number], string>;
-async function metadata(path: string) {
+async function metadata(path: string, allowEmpty = false) {
   const stat = await lstat(path, { bigint: true });
   if (
     !stat.isFile() ||
@@ -69,7 +69,7 @@ async function metadata(path: string) {
     stat.uid !== BigInt(process.getuid?.() ?? -1) ||
     stat.nlink !== 1n ||
     (stat.mode & 0o022n) !== 0n ||
-    stat.size < 1n ||
+    stat.size < (allowEmpty ? 0n : 1n) ||
     stat.size > maximum
   )
     throw new OriginalInputMonitorError('file-metadata-invalid');
@@ -77,9 +77,22 @@ async function metadata(path: string) {
 }
 
 /** Retain one original file set through its owning lifetime. Closure does not prove executor or reader exit. */
-export async function monitorOriginalInputs(input: Readonly<Record<string, OriginalInputBinding>>) {
-  const bindings = Object.values(input).map((binding) => ({
+export async function monitorOriginalInputs(
+  input: Readonly<Record<string, OriginalInputBinding>>,
+  options: { readonly allowEmpty?: readonly string[] } = {},
+) {
+  const empty = new Set(options.allowEmpty ?? []);
+  if (
+    Object.keys(options).some((key) => key !== 'allowEmpty') ||
+    empty.size !== (options.allowEmpty?.length ?? 0) ||
+    [...empty].some(
+      (name) => input[name]?.expectedIdentity?.size !== '0' || input[name].sha256 !== hash(new Uint8Array()),
+    )
+  )
+    throw new Error('Explicit exact empty original input identities required');
+  const bindings = Object.entries(input).map(([name, binding]) => ({
     ...binding,
+    allowEmpty: empty.has(name),
     expectedIdentity: binding.expectedIdentity ? { ...binding.expectedIdentity } : undefined,
     expectedParentIdentity: binding.expectedParentIdentity ? { ...binding.expectedParentIdentity } : undefined,
   }));
@@ -90,6 +103,7 @@ export async function monitorOriginalInputs(input: Readonly<Record<string, Origi
     binding: OriginalInputBinding;
     file: OriginalInputIdentity;
     parent: OriginalInputParentIdentity;
+    allowEmpty: boolean;
   }> = [];
   let refused = false;
   let firstRefusal: OriginalInputMonitorError | undefined;
@@ -113,8 +127,8 @@ export async function monitorOriginalInputs(input: Readonly<Record<string, Origi
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
       const results = await Promise.allSettled(
-        originals.map(async ({ binding, file, parent }) => {
-          const current = await metadata(binding.path);
+        originals.map(async ({ binding, file, parent, allowEmpty }) => {
+          const current = await metadata(binding.path, allowEmpty);
           if (keys.some((key) => current[key].toString() !== file[key]))
             throw new OriginalInputMonitorError('file-identity-changed');
           const currentParent = await lstat(dirname(binding.path), { bigint: true });
@@ -135,7 +149,7 @@ export async function monitorOriginalInputs(input: Readonly<Record<string, Origi
           } finally {
             await handle.close();
           }
-          const after = await metadata(binding.path);
+          const after = await metadata(binding.path, allowEmpty);
           if (keys.some((key) => after[key].toString() !== file[key]))
             throw new OriginalInputMonitorError('read-identity-changed');
           if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
@@ -155,7 +169,7 @@ export async function monitorOriginalInputs(input: Readonly<Record<string, Origi
         !/^[a-f0-9]{64}$/.test(binding.sha256)
       )
         throw new Error('Original input monitor requires canonical reviewed bindings');
-      const stat = await metadata(binding.path);
+      const stat = await metadata(binding.path, binding.allowEmpty);
       const parent = await lstat(dirname(binding.path), { bigint: true });
       if (
         !parent.isDirectory() ||
@@ -191,6 +205,7 @@ export async function monitorOriginalInputs(input: Readonly<Record<string, Origi
         binding,
         file,
         parent: parentIdentity,
+        allowEmpty: binding.allowEmpty,
       });
     }
     // Admission always hashes all bytes. Identity checks cannot be obtained before it succeeds.

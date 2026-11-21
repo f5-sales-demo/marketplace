@@ -10,6 +10,7 @@ import {
 } from './gcp-preapply-bootstrap';
 import {
   assertOriginalApplyCallback,
+  assertOriginalApplyGroupClosed,
   assertOriginalApplyLifetime,
   type OriginalApplyCallbackContext,
 } from './installed-apply-controller';
@@ -135,6 +136,7 @@ export async function openInstalledBootstrapCapture(
     throw new Error('Original bootstrap stage creation target coverage differs');
   const savedHash = fingerprint(saved);
   let callback: OriginalApplyCallbackContext | undefined;
+  let finalClosureCallback: OriginalApplyCallbackContext | undefined;
   let actor: ExecutionCaptureAdmission | undefined;
   let reader: Awaited<ReturnType<typeof openInstalledXcshCreationReader>> | undefined;
   let observation: OriginalGcpBootstrapObservation | undefined;
@@ -368,6 +370,7 @@ export async function openInstalledBootstrapCapture(
         throw new Error('Original bootstrap final executor or budget differs');
       await assertFinalReaderReserve(reserve);
       finalStarted = true;
+      finalClosureCallback = finalCallback;
       originalGroupClosed = finished.originalGroupClosed;
       const outcomes = await Promise.allSettled([
         pending ?? Promise.reject(new Error('Original bootstrap startup incomplete')),
@@ -399,7 +402,8 @@ export async function openInstalledBootstrapCapture(
     },
     async closeAfterExecutorExit() {
       if (closed) return;
-      if (!finalStarted || !originalGroupClosed) throw new Error('Original bootstrap stage executor closure required');
+      if (!finalStarted) throw new Error('Original bootstrap stage executor closure required');
+      if (!originalGroupClosed) await assertOriginalApplyGroupClosed(finalClosureCallback);
       await inputs();
       try {
         await reader?.closeAfterExecutorExit();

@@ -8,6 +8,7 @@ import {
   type OriginalApplyCallbackContext,
 } from '../../src/installed-apply-controller';
 import { createInstalledCaptureContext } from '../../src/installed-capture-context';
+import type { InstalledGcpCapture } from '../../src/installed-runtime';
 import { readOwnedInstalledInput } from '../../src/installed-runtime';
 import { linuxMonotonicMs } from '../../src/linux-clock';
 import { monitorOriginalInputs } from '../../src/original-input-monitor';
@@ -26,6 +27,10 @@ export async function withGroupClosure(
   run: (input: GroupClosureFixtureInput) => Promise<void>,
   failGroupRecord = false,
   afterGroupRecord?: (adcPath: string) => Promise<void>,
+  compose?: (
+    context: ReturnType<typeof createInstalledCaptureContext>,
+    worker: InstalledGcpCapture,
+  ) => InstalledGcpCapture,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-apply-group-closure-'));
   const adc = join(root, 'adc.private'),
@@ -70,40 +75,37 @@ export async function withGroupClosure(
   });
   let before: OriginalApplyCallbackContext | undefined;
   const events: Record<string, unknown>[] = [];
-  const controller = createInstalledApplyController(
-    context,
-    {
-      start: async (_admission, callback) => {
-        before = callback;
-      },
-      assertOriginal: async () => {},
-      finalCapture: async (finished, _reserve, final) => {
-        if (!before || !final) throw new Error('Original callbacks required');
-        await writeFile(release, 'release', { flag: 'wx', mode: 0o400 });
-        for (const channel of ['stdout', 'stderr'] as const)
-          for (;;) {
-            if (!(await final.execution.output.read(channel))) break;
-          }
-        const completion = await final.execution.output.finish();
-        await run({ before, final, completion, finished, events });
-      },
-      closeAfterExecutorExit: async () => {
-        events.push({ phase: 'worker-closed' });
-      },
+  const worker: InstalledGcpCapture = {
+    start: async (_admission, callback) => {
+      before = callback;
     },
-    {
-      persist: async (event) => {
-        if (failGroupRecord && event.phase === 'group-closure-source')
-          throw new Error('Synthetic group closure persistence failed');
-        await writeFile(join(root, `event-${String(event.sequence)}.private.json`), JSON.stringify(event), {
-          flag: 'wx',
-          mode: 0o400,
-        });
-        events.push(event);
-        if (event.phase === 'group-closure-source') await afterGroupRecord?.(adc);
-      },
+    assertOriginal: async () => {},
+    finalCapture: async (finished, _reserve, final) => {
+      if (!before || !final) throw new Error('Original callbacks required');
+      await writeFile(release, 'release', { flag: 'wx', mode: 0o400 });
+      for (const channel of ['stdout', 'stderr'] as const)
+        for (;;) {
+          if (!(await final.execution.output.read(channel))) break;
+        }
+      const completion = await final.execution.output.finish();
+      await run({ before, final, completion, finished, events });
     },
-  );
+    closeAfterExecutorExit: async () => {
+      events.push({ phase: 'worker-closed' });
+    },
+  };
+  const controller = createInstalledApplyController(context, compose ? compose(context, worker) : worker, {
+    persist: async (event) => {
+      if (failGroupRecord && event.phase === 'group-closure-source')
+        throw new Error('Synthetic group closure persistence failed');
+      await writeFile(join(root, `event-${String(event.sequence)}.private.json`), JSON.stringify(event), {
+        flag: 'wx',
+        mode: 0o400,
+      });
+      events.push(event);
+      if (event.phase === 'group-closure-source') await afterGroupRecord?.(adc);
+    },
+  });
   const script = join(root, 'apply');
   await writeFile(
     script,

@@ -67,6 +67,21 @@ interface OriginalRecordOrigin {
   identity: Identity;
   assertValid(): void;
 }
+const closedOutputInputs = new WeakMap<
+  OriginalOutputCompletion,
+  () => Promise<Readonly<Record<string, import('./original-input-monitor').OriginalInputBinding>>>
+>();
+/** Bind original complete files while capture authorization still applies.
+ * These original identities support later independent closure-only leases. */
+export async function readOriginalCompletedOutputInputs(
+  output: OriginalExecutionOutput,
+  completion: OriginalOutputCompletion,
+) {
+  readOriginalExecutionCompletion(output, completion);
+  const read = closedOutputInputs.get(completion);
+  if (!read) throw new Error('Original completed output inputs required');
+  return read();
+}
 const chunkOrigins = new WeakMap<OriginalOutputChunk, OriginalRecordOrigin & { channel: Channel; bytes: Buffer }>();
 const completionOrigins = new WeakMap<OriginalOutputCompletion, OriginalRecordOrigin>();
 /** Private source bytes, not a receipt deserializer or path-only assertion. */
@@ -449,6 +464,45 @@ export async function bindOriginalExecutionOutput(input: {
               if (refused) throw new Error('Original completion source is refused');
             },
           });
+          closedOutputInputs.set(completion, () =>
+            exclusive(async () => {
+              const inputs: Record<string, import('./original-input-monitor').OriginalInputBinding> = {};
+              for (const channel of ['stdout', 'stderr'] as const) {
+                const stream = streams[channel];
+                await guard(stream);
+                await verifyPrefix(stream);
+                const metadata = await stream.reader.stat({ bigint: true });
+                if (
+                  metadata.size !== BigInt(completion[channel].bytes) ||
+                  stream.hash.copy().digest('hex') !== completion[channel].sha256
+                )
+                  throw new OutputRefusal('Original closed output extent changed');
+                inputs[channel] = Object.freeze({
+                  path: stream.path,
+                  sha256: completion[channel].sha256,
+                  expectedIdentity: Object.freeze(
+                    Object.fromEntries(
+                      ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].map((key) => [
+                        key,
+                        String(metadata[key as keyof typeof metadata]),
+                      ]),
+                    ),
+                  ) as import('./original-input-monitor').OriginalInputBinding['expectedIdentity'],
+                  expectedParentIdentity: Object.freeze(
+                    Object.fromEntries(
+                      ['dev', 'ino', 'uid', 'mode'].map((key) => [
+                        key,
+                        String(stream.parent[key as keyof typeof stream.parent]),
+                      ]),
+                    ),
+                  ) as import('./original-input-monitor').OriginalInputBinding['expectedParentIdentity'],
+                });
+                await guard(stream);
+              }
+              readOriginalExecutionCompletion(output, completion);
+              return Object.freeze(inputs);
+            }),
+          );
           return completion;
         });
       },

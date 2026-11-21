@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import type { InstalledGcpCapture } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
+import { monitorOriginalInputs } from './original-input-monitor';
 import {
   type OriginalOutputCompletion,
+  readOriginalCompletedOutputInputs,
   readOriginalExecutionCompletion,
   readOriginalExecutionPrefix,
 } from './original-output-stream';
@@ -23,6 +25,15 @@ export interface OriginalApplyCallbackContext {
 const callbacks = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
 const lifetimes = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
 const groupClosures = new WeakMap<OriginalApplyCallbackContext, (completion: unknown) => Promise<void>>();
+const groupClosureChecks = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
+/** Closure-only proof from the acknowledged original output issuer. It cannot
+ * renew a reserve, authorize capture or rewrite an initial failed snapshot. */
+export async function assertOriginalApplyGroupClosed(value: unknown): Promise<void> {
+  const verify =
+    value && typeof value === 'object' ? groupClosureChecks.get(value as OriginalApplyCallbackContext) : undefined;
+  if (!verify) throw new Error('Original final apply callback required for group closure proof');
+  await verify();
+}
 /** Consume the same original output issuer's independent group-closure proof.
  * This does not renew the final reserve or qualify an apply, guest or insertion. */
 export async function acknowledgeOriginalApplyGroupClosure(callback: unknown, completion: unknown): Promise<void> {
@@ -74,6 +85,7 @@ export function createInstalledApplyController(
     finalStarted = false,
     groupClosed = false,
     closed = false;
+  let closureInputs: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
   let preparation: Promise<void> | undefined;
   const within = async () => {
     await original.assertInputs();
@@ -159,6 +171,24 @@ export function createInstalledApplyController(
         return source;
       };
       let verificationQueue: Promise<void> = Promise.resolve();
+      groupClosureChecks.set(value, async () => {
+        if (!groupClosed || !claimed || !acknowledgement)
+          throw new Error('Original acknowledged group closure required');
+        await acknowledgement;
+        await original.assertInputs();
+        const source = readOriginalExecutionCompletion(execution.output, claimed);
+        if (!closureInputs) throw new Error('Original acknowledged output input leases required');
+        await closureInputs.assertOriginal();
+        if (
+          !groupClosed ||
+          source.directory !== original.executionDirectory ||
+          !sameIdentity(source.identity, execution.identity) ||
+          source.completion.originalGroupClosed !== true
+        )
+          throw new Error('Original group closure proof identity or complete prefix differs');
+        await original.assertInputs();
+        readOriginalExecutionCompletion(execution.output, claimed);
+      });
       const acknowledge = async (candidate: unknown) => {
         await verifyClosure(candidate);
         if (acknowledgement) {
@@ -171,6 +201,16 @@ export function createInstalledApplyController(
         acknowledgement = (async () => {
           try {
             const source = await verifyClosure(candidate);
+            const completedInputs = await readOriginalCompletedOutputInputs(
+              execution.output,
+              candidate as OriginalOutputCompletion,
+            );
+            closureInputs = await monitorOriginalInputs(completedInputs, {
+              allowEmpty: Object.keys(completedInputs).filter(
+                (name) => completedInputs[name].expectedIdentity?.size === '0',
+              ),
+            });
+            await closureInputs.assertOriginal();
             await record('group-closure-source', {
               originalGroupClosed: true,
               sourceStdoutBytes: source.completion.stdout.bytes,
@@ -330,9 +370,11 @@ export function createInstalledApplyController(
       if (closed) return;
       if (started && (!finalStarted || !groupClosed)) throw new Error('Original apply executor closure required');
       await original.assertInputs();
+      if (closureInputs) await closureInputs.assertOriginal();
       await methods.close();
       await record('closed');
       closed = true;
+      closureInputs?.close();
     },
   };
 }

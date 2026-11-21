@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { OriginalApplyCallbackContext } from './installed-apply-controller';
-import { assertOriginalApplyCallback } from './installed-apply-controller';
+import { assertOriginalApplyCallback, assertOriginalApplyGroupClosed } from './installed-apply-controller';
 import {
   assertOriginalApplyGcpInventoryCallback,
   type InstalledInitialInventoryInput,
@@ -35,6 +35,7 @@ export async function openInstalledInventoryCaptureStage(
   let baseline: OriginalApplyGcpInventory | undefined;
   let preparation: Promise<void> | undefined;
   let before: OriginalApplyCallbackContext | undefined;
+  let after: OriginalApplyCallbackContext | undefined;
   let actor: ExecutionCaptureAdmission | undefined;
   let started = false,
     finalStarted = false,
@@ -133,6 +134,7 @@ export async function openInstalledInventoryCaptureStage(
       )
         throw new Error('Original inventory final actor or budget differs');
       finalStarted = true;
+      after = callback;
       parentClosed = capture.originalGroupClosed;
       await assertFinalReaderReserve(reserve);
       if (!baseline) {
@@ -154,7 +156,8 @@ export async function openInstalledInventoryCaptureStage(
     },
     closeAfterExecutorExit() {
       closure ??= (async () => {
-        if (started && (!finalStarted || !parentClosed)) throw new Error('Original inventory parent closure required');
+        if (started && !finalStarted) throw new Error('Original inventory parent closure required');
+        if (started && !parentClosed) await assertOriginalApplyGroupClosed(after);
         await inventory.close();
         closeOriginalGcpInventoryScope(scope);
         closed = true;
