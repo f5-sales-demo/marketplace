@@ -130,6 +130,38 @@ test('parent independently approves every original guard and preserves incomplet
   ]);
 });
 
+for (const command of [
+  { operation: 'capture', kind: 'journal-help' },
+  { operation: 'capture', kind: 'cri-logs-help' },
+  { operation: 'capture', kind: 'docker-logs-help' },
+  { operation: 'capture', kind: 'vpm-journal-full' },
+  { operation: 'capture', kind: 'boot-warnings-full' },
+  { operation: 'capture', kind: 'cri-logs-full', containerId: 'a'.repeat(16) },
+  { operation: 'capture', kind: 'docker-logs-full', containerId: 'b'.repeat(16) },
+]) {
+  test(`parent dispatches source-approved complete capture: ${command.kind}`, async () => {
+    const f = fixture();
+    await f.parent.initialize();
+    f.peer.queue.push(...guards(5), result());
+    expect((await f.parent.command(command)).guestAcceptanceComplete).toBe(false);
+    expect(f.peer.sent.find((value) => value.type === 'command')).toEqual({ type: 'command', id: 1, ...command });
+  });
+}
+
+for (const command of [
+  { operation: 'capture', kind: 'cri-logs-full' },
+  { operation: 'capture', kind: 'docker-logs-full', containerId: 'b'.repeat(16), tail: 'all' },
+  { operation: 'capture', kind: 'cri-logs-full', containerId: 'a'.repeat(16) + ';id' },
+  { operation: 'capture', kind: 'vpm-journal-full', since: 'yesterday' },
+]) {
+  test(`parent rejects caller-supplied complete capture options: ${JSON.stringify(command)}`, async () => {
+    const f = fixture();
+    await f.parent.initialize();
+    await expect(f.parent.command(command)).rejects.toThrow(/Supported/);
+    expect(f.peer.sent.some((value) => value.type === 'command')).toBe(false);
+  });
+}
+
 test('missing original ownership or either serial guard cannot establish readiness', async () => {
   for (const index of [1, 2, 3]) {
     const f = fixture();

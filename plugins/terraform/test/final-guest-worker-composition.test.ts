@@ -40,12 +40,26 @@ int main(int argc, char **argv) {
     if (byte == '~') { escape = 1; continue; }
     if (byte == 21) { length = 0; command[0] = 0; continue; }
     if (byte == '\t') {
-      fputs("\r\nhealth status execcli exit\r\n>>> ", stdout);
+      if (!strncmp(command, "execcli journalctl ", 18))
+        fputs("\r\n--help -u -b -p -o --no-pager --utc\r\n>>> ", stdout);
+      else if (!strncmp(command, "execcli ", 8))
+        fputs("\r\njournalctl\r\n>>> ", stdout);
+      else fputs("\r\nhealth status execcli exit\r\n>>> ", stdout);
       continue;
     }
     if (byte == '\r') {
       printf("%s\r\n", command);
       if (!strcmp(command, "health")) fputs("OFFLINE_FIXTURE_HEALTH\r\n", stdout);
+      if (!strcmp(command, "execcli journalctl --help")) {
+        fputs("journalctl [OPTIONS...] [MATCHES...]\r\n", stdout);
+        fputs(" -u --unit=UNIT Show logs from the specified unit\r\n", stdout);
+        fputs(" -o --output=STRING Change journal output mode\r\n", stdout);
+        fputs(" --no-pager Do not pipe output into a pager\r\n", stdout);
+        fputs(" --utc Express time in Coordinated Universal Time\r\n", stdout);
+      }
+      if (!strcmp(command, "execcli journalctl -u vpm --no-pager --utc -o short-iso-precise"))
+        for (int index = 0; index < 250; index++)
+          printf("2026-11-21T00:00:00+0000 OFFLINE_JOURNAL_%d\r\n", index);
       fputs(">>> ", stdout);
       length = 0; command[0] = 0; continue;
     }
@@ -100,6 +114,20 @@ test('actual final worker captures after original operation expiry and closes wi
           expect(evidence[0].startedMonotonicMs).toBeGreaterThanOrEqual(original.budget.deadline);
           expect(evidence[0].truncated).toBe(false);
           expect(await readFile(String(evidence[0].path), 'utf8')).toContain('OFFLINE_FIXTURE_HEALTH');
+          await worker.command({ operation: 'discover', scope: 'execcli' });
+          await worker.command({ operation: 'discover', scope: 'journal' });
+          const help = await worker.command({ operation: 'capture', kind: 'journal-help' });
+          const journal = await worker.command({ operation: 'capture', kind: 'vpm-journal-full' });
+          const journalEvidence = journal.evidence as Record<string, unknown>[];
+          expect(journalEvidence).toHaveLength(1);
+          expect(journalEvidence[0].helpSha256).toBe((help.evidence as Record<string, unknown>[])[0].sha256);
+          expect(journalEvidence[0].logSelection).toBe('all-retained');
+          expect(journalEvidence[0].truncated).toBe(false);
+          expect(journalEvidence[0].instanceId).toBe(binding.instance_id);
+          expect(journalEvidence[0].guestAcceptanceComplete).toBe(false);
+          const fullRaw = await readFile(String(journalEvidence[0].path), 'utf8');
+          expect(fullRaw).toContain('OFFLINE_JOURNAL_0');
+          expect(fullRaw).toContain('OFFLINE_JOURNAL_249');
         } finally {
           await worker.dispose();
         }

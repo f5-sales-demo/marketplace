@@ -52,6 +52,18 @@ FIXED = {
     "boot-warnings": "execcli journalctl -b -p warning -n 200",
     "cri-list": "execcli crictl-ps-a",
     "docker-list": "execcli docker-ps-a",
+    "journal-help": "execcli journalctl --help",
+    "cri-logs-help": "execcli crictl-logs --help",
+    "docker-logs-help": "execcli docker-logs --help",
+    "vpm-journal-full": "execcli journalctl -u vpm --no-pager --utc -o short-iso-precise",
+    "boot-warnings-full": "execcli journalctl -b -p warning --no-pager --utc -o short-iso-precise",
+}
+FULL_JOURNALS = frozenset(("vpm-journal-full", "boot-warnings-full"))
+FULL_INSPECTIONS = frozenset(("cri-logs-full", "docker-logs-full"))
+HELP_SCOPES = {
+    "journal-help": "journal",
+    "cri-logs-help": "cri-logs",
+    "docker-logs-help": "docker-logs",
 }
 DISCOVERY = {
     "root": "",
@@ -74,6 +86,36 @@ KNOWN_COMPLETIONS = frozenset(
         "--tail",
     ]
 )
+
+
+def help_selections(scope: str, raw: bytes) -> frozenset[str]:
+    """Read only explicit options and whole-log defaults from original help."""
+    parsed = visible(raw)
+    if parsed is None:
+        reject("Incomplete command help terminal controls")
+    text = parsed.decode("utf-8", errors="strict")
+    if scope == "journal":
+        if not re.search(r"(?m)^journalctl \[OPTIONS", text):
+            return frozenset()
+        return frozenset(
+            flag
+            for flag in ("-u", "-b", "-p", "-o", "--no-pager", "--utc")
+            if re.search(r"(?m)^\s*" + re.escape(flag) + r"(?:\s|\[|=)", text)
+        )
+    signature = (
+        r"(?m)^\s*crictl logs - Fetch the logs of a container\s*$"
+        if scope == "cri-logs"
+        else r"(?m)^Usage:\s+docker logs \[OPTIONS\] CONTAINER\s*$"
+    )
+    tail = "-1" if scope == "cri-logs" else "all"
+    default = r"\(default: -1\)" if tail == "-1" else r'\(default "all"\)'
+    if re.search(signature, text) and re.search(
+        r"(?m)^\s*--tail\s+(?:value|string)\s+[^\r\n]*lines[^\r\n]*logs[^\r\n]*"
+        + default,
+        text,
+    ):
+        return frozenset(("--tail=" + tail,))
+    return frozenset()
 
 
 def reject(message: str) -> NoReturn:
@@ -292,6 +334,7 @@ class GuestEvidence:
         default_factory=dict
     )
     listings: dict[str, tuple[int, tuple[str, ...], str]] = field(default_factory=dict)
+    help: dict[str, tuple[int, frozenset[str], str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -518,6 +561,15 @@ class GuestSession:
         if not required <= item[1]:
             reject("Unavailable supported Site CLI command")
 
+    def require_help(self, scope: str, required: set[str]) -> str:
+        """Bind complete selections to fresh help from this original session."""
+        item = self.evidence.help.get(scope)
+        if item is None or not 0 <= self.monotonic() - item[0] <= FRESHNESS_MS:
+            reject("Fresh original command help required")
+        if not required <= item[1]:
+            reject("Supported complete log selection unavailable")
+        return item[2]
+
     def discover(self, scope: str) -> bytes:
         """Query only qualified completion contexts, then clear pending input."""
         if scope not in DISCOVERY:
@@ -572,9 +624,16 @@ class GuestSession:
             if container_id is not None:
                 reject("Unexpected container ID")
             command = FIXED[kind]
-        elif kind in ("cri-inspect", "cri-logs", "docker-inspect", "docker-logs"):
+        elif kind in (
+            "cri-inspect",
+            "cri-logs",
+            "docker-inspect",
+            "docker-logs",
+            *FULL_INSPECTIONS,
+        ):
+            base = kind.removesuffix("-full")
             self.require("root", {"execcli"})
-            self.require("execcli", {kind.replace("cri-", "crictl-")})
+            self.require("execcli", {base.replace("cri-", "crictl-")})
             runtime = kind.split("-", 1)[0]
             listing = self.listings.get(runtime)
             if (
@@ -593,10 +652,17 @@ class GuestSession:
                 != 1
             ):
                 reject("Foreign or ambiguous container ID")
-            command = "execcli " + kind.replace("cri-", "crictl-") + " " + container_id
-            if kind.endswith("logs"):
-                self.require(kind, {"--tail"})
-                command += " --tail=200"
+            command = "execcli " + base.replace("cri-", "crictl-") + " " + container_id
+            if base.endswith("logs"):
+                self.require(base, {"--tail"})
+                tail = (
+                    ("-1" if runtime == "cri" else "all")
+                    if kind in FULL_INSPECTIONS
+                    else "200"
+                )
+                if kind in FULL_INSPECTIONS:
+                    self.require_help(base, {"--tail=" + tail})
+                command += " --tail=" + tail
         else:
             reject("Unsupported Site CLI operation")
         words = command.split()
@@ -605,6 +671,12 @@ class GuestSession:
             self.require(words[0], {words[1]})
         if kind in ("vpm-journal", "boot-warnings"):
             self.require("journal", {word for word in words if word.startswith("-")})
+        if kind in HELP_SCOPES:
+            self.require(HELP_SCOPES[kind], {"--help"})
+        if kind in FULL_JOURNALS:
+            flags = {word for word in words if word.startswith("-")}
+            self.require_help("journal", flags)
+            self.require("journal", flags)
         return command
 
     def run(self, kind: str, *, container_id: str | None = None) -> bytes:
@@ -623,12 +695,34 @@ class GuestSession:
                         "listingSha256": self.listings[kind.split("-", 1)[0]][2],
                     }
                 )
-            if kind.endswith("logs") or kind in ("vpm-journal", "boot-warnings"):
+            full = kind in FULL_JOURNALS or kind in FULL_INSPECTIONS
+            if (
+                full
+                or kind.endswith("logs")
+                or kind in ("vpm-journal", "boot-warnings")
+            ):
                 text = visible(raw)
                 if text is None:
                     reject("Incomplete log terminal controls")
-                item["truncated"] = len(text.splitlines()) >= LOG_LINES
+                item["logSelection"] = "all-retained" if full else "tail-only"
+                item["truncated"] = self.transport.truncated or (
+                    not full and len(text.splitlines()) >= LOG_LINES
+                )
+                if full:
+                    scope = (
+                        "journal"
+                        if kind in FULL_JOURNALS
+                        else kind.removesuffix("-full")
+                    )
+                    item["helpSha256"] = self.evidence.help[scope][2]
             self.guard(deadline)
+            if kind in HELP_SCOPES:
+                scope = HELP_SCOPES[kind]
+                self.evidence.help[scope] = (
+                    self.monotonic(),
+                    help_selections(scope, raw),
+                    str(item["sha256"]),
+                )
             if kind in ("cri-list", "docker-list"):
                 text = visible(raw)
                 if text is None or not re.search(rb"CONTAINER\s+(?:ID|IMAGE)", text):

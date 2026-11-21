@@ -12,7 +12,7 @@ import struct
 import time
 from typing import NoReturn, Protocol, TypeGuard
 
-from .gcp_guest_session import CONTAINER_ID, DISCOVERY, FIXED
+from .gcp_guest_session import CONTAINER_ID, DISCOVERY, FIXED, FULL_INSPECTIONS
 
 
 def refuse(message: str) -> NoReturn:
@@ -33,7 +33,10 @@ def interrupted(message: str) -> NoReturn:
 MAX_FRAME = 65536
 MAX_COMMAND_MS = 60000
 NONCE = re.compile(r"[a-f0-9]{64}")
-INSPECTIONS = frozenset(("cri-inspect", "cri-logs", "docker-inspect", "docker-logs"))
+INSPECTIONS = (
+    frozenset(("cri-inspect", "cri-logs", "docker-inspect", "docker-logs"))
+    | FULL_INSPECTIONS
+)
 
 
 def clock_ms() -> int:

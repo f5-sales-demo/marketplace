@@ -64,8 +64,20 @@ const captures = new Set([
   'boot-warnings',
   'cri-list',
   'docker-list',
+  'journal-help',
+  'cri-logs-help',
+  'docker-logs-help',
+  'vpm-journal-full',
+  'boot-warnings-full',
 ]);
-const inspections = new Set(['cri-inspect', 'cri-logs', 'docker-inspect', 'docker-logs']);
+const inspections = new Set([
+  'cri-inspect',
+  'cri-logs',
+  'docker-inspect',
+  'docker-logs',
+  'cri-logs-full',
+  'docker-logs-full',
+]);
 const discoveries = new Set([
   'root',
   'status',

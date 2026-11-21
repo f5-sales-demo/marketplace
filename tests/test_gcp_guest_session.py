@@ -316,3 +316,174 @@ def test_unqualified_slo_guest_access_refuses_before_spawn(tmp_path, binding):
     with pytest.raises(ValueError, match="Original two-interface CE NIC join"):
         session(tmp_path, bad)
     assert not (tmp_path / "guest").exists()
+
+
+JOURNAL_HELP = b"""journalctl [OPTIONS...] [MATCHES...]
+  -u --unit=UNIT             Show logs from the specified unit
+  -b --boot[=ID]             Show logs from the specified boot
+  -p --priority=RANGE        Show entries of the specified priority
+  -o --output=STRING         Change journal output mode
+     --no-pager              Do not pipe output into a pager
+     --utc                   Express time in Coordinated Universal Time
+>>> """
+CRI_LOG_HELP = b"""NAME:
+   crictl logs - Fetch the logs of a container
+USAGE:
+   crictl logs [command options] CONTAINER-ID
+OPTIONS:
+   --tail value   Number of lines to show from the end of the logs (default: -1)
+>>> """
+DOCKER_LOG_HELP = b"""Usage: docker logs [OPTIONS] CONTAINER
+Options:
+      --tail string   Number of lines to show from the end of the logs (default "all")
+>>> """
+
+
+def full_capture_session(tmp_path, binding):
+    guest = session(tmp_path, binding)
+    original = guest.transport.exchange
+    responses = {
+        b"execcli journalctl --help": JOURNAL_HELP,
+        b"execcli crictl-logs --help": CRI_LOG_HELP,
+        b"execcli docker-logs --help": DOCKER_LOG_HELP,
+    }
+
+    def exchange(command, suffix=b"\r", **kwargs):
+        if suffix == b"\t" and command not in (b"", b"status "):
+            guest.transport.calls.append((command, suffix))
+            return b"journalctl\r\ncrictl-ps-a\r\ncrictl-inspect\r\ncrictl-logs\r\ndocker-ps-a\r\ndocker-inspect\r\ndocker-logs\r\n--help\r\n--tail\r\n-u\r\n-b\r\n-p\r\n-o\r\n--no-pager\r\n--utc\r\n>>> "
+        if command in responses:
+            guest.transport.calls.append((command, suffix))
+            return responses[command]
+        if command == b"execcli docker-ps-a":
+            guest.transport.calls.append((command, suffix))
+            return guest.transport.listing
+        return original(command, suffix, **kwargs)
+
+    guest.transport.exchange = exchange
+    guest.discover("root")
+    guest.discover("execcli")
+    return guest, responses
+
+
+def test_full_journal_requires_fresh_original_help_before_write(tmp_path, binding):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    before = len(guest.transport.calls)
+    with pytest.raises(ValueError, match="Fresh original command help"):
+        guest.run("vpm-journal-full")
+    assert len(guest.transport.calls) == before
+    guest.run("journal-help")
+    guest.run("vpm-journal-full")
+    assert guest.transport.calls[-1][0] == (
+        b"execcli journalctl -u vpm --no-pager --utc -o short-iso-precise"
+    )
+    assert guest.retained[-1]["logSelection"] == "all-retained"
+    assert not guest.retained[-1]["guestAcceptanceComplete"]
+    assert guest.retained[-1]["helpSha256"]
+
+
+@pytest.mark.parametrize(("runtime", "tail"), [("cri", "-1"), ("docker", "all")])
+def test_full_container_logs_bind_help_and_fresh_listing(
+    tmp_path, binding, runtime, tail
+):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover(runtime + "-logs")
+    guest.run(runtime + "-logs-help")
+    guest.run(runtime + "-list")
+    guest.run(runtime + "-logs-full", container_id="abcdef1234567890")
+    command = guest.transport.calls[-1][0]
+    executable = "crictl" if runtime == "cri" else "docker"
+    assert (
+        command == f"execcli {executable}-logs abcdef1234567890 --tail={tail}".encode()
+    )
+    assert guest.retained[-1]["listingSha256"] == guest.listings[runtime][2]
+    assert guest.retained[-1]["helpSha256"]
+    assert guest.retained[-1]["logSelection"] == "all-retained"
+
+
+def test_unknown_full_log_help_is_retained_and_refuses(tmp_path, binding):
+    guest, responses = full_capture_session(tmp_path, binding)
+    guest.discover("cri-logs")
+    responses[b"execcli crictl-logs --help"] = CRI_LOG_HELP.replace(
+        b"default: -1", b"default: 200"
+    )
+    guest.run("cri-logs-help")
+    guest.run("cri-list")
+    before = len(guest.transport.calls)
+    with pytest.raises(ValueError, match="Supported complete log selection"):
+        guest.run("cri-logs-full", container_id="abcdef1234567890")
+    assert len(guest.transport.calls) == before
+    assert guest.retained[-2]["path"]
+
+
+def test_refreshing_completion_does_not_refresh_command_help(tmp_path, binding):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    guest.run("journal-help")
+    guest.monotonic = lambda: 400001
+    guest.discover("root")
+    guest.discover("execcli")
+    guest.discover("journal")
+    before = len(guest.transport.calls)
+    with pytest.raises(ValueError, match="Fresh original command help"):
+        guest.run("vpm-journal-full")
+    assert len(guest.transport.calls) == before
+
+
+def test_large_full_log_is_not_classified_using_tail_line_limit(tmp_path, binding):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    guest.run("journal-help")
+    original = guest.transport.exchange
+
+    def exchange(command, suffix=b"\r", **kwargs):
+        if command.startswith(b"execcli journalctl -u vpm"):
+            return b"2026-11-21T00:00:00+0000 example\r\n" * 250 + b">>> "
+        return original(command, suffix, **kwargs)
+
+    guest.transport.exchange = exchange
+    guest.run("vpm-journal-full")
+    assert not guest.retained[-1]["truncated"]
+    assert not guest.retained[-1]["guestAcceptanceComplete"]
+
+
+@pytest.mark.parametrize("flag", [b"--no-pager", b"--utc", b"-o"])
+def test_full_journal_refuses_missing_help_option_before_write(tmp_path, binding, flag):
+    guest, responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    responses[b"execcli journalctl --help"] = JOURNAL_HELP.replace(flag, b"unavailable")
+    guest.run("journal-help")
+    before = len(guest.transport.calls)
+    with pytest.raises(ValueError, match="Supported complete log selection"):
+        guest.run("vpm-journal-full")
+    assert len(guest.transport.calls) == before
+
+
+def test_full_logs_cannot_select_foreign_or_injected_container(tmp_path, binding):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("cri-logs")
+    guest.run("cri-logs-help")
+    guest.run("cri-list")
+    before = len(guest.transport.calls)
+    for container_id in ("9999999999999999", "abcdef1234567890;id"):
+        with pytest.raises(ValueError, match="Foreign or ambiguous container"):
+            guest.run("cri-logs-full", container_id=container_id)
+    assert len(guest.transport.calls) == before
+
+
+def test_transport_truncation_keeps_full_log_incomplete(tmp_path, binding):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    guest.run("journal-help")
+
+    def exchange(_command, _suffix=b"\r", **_kwargs):
+        guest.transport.truncated = True
+        return b"partial retained log\r\n>>> "
+
+    guest.transport.exchange = exchange
+    with pytest.raises(ValueError, match="capture is retired"):
+        guest.run("vpm-journal-full")
+    assert guest.retained[-1]["truncated"]
+    assert not guest.retained[-1]["guestAcceptanceComplete"]
+    assert guest.failed

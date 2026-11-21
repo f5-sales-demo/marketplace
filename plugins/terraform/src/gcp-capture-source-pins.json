@@ -4,9 +4,9 @@
   "files": {
     "__init__.py": "e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb",
     "guest_pty.py": "2fa89c34dcfc3973ac401c919b40a40639a7cfddfcab3bac0f66a54628cd4ad5",
-    "gcp_guest_session.py": "9a16adb69f0428f58aa48debad229a675cc43e11fa88a4a1e558aefaa259808f",
+    "gcp_guest_session.py": "62aaa2ef0f4e7e09a02a86ba1ff72bfd98a9855bde4d95f75a3c93dfe64d4e38",
     "gcp_host_trust.py": "b60e21a70b96a08192ff2d533b7bba89c9a46a80680aa04540e241b6d16e4589",
-    "guest_control.py": "1c04972ed1a4576f450cc71d6e01539e20a9ab3c72d82242f55fcb4e115ed032",
+    "guest_control.py": "6fee424ef312d2c42b5b5c594993d8ab3db9f75d1268a6173ff348fa5220de7d",
     "guest_worker.py": "b333a4288e3ce0522864099e5956b4647a3b11e7002eae3cb6bac842eb2dce3f",
     "guest_final_budget.py": "cdc8265b79abf561cae68b345557733a72f7b7d10c5527c22800daf93be066c9",
     "guest_entrypoint.py": "30890a7033fae2fd5261987736c25279331f3978a1172eeba8fb41a6edcde0a5",
