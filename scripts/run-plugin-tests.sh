@@ -44,6 +44,7 @@ XCSH_VALIDATION_PACKAGE="$REPO_ROOT/scripts/agent-validation-runtime/node_module
 bun test tests/presentation-tracker.test.ts tests/presentation-ownership.test.ts tests/installed-salesforce-verifier.test.ts tests/native-capture-contract.test.ts tests/marketplace-qualification.test.ts tests/marketplace-observer.test.ts tests/salesforce-lifecycle-qualification.test.ts tests/salesforce-fixture-outcomes.test.ts || exit 1
 python3 tests/test_native_capture_tools.py || exit 1
 bun test scripts/presentation-inventory.test.ts scripts/salesforce-campaign-observer.test.ts scripts/observed-lifecycle-component.test.ts scripts/observe-marketplace-lifecycle.test.ts || exit 1
+bun test scripts/ce-uat-public-mappings.test.ts scripts/ce-uat-readiness.test.ts scripts/ce-runtime-assets.test.ts || exit 1
 (cd scripts/agent-validation-runtime && bun test .) || exit 1
 
 bun test tests/integration-lifecycle.test.ts tests/firecrawl-status.test.ts tests/ghostty-probe.test.ts tests/zoom-presentation.test.ts tests/terraform-lifecycle.test.ts || {
@@ -137,7 +138,13 @@ for suite in plugins/*/scripts/tests/run-tests.sh; do
       printf 'FATAL: dependency installation failed for %s\n' "$plugin" >&2
       exit 1
     fi
-    (cd "plugins/$plugin" && bun test .) || ok=1
+    if [ "$plugin" = azure ]; then
+      # Bun 1.4.4 isolates each file in its own worker. Keep tests within a file serial.
+      # One worker avoids competing expensive lifecycle fixtures without changing test deadlines.
+      (cd "plugins/$plugin" && bun test . --parallel=1) || ok=1
+    else
+      (cd "plugins/$plugin" && bun test .) || ok=1
+    fi
   fi
 
   [ "$ok" -ne 0 ] && failed+=("$plugin")
@@ -150,7 +157,7 @@ fi
 
 # Frozen installs must also materialize the graph the manifests and locks declare. This
 # postcondition catches installer/linker regressions rather than trusting a zero exit code.
-if ! bash scripts/check-plugin-runtime-dependencies.sh; then
+if ! bash scripts/check-plugin-runtime-dependencies.sh --verify-installed; then
   echo "FATAL: plugin runtime dependency postcondition failed" >&2
   exit 1
 fi

@@ -1,0 +1,2947 @@
+{
+  "0105f9797ef83cb8149b2e94a63e23b09046883832e63475a8fa4569f59f0d37": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaTLSCoalescingOptions"
+      }
+    ]
+  },
+  "0296cfa98381a00c7be68a35a836704bde8ace229a6d4a3865c807da90aa4b94": {
+    "$ref": "#/components/schemas/securemesh_site_v2NutanixProviderType"
+  },
+  "02ebabd0c65157a179c163bc6eeca227971001c875e4d6abc2270d4cb325612c": {
+    "$ref": "#/components/schemas/viewscommon_securityJavaScriptLocation"
+  },
+  "038e901e09a9348352b5f3c302b95ef542572e4a547729c56ad78732716b9787": {
+    "type": "array",
+    "maxItems": 3,
+    "items": {
+      "$ref": "./shared-schema-components.json#/75c0f44a8d61c929424511354c2785ffb4224b64a3ca9790f225283971d61eee"
+    }
+  },
+  "03b023e88cdaf7e962a84d4bba2261f7cff203f86efc01bd8cab68a757be77b6": {
+    "$ref": "#/components/schemas/common_wafApiEndpointDetails"
+  },
+  "05af259a91238bc5e297a2495189a13f25b57ba5ca48d64006dfc3370f4e665a": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/policyMatcherType"
+      }
+    ]
+  },
+  "065de6a6d43e2f138695451b0d6d29ac451139480ec584503ddac017f57173ea": {
+    "type": "string",
+    "x-ves-example": "192.0.2.14.",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.string.ipv4": "true"
+    },
+    "x-f5xc-example": "192.0.2.14",
+    "x-validation-rules": {
+      "ves.io.schema.rules.string.ipv4": "true"
+    },
+    "x-f5xc-description-short": "Optional Secondary IPv4 DNS server to be used for name resolution.",
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/4790eccd460b571629aeed33e6c07d96a4a32af41dd59357579d1343a9927a85"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "description": "Optional Secondary IPv4 DNS server to be used for name resolution.",
+    "title": "secondary_nameserver",
+    "x-displayname": "Secondary IPv4 DNS Server."
+  },
+  "06ff6091ccdbd2bd2db20f2e2d3f006c9cb3d767de97e15bb406ee2dcb8fa08f": {
+    "not_managed": {
+      "$ref": "./shared-schema-components.json#/d1989cf9b3bc0b17d571dd8f6d8a94c620823696eee33c4809dda5c3173853c7"
+    }
+  },
+  "079dbda193a2bca6c47496869003c6c5d15322cc17d27fe54af0ea56709e7e37": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.items.string.max_len": "253",
+    "ves.io.schema.rules.repeated.items.string.min_len": "1",
+    "ves.io.schema.rules.repeated.max_items": "10",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "07ad8856748de7a038eed1fe19d676a0fd4d320330724aae7f5c53cdf15acb4f": {
+    "$ref": "#/components/schemas/clusterLoadbalancerAlgorithm"
+  },
+  "09b525c6ac303458f920ea5869395ac585aac8126bb64681131e5a419690c25b": {
+    "$ref": "#/components/schemas/securemesh_site_v2DNSNTPServerConfig"
+  },
+  "0a9e19ae9dc598ddb4d23d907c4885391fca1c63c104602e57dea61430ec8551": {
+    "type": "array",
+    "maxItems": 4,
+    "items": {
+      "$ref": "#/components/schemas/ioschemaObjectRefType"
+    }
+  },
+  "0aa039b8a326ad51d32239a90073b6da578be2f5edaf04187b08107df7dc344e": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/386505e3f64d6ae51e6039d5a626128d805bc2770ccb3d62901fbf5861d1d572"
+      }
+    ]
+  },
+  "0ad37f0d99cafb7e3cf47b71e1e32223f210cd98461e72dfe34295eaa0cda713": {
+    "$ref": "#/components/schemas/network_interfaceIPV6AutoConfigType"
+  },
+  "0b029a8a5fae6479b759f617a8837d39b88d971dc9e07095f2f835e026f985af": {
+    "$ref": "#/components/schemas/network_interfaceDHCPInterfaceIPV6Type"
+  },
+  "0cfc3aca8b3ce01c86cd5e58bc2d270999245a4ac6e8b306157135df995c0862": {
+    "ip_threat_categories": {
+      "$ref": "./shared-schema-components.json#/73bb8240326e6d6d062a58aa21e00eed75b29c396fde864e2025a8e29b43de04"
+    }
+  },
+  "0d2b71e8c24804f44a3587dbdfa1da9c74255915f645f1c6d87495677740e25d": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/03b023e88cdaf7e962a84d4bba2261f7cff203f86efc01bd8cab68a757be77b6"
+      }
+    ]
+  },
+  "0dcfd3f12803bf040561d6849b53de91ba3fc53c9b96dccc2a0803573f17aa39": {
+    "$ref": "#/components/schemas/securemesh_site_v2AWSProviderType"
+  },
+  "0f1b2b23eba03990620722b14482e74c9fbf82fabf1aec43b0c57bd90b5fa144": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/4c614011d757510af9dad0db44daed2742bd92b1e8a3d91f083cbd03724db446"
+      }
+    ]
+  },
+  "0f770498c6fb007ae945f9fb7981904c2c1e87c148e81fc700a276df2ba6824d": {
+    "$ref": "#/components/schemas/origin_poolOriginServerVirtualNetworkIP"
+  },
+  "0fa54934420f0a2e983d5c4b7d12acda3d28f82892c1b189c011ed87afe84edd": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "100e3dd115768eb7db9f3b608dd921674536fa9e14ab62fc835ea11d1d74aa29": {
+    "$ref": "#/components/schemas/securemesh_site_v2LocalVRFSettingType"
+  },
+  "118e09181b57bbd47ab64cd4eb7fd4f22b42c94b4529d870247732c215f38093": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaLabelSelectorType"
+      }
+    ]
+  },
+  "1397d0b78f088a03c689aab4cb3b36101f72b09c59fd302a2e87eb717dd2b535": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 20,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "147154ca651a4a7c5747181ec30bde3ffffac3c4f88345939d69ea26f24905af": {
+    "$ref": "#/components/schemas/securemesh_site_v2OpenShiftProviderType"
+  },
+  "1542b44b52c6ff927ebc67b88ab78604118b43b960cb155d9b309c71f1173d57": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/viewsAdvertisePublic"
+      }
+    ]
+  },
+  "177ab63de137d9a245a04217f8434edba22acbbae666aa1ccd2d3a511217f707": {
+    "$ref": "#/components/schemas/securemesh_site_v2SiteMeshGroupType"
+  },
+  "17d6cd401193844b468b35b16ec71c076527140599470be01c077cfcc64c49a2": {
+    "type": "string",
+    "x-ves-example": "Ns1",
+    "x-f5xc-example": "ns1",
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+    "maxLength": 63,
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/7de20144df5103252b0a7c4a13b3ca9fe82ef8ef5e4c7d85dca4a3ce26f36180"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "minLength": 1,
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
+    "title": "namespace",
+    "x-displayname": "Namespace"
+  },
+  "1823f80d28979bb717e88ba08832828793911adf3cfe9f29496512db97a2048d": {
+    "$ref": "#/components/schemas/origin_poolOriginServerVirtualNetworkName"
+  },
+  "1937029f8649b99d978effd95ec66aa09a28c512350ea9f50c2afcc129c73384": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.uri_ref": "true"
+  },
+  "19d366892645b16f720a5df8e1d3c8822eae86b3f21518d7af8880f4eeb784d3": {
+    "$ref": "#/components/schemas/network_interfaceStaticIpParametersNodeType"
+  },
+  "1a59351535bf6a4640264fd658c9e380eae709830c96c6dbb0127eeb984de284": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for automatic from end.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "1afc03ad8f33c25ff4f8543a194cf1cde44d3726cfc1e6d8e6a0ad92266cd203": {
+    "type": "object",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/0cfc3aca8b3ce01c86cd5e58bc2d270999245a4ac6e8b306157135df995c0862"
+    }
+  },
+  "1b0211f8896ebf61ef0d82369d180b0f3b8797b683dfe48838b842e06cf9e7d9": {
+    "description": "Minimum configuration for ioschemaObjectRefType",
+    "required_fields": [],
+    "mutually_exclusive_groups": [],
+    "example_json": "{}",
+    "example_yaml": "{}"
+  },
+  "1b14578c923a8ec82ac410c1c3c79b78af49f22ff6aafd6ba7147837c0ddbf80": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "4",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "1e41ef3927832141312d04060b01f3ac0c124079935ae808d2cc11808263da63": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 64,
+    "byteLength": {
+      "max": 64
+    },
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "1fa5398efbfeeb0f0b5764f7bc02c09eb9abf3fe2179c3e90a9c9f51006c46e9": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "1"
+  },
+  "1fde158c605f6cfea9cd37b216ad0464ffd096baa1db8302a79993a38abeaf16": {
+    "description": "Minimum configuration for ioschemaEmpty",
+    "required_fields": [],
+    "mutually_exclusive_groups": [],
+    "example_json": "{}",
+    "example_yaml": "{}"
+  },
+  "20a4a78e66e7cae0896384a14823f8bba5bc29547804ecbbe9a1c15e7cef3f54": {
+    "ves.io.schema.rules.string.mac": "true",
+    "ves.io.schema.rules.message.required": "true"
+  },
+  "20be26bb4854e524058250d01048e29ea53834a5e44f4dfee1d2488e581f2100": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/policyIpMatcherType"
+      }
+    ]
+  },
+  "20fb4b8d3a85028bff3d7d44e262504345e1e5c564838c644a91bdba42168a9e": {
+    "constraintType": "string",
+    "category": "naming",
+    "maxLength": 63,
+    "minLength": 1,
+    "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "characterSet": {
+      "$ref": "./shared-schema-components.json#/4eb2e3c361ea5b03651614e3ac70fbb24987df30ef779231bef2f7883fa6ab81"
+    },
+    "format": "dns-label",
+    "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+    "validation": {
+      "$ref": "./shared-schema-components.json#/e4a0ce338f9f6e564732f811d43cc6cfba4d50f34d2a6efee34ebbd180b1b72f"
+    },
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/cbe65f7f43966de5d11ea2c1438d7ecf706b8c35f4302695e2ff907c535c885e"
+    },
+    "deterministic": true
+  },
+  "217f74afc27c3be037aeacbebd4572216948841a1c6de9a1909d5e95e69b4e83": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.max_len": "64"
+  },
+  "21ec4743017ce41da2bc6f1333cbd0884a431f083dbaa522d377fc37c1adbd51": {
+    "resource_kind": "segment",
+    "field_path": "segment",
+    "gated_by": {
+      "choice": "tunnel_source_vn"
+    },
+    "required": false,
+    "cardinality": "single"
+  },
+  "22dd404b303f5e7f54afe75433537a72a8d18a7a16025859a7af68b900a9ef48": {
+    "ves.io.schema.rules.uint32.gte": "1",
+    "ves.io.schema.rules.uint32.lte": "5000"
+  },
+  "233c2ca897fd2e29e98a4207b8e939063f44826eb20a304a2b7e03fe1f7242f8": {
+    "$ref": "#/components/schemas/securemesh_site_v2OpenstackProviderType"
+  },
+  "2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaPathMatcherType"
+      }
+    ]
+  },
+  "23a0e5ff177eacf2ffe66c3c12fe5b846cebe56ed385581522bdc1bc470d2ca6": {
+    "constraintType": "array",
+    "category": "discovery",
+    "maxItems": 128,
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "23c2d7baa3d844ad5d6703c80d8bb3c81cb848373265a191b9b6874a79806a1a": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.max_bytes": "131072",
+    "ves.io.schema.rules.string.uri_ref": "true"
+  },
+  "2402759475c6c48a66bc2022521fdc2c8c05342e4d7c7873b7bedb3e01fb31b8": {
+    "$ref": "#/components/schemas/common_wafApiDiscoverySetting__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "248180eafd7d8c3c0724f14ccf300843f1740f757d38c6860413a7ea551aefdf": {
+    "constraintType": "number",
+    "category": "discovery",
+    "maximum": 1800000,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "27b935631fd261b09911611ea2cde4af521a775a023cd67799bed0b4c59bf091": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.ipv4": "true"
+  },
+  "281b2da3f80bee85838c6227917fe08398a3aab912c411f8772324e1e2835ec1": {
+    "next_hop_choice": ["default_gateway", "ip_address", "node_interface"]
+  },
+  "283c2b26c137c537825ac1fce32315bc9407729a75c820a1aa941f07295903cb": {
+    "ves.io.schema.rules.uint32.gte": "512",
+    "ves.io.schema.rules.uint32.lte": "1370"
+  },
+  "291f254c05fb8a62b806bfb2fb16f35a180152ed22cb68f7526d4e9e7e26e2ef": {
+    "source": "inferred",
+    "confidence": 0.85,
+    "validatedAt": "2026-10-16T10:31:02+00:00"
+  },
+  "2aac66416f25d9d62fa61bc8f43f11d506f1da7ec27184906a551a86b45e7a9a": {
+    "ves.io.schema.rules.string.hostname": "true",
+    "ves.io.schema.rules.string.max_len": "256"
+  },
+  "2b3c1ee05f0852dbb9f50a7f9ba5c6688a2036c5fdfde61bf48a7b6e610599ca": {
+    "$ref": "#/components/schemas/clusterEndpointSubsetSelectorType"
+  },
+  "2c028c51b7419f5e4ce7e8e802a7070d74c9e34b2185ddad3e06fcc153885f64": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "16",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "2c90f8323221c5684f658c477a8d6afa6abd48d498751c8ee7268c9ece48a6ef": {
+    "constraintType": "string",
+    "category": "discovery",
+    "minLength": 1,
+    "maxLength": 131072,
+    "byteLength": {
+      "max": 131072,
+      "min": 1
+    },
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "2cc900434eba11486f70ecaebf542845f94c583fabfdfa1c91da95a0adec2501": {
+    "ves.io.schema.rules.map.keys.string.mac": "true",
+    "ves.io.schema.rules.map.max_pairs": "128",
+    "ves.io.schema.rules.map.unique_values": "true",
+    "ves.io.schema.rules.map.values.string.ipv6": "true"
+  },
+  "2cdcb930d43a1c81200b262d219d85b055d2599144a5077f81f7641e762a1bd3": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/19d366892645b16f720a5df8e1d3c8822eae86b3f21518d7af8880f4eeb784d3"
+      }
+    ]
+  },
+  "2db6a13423ad1567342da7a976c77ff25d4da06eab88fd7edbd450f2314f6a8c": {
+    "ves.io.schema.rules.map.keys.string.max_len": "128",
+    "ves.io.schema.rules.map.keys.string.min_len": "1",
+    "ves.io.schema.rules.map.max_pairs": "64",
+    "ves.io.schema.rules.map.values.string.ipv6": "true"
+  },
+  "2ea9875938d1938c0e755d47faa4e320e4bcf03787ffd6832d0a85871fe7820f": {
+    "type": "string",
+    "maxLength": 1024,
+    "readOnly": true,
+    "minLength": 12
+  },
+  "2eb09e1853693ecfa93ac3ecf7bdfc516f97ca70dc399de5d8a5ae4a93999ff7": {
+    "ves.io.schema.rules.string.ves_service_namespace_name": "true"
+  },
+  "2f205bec9828388f3841597778cf4bb46100a246cc1df0f70262fa5e1784d8a9": {
+    "$ref": "#/components/schemas/securemesh_site_v2CustomProxy"
+  },
+  "30bfd12daae8c0bccdc3703042b9479f8026968fa74531e3838847f22db8a785": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "1"
+  },
+  "30f6ccd1666b394b64be0c37cd1c89450a8439bcee1a81d5e50f84092084e4a9": {
+    "$ref": "#/components/schemas/common_wafOpenApiValidationMode__ves_io_schema_views_bigip_virtual_server"
+  },
+  "315374c03cd776e57dd22fed375591d455dc7ad357fe4c24ff8dbbfaba4be5ce": {
+    "type": "object",
+    "x-ves-oneof-field-next_hop_choice": "[\"default_gateway\",\"ip_address\",\"node_interface\"]",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/93707e5867e6965956a55303cb0d220d5f02b99dc11dd1b77b7c3593d08a0114"
+    }
+  },
+  "318971665e2a9af56da2ed9d6a8f11c6d98329713be1117baa8f4f2e3705dbf2": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/policyDetectionContext"
+      }
+    ]
+  },
+  "318d58a0735019d73e8b702732f9e5765669f703c4ad664a66eebc9db7f64580": {
+    "$ref": "#/components/schemas/origin_poolOriginServerK8SService"
+  },
+  "3260243ae8f077165d372b2e97fb72fd90fae203fc717e19f420ad355e02de5c": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.ipv4_prefix": "true"
+  },
+  "32eb95df34f834bd716ad2bd4fdd9b2f82a20889382c0b3b724d7bb06ecde904": {
+    "password": {
+      "$ref": "./shared-schema-components.json#/f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8"
+    },
+    "user": {
+      "type": "string",
+      "maxLength": 64
+    }
+  },
+  "33566cf31a7564a231091432ca469518c23d2df34fb1679c9a2ae4f6293d4038": {
+    "$ref": "#/components/schemas/network_interfaceDHCPIPV6StatefulServer"
+  },
+  "337b22299072f52a12be2548d5aac648f4eabdc529b5ffdde5bf99d7ad724d69": {
+    "ves.io.schema.rules.uint32.gte": "0",
+    "ves.io.schema.rules.uint32.lte": "32"
+  },
+  "341270e674fb5b762815cbba0c28713f4b98f003bcc64631559a7cb220825c54": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaTlsProtocol"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "34e83afde5dc2a67f93cb57334f1e39aa79f8403542a5498acf614890b8e4ab2": {
+    "check_not_present": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/ioschemaEmpty"
+        }
+      ]
+    },
+    "check_present": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/ioschemaEmpty"
+        }
+      ]
+    },
+    "invert_matcher": {
+      "type": "boolean",
+      "format": "boolean"
+    },
+    "item": {
+      "$ref": "./shared-schema-components.json#/05af259a91238bc5e297a2495189a13f25b57ba5ca48d64006dfc3370f4e665a"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 256
+    }
+  },
+  "35b37f3c40218747062e85e8608d21306cf71fe592af297491c91e0434a18546": {
+    "type": "array",
+    "items": {
+      "$ref": "#/components/schemas/schemaviewsObjectRefType"
+    }
+  },
+  "367d03255ee4d82db537a037ccb3c60db024fb8d497ed7b255dd8063f37617b6": {
+    "$ref": "#/components/schemas/http_loadbalancerHashPolicyListType"
+  },
+  "36e55b80aca3ed98d3d3573b63bdeee0f26ab6b7d1def461dd6000d8e27c14b0": {
+    "$ref": "#/components/schemas/securemesh_site_v2EquinixProviderType"
+  },
+  "37e1bc7e72767c28a737ccee55a81bc25860a9f34afdbb908d6fe801c41fb126": {
+    "$ref": "#/components/schemas/network_interfaceDHCPIPV6NetworkType"
+  },
+  "38288c361ec8374a56b22a5720ad7ccff203f2a1b8d525c4bda36308cd50b385": {
+    "$ref": "#/components/schemas/origin_poolOriginServerPrivateIP"
+  },
+  "386505e3f64d6ae51e6039d5a626128d805bc2770ccb3d62901fbf5861d1d572": {
+    "$ref": "#/components/schemas/virtual_networkStaticV6RoutesListType"
+  },
+  "38da23e49fa06e074242027a5132d0c738b4cc28e3d221d91cc1bab96369c8c1": {
+    "constraintType": "number",
+    "category": "discovery",
+    "maximum": 100,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "39be0badaa54ed4dcb030d0ffc23bdad713897a8cd064fa52a1baa02c274e527": {
+    "$ref": "#/components/schemas/origin_poolOriginServerPublicName"
+  },
+  "3af7d1d2832c7c29c5a9918f093dc709c6a775c85e18366535f72e781f09e8d2": {
+    "$ref": "#/components/schemas/viewsKubernetesUpgradeDrainConfig"
+  },
+  "3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f": {
+    "source": "discovery",
+    "confidence": 0.99,
+    "validatedAt": "2026-09-03T15:40:08+00:00"
+  },
+  "3ce755583c701f0ee9eb23893535d648a1ae2797ef5c46047c9811448a89f4e0": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/viewsSiteLocator"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "3dd8db4025011a3980d9d021fbaa8a433ea8830953adf4c34298aba5b783bc62": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/viewsSiteNetwork"
+      }
+    ]
+  },
+  "3e29eb5f9bfbf570979ffdda98b152ec1846c1160c0b0b5ea7c4f2782ee7dbb7": {
+    "constraintType": "string",
+    "category": "discovery",
+    "minLength": 1,
+    "maxLength": 128,
+    "byteLength": {
+      "max": 128,
+      "min": 1
+    },
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "3f2e8fb9ed2fed676f5827fe2bc23d237b4d6091009a05c99b5bf5e97f98cc41": {
+    "$ref": "#/components/schemas/securemesh_site_v2SegmentVRFSettingType"
+  },
+  "40fa723b12f5717f81ef8d83b754b99a159baa2004aaf0ead352677725069531": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "1",
+    "ves.io.schema.rules.repeated.min_items": "1"
+  },
+  "40fb5bdf9bea044747ef5190ebb1faf2b09a5c7811ac9ac55a20bb55f6e7b690": {
+    "ves.io.schema.rules.uint32.gte": "1",
+    "ves.io.schema.rules.uint32.lte": "4095"
+  },
+  "423675da327e32c508c1336692613b6ea252ee7fea1d1135eaf4627046ca8b84": {
+    "$ref": "#/components/schemas/virtual_networkStaticRouteViewType"
+  },
+  "428a82943fca2444b0b25e354a99ca665624edefb3f265646f96598414c62adb": {
+    "type": "string",
+    "enum": ["AFTER_HEAD", "AFTER_TITLE_END", "BEFORE_SCRIPT"]
+  },
+  "4294af1f368fd32c5f7657f78eaa69a55bd61239be4aed33e213b4d91021bdd0": {
+    "type": "array",
+    "maxItems": 32,
+    "items": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  },
+  "429e7e101a09c0351fa4470bd1f205f6fd9279e28a9b0bc0b3e4d65fab035f81": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaRoutingPriority"
+      }
+    ]
+  },
+  "43ace2cdefd7cd5abb09ec9484607ba7c56abed34ebbaffa4a5ec68fe98e6630": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/4f714039a745b2a2de76a569b2e29474182492ab1030d547b9a5c7c2a03a96da"
+      }
+    ]
+  },
+  "44e73f8e23057a6fce409eebfc422f81e2e8567ce362dc368abaae554db96a76": {
+    "description": "Minimum configuration for schemaClearSecretInfoType",
+    "required_fields": ["url"],
+    "mutually_exclusive_groups": [],
+    "example_json": "{\n  \"url\": \"string:///U2VjcmV0SW5mb3JtYXRpb24=\"\n}",
+    "example_yaml": "url: string:///U2VjcmV0SW5mb3JtYXRpb24="
+  },
+  "4548cdf353a60694c0417762b56bf87cf6a88fb8426f9a81e2276a54e0a6ac41": {
+    "$ref": "#/components/schemas/securemesh_site_v2SoftwareSettingsType"
+  },
+  "45b8ba67cb2138c7ad349a73d136d0c8730bb44b05a4e4bde6cdbe26c844b541": {
+    "primary": "system",
+    "alternatives": [],
+    "rationale": "BGP configuration is platform-level routing"
+  },
+  "4608a1488dc7146d285b5a5e22787293f715a72adc1cc9b0b46613ec0b29ba50": {
+    "type": "string",
+    "x-ves-example": "Value",
+    "x-ves-required": "true",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.message.required": "true"
+    },
+    "x-f5xc-example": "value",
+    "x-validation-rules": {
+      "ves.io.schema.rules.message.required": "true"
+    },
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/b9e484494150da331549597a87956e9e8a662aeb6e0cfd4be4b4c8b6058d141b"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+    },
+    "description": "DNS Name",
+    "title": "DNS name",
+    "x-displayname": "DNS Name"
+  },
+  "46125d4ab1c2665bf62d7d544af40526925cca3340494acebfcf2d9b2047b5c4": {
+    "constraintType": "array",
+    "category": "discovery",
+    "minItems": 1,
+    "maxItems": 4,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "475fc1e6a436b37cf419b19104bf0e5c11dd930aa0143c8f923e521a5e7390a1": {
+    "$ref": "#/components/schemas/viewsDownstreamTlsValidationContext"
+  },
+  "4790eccd460b571629aeed33e6c07d96a4a32af41dd59357579d1343a9927a85": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 1024,
+    "format": "ipv4",
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "47c4a2e4c1653809c8af1f88bee88b463b4662bc2ab871ac9b4347fcadda5f38": {
+    "$ref": "#/components/schemas/schemaBlindfoldSecretInfoType"
+  },
+  "481e41bba61719085ac8b996ab59b4a977148eefa7ca4ca133a5576154dfd6cc": {
+    "type": "string",
+    "x-ves-example": "Virtual_site.",
+    "x-f5xc-example": "virtual_site",
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\")",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\").",
+    "maxLength": 1024,
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "readOnly": true,
+    "minLength": 12,
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen kind will hold the referred object's kind (e.g. \"route\")",
+    "title": "kind",
+    "x-displayname": "Kind"
+  },
+  "483229e6ddf87c2d6780bed07b736598fabfb4c5c721b5b1ac1613431a5445f3": {
+    "$ref": "#/components/schemas/origin_poolOriginServerConsulService"
+  },
+  "489c0219a92160ce28b4b33045195dbcd8dd8aca1a32a95b8fe2964c24064e4b": {
+    "blindfold_secret_info": {
+      "$ref": "./shared-schema-components.json#/d1dba0957dbb77cbdcfb300bb06a1a7ce0a960e3314d3724296d6cefd13bc5dc"
+    },
+    "clear_secret_info": {
+      "$ref": "./shared-schema-components.json#/730cd2ba2838ad9d751ffb67ff12209ff2e2e3a88026ef5a3c024270c645c151"
+    }
+  },
+  "491e53d0d18e8f6ea08e15caffac2f692461490575fa4f82291c9a00bc53c718": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.hostname": "true",
+    "ves.io.schema.rules.string.max_len": "256",
+    "ves.io.schema.rules.string.min_len": "1"
+  },
+  "4a206c45b2166f230c4fc032c4d32ac355b6080b87742dbf209aa6a805bdcf59": {
+    "$ref": "#/components/schemas/fleetBlockedServicesListType"
+  },
+  "4bd4c1b1d52f2942e9932bbb972b8279b00494f7c87a8c3940352d9229052eb9": {
+    "type": "object",
+    "x-ves-oneof-field-choice": "[\"site\",\"virtual_site\"]",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/e10bf6d44ebba57307c085e1e7577d68f5e6660852e658eeaa41a719e0100a7d"
+    }
+  },
+  "4c614011d757510af9dad0db44daed2742bd92b1e8a3d91f083cbd03724db446": {
+    "$ref": "#/components/schemas/policyRequestMatcher__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "4d6573a35a11144fd9e4124bcef548c39af6fd29d6178502b7f3fcb8c8ab621d": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaPortMatcherType"
+      }
+    ]
+  },
+  "4eb2e3c361ea5b03651614e3ac70fbb24987df30ef779231bef2f7883fa6ab81": {
+    "allowed": "[a-z0-9-]",
+    "restricted": "[^a-z0-9-]",
+    "required": "[a-z0-9]",
+    "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+  },
+  "4f59fd2743ca7c86292e351abaf7d3f97166571e2fc7cb03fcd34cdcb975525e": {
+    "$ref": "#/components/schemas/securemesh_site_v2VlanInterfaceType"
+  },
+  "4f714039a745b2a2de76a569b2e29474182492ab1030d547b9a5c7c2a03a96da": {
+    "$ref": "#/components/schemas/common_securityMobileTrafficIdentifierType"
+  },
+  "4fd57cfb75b2f8519b155a818d93a2dfa9787ed7fa9c746566f08809d43c2266": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/2402759475c6c48a66bc2022521fdc2c8c05342e4d7c7873b7bedb3e01fb31b8"
+      }
+    ]
+  },
+  "53f400555be023e9476694d1a12275b04f29bb60250fcadb26d29a45e9abd0d2": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 1024,
+    "format": "ipv6",
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "54b408752640ada4e4f4caa7319a3be23fa6e9439a2a4bc6b0203bcacd165baf": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.min_len": "1",
+    "ves.io.schema.rules.string.ves_object_name": "true"
+  },
+  "559e0c54383ce236e54f75bc2e8b43f51fa677ed13e023ea68084465efef9ffb": {
+    "$ref": "#/components/schemas/securemesh_site_v2CustomNTPSettings"
+  },
+  "567d9146a2acb7fcc3d828ed6c87b12d6b08fdd5aef31a7563635afd65480299": {
+    "ves.io.schema.rules.uint32.gte": "0",
+    "ves.io.schema.rules.uint32.lte": "180000"
+  },
+  "570dba0867cb8d03b24c9289f30d30e0e0a6c58237d94b447df8dc02b9fba277": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/30f6ccd1666b394b64be0c37cd1c89450a8439bcee1a81d5e50f84092084e4a9"
+      }
+    ]
+  },
+  "5750f706cf139259916c95dc74b2339cf55cc7b578ffb0e2835f81b7b3858583": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.items.string.ipv6": "true",
+    "ves.io.schema.rules.repeated.max_items": "4",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "58948095e4b48724357dfa1ecd536bd45ad6b921c6ebd4f76be16dc25e98a45a": {
+    "$ref": "#/components/schemas/network_interfaceDHCPIPV6PoolType"
+  },
+  "597eda929910967b8d22db40c4dae7c91590d03475cae0b4ee18a5a0b9d0ee35": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/viewsSnatPoolConfiguration"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "5ab1c4d93c14bb91ddf4d4d7d5f4822573d425b4b3c4565819be98bf163cc20e": {
+    "constraintType": "string",
+    "category": "naming",
+    "maxLength": 63,
+    "minLength": 1,
+    "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "characterSet": {
+      "$ref": "./shared-schema-components.json#/4eb2e3c361ea5b03651614e3ac70fbb24987df30ef779231bef2f7883fa6ab81"
+    },
+    "format": "dns-label",
+    "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+    "validation": {
+      "$ref": "./shared-schema-components.json#/e4a0ce338f9f6e564732f811d43cc6cfba4d50f34d2a6efee34ebbd180b1b72f"
+    },
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/ee53310db05f1f725f9651fc1ab8a78370f3b114a907e5008ece39b1d06143c5"
+    },
+    "deterministic": true
+  },
+  "5b5e3eceb606f1d111339962def8dc948ec85f6a77e66b0ed334d8be331d6d90": {
+    "$ref": "#/components/schemas/virtual_hostCaptchaChallengeType"
+  },
+  "5bbff3798b5fb7c65f3b9dfd5451e538d3e489d2f4567d0edc299d7e3ee233b0": {
+    "mobile_identifier": {
+      "$ref": "./shared-schema-components.json#/43ace2cdefd7cd5abb09ec9484607ba7c56abed34ebbaffa4a5ec68fe98e6630"
+    }
+  },
+  "5c1807c9ee2a02b9dba0a38657f6e064cc61cbd4b5f1c070635b7e6832b77faf": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "x-f5xc-conflicts-with": ["enable_internet_vip"]
+  },
+  "5c4ceb4f3847da232df258c7146b135bac705ee5241026824bc42e2ca10c8020": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "x-f5xc-conflicts-with": ["segment", "site_local_network"]
+  },
+  "5cd8661766022d56654d5b719ec0595fc05595549d065519480883e9492929bc": {
+    "type": "object",
+    "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/34e83afde5dc2a67f93cb57334f1e39aa79f8403542a5498acf614890b8e4ab2"
+    }
+  },
+  "5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019": {
+    "minimum_config": true,
+    "create": true,
+    "update": false,
+    "read": false
+  },
+  "5ef7eef285f5061945d8fcf24588368c96af6eb8512512b167e733638cc164ef": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+      "$ref": "./shared-schema-components.json#/89cf818dc8069c48327a0631c5c5b60c17c86bec2ac113c5d6ce6ff793854f0f"
+    }
+  },
+  "6274a943a2838a1cdbd1f6aa3cb77f95848ea84484f223334f733b3b89b32a6c": {
+    "$ref": "#/components/schemas/securemesh_site_v2LoadBalancingSettingsType"
+  },
+  "63a335d2798d727afb3adcafb5be4abc51fc2dcd6fee85197027fa2f603eef6f": {
+    "$ref": "#/components/schemas/viewsAdminUserCredentialsType"
+  },
+  "640c6e7be0cf0a7126fc78406838c70e2512e8ebdf45f05a1862acd3bb699074": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/9c26d8001a9985c28d5e19c380c18cb61fc98f40ceaeeb63d3e6451fccc2a4e0"
+      }
+    ]
+  },
+  "64244598bdf376b143a459160cbbf110f6b82b7efe0ccf5dc09a7261fb207fc5": {
+    "constraintType": "number",
+    "category": "discovery",
+    "maximum": 604800,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "65745c715b848b06c66d81f36e6f39a5b3daf606275cf8ae4a6a066de8aa63f4": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.items.string.not_empty": "true",
+    "ves.io.schema.rules.repeated.max_items": "16"
+  },
+  "6654a32e6090a0e49c02cad3bac36784342b5b2155c4bb8fab47a8f727dc3bcc": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "1",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "66b2978f0cfc10273676e0af92e75473c0073104174184e7de0199ebe8ac6c48": {
+    "$ref": "#/components/schemas/network_interfaceIPV6AutoConfigRouterType"
+  },
+  "67220eea2ab0d47769f49f0000d16dc0eb6d34f4e6a67ebedd6e867fc23610cd": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/19d366892645b16f720a5df8e1d3c8822eae86b3f21518d7af8880f4eeb784d3"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "674932f322d7a0b2f9cc87e4bd277b67f5235c8cad23d9192a105cdede13cc82": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for inside network.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "68d6cadb38a1d61e8889cd32eeb28ac17777ebd7545d6865530abc9961d38928": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "32"
+  },
+  "694949b1bb569eef597f86260f52afa2a97d8acfefee99d3cc72ce57c67dcc38": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "0",
+    "ves.io.schema.rules.uint32.lte": "900"
+  },
+  "69f146e3f1d7b8e0fc9b49e42bcb5b9b254f5aefcc581af39e06c8efee027c4d": {
+    "type": "string",
+    "x-ves-example": "00000000-0000-4000-8000-0df41b679859.",
+    "x-f5xc-example": "00000000-0000-4000-8000-0df41b679859",
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g.",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g. Route's) uid.",
+    "maxLength": 1024,
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "readOnly": true,
+    "x-field-mutability": "read-only",
+    "minLength": 36,
+    "format": "uuid",
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen uid will hold the referred object's(e.g. Route's) uid.",
+    "title": "uid",
+    "x-displayname": "UID"
+  },
+  "6a7439ed4ce120114518e15b88e87496dadda0bb4c8ec436d9db33a38db630e6": {
+    "type": "object",
+    "x-f5xc-minimum-configuration": {
+      "$ref": "./shared-schema-components.json#/1fde158c605f6cfea9cd37b216ad0464ffd096baa1db8302a79993a38abeaf16"
+    },
+    "x-f5xc-cli-domain": "other",
+    "description": "This can be used for messages where no values are needed.",
+    "title": "Empty",
+    "x-displayname": "Empty",
+    "x-ves-proto-message": "ves.io.schema.Empty"
+  },
+  "6a880cce1cc9ba6969968c1ca788c8dee5f811892e9a1004701b0245762ec669": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/02ebabd0c65157a179c163bc6eeca227971001c875e4d6abc2270d4cb325612c"
+      }
+    ]
+  },
+  "6a89e21d88516a7f5c1be943ba58d027bb96ff9187dc93f9210302ce5ade6e02": {
+    "type": "array",
+    "maxItems": 9,
+    "items": {
+      "$ref": "#/components/schemas/policyTransformer"
+    }
+  },
+  "6aa1bb477e20d1bcabbe2dd04faa7219105a887a9ae7919610052937a6922ac1": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "8",
+    "ves.io.schema.rules.repeated.unique_metadata_name": "true"
+  },
+  "6adf4d564093902ed424cbf8b1b12d49228e1328c21a2b63b46b09f15bab4124": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 1024,
+    "format": "ipv6",
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "6d392477fc0c87c499f613ea4c767acf5cf9c042174ff848f6ee2ff314f5a95f": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaCorsPolicy"
+      }
+    ]
+  },
+  "6dd851c2f390ee23f5f2c396304bbba4721979c066010351c57df29b2247aa6e": {
+    "type": "object",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/32eb95df34f834bd716ad2bd4fdd9b2f82a20889382c0b3b724d7bb06ecde904"
+    }
+  },
+  "6de22daa8ca6f4fb5b89be81fb56abe5b297271b3e891d5c8f05160669b0616a": {
+    "$ref": "#/components/schemas/common_wafAPIProtectionRuleAction__ves_io_schema_views_http_loadbalancer"
+  },
+  "6df7e2715c6fa6499e3558e832277ddc19e5d2c8d3d910b57abf0794c6b51e01": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+      }
+    ]
+  },
+  "6ebba1b72ee4a4306fb95a1c90b8d8fdcbd50f4135523386df421bc8a3c87de0": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/policyAsnMatcherType"
+      }
+    ]
+  },
+  "6ecc3d7fe6e715b69520a35b9b7310055fd74bef2bb57e8c0b7b07890a40ff09": {
+    "type": "array",
+    "maxItems": 256,
+    "items": {
+      "$ref": "./shared-schema-components.json#/a805e6500da544dde344a36d0706b71835f202a3be910a5c8c19c34068c99704"
+    }
+  },
+  "71080690a6ed5e222364a5a433c008861842a0eef4e08624b12207c9ffa02f35": {
+    "type": "array",
+    "minItems": 1,
+    "items": {
+      "$ref": "./shared-schema-components.json#/f5ef291ab55e8f61ecc757572195788ab812fd541e8da6a29eeb28094dc9f4e8"
+    }
+  },
+  "730cd2ba2838ad9d751ffb67ff12209ff2e2e3a88026ef5a3c024270c645c151": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaClearSecretInfoType"
+      }
+    ]
+  },
+  "730d933127cc205965576583211e236d579a2aa801a5273230460086bd261682": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/ec26cd51107d9c0d7e04812557a014f7e935cb5c18636cf4cad5572a283a9858"
+      }
+    ]
+  },
+  "73163f154f4321b49b77ff19b688d455b825ac41b7f97a337faafa9dd3f88b0c": {
+    "allowed": "[a-z0-9.-]",
+    "description": "Dot-separated DNS labels"
+  },
+  "7342e88a9ebcd7e03af75537e7c343954c4b43da59e9e7e112c127da039d6bc0": {
+    "$ref": "#/components/schemas/common_wafOpenApiFallThroughMode__ves_io_schema_views_bigip_virtual_server"
+  },
+  "738b327f5ff5428eed2eaaa8271d1afd40c141c4822639fdfd702be8b8ac4334": {
+    "$ref": "#/components/schemas/securemesh_site_v2CustomDNSSettings"
+  },
+  "73ae7cae12013abfaf5a69ce663e841a496c008d8b845fe022ee620d04011977": {
+    "ves.io.schema.rules.uint32.gte": "1",
+    "ves.io.schema.rules.uint32.lte": "30"
+  },
+  "73bb8240326e6d6d062a58aa21e00eed75b29c396fde864e2025a8e29b43de04": {
+    "type": "array",
+    "maxItems": 32,
+    "items": {
+      "$ref": "#/components/schemas/policyIPThreatCategory"
+    }
+  },
+  "746e052b9888a0d308af89eda06dab12af80bf9d8eb30d6d93e0606523afacc5": {
+    "$ref": "#/components/schemas/schemaUpstreamConnPoolReuseType"
+  },
+  "74a91c8e72195922b5a5e834e7ccca8ac7fa076aa7e9329b9a1c57f9e70654e3": {
+    "constraint": {
+      "allowed": ["system"],
+      "enforced": false
+    },
+    "recommendation": {
+      "$ref": "./shared-schema-components.json#/9ad6dfeb147dcdb21a4e44b7e0bcc76233c0d09c59c35a9abfe5d81077387e3f"
+    },
+    "classification": {
+      "$ref": "./shared-schema-components.json#/fb33ccf2607e80141526867c4bad7b024efb5f505675b93bbfa34dd70d50e1a7"
+    }
+  },
+  "74b45a0528d65357fba61d0e95ae6febe19fdc87df4fbdf8e8ab1d3284e569b3": {
+    "constraintType": "string",
+    "category": "general",
+    "minLength": 1,
+    "maxLength": 64,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/291f254c05fb8a62b806bfb2fb16f35a180152ed22cb68f7526d4e9e7e26e2ef"
+    }
+  },
+  "74fb7a4342daebefb11ec9ba7a216eaeecd573792a8b5c5e43d3da0db6990dd2": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/7342e88a9ebcd7e03af75537e7c343954c4b43da59e9e7e112c127da039d6bc0"
+      }
+    ]
+  },
+  "75c0f44a8d61c929424511354c2785ffb4224b64a3ca9790f225283971d61eee": {
+    "$ref": "#/components/schemas/schemaBotDefenseTransactionResultCondition"
+  },
+  "75f8aefb7f18ad6221c59c2e7abebc6c347349f91ac53a3c45723d57166eb31b": {
+    "$ref": "#/components/schemas/virtual_networkStaticV6RouteViewType"
+  },
+  "762bcbe3d4afcaf1cf7ef86a7c5d617ed6c29c05acc9065ca7a211869b0dbea1": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.max_len": "63",
+    "ves.io.schema.rules.string.min_len": "1"
+  },
+  "76797782dbc41e0bad72dcf615ed5de199ce28f337745a5d523ad0fde3680613": {
+    "$ref": "#/components/schemas/securemesh_site_v2GCPProviderType"
+  },
+  "784881d9a93f33c558d1fe7beb95b9c978a3dbe1f69676a2b13f943a7ab57159": {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 128,
+    "x-ves-example": "Contacts-route.",
+    "x-ves-required": "true",
+    "x-ves-validation-rules": {
+      "$ref": "./shared-schema-components.json#/c43dfeaa918bcba3494dd0f0415c9983c59abdbd86a9482f9d3c5bf40ea6c287"
+    },
+    "x-f5xc-example": "contacts-route",
+    "x-validation-rules": {
+      "$ref": "./shared-schema-components.json#/c43dfeaa918bcba3494dd0f0415c9983c59abdbd86a9482f9d3c5bf40ea6c287"
+    },
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/3e29eb5f9bfbf570979ffdda98b152ec1846c1160c0b0b5ea7c4f2782ee7dbb7"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+    },
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
+    "title": "name",
+    "x-displayname": "Name"
+  },
+  "7bce024d06f4c3cc334436fb4fb6a3ea9b0d0c939c8caa0e07ca26c0f9b7804b": {
+    "$ref": "#/components/schemas/securemesh_site_v2AzureProviderType"
+  },
+  "7d7d8533ea90b9c9d5c94853f564ae7feba8e444c9609283da75d5638de9b917": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/ce8ea30518b3f253c2b00c72031844cd99b5fb1a209d0ad5e02e69db09503868"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for pool settings.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "7db4b884b23fa63d3ae0e8ee266c712f7e31c672ba4363b7aa650a0cb681c397": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "32",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "7de20144df5103252b0a7c4a13b3ca9fe82ef8ef5e4c7d85dca4a3ce26f36180": {
+    "constraintType": "string",
+    "category": "naming",
+    "maxLength": 63,
+    "minLength": 1,
+    "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "characterSet": {
+      "$ref": "./shared-schema-components.json#/4eb2e3c361ea5b03651614e3ac70fbb24987df30ef779231bef2f7883fa6ab81"
+    },
+    "format": "dns-label",
+    "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+    "validation": {
+      "$ref": "./shared-schema-components.json#/e4a0ce338f9f6e564732f811d43cc6cfba4d50f34d2a6efee34ebbd180b1b72f"
+    },
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/ee53310db05f1f725f9651fc1ab8a78370f3b114a907e5008ece39b1d06143c5"
+    },
+    "deterministic": true
+  },
+  "7e3c9630e66cb64dff4b9e102270455f01e75a1b7ebeae65c29f138cd236d3fe": {
+    "type": "array",
+    "maxItems": 64,
+    "items": {
+      "type": "string",
+      "maxLength": 256
+    }
+  },
+  "7e8d31357758d63926695199504c54c4eec0101c1e1842e96ed69b610b18ada8": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaviewsObjectRefType"
+      }
+    ],
+    "x-f5xc-example": "{\"key\": \"value\"}",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "7f1922985cef61e0348b8bc0a14f0e4f4aa52fa5e032110320bc4ce2306d222e": {
+    "type": "array",
+    "maxItems": 4,
+    "items": {
+      "$ref": "#/components/schemas/schemaRouteAttrType"
+    }
+  },
+  "7fa83f50032329aa6a25ee90467016893d44463e5d5fa14a09c64e1c978f6e77": {
+    "$ref": "#/components/schemas/securemesh_site_v2StaticRoutesListType"
+  },
+  "8071edcce917d7b9faffbbb9ea58e9fb94e3c40dd3ad865f3973901ea6787ad0": {
+    "constraintType": "array",
+    "category": "discovery",
+    "minItems": 1,
+    "maxItems": 1,
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "80741fb2cdeb9f3723b361c77f6dec9401b8311db1b6c8ecb9071fc6405b8f33": {
+    "type": "object",
+    "x-ves-oneof-field-secret_info_oneof": "[\"blindfold_secret_info\",\"clear_secret_info\"]",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/489c0219a92160ce28b4b33045195dbcd8dd8aca1a32a95b8fe2964c24064e4b"
+    }
+  },
+  "81241d2f1793428da840e48f68cc4618e8c6df64ae39a90c4001e7fbeb3f7b10": {
+    "$ref": "#/components/schemas/common_wafInlineRateLimiter__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "81277297554357d1cea705844ff048a34f206230df0598c01955e98ac50ba6cc": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-example": "{\"key\": \"value\"}",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "81daca5d832756815c1cf768dade7947a277642b2fa0d7a1d67a7524e4d17941": {
+    "constraintType": "number",
+    "category": "discovery",
+    "minimum": 512,
+    "maximum": 1370,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "8201e18a61c1630e804eec8b8ef29cca76ab10b5beae2e3217a3e023cc15c5ec": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/policyHttpMethodMatcherType"
+      }
+    ]
+  },
+  "8232cff43e46f95ee2b2249a3e3f92b89f517ca2efcbea4ac03db0f8d938dbc1": {
+    "$ref": "#/components/schemas/policyTlsFingerprintMatcherType"
+  },
+  "8316eba065c8ab25bd4fef81ff77669b2a3129ade1e75dc513c47029de29b0e6": {
+    "constraintType": "array",
+    "category": "discovery",
+    "maxItems": 4,
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "83197f12537be29c99a71bb86b3b32998bd5a53cb7e1d5221d98898cc0b0aa79": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/7fa83f50032329aa6a25ee90467016893d44463e5d5fa14a09c64e1c978f6e77"
+      }
+    ]
+  },
+  "83c1860f0a9749c67de1210459e7a20cd725ed6d28f47dedb937bc69c39d9a20": {
+    "ves.io.schema.rules.map.keys.string.max_len": "253",
+    "ves.io.schema.rules.map.keys.string.min_len": "1",
+    "ves.io.schema.rules.map.max_pairs": "64",
+    "ves.io.schema.rules.map.values.string.max_len": "63",
+    "ves.io.schema.rules.map.values.string.min_len": "1"
+  },
+  "83f310af2225633dabd54df9f65a14590189f19951eff32a1a7ec440f66e3c09": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for automatic from start.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaMessageMetaType"
+      }
+    ]
+  },
+  "84649fd1d128144fb1cfcf9e925ddb1c87eb85159a1426549a14c63468320c06": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaDomainType"
+      }
+    ],
+    "format": "hostname"
+  },
+  "85b04a7c7348c52dc757f232be12148410eeb415aba150a498ed85ccba8b6185": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for no static routes.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "85f046f753bfee81e865bcf91442bb77f3db4ba2b9e3d10ee0e06e3833e398f2": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "0",
+    "ves.io.schema.rules.uint32.lte": "1000"
+  },
+  "85ff921efbec1e639a4b08801e5452cd527955cbd0af9d839775a433137ef592": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/routeCookieForHashing"
+      }
+    ]
+  },
+  "872a7c2637e5d58103c40379be799e95be5741847526d7ab6a5e1ab31a201b6b": {
+    "ves.io.schema.rules.string.max_len": "64",
+    "ves.io.schema.rules.string.min_len": "1"
+  },
+  "878676ffe3374dfd3346b38e2950f19f3e246cb4afbf90492d94ff65849cfd8f": {
+    "$ref": "#/components/schemas/common_securityShapeJavaScriptExclusionRule"
+  },
+  "87c142c299f9f5a07d9ac4bac97a831b8f18b8d05b756fbde55629787fbbdb5b": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "x-f5xc-conflicts-with": ["segment", "site_local_inside_network"]
+  },
+  "88fc31f88e0e14ef4cc90e07e93f536cbee4d437595a680b4dd37caf39d5e3ae": {
+    "header_transformation": {
+      "$ref": "./shared-schema-components.json#/e18c4345acec5f0dc9a7f305049c481fac2449525c9fa773249b79a0c9dc0e51"
+    }
+  },
+  "8982e1308c99c4658d3803582d2dc54ae9ae48a5c6565514538dc800a08db445": {
+    "$ref": "#/components/schemas/schemapolicyQueryParameterMatcherType__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "89cf818dc8069c48327a0631c5c5b60c17c86bec2ac113c5d6ce6ff793854f0f": {
+    "$ref": "#/components/schemas/schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "8a9c67dd4825e328dc729acf0c16548cbf3393d4ff2d510889aedb9b40d92a0a": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+      "$ref": "#/components/schemas/schemaHttpMethod"
+    }
+  },
+  "8b2f119c4852d5bee4ed2366236a87f2db7449177060052e0032e3873b79c5db": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaNodeInterfaceType"
+      }
+    ]
+  },
+  "8b47d8624dc62c5bb93960a6703caa37a0868e094a5140a437b961cddfc3b634": {
+    "ves.io.schema.rules.uint32.gte": "2",
+    "ves.io.schema.rules.uint32.lte": "64"
+  },
+  "8bbf6b271775dc42e93173a7e26a7dfa38da903ac83642943bd5b6f0e22be1d9": {
+    "type": "string",
+    "x-ves-example": "System",
+    "x-ves-required": "true",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.message.required": "true"
+    },
+    "x-f5xc-example": "system",
+    "x-validation-rules": {
+      "ves.io.schema.rules.message.required": "true"
+    },
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/7de20144df5103252b0a7c4a13b3ca9fe82ef8ef5e4c7d85dca4a3ce26f36180"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+    },
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "description": "Site namespace.",
+    "title": "Namespace",
+    "x-displayname": "Namespace"
+  },
+  "8c14e4425f9fbd4c6ee9b63315c78a24d77e6c6b8b116cf7b9674b9658d6f247": {
+    "$ref": "#/components/schemas/securemesh_site_v2BaremetalProviderType"
+  },
+  "8cc0f3bc96cd5557103956eec9bf8fdf63265940ae8d2eff88ae4a02a1a1b009": {
+    "$ref": "#/components/schemas/origin_poolOriginPoolDefaultSubset"
+  },
+  "8d8a8235a0ee12b4f3784043c1191069472b09b00b784aeb9838c6d7c8940432": {
+    "type": "string",
+    "maxLength": 63,
+    "x-ves-example": "Ns1",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.string.max_bytes": "64"
+    },
+    "x-f5xc-example": "ns1",
+    "x-validation-rules": {
+      "ves.io.schema.rules.string.max_bytes": "64"
+    },
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/b80e0bb0666313f2e3719a3e7b08079d3ced768e3c62a147d0c616d10916da83"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "minLength": 1,
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
+    "title": "namespace",
+    "x-displayname": "Namespace"
+  },
+  "8e3893e1830fa669c038dbc23da9f3cfccf0aba78cda312c5faa4c94c81c3004": {
+    "type": "object",
+    "x-ves-oneof-field-orchestration_choice": "[\"not_managed\"]",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/df415e5c66c3d080795aaab76b3cfdf28ec84b196ea1b27afea63b18b1d65f7c"
+    }
+  },
+  "8e625dbe4e00e9ab5e0b8dfd9280922096095fb0deac7315ab099280577fa872": {
+    "source": "inferred",
+    "confidence": 0.95,
+    "validatedAt": "2026-09-03T15:40:08+00:00"
+  },
+  "8eef35cbfb97ad7ab362a673bd82f341306cd72d39c8dbce0024ebba4fba7b32": {
+    "$ref": "#/components/schemas/securemesh_site_v2LogReceiverWithNet"
+  },
+  "8f0144ac329d01ac35816471c4fac6bd4f33c4fd16b78048ec597adfa573283a": {
+    "ves.io.schema.rules.repeated.max_items": "64",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "8f037236da9283d84fcd135ca8990631eb3eb1f170d6be18360822b8b1e67590": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaviewsObjectRefType"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "90d813d932667ab9baf2b3e5c46a8a89e015a8136af10a51ab356a946d61dc1b": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/viewsSiteLocator"
+      }
+    ]
+  },
+  "912b553f1693dc08bdb5da21eb8b9cdfd6b2ee319b14b2e1f64abcf6a97597e9": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/386505e3f64d6ae51e6039d5a626128d805bc2770ccb3d62901fbf5861d1d572"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for static v6 routes.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "92459e87bcaefe917fed98a4b09e1c83a06eb5b7c1002d81c04f0709dc3fefad": {
+    "type": "string",
+    "x-ves-example": "Ce398",
+    "x-ves-required": "true",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.message.required": "true"
+    },
+    "x-f5xc-example": "ce398",
+    "x-validation-rules": {
+      "ves.io.schema.rules.message.required": "true"
+    },
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/5ab1c4d93c14bb91ddf4d4d7d5f4822573d425b4b3c4565819be98bf163cc20e"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/5df4f6df89f1dc0811ac75d3bdda28dd03fe478334be30c2ed0e86dc0a7f7019"
+    },
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "description": "Site name",
+    "title": "Name",
+    "x-displayname": "Name"
+  },
+  "9263bad11e86803981922c58496630ecb671444e199234f391dba30ecded3bc7": {
+    "name": {
+      "$ref": "./shared-schema-components.json#/784881d9a93f33c558d1fe7beb95b9c978a3dbe1f69676a2b13f943a7ab57159"
+    },
+    "namespace": {
+      "$ref": "./shared-schema-components.json#/8d8a8235a0ee12b4f3784043c1191069472b09b00b784aeb9838c6d7c8940432"
+    },
+    "tenant": {
+      "$ref": "./shared-schema-components.json#/ba6966e07efcf8a472a3b44e1ac549acdae1a312fa4c33f4fceb09bca3c84c25"
+    }
+  },
+  "926dfe8abdd7629a0e1411c079d4589f8297220c5ef1705baf42dad946f7fb10": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 64,
+    "byteLength": {
+      "max": 64
+    },
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "93707e5867e6965956a55303cb0d220d5f02b99dc11dd1b77b7c3593d08a0114": {
+    "attrs": {
+      "$ref": "./shared-schema-components.json#/7f1922985cef61e0348b8bc0a14f0e4f4aa52fa5e032110320bc4ce2306d222e"
+    },
+    "default_gateway": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/ioschemaEmpty"
+        }
+      ]
+    },
+    "ip_address": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "ip_prefixes": {
+      "$ref": "./shared-schema-components.json#/e71f81799273e0a215da05d16635571ef7429dee3d4caccedfcf599a747abed5"
+    },
+    "node_interface": {
+      "$ref": "./shared-schema-components.json#/8b2f119c4852d5bee4ed2366236a87f2db7449177060052e0032e3873b79c5db"
+    }
+  },
+  "9480d3c68892dcf60e90866546cf2c45925817ce62cb91161bbf15a4d6f3215e": {
+    "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertType"
+  },
+  "96e017431f66235644e27ce56c75ac645b1eb541b6327f3674bf75adb7b39404": {
+    "$ref": "#/components/schemas/viewssecuremesh_site_v2EthernetInterfaceType"
+  },
+  "96f9cfdfabe5f38342b7c2a5b7a3a7a7741486cb417be68ca9c1871b17b8e8dd": {
+    "type": "object",
+    "properties": {
+      "interface_ip_map": {
+        "type": "object"
+      }
+    }
+  },
+  "9710c7b43829e257b4078a42de6394b152225bac8cf4ce876517506b708b7d25": {
+    "ves.io.schema.rules.repeated.items.string.ipv4_prefix": "true",
+    "ves.io.schema.rules.repeated.max_items": "128",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "988dfb83bec0690afbee3942ef1377b4031cacf9e81de4e1b891d9ada83b6c8b": {
+    "ves.io.schema.rules.string.ipv6_prefix": "true",
+    "ves.io.schema.rules.string.pattern": ".*::/64$"
+  },
+  "99208c0204c7d550dac4e43f856799eca81422bf49cd88394431237562806ee1": {
+    "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertAllType"
+  },
+  "992487fa67f0d7e585d032b3de319a804a30252cc9434a7d2da35a6f5298bc89": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "300",
+    "ves.io.schema.rules.uint32.lte": "60000"
+  },
+  "9a3ce0e29f62404b75936baf9561b9a1a310ebf989fea95b7c10936897a7031a": {
+    "type": "array",
+    "maxItems": 32,
+    "items": {
+      "$ref": "#/components/schemas/schemaCookieValueOption"
+    }
+  },
+  "9ad6dfeb147dcdb21a4e44b7e0bcc76233c0d09c59c35a9abfe5d81077387e3f": {
+    "primary": "custom",
+    "alternatives": [],
+    "rationale": "Standard tenant resource"
+  },
+  "9c26d8001a9985c28d5e19c380c18cb61fc98f40ceaeeb63d3e6451fccc2a4e0": {
+    "$ref": "#/components/schemas/rate_limiterRateLimitPeriodUnit"
+  },
+  "9c296cab247e3843b6b77b362133bcf08b11c09cb8e3612b082a55bfe0b677ce": {
+    "ves.io.schema.rules.message.required": "false",
+    "ves.io.schema.rules.string.max_len": "64",
+    "ves.io.schema.rules.string.min_len": "1"
+  },
+  "9c4c1196c0769f45f3139c3a98720814405aebbc95a92ff7d0012bd1f62744fc": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaNodeInterfaceType"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for node interface.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "9ca6a0eb0e2e554b1ec8329fbe93b725e0ac148e33352d589267f727ec973d50": {
+    "description": "Minimum configuration for schemaviewsObjectRefType",
+    "required_fields": ["name"],
+    "mutually_exclusive_groups": [],
+    "example_json": "{\n  \"name\": \"contacts-route\"\n}",
+    "example_yaml": "name: contacts-route"
+  },
+  "9d121a6baf77e2444ad0fd69aa32ca093d567967285d268d3fda5c0831a14b40": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaVirtualNetworkType"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "9d87ee30a2a8a742b7ac858af46aa0815cba373be33aa4546b29ca9220f7fae9": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/policyAsnMatchList"
+      }
+    ]
+  },
+  "9e13534274175229bf774cc0cdf2e1c532502f90cda556bc65727fa300081a57": {
+    "constraint": {
+      "allowed": ["custom", "default", "shared"],
+      "enforced": false
+    },
+    "recommendation": {
+      "$ref": "./shared-schema-components.json#/9ad6dfeb147dcdb21a4e44b7e0bcc76233c0d09c59c35a9abfe5d81077387e3f"
+    },
+    "classification": {
+      "$ref": "./shared-schema-components.json#/fb33ccf2607e80141526867c4bad7b024efb5f505675b93bbfa34dd70d50e1a7"
+    }
+  },
+  "9edc05d917294a365e18519a85d66790c069e986ca0b45ea15da9b2c09b839e0": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/a7b2de3c2f204b841085b7291ce2466225059d8d39077ca8dd5c714bfe8371e5"
+      }
+    ]
+  },
+  "9fada1b2d61bb061ac51763e70834cd2af6595b0433f9d4073208e37fa378ba1": {
+    "kind": {
+      "$ref": "./shared-schema-components.json#/481e41bba61719085ac8b996ab59b4a977148eefa7ca4ca133a5576154dfd6cc"
+    },
+    "name": {
+      "$ref": "./shared-schema-components.json#/e8da013df558dcda1ccdf2867f89eb45abea7b96202260079e3a068d82d92526"
+    },
+    "namespace": {
+      "$ref": "./shared-schema-components.json#/17d6cd401193844b468b35b16ec71c076527140599470be01c077cfcc64c49a2"
+    },
+    "tenant": {
+      "$ref": "./shared-schema-components.json#/fccc7274b4129f50822ebfebe25534d1d07c60f1fe96128c4c3b0fc37553a801"
+    },
+    "uid": {
+      "$ref": "./shared-schema-components.json#/69f146e3f1d7b8e0fc9b49e42bcb5b9b254f5aefcc581af39e06c8efee027c4d"
+    }
+  },
+  "9fe7508cfba4283e586e58feaae01eba58d3a89e43abb9aa752cf9af520d52be": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.max_bytes": "64"
+  },
+  "a024a423c4f9c9f6b444d1402fb23188f43bd4325ba70dadd526d6b07e2a952b": {
+    "type": "string",
+    "maxLength": 63,
+    "minLength": 1,
+    "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+  },
+  "a073c0da210dfec51e80579fca5f3cf696fce69ee20cd3492b66165948357a55": {
+    "$ref": "#/components/schemas/viewsL7PerformanceEnhancementType"
+  },
+  "a0c4b15b160a2ad71fa00bcd564b6352629bd7e5795e6e17994feec8be537cc2": {
+    "constraintType": "number",
+    "category": "discovery",
+    "minimum": 1,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "a0cd8741119ed3f45a3abc703a49c50a2bf412ce91180b29260b7b47a50fc731": {
+    "type": "object",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/88fc31f88e0e14ef4cc90e07e93f536cbee4d437595a680b4dd37caf39d5e3ae"
+    }
+  },
+  "a0ecc0652527d1012786eaf3c2d4081ad259d99a02edb1f0e41bd299b46714d7": {
+    "$ref": "#/components/schemas/network_interfaceDHCPInterfaceIPType"
+  },
+  "a13d98c088444b39de2a2d7a4907edaa6c51e468ad572ab4d54d30f0cb31cc66": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/9480d3c68892dcf60e90866546cf2c45925817ce62cb91161bbf15a4d6f3215e"
+      }
+    ]
+  },
+  "a26aa78f10cab93a9ff571bf3c7120968b604bc4e9e440fee1e46a470ec20857": {
+    "ves.io.schema.rules.uint32.gte": "1",
+    "ves.io.schema.rules.uint32.lte": "5"
+  },
+  "a35b45d928d6391f2c7c7d298c34cb16f646c5e7c6bbe7c11414a37507bf3ead": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/f8cfc6aee091865ad69d30b714f91a55fa0ddcd71990313ed16df38d373040ca"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "a4b22d08d73ef610406e7bbda252686a296107766c73a8bfb27c042b8334cc72": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/99208c0204c7d550dac4e43f856799eca81422bf49cd88394431237562806ee1"
+      }
+    ]
+  },
+  "a615a4cbfb6e72fcfa558845c2c8c66b8a5736da0e96c2761c8c58b0b4656448": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/viewsPrefixStringListType"
+      }
+    ]
+  },
+  "a668bb39d1bbc5feb5f3cad386717441f1c46daaf9ac6632ce64b144b4426b15": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "20",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "a701bcd73c3268207ad904af7bb36cee1c44cadc29d2fc00b9c3fd4855011e5a": {
+    "$ref": "#/components/schemas/origin_poolUpstreamTlsValidationContext"
+  },
+  "a7610bb2564fcb0b5f24c9c8c528ec11881411988f2b914f8be71d18dbdf2e75": {
+    "primary": "system",
+    "alternatives": [],
+    "rationale": "Sites are platform-level infrastructure"
+  },
+  "a78e906b9ecc16c818fe5dc39f0a65b23986dd048fa79613107068c7de3f1aee": {
+    "ves.io.schema.rules.string.in": "[\\\"Control\\\",\\\"Worker\\\"]"
+  },
+  "a7b2de3c2f204b841085b7291ce2466225059d8d39077ca8dd5c714bfe8371e5": {
+    "$ref": "#/components/schemas/common_wafCustomIpAllowedList"
+  },
+  "a7bf1742c7987d2949b95bfa7c3bc90828758519d6b1751810e4e06c6a9f1d8b": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.max_len": "64",
+    "ves.io.schema.rules.string.min_len": "1"
+  },
+  "a805e6500da544dde344a36d0706b71835f202a3be910a5c8c19c34068c99704": {
+    "$ref": "#/components/schemas/common_wafSimpleClientSrcRule__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "a9cf0fd4bc05d615957c44c51669117e8b1da6aeda30d6c0b9629a93d31c1244": {
+    "constraint": {
+      "allowed": ["system"],
+      "enforced": false
+    },
+    "recommendation": {
+      "$ref": "./shared-schema-components.json#/a7610bb2564fcb0b5f24c9c8c528ec11881411988f2b914f8be71d18dbdf2e75"
+    },
+    "classification": {
+      "category": "infrastructure",
+      "multi_tenant_pattern": "none"
+    }
+  },
+  "ab556160de7bcceb95fc36da8bdbd9c2ed6cd3e084c38715ed7d0186a44b7b70": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "512",
+    "ves.io.schema.rules.uint32.lte": "1370"
+  },
+  "ab76ccc82e26848f2ee15aa8ecf3d16d04e2e0077cf3900f72caba901124c348": {
+    "ves.io.schema.rules.map.keys.string.max_len": "128",
+    "ves.io.schema.rules.map.keys.string.min_len": "1",
+    "ves.io.schema.rules.map.max_pairs": "64",
+    "ves.io.schema.rules.map.values.string.ipv4": "true"
+  },
+  "aba9e5b9517542a029a2f9b287add1468ef84db104b2cf81e89440e16a4a9967": {
+    "ves.io.schema.rules.repeated.max_items": "16",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "abdfec77e00f33602088af3949f5ad266e7b86b7676cfa4264094fbfc90b5c47": {
+    "type": "array",
+    "maxItems": 64,
+    "items": {
+      "$ref": "#/components/schemas/policyCountryCode"
+    }
+  },
+  "abe274d62a7f1c976685685884fcaafe36c8def609350ad0724018f66ce338de": {
+    "$ref": "#/components/schemas/policyClientMatcher__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "ac1e4491f6440587f3190328a212fcfc71516fcfe33f15e86cadeb759820ed05": {
+    "$ref": "#/components/schemas/origin_poolOriginServerCustomEndpoint"
+  },
+  "acec23151bb3a906560d151743a687f8488734dcef1a8f8ff1d07ab71ed5bff6": {
+    "type": "object",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/5bbff3798b5fb7c65f3b9dfd5451e538d3e489d2f4567d0edc299d7e3ee233b0"
+    }
+  },
+  "ad0fbfa7647578f9e884f9f943f38aa9ad0f6b54de73c270413045a2ff6d6f4f": {
+    "$ref": "#/components/schemas/policyCookieMatcherType__ves_io_schema_views_cdn_loadbalancer"
+  },
+  "aedb17b816729e091f3e18f559306f8632a5fb5c58960c941c77d88fc64eddff": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaIpv4AddressType"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "aee9363e15263cc893aa905fa498e6413c2db32cec6d6d8989d945ec05a8c6fd": {
+    "type": "object",
+    "properties": {
+      "duration": {
+        "type": "integer",
+        "format": "int64"
+      }
+    }
+  },
+  "af1ee635ae3a4ef8db335be36065f7b554e848f9b1f794d7fb5c83b0b3354b64": {
+    "type": "array",
+    "maxItems": 32,
+    "items": {
+      "$ref": "#/components/schemas/schemaSetCookieValueOption"
+    }
+  },
+  "af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaviewsObjectRefType"
+      }
+    ]
+  },
+  "b0986be2e8f95821197ff673775967abe855c8f682509dd9f155fab6eb3386fa": {
+    "$ref": "#/components/schemas/origin_poolUpstreamTlsParameters"
+  },
+  "b1f8afac32106377aa29724dbf055af5318f58b2c1477e8b007ce634d84c4538": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/abe274d62a7f1c976685685884fcaafe36c8def609350ad0724018f66ce338de"
+      }
+    ]
+  },
+  "b1f93d3872f57ab0815a73c05d2908b54160fe99a6957da6113573573c1c1188": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 1024,
+    "format": "ipv4",
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "b1fa2fed06f381ad90b37bf28f9863c887c40d8ec0f1a3c8f23c37b55da3e385": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/367d03255ee4d82db537a037ccb3c60db024fb8d497ed7b255dd8063f37617b6"
+      }
+    ]
+  },
+  "b2fcdaf3a99eb56ef33ebeda2b3c9ba4a40bc087d1aabc67dfdd45b7eed70dc8": {
+    "description": "Minimum configuration for schemaVirtualNetworkType",
+    "required_fields": [],
+    "mutually_exclusive_groups": [],
+    "example_json": "\"VIRTUAL_NETWORK_SITE_LOCAL\"",
+    "example_yaml": "VIRTUAL_NETWORK_SITE_LOCAL\n..."
+  },
+  "b34e598eb265abd3121423d5f1b42c8963ed2c2251eda2a24a8bb2410397b534": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.items.string.ipv6_prefix": "true",
+    "ves.io.schema.rules.repeated.max_items": "256",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "b37a3cfd6887747f194a558f1ef230bdf43b7aff1eefa923396c0f13cb5fabec": {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": 128,
+    "items": {
+      "$ref": "#/components/schemas/schemaviewsObjectRefType"
+    }
+  },
+  "b40ac7f2357d777d776f6996e0c02b70808f9aa9e3ccf3716e0a44142f56d073": {
+    "type": "array",
+    "maxItems": 4,
+    "items": {
+      "$ref": "#/components/schemas/schemaRouteAttrType"
+    },
+    "x-ves-validation-rules": {
+      "$ref": "./shared-schema-components.json#/fa557fe2b0330e62b1782d5be52f7794bec5a57400877f011850a6fd55323197"
+    },
+    "x-validation-rules": {
+      "$ref": "./shared-schema-components.json#/fa557fe2b0330e62b1782d5be52f7794bec5a57400877f011850a6fd55323197"
+    },
+    "x-f5xc-description-short": "List of attributes that control forwarding, dynamic routing and control plane (host) reachability.",
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/8316eba065c8ab25bd4fef81ff77669b2a3129ade1e75dc513c47029de29b0e6"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "description": "List of attributes that control forwarding, dynamic routing and control plane (host) reachability.",
+    "title": "Attributes",
+    "x-displayname": "Attributes."
+  },
+  "b41018a067989a32de7d5aa72c70223dec15af3a154affa8ed074ca9a08c7f05": {
+    "ves.io.schema.rules.uint32.gte": "1",
+    "ves.io.schema.rules.uint32.lte": "65535"
+  },
+  "b4371ca3d9cf10193532672e2fc4f181b4452d9c07d8c762892f607e203810d5": {
+    "$ref": "#/components/schemas/viewsPerformanceEnhancementModeType"
+  },
+  "b45a412616ec2eb9cd1141eb20407b587261dfc14b9073d43387bd42c30b6078": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "x-f5xc-conflicts-with": ["disable_internet_vip"]
+  },
+  "b4a03fcfc07075cb1de89cded6334370348d3eda3382f3bca08d2caec62b5624": {
+    "$ref": "#/components/schemas/origin_poolOriginServerPublicIP"
+  },
+  "b4c2ba70a96e2c887ff6682d2019105f072bb9ee4db75c22062f006b555cfb34": {
+    "constraintType": "number",
+    "category": "discovery",
+    "maximum": 32768,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "b4ea2a665e48691b295b7f2da98a92772c9336e5032668050ad65fc7bdd13620": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "128",
+    "ves.io.schema.rules.repeated.min_items": "1"
+  },
+  "b545ea56c9b9afccf3f5476e41e8ede5f30d15378fb64d7ea12e3cfc6987b3c6": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+      "$ref": "./shared-schema-components.json#/ad0fbfa7647578f9e884f9f943f38aa9ad0f6b54de73c270413045a2ff6d6f4f"
+    }
+  },
+  "b6d6113575f0a37212dc4939f665ce1b03fff6eccd13fb42b3a7c3f668faf4ae": {
+    "ves.io.schema.rules.map.keys.string.mac": "true",
+    "ves.io.schema.rules.map.max_pairs": "128",
+    "ves.io.schema.rules.map.unique_values": "true",
+    "ves.io.schema.rules.map.values.string.ipv4": "true"
+  },
+  "b80e0bb0666313f2e3719a3e7b08079d3ced768e3c62a147d0c616d10916da83": {
+    "constraintType": "string",
+    "category": "discovery",
+    "maxLength": 63,
+    "minLength": 1,
+    "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "characterSet": {
+      "$ref": "./shared-schema-components.json#/4eb2e3c361ea5b03651614e3ac70fbb24987df30ef779231bef2f7883fa6ab81"
+    },
+    "format": "dns-label",
+    "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+    "validation": {
+      "$ref": "./shared-schema-components.json#/e4a0ce338f9f6e564732f811d43cc6cfba4d50f34d2a6efee34ebbd180b1b72f"
+    },
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    },
+    "deterministic": true,
+    "byteLength": {
+      "max": 64
+    }
+  },
+  "b83b2a166c3eb6d3fd11ff8a871febe999b3a54ee074dbffb95b3a5378ab3442": {
+    "$ref": "#/components/schemas/origin_poolOriginServerPrivateName"
+  },
+  "b9e484494150da331549597a87956e9e8a662aeb6e0cfd4be4b4c8b6058d141b": {
+    "constraintType": "string",
+    "category": "network",
+    "maxLength": 1024,
+    "minLength": 1,
+    "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+    "characterSet": {
+      "$ref": "./shared-schema-components.json#/73163f154f4321b49b77ff19b688d455b825ac41b7f97a337faafa9dd3f88b0c"
+    },
+    "format": "fqdn",
+    "formatDescription": "RFC 1123 FQDN: lowercase, dot-separated labels, max 253 chars total",
+    "validation": {
+      "rfc": "RFC 1123"
+    },
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/8e625dbe4e00e9ab5e0b8dfd9280922096095fb0deac7315ab099280577fa872"
+    },
+    "deterministic": true
+  },
+  "ba3fdf48738b0c1f3756546fdd14ecb27d7193eb2247d1b808d13237a238fcf7": {
+    "$ref": "#/components/schemas/network_interfaceStaticIPParametersType"
+  },
+  "ba6966e07efcf8a472a3b44e1ac549acdae1a312fa4c33f4fceb09bca3c84c25": {
+    "type": "string",
+    "maxLength": 64,
+    "x-ves-example": "Example-corp.",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.string.max_bytes": "64"
+    },
+    "x-f5xc-example": "example-corp",
+    "x-validation-rules": {
+      "ves.io.schema.rules.string.max_bytes": "64"
+    },
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/926dfe8abdd7629a0e1411c079d4589f8297220c5ef1705baf42dad946f7fb10"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "readOnly": true,
+    "x-field-mutability": "read-only",
+    "minLength": 12,
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
+    "title": "tenant",
+    "x-displayname": "Tenant"
+  },
+  "ba9762c91980f195143200e12ae37f036fb68d2e982c1144a2718369085581f2": {
+    "description": "Minimum configuration for schemaBlindfoldSecretInfoType",
+    "required_fields": ["location"],
+    "mutually_exclusive_groups": [],
+    "example_json": "{\n  \"location\": \"string:///U2VjcmV0SW5mb3JtYXRpb24=\"\n}",
+    "example_yaml": "location: string:///U2VjcmV0SW5mb3JtYXRpb24="
+  },
+  "ba9d4777a2e70ce6d8bd4c5a16af33511a7eadf40959f59a70f8ed8f246b43ec": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/policyPrefixMatchList"
+      }
+    ]
+  },
+  "bc7107060998a5eb71303aab5408722f510f661b709fdcc6574adcf75ac2beec": {
+    "type": "boolean",
+    "format": "boolean",
+    "x-ves-required": "false",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.message.required": "false"
+    },
+    "x-validation-rules": {
+      "ves.io.schema.rules.message.required": "true"
+    },
+    "x-f5xc-example": "true",
+    "x-f5xc-description-short": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e.",
+    "x-f5xc-description-medium": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e. OS upgrade in progress).",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "description": "Force upgrade even when logic checks are PUT in place to not allow software upgrades (i.e. OS upgrade in progress)",
+    "title": "Force",
+    "x-displayname": "Force"
+  },
+  "be27ecd217f817dd44b261d25fec1d83b7feb4f69ded6ff7de16276f40847e29": {
+    "ves.io.schema.rules.repeated.max_items": "128",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "beb907fd64b6c81cc32cbaf12ef0a449477777d0663d0a18aa7128a910e82070": {
+    "constraint": {
+      "allowed": ["system"],
+      "enforced": false
+    },
+    "recommendation": {
+      "$ref": "./shared-schema-components.json#/45b8ba67cb2138c7ad349a73d136d0c8730bb44b05a4e4bde6cdbe26c844b541"
+    },
+    "classification": {
+      "category": "networking",
+      "multi_tenant_pattern": "none"
+    }
+  },
+  "bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00": {
+    "source": "api-probed",
+    "confidence": 0.99,
+    "validatedAt": "2026-09-03T15:40:08+00:00"
+  },
+  "bff6372aeeec6c4907d6cb93b671be0300f9bb827c8d0d29bcad8e0df8a366ee": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/8232cff43e46f95ee2b2249a3e3f92b89f517ca2efcbea4ac03db0f8d938dbc1"
+      }
+    ]
+  },
+  "c053f658ed4b43747b329bb43fb00db739a7d3e43b0deeaaac88816d0e974a15": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaCsrfPolicy"
+      }
+    ]
+  },
+  "c0de98737b2ebc493abc91d0fdd879a0f1a418976fe95525f9845a3a0fff8cbc": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaBufferConfigType"
+      }
+    ]
+  },
+  "c18d02fe733fc3c7e6fea6cb508dcf28b3c8b851749d14a103a65f1474c97e96": {
+    "type": "array",
+    "maxItems": 128,
+    "items": {
+      "$ref": "./shared-schema-components.json#/878676ffe3374dfd3346b38e2950f19f3e246cb4afbf90492d94ff65849cfd8f"
+    }
+  },
+  "c29949eaf0cbc1639361f2bb56000a9fa1c4150555854bd6bc672d7cc0b0239b": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "2",
+    "ves.io.schema.rules.uint32.lte": "255"
+  },
+  "c431fae273eca2f8a61610712d6610952d52c00dcc84ee0381f5d861a5d02b28": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaHttpMethod"
+      }
+    ]
+  },
+  "c43dfeaa918bcba3494dd0f0415c9983c59abdbd86a9482f9d3c5bf40ea6c287": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.max_bytes": "128",
+    "ves.io.schema.rules.string.min_bytes": "1"
+  },
+  "c47da692ae308ce7d173bd358dde7f22b0ee8701dc90c70a407d23d47890477d": {
+    "ves.io.schema.rules.uint32.gte": "0",
+    "ves.io.schema.rules.uint32.lte": "255"
+  },
+  "c4ebcf044d3a3924730559839ef4a97391550f4217a5be438597c000bc798551": {
+    "constraintType": "array",
+    "category": "discovery",
+    "maxItems": 4,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "c7667783d04af20d49ca6fd7d3e6179cbf19d68df1e27713b3c6ddd490424a26": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/viewsSnatPoolConfiguration"
+      }
+    ]
+  },
+  "c8a8073a078f1ab47c4ff69f75a96b3331466196855b88e28c0aa049dab3d6bb": {
+    "constraintType": "map",
+    "category": "discovery",
+    "deterministic": true,
+    "originalRules": {
+      "$ref": "./shared-schema-components.json#/f6cd725dc6e0ce94f55437a6b8789a429c82ee73d69c362e93ee530abca00be6"
+    },
+    "keys": {
+      "maxLength": 64,
+      "type": "string",
+      "minLength": 1
+    },
+    "cardinality": {
+      "maxProperties": 16
+    },
+    "values": {
+      "maxLength": 64,
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "c9bd62bd58487595b3b8a853fd18af4b40656df9fc48408ef5c8f0784a4d6633": {
+    "ves.io.schema.rules.string.max_bytes": "131072",
+    "ves.io.schema.rules.string.min_bytes": "1",
+    "ves.io.schema.rules.string.truststore_url": "true"
+  },
+  "cad503a9d2323e42cae21c88f0f7e9e11c62ab984245237b4e58bbc14f7f1889": {
+    "$ref": "#/components/schemas/schemaHeaderTransformationType"
+  },
+  "cb4c711da17ffd52b163e68fd76fa95f4a7dfb86e0563578eb6bc19c8fe4cfc8": {
+    "$ref": "#/components/schemas/securemesh_site_v2SegmentNetworkConfiguration"
+  },
+  "cb753251b2d0544ab4706f5c92aaa275f93ce7623c543d4c5fa9fb7d9119b05b": {
+    "constraintType": "string",
+    "category": "discovery",
+    "minLength": 1,
+    "maxLength": 64,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "cbe65f7f43966de5d11ea2c1438d7ecf706b8c35f4302695e2ff907c535c885e": {
+    "source": "inferred",
+    "confidence": 0.99,
+    "validatedAt": "2026-10-16T10:31:02+00:00"
+  },
+  "ccb8aef5eb14570d8d80e50bdd8eb7b08174de79c444605ed8c273d04515e932": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/ec895e8dc44d5af3cd5b07d58c51b5633b9bb2e3f60d52e97baaa6ced6aec3e4"
+      }
+    ]
+  },
+  "ccf995092a4617c360907e07388b0849dd3d3c8a3705b012d88fb5e80592be04": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/f8cfc6aee091865ad69d30b714f91a55fa0ddcd71990313ed16df38d373040ca"
+      }
+    ]
+  },
+  "cd7a8dd6c2ec214dd1e1a32e086c87cde672001e24df35320d479f0554fad987": {
+    "type": "array",
+    "maxItems": 32,
+    "items": {
+      "$ref": "./shared-schema-components.json#/fbccd42b266c7dac7f4e849fcc293b3bfd9023268be8f05644fed6c09a3aa253"
+    }
+  },
+  "cde6927e019428e59e9e7bbf942efcfdeb1c3723e9899b2f81661c4db60cfe1f": {
+    "$ref": "#/components/schemas/clusterEndpointSelectionPolicy"
+  },
+  "ce2ebc7233a8ab268af575687cfe08ddccbba9fa23327fa243d5577c113c12a3": {
+    "type": "string",
+    "maxLength": 64,
+    "minLength": 1,
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/74b45a0528d65357fba61d0e95ae6febe19fdc87df4fbdf8e8ab1d3284e569b3"
+    }
+  },
+  "ce46261d44b615d2e6672bf9c386283e3c4613059dd8f984a177c99df7a9edf3": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaClearSecretInfoType"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "ce8ea30518b3f253c2b00c72031844cd99b5fb1a209d0ad5e02e69db09503868": {
+    "$ref": "#/components/schemas/network_interfaceDHCPPoolSettingType"
+  },
+  "ce957be964ed8407d07977d063382308f071bf0e6ed372314745e2c8349baead": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+      "$ref": "./shared-schema-components.json#/8982e1308c99c4658d3803582d2dc54ae9ae48a5c6565514538dc800a08db445"
+    }
+  },
+  "cf0804378fb74e21d989dbe7bbaf0509f708564eddaaa67c46c9d003a9af08cf": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/81241d2f1793428da840e48f68cc4618e8c6df64ae39a90c4001e7fbeb3f7b10"
+      }
+    ]
+  },
+  "cf0e758d6063327edace195e21f81e931b76d8354e3146326c144c7490ab7c10": {
+    "constraintType": "array",
+    "category": "discovery",
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "cfd332d2698c8c867209f14b9a575be8475f71dc43e0405833cb5de59cc2bcd1": {
+    "source": "inferred",
+    "confidence": 0.85,
+    "validatedAt": "2026-09-03T15:40:08+00:00"
+  },
+  "d01e6838dc9b3f1d4538b0b126f271745bb14e34874a9e5ef35e7fcea040b0fc": {
+    "$ref": "#/components/schemas/origin_poolOriginServerCBIPService"
+  },
+  "d08904ae7f049b5999361e7a2d0baef6595d4395df0c95e9cf0e0643ab48b1e7": {
+    "$ref": "#/components/schemas/securemesh_site_v2CustomProxyBypassSettings"
+  },
+  "d13bbff8b4123583a93b71909069f533500d55d6d4b83b0894bc1cec2cc39b99": {
+    "type": "integer",
+    "format": "int64",
+    "x-ves-example": "20",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.uint32.ranges": "0,10-604800"
+    },
+    "x-f5xc-example": "20",
+    "x-validation-rules": {
+      "ves.io.schema.rules.uint32.ranges": "0,10-604800"
+    },
+    "x-f5xc-description-short": "Interval for DNS refresh in seconds. Max value is 7 days as per https://datatracker.ietf.org/doc/HTML/rfc8767.",
+    "x-f5xc-description-medium": "Interval for DNS refresh in seconds. Max value is 7 days as per https://datatracker.ietf.org/doc/HTML/rfc8767.",
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/64244598bdf376b143a459160cbbf110f6b82b7efe0ccf5dc09a7261fb207fc5"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "description": "Interval for DNS refresh in seconds.\nMax value is 7 days as per https://datatracker.ietf.org/doc/HTML/rfc8767.",
+    "title": "refresh_interval",
+    "x-displayname": "DNS Refresh Interval."
+  },
+  "d18b22f48228927eb8b2c9aa6c47f0881319cd5887bbe1f50f44d54974d16445": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for outside network.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "d19100f0fda33eecc8e623cfab4a954f19825e0f27a8f5a1fc31313839451838": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for no v6 static routes.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "d1989cf9b3bc0b17d571dd8f6d8a94c620823696eee33c4809dda5c3173853c7": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/securemesh_site_v2NodeList"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for not managed.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "d1dba0957dbb77cbdcfb300bb06a1a7ce0a960e3314d3724296d6cefd13bc5dc": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/47c4a2e4c1653809c8af1f88bee88b463b4662bc2ab871ac9b4347fcadda5f38"
+      }
+    ]
+  },
+  "d22940a7a5b31230751e668de89ef8ddbbe035813d59de4e911271b338ee9b18": {
+    "constraintType": "string",
+    "category": "general",
+    "maxLength": 1024,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/291f254c05fb8a62b806bfb2fb16f35a180152ed22cb68f7526d4e9e7e26e2ef"
+    }
+  },
+  "d29fcdb8a08abc11b2d42c5972d3ed32e0d2b235149374f38b664a7298bec6cf": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.items.string.in": "[\\\"TLS_AES_128_GCM_SHA256\\\",\\\"TLS_AES_256_GCM_SHA384\\\",\\\"TLS_CHACHA20_POLY1305_SHA256\\\",\\\"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256\\\",\\\"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\\\",\\\"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256\\\",\\\"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256\\\",\\\"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384\\\",\\\"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256\\\",\\\"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA\\\",\\\"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA\\\",\\\"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA\\\",\\\"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA\\\",\\\"TLS_RSA_WITH_AES_128_CBC_SHA\\\",\\\"TLS_RSA_WITH_AES_128_GCM_SHA256\\\",\\\"TLS_RSA_WITH_AES_256_CBC_SHA\\\",\\\"TLS_RSA_WITH_AES_256_GCM_SHA384\\\"]",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "d2e8a9eb03710b3372fab38ef4372a4180c30ae5fb9c6e63582c06d37d9ba587": {
+    "type": "string",
+    "x-ves-example": "192.0.2.14.",
+    "x-ves-validation-rules": {
+      "ves.io.schema.rules.string.ipv4": "true"
+    },
+    "x-f5xc-example": "192.0.2.14",
+    "x-validation-rules": {
+      "ves.io.schema.rules.string.ipv4": "true"
+    },
+    "x-f5xc-description-short": "Optional IPv4 DNS server to be used for name resolution.",
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/4790eccd460b571629aeed33e6c07d96a4a32af41dd59357579d1343a9927a85"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "description": "Optional IPv4 DNS server to be used for name resolution.",
+    "title": "nameserver",
+    "x-displayname": "IPv4 DNS Server."
+  },
+  "d47ccd631fee92aebaba5a56363d9852fc34557bdee7f2fb9104fc8bed7fd988": {
+    "ves.io.schema.rules.map.keys.string.max_len": "64",
+    "ves.io.schema.rules.map.keys.string.min_len": "1",
+    "ves.io.schema.rules.map.values.string.max_len": "1024",
+    "ves.io.schema.rules.map.values.string.min_len": "1"
+  },
+  "d4b38771bd62a18599763bd08612e87e46ae51df3200e29f6c719cace38be788": {
+    "$ref": "#/components/schemas/network_interfaceIPV6DnsConfig"
+  },
+  "d608546d818faa9b3a561d64eaa4c101acc49ca40f84622b8868faff9092c019": {
+    "constraintType": "array",
+    "category": "discovery",
+    "maxItems": 1,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "d6f9f3e4cbb99c3deebec37f42e2893970016af5e85e58f3bd298e51186b3765": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+      "$ref": "#/components/schemas/ioschemaHeaderMatcherType"
+    }
+  },
+  "d725f5c75d6e43131bc3c703b54fd13c48e2f149a6941a9600e4e43b307007db": {
+    "constraintType": "number",
+    "category": "discovery",
+    "minimum": 0,
+    "maximum": 32,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "d91bcaad8afa1ddf7cce4d23668c4f833a3db24588f3bbabc5a34c0a737f9c5a": {
+    "$ref": "#/components/schemas/viewsOfflineSurvivabilityModeType"
+  },
+  "d9928410b0a26955c3dd25990b9e0a5febfafdaadcaae42b625b53af5ca6c506": {
+    "$ref": "#/components/schemas/network_interfaceIPV6DnsList"
+  },
+  "d9f3191b062eddcd8f30a5ffeb024e6b16a92672bce818295226f9f98210e405": {
+    "constraintType": "array",
+    "category": "discovery",
+    "minItems": 1,
+    "maxItems": 1,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/3c6fe1fa86f3b1ab0b4ee3350632264bd3184830284f71be0dcc3fbdd277117f"
+    }
+  },
+  "da265370163b1c9b793d8b5013867780b06d2a3a7a5a20379d156bf184be0db8": {
+    "description": "Minimum configuration for schemaSecretType",
+    "required_fields": [],
+    "mutually_exclusive_groups": [],
+    "example_json": "{}",
+    "example_yaml": "{}"
+  },
+  "db2fe4a0a246077ad8734aa7125b7d094cc2e1f437a8976d6b7608fb3b988f6b": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.max_items": "4",
+    "ves.io.schema.rules.repeated.min_items": "1"
+  },
+  "dc57791a6aa0f870bc2d427ad93aef82205ceb832aa748e1034c82e149627c5f": {
+    "$ref": "#/components/schemas/virtual_hostJavascriptChallengeType"
+  },
+  "dd28e5c0458500e1a16f5e6bdb831222a8e437b4bf30d23d0d419361b1b2931e": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/ioschemaEmpty"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for default gateway.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "ddfcb46fb3f2137465f38b93ca4eb89fcddc8d95ffd5968971b0c57b1670aa19": {
+    "$ref": "#/components/schemas/network_interfaceDHCPServerParametersType"
+  },
+  "df415e5c66c3d080795aaab76b3cfdf28ec84b196ea1b27afea63b18b1d65f7c": {
+    "not_managed": {
+      "$ref": "./shared-schema-components.json#/6df7e2715c6fa6499e3558e832277ddc19e5d2c8d3d910b57abf0794c6b51e01"
+    }
+  },
+  "df4caa02c6b4cc1667c97d9a6f4c4fd7ed32f9bce90930baf8f214b0382b4d97": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.items.string.ipv4_prefix": "true",
+    "ves.io.schema.rules.repeated.max_items": "256",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "df9694273c130e3ddf2638f602b1bb573b1df7a8bf256ecab977c53ca5735f40": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.certificate_url": "true",
+    "ves.io.schema.rules.string.max_bytes": "131072",
+    "ves.io.schema.rules.string.min_bytes": "1"
+  },
+  "df9a5b5be203a705f51590b81a47bd63e6bdb8b04cec22bee3889436185e61d1": {
+    "type": "array",
+    "maxItems": 8,
+    "items": {
+      "$ref": "#/components/schemas/viewsOriginPoolWithWeight"
+    }
+  },
+  "e00d2995094f2c3a152a6dfd3b97bd702fd885a2443057e7d9347823eaa3452a": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/f29a57902e402d6ae07b42acd0853ee39cbcb59874f317d8fe36bcd8b76a6abd"
+      }
+    ]
+  },
+  "e03cd5df4359d1e49d94a16f5c2d6d2796b5cac79f59b78ea25d7c865fc1e164": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/ce8ea30518b3f253c2b00c72031844cd99b5fb1a209d0ad5e02e69db09503868"
+      }
+    ]
+  },
+  "e04eecfa49cbd313e552fd86f3160782b5e47567e2e08d7f8f3163f45972c962": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/dc57791a6aa0f870bc2d427ad93aef82205ceb832aa748e1034c82e149627c5f"
+      }
+    ]
+  },
+  "e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6": {
+    "minimum_config": false,
+    "create": false,
+    "update": false,
+    "read": false
+  },
+  "e0fa17045306b542057379f9309255e2d5c11f548073b6002c1233e8562ca964": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/common_wafAPIGroups"
+      }
+    ]
+  },
+  "e10bf6d44ebba57307c085e1e7577d68f5e6660852e658eeaa41a719e0100a7d": {
+    "site": {
+      "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
+    },
+    "virtual_site": {
+      "$ref": "./shared-schema-components.json#/af71929760dacd6113b21526e5168ad4f86aaa6388656317cc7c6881f3680df7"
+    }
+  },
+  "e15f4b251730a43967136582d95d0c88eafab102ccc61ad0276fc14d1ec288fb": {
+    "$ref": "#/components/schemas/network_interfaceDHCPPoolType"
+  },
+  "e18c4345acec5f0dc9a7f305049c481fac2449525c9fa773249b79a0c9dc0e51": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/cad503a9d2323e42cae21c88f0f7e9e11c62ab984245237b4e58bbc14f7f1889"
+      }
+    ]
+  },
+  "e2c22591716b83c09f8e14ff9bf77ac059e6a9237f2c421e4bc0beca1aecd181": {
+    "constraintType": "number",
+    "category": "discovery",
+    "maximum": 1024,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "e2ca94631b361607cc3b8a46da9d57ab76a6451e56b86d4a7f1e709a43ffb877": {
+    "$ref": "#/components/schemas/origin_poolTlsCertificatesType"
+  },
+  "e374d042a055c889ce4eed18e352aa5fd3ba3369fae035f7f51b6971a7e12a07": {
+    "ves.io.schema.rules.map.keys.string.max_len": "128",
+    "ves.io.schema.rules.map.keys.string.min_len": "1",
+    "ves.io.schema.rules.map.max_pairs": "128"
+  },
+  "e3b542a7186c5d514743e160befdac163b3746389b2b038e344a5bf7972ece11": {
+    "blindfold_secret_info": {
+      "$ref": "./shared-schema-components.json#/effb12fa5638d079e016058c4f341829cdf8bbbc37dd59bff0caeb36b9f3fdcf"
+    },
+    "clear_secret_info": {
+      "$ref": "./shared-schema-components.json#/ce46261d44b615d2e6672bf9c386283e3c4613059dd8f984a177c99df7a9edf3"
+    }
+  },
+  "e499fc661e602947b42aee9d1e6e2dcd8abebabc5e764cadb6bab52f875d9234": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "0",
+    "ves.io.schema.rules.uint32.lte": "65535"
+  },
+  "e4a0ce338f9f6e564732f811d43cc6cfba4d50f34d2a6efee34ebbd180b1b72f": {
+    "rfc": "RFC 1035",
+    "standard": "DNS-1035 label (alpha-first)"
+  },
+  "e5a08e87fbd8ad555039172ae91853a542702708eacc4a64764090aa1c3357d0": {
+    "ves.io.schema.rules.repeated.items.string.hostname_or_ip": "true",
+    "ves.io.schema.rules.repeated.items.string.max_len": "256",
+    "ves.io.schema.rules.repeated.max_items": "64",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "e5dfe42dceca70a8b79c03f20f4f27e8aae9665cea6d598623fd482875ab1037": {
+    "$ref": "#/components/schemas/network_interfaceIPV6LocalDnsAddress"
+  },
+  "e6e2944d6b2f6e51701aa1f5c12d5a723dd670839bc86c0515b54741a5e424dc": {
+    "$ref": "#/components/schemas/securemesh_site_v2OCIProviderType"
+  },
+  "e71f81799273e0a215da05d16635571ef7429dee3d4caccedfcf599a747abed5": {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": 256,
+    "items": {
+      "type": "string"
+    }
+  },
+  "e78673760bb2db187bb71bb98256e1f3ea22a7957f1473e262c03b1d11df55b9": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaHttpStatusCode"
+      }
+    ]
+  },
+  "e8b38010ab599f54ed63ad68f1e475fa8a8c81d1680c5e767da6aaf197595990": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/7fa83f50032329aa6a25ee90467016893d44463e5d5fa14a09c64e1c978f6e77"
+      }
+    ],
+    "x-f5xc-description-short": "Configuration parameter for static routes.",
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "e8da013df558dcda1ccdf2867f89eb45abea7b96202260079e3a068d82d92526": {
+    "type": "string",
+    "x-ves-example": "Contactus-route.",
+    "x-f5xc-example": "contactus-route",
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+    "maxLength": 1024,
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "minLength": 6,
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
+    "title": "name",
+    "x-displayname": "Name"
+  },
+  "ea3554fb3143730082905bc8f72934b9fb4569bbc101656024ac116e6c16d76d": {
+    "$ref": "#/components/schemas/network_interfaceDHCPNetworkType"
+  },
+  "ec26cd51107d9c0d7e04812557a014f7e935cb5c18636cf4cad5572a283a9858": {
+    "$ref": "#/components/schemas/common_wafOpenApiValidationCommonSettings__ves_io_schema_views_bigip_virtual_server"
+  },
+  "ec895e8dc44d5af3cd5b07d58c51b5633b9bb2e3f60d52e97baaa6ced6aec3e4": {
+    "$ref": "#/components/schemas/virtual_hostHttpProtocolOptions"
+  },
+  "ecd951a86b82512c8227b9b558e15184bfd57ec173159e5fdff5cdc20a501edc": {
+    "source": "api-probed",
+    "confidence": 0.99,
+    "validatedAt": "2026-10-16T10:31:02+00:00"
+  },
+  "ed05d0926868a68773155741ccf60d7ae25378a4703b34613f1390e072b2582d": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.uint32.gte": "500",
+    "ves.io.schema.rules.uint32.lte": "5000"
+  },
+  "eda09962864c04963e62d6d5c3fae1da101bd652da72a8bc646e2a0678c07986": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.max_len": "253",
+    "ves.io.schema.rules.string.min_len": "1"
+  },
+  "edd274f994c7bfdec4e5215fcb5f4d78d920b1e995c36ceee408cceab900e617": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/5b5e3eceb606f1d111339962def8dc948ec85f6a77e66b0ed334d8be331d6d90"
+      }
+    ]
+  },
+  "ee53310db05f1f725f9651fc1ab8a78370f3b114a907e5008ece39b1d06143c5": {
+    "source": "inferred",
+    "confidence": 0.99,
+    "validatedAt": "2026-09-03T15:40:08+00:00"
+  },
+  "ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440": {
+    "constraintType": "string",
+    "category": "general",
+    "maxLength": 1024,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/cfd332d2698c8c867209f14b9a575be8475f71dc43e0405833cb5de59cc2bcd1"
+    }
+  },
+  "effb12fa5638d079e016058c4f341829cdf8bbbc37dd59bff0caeb36b9f3fdcf": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/47c4a2e4c1653809c8af1f88bee88b463b4662bc2ab871ac9b4347fcadda5f38"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    }
+  },
+  "f03c8856d70415f01f88e40f9cbf6318ed4b1ded2f9cfc345933d8b304007148": {
+    "$ref": "#/components/schemas/securemesh_site_v2VMwareProviderType"
+  },
+  "f0fa156fbcf19e2bae60cc3471b084d1b2564f9176542804831ba172a18215ce": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.repeated.items.string.max_len": "64",
+    "ves.io.schema.rules.repeated.max_items": "8",
+    "ves.io.schema.rules.repeated.min_items": "1",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "f11c93b5978def03c3f68e5910f819f5e0d9d6f6cfa3681bc2e726ee089bccb2": {
+    "$ref": "#/components/schemas/origin_poolOriginPoolSubsets"
+  },
+  "f276fd2719f7b9ac0ebf1933c7e5516c1abfe5d04ace57a2287b727806c27bb2": {
+    "$ref": "#/components/schemas/securemesh_site_v2UpgradeSettingsType"
+  },
+  "f29a57902e402d6ae07b42acd0853ee39cbcb59874f317d8fe36bcd8b76a6abd": {
+    "$ref": "#/components/schemas/common_securityShapeJavaScriptInsertAllWithExceptionsType"
+  },
+  "f3b808f6841fa2276771ddd5a46baa7453b37b603656b8688a7cda32c73aea55": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+      "type": "string",
+      "maxLength": 256
+    }
+  },
+  "f3c36f1481b3d1b2d09f5f03af337be5c853e33b2cd64e623ca2bd36c80f7ec8": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaSecretType"
+      }
+    ]
+  },
+  "f47883a0e54cb2179521dfc79b9a1476f538679218dd298648908f2d86fef86f": {
+    "constraintType": "array",
+    "category": "discovery",
+    "minItems": 1,
+    "maxItems": 16,
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "f4e30b7c0f5abf97d0b3beda657d68bed1bb2233c546b4472ed98f773d768de1": {
+    "constraintType": "number",
+    "category": "discovery",
+    "minimum": 300,
+    "maximum": 60000,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    }
+  },
+  "f568ef6c127e692cb87088b4224c92dc5e63b27b893e63963a222674fda42989": {
+    "constraintType": "array",
+    "category": "discovery",
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac": {
+    "source": "discovery",
+    "confidence": 0.99,
+    "validatedAt": "2026-10-16T10:31:02+00:00"
+  },
+  "f5ef291ab55e8f61ecc757572195788ab812fd541e8da6a29eeb28094dc9f4e8": {
+    "$ref": "#/components/schemas/schemaOpenApiValidationProperties"
+  },
+  "f5efe473c32b4dd4d3e5bea7b7e0dbf553fb521eecdf82438797a02621e23b5c": {
+    "$ref": "#/components/schemas/network_interfaceLinkQualityMonitorConfig"
+  },
+  "f651b938ba397c936ab7c6e2aa0e9606d61eae489c947ca47e1d6bc8d7eb28f4": {
+    "type": "object",
+    "x-ves-oneof-field-domain_matcher_choice": "[\"any_domain\",\"domain\"]",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/ffe1d94c0b62436f029086b4c9a0c8b6f657cfd09d5f7109d5c1363f3cdf7077"
+    }
+  },
+  "f6cd725dc6e0ce94f55437a6b8789a429c82ee73d69c362e93ee530abca00be6": {
+    "ves.io.schema.rules.map.keys.string.max_len": "64",
+    "ves.io.schema.rules.map.keys.string.min_len": "1",
+    "ves.io.schema.rules.map.max_pairs": "16",
+    "ves.io.schema.rules.map.values.string.max_len": "64",
+    "ves.io.schema.rules.map.values.string.min_len": "1"
+  },
+  "f77026eb44e44f01c5b376de5b664f9b55712922697f18fe96dd580c42107b1d": {
+    "$ref": "#/components/schemas/network_interfaceStaticIpParametersClusterType"
+  },
+  "f793f11b60836c6beba1f5da021c7e9bf1d0b3aa319a7c5ecb149038a91c2b38": {
+    "constraintType": "array",
+    "category": "discovery",
+    "minItems": 1,
+    "maxItems": 128,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "f798203ea54cf64222c8b203862e1e4c4a4f40e35f0fe1db8bc1cce654ffc31d": {
+    "type": "object",
+    "x-ves-oneof-field-secret_info_oneof": "[\"blindfold_secret_info\",\"clear_secret_info\"]",
+    "properties": {
+      "$ref": "./shared-schema-components.json#/e3b542a7186c5d514743e160befdac163b3746389b2b038e344a5bf7972ece11"
+    },
+    "x-f5xc-description-short": "SecretType is used in an object to indicate a sensitive/confidential field.",
+    "x-f5xc-minimum-configuration": {
+      "$ref": "./shared-schema-components.json#/da265370163b1c9b793d8b5013867780b06d2a3a7a5a20379d156bf184be0db8"
+    },
+    "x-f5xc-cli-domain": "other",
+    "description": "SecretType is used in an object to indicate a sensitive/confidential field.",
+    "title": "SecretType",
+    "x-displayname": "Secret",
+    "x-ves-proto-message": "ves.io.schema.SecretType"
+  },
+  "f8cfc6aee091865ad69d30b714f91a55fa0ddcd71990313ed16df38d373040ca": {
+    "$ref": "#/components/schemas/securemesh_site_v2VirtualNetworkConfiguration"
+  },
+  "f96d0016287f351bec10de76784391d19d6201447bfe6ac58a853498109e481d": {
+    "ves.io.schema.rules.message.required": "true",
+    "ves.io.schema.rules.string.ip_prefix": "true"
+  },
+  "f9b0af4f602efe26ad470f65a22e1a1f8b929cde485205faca119851eec8c925": {
+    "constraintType": "number",
+    "category": "discovery",
+    "minimum": 1,
+    "maximum": 65535,
+    "multipleOf": 1,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/bf9a7da44ad2d5822d15df2c75cd443776bb9304aef48c9ac73758816f4dbc00"
+    },
+    "deterministic": true
+  },
+  "fa557fe2b0330e62b1782d5be52f7794bec5a57400877f011850a6fd55323197": {
+    "ves.io.schema.rules.repeated.max_items": "4",
+    "ves.io.schema.rules.repeated.unique": "true"
+  },
+  "fa6fc88931e8c1df5293d93978691c77f7e34c3bb4d25b2b9511da90cde9272a": {
+    "constraintType": "array",
+    "category": "discovery",
+    "maxItems": 64,
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "fb33ccf2607e80141526867c4bad7b024efb5f505675b93bbfa34dd70d50e1a7": {
+    "category": "application",
+    "multi_tenant_pattern": "per-tenant"
+  },
+  "fb59adec54dd57cb69feb0fe2b98f2588c25aa542d78b8ba9ca143d31c2dd6fd": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaSegmentRefType"
+      }
+    ],
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "x-f5xc-conflicts-with": ["site_local_inside_network", "site_local_network"],
+    "x-f5xc-references": [
+      {
+        "$ref": "./shared-schema-components.json#/21ec4743017ce41da2bc6f1333cbd0884a431f083dbaa522d377fc37c1adbd51"
+      }
+    ]
+  },
+  "fb5ca6320f144bf80baa27f601f0e20eb3c6268d4f783f983630b918a1af6eb3": {
+    "$ref": "#/components/schemas/external_connectorTunnelEndpoint"
+  },
+  "fbccd42b266c7dac7f4e849fcc293b3bfd9023268be8f05644fed6c09a3aa253": {
+    "$ref": "#/components/schemas/schemaHeaderManipulationOptionType"
+  },
+  "fbdc2f37a36a69fe23d6a76c22d55bbe6a260b27ca2c9dda0a6c2618acca79cf": {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": 32,
+    "items": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  },
+  "fc721b7ec039a25fdda3d85a72f92ce45335783e0d93c1befc071373d9cbc099": {
+    "$ref": "#/components/schemas/securemesh_site_v2KVMProviderType"
+  },
+  "fcbbc566d66382238fe6c2e507cb6e94ae657fb3da7cf6529406bcda1ca520e5": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/schemaTlsProtocol"
+      }
+    ]
+  },
+  "fccc7274b4129f50822ebfebe25534d1d07c60f1fe96128c4c3b0fc37553a801": {
+    "type": "string",
+    "x-ves-example": "Example-corp.",
+    "x-f5xc-example": "example-corp",
+    "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+    "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+    "maxLength": 1024,
+    "x-f5xc-constraints": {
+      "$ref": "./shared-schema-components.json#/ee8f4fcd147ce4f6157d38d2d50241c3418f6cc7f50bcd7321c3b40124f1d440"
+    },
+    "x-f5xc-required-for": {
+      "$ref": "./shared-schema-components.json#/e08a09d8960de987f256991e9dad2f4ec0696caf3c59f0c5c70ecec3e3438cc6"
+    },
+    "readOnly": true,
+    "x-field-mutability": "read-only",
+    "minLength": 12,
+    "x-reconciled-from-discovery": true,
+    "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
+    "title": "tenant",
+    "x-displayname": "Tenant"
+  },
+  "fd69f65f88c9e001238db42e2ade6ff0ae68a39f4b3bcc1ffe51eb8374602ceb": {
+    "constraintType": "array",
+    "category": "discovery",
+    "minItems": 1,
+    "maxItems": 256,
+    "uniqueItems": true,
+    "deterministic": true,
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/f56fb00fd1a667602781c237c21baf754db3f27e1f7812e942ed7defdc79feac"
+    }
+  },
+  "fe5af5814eec8e5fb3765598fc5f5b197e4311c1b0669b0824b5384079ff70c0": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/6de22daa8ca6f4fb5b89be81fb56abe5b297271b3e891d5c8f05160669b0616a"
+      }
+    ]
+  },
+  "fec253bc9fcce951c48eb397a0a9eb27b3319012f77289823f3e2fb9d6917495": {
+    "allOf": [
+      {
+        "$ref": "./shared-schema-components.json#/475fc1e6a436b37cf419b19104bf0e5c11dd930aa0143c8f923e521a5e7390a1"
+      }
+    ]
+  },
+  "ff68626ff18b3a1832155ff8ec82a570db7bc4ec47fbb83169a1771df485ada0": {
+    "$ref": "#/components/schemas/viewsL3PerformanceEnhancementType"
+  },
+  "ffe1d94c0b62436f029086b4c9a0c8b6f657cfd09d5f7109d5c1363f3cdf7077": {
+    "any_domain": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/ioschemaEmpty"
+        }
+      ]
+    },
+    "domain": {
+      "$ref": "./shared-schema-components.json#/84649fd1d128144fb1cfcf9e925ddb1c87eb85159a1426549a14c63468320c06"
+    },
+    "metadata": {
+      "$ref": "./shared-schema-components.json#/845ec6cbdfaacc4aca4a18d5312c2a109774438be4d636645894acc15517ea51"
+    },
+    "path": {
+      "$ref": "./shared-schema-components.json#/2363a6c00d1e72a8c1a37c6bcb5c7bf0e961718927528dcc1465bc6526438182"
+    }
+  }
+}
