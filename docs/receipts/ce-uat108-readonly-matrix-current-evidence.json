@@ -1,0 +1,414 @@
+{
+  "schemaVersion": 1,
+  "sanitized": true,
+  "candidateRevision": 108,
+  "sourceCommit": "80dbd6207bad226ef7d3f3190af8a1a519aad743",
+  "readOnlyMatrix": {
+    "candidateRevision": 108,
+    "sourceCommit": "80dbd6207bad226ef7d3f3190af8a1a519aad743",
+    "scopeCount": 8,
+    "planCount": 16,
+    "scopes": [
+      {
+        "scope": "ce-r108-a-0",
+        "cloud": "aws",
+        "profile": "single-site",
+        "component": null,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "single-site",
+            "component": null,
+            "nodeCount": 1,
+            "region": "us-east-2",
+            "planId": "aws-ce-0d8f6956d4a85a383913dcd2",
+            "planSha256": "0d8f6956d4a85a383913dcd23c2b7aa029e34657d394caa0b9a6ecab3c9b30a5",
+            "interfaceRoles": ["slo", "sli"],
+            "actions": 21,
+            "independentSites": 1
+          },
+          {
+            "engine": "terraform",
+            "profile": "single-site",
+            "component": null,
+            "nodeCount": 1,
+            "region": "us-east-2",
+            "planId": "aws-ce-fad5b8c0bff3a24075e52ca2",
+            "planSha256": "fad5b8c0bff3a24075e52ca2f7a92e8ac0ec94639edb7f186a02b1f4b25c23f3",
+            "interfaceRoles": ["slo", "sli"],
+            "actions": 21,
+            "independentSites": 1
+          }
+        ]
+      },
+      {
+        "scope": "ce-r108-a-1",
+        "cloud": "aws",
+        "profile": "independent-sites",
+        "component": null,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "independent-sites",
+            "component": null,
+            "nodeCount": 3,
+            "region": "us-east-2",
+            "planId": "aws-ce-ef7e1b9d04f9ff7029467195",
+            "planSha256": "ef7e1b9d04f9ff70294671958021367f955a51672f2ba39048262aa76bab8ab9",
+            "interfaceRoles": ["slo", "sli"],
+            "actions": 52,
+            "independentSites": 3
+          },
+          {
+            "engine": "terraform",
+            "profile": "independent-sites",
+            "component": null,
+            "nodeCount": 3,
+            "region": "us-east-2",
+            "planId": "aws-ce-e9de7f70b24487a6c1876e67",
+            "planSha256": "e9de7f70b24487a6c1876e67e28b3a24a171b0d54ae0e50a098e546a055a9f1f",
+            "interfaceRoles": ["slo", "sli"],
+            "actions": 52,
+            "independentSites": 3
+          }
+        ]
+      },
+      {
+        "scope": "ce-r108-a-2",
+        "cloud": "aws",
+        "profile": "three-node-ha",
+        "component": null,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "three-node-ha",
+            "component": null,
+            "nodeCount": 3,
+            "region": "us-east-2",
+            "planId": "aws-ce-0f5ece2e86140ae1dd53bca3",
+            "planSha256": "0f5ece2e86140ae1dd53bca3b87541b3d5f3a9bae28c4b17852d344fdf2b4ed5",
+            "interfaceRoles": ["slo", "sli"],
+            "actions": 53,
+            "independentSites": 1
+          },
+          {
+            "engine": "terraform",
+            "profile": "three-node-ha",
+            "component": null,
+            "nodeCount": 3,
+            "region": "us-east-2",
+            "planId": "aws-ce-0187b01bf2dad67e2d114a28",
+            "planSha256": "0187b01bf2dad67e2d114a2897e26a4253e43c927ed23e5fac8aa57b253f3af6",
+            "interfaceRoles": ["slo", "sli"],
+            "actions": 53,
+            "independentSites": 1
+          }
+        ]
+      },
+      {
+        "scope": "ce-r108-a-3",
+        "cloud": "azure",
+        "profile": "single-site",
+        "component": null,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "single-site",
+            "component": null,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-084f0ca2f6cc6d9daff7a0ad",
+            "planSha256": "084f0ca2f6cc6d9daff7a0ad4b4f393fabab2527f771fc1c637efd8212c09b2f",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 0
+          },
+          {
+            "engine": "terraform",
+            "profile": "single-site",
+            "component": null,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-4d412446339d720474ff5732",
+            "planSha256": "4d412446339d720474ff5732f222175c809d046e0446808e7abddbbba796335d",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 0
+          }
+        ]
+      },
+      {
+        "scope": "ce-r108-a-4",
+        "cloud": "azure",
+        "profile": "independent-sites",
+        "component": 1,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "independent-sites",
+            "component": 1,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-0eff83955b281d785e032019",
+            "planSha256": "0eff83955b281d785e0320199c01f8b7595ff27b548d990cfdaf585168ab55bb",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 1
+          },
+          {
+            "engine": "terraform",
+            "profile": "independent-sites",
+            "component": 1,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-f778fffa2175bae031c4a6bc",
+            "planSha256": "f778fffa2175bae031c4a6bcc1fef08d472b7bf37d0aafab4a820eb6e1b648b4",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 1
+          }
+        ]
+      },
+      {
+        "scope": "ce-r108-a-5",
+        "cloud": "azure",
+        "profile": "independent-sites",
+        "component": 2,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "independent-sites",
+            "component": 2,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-6aacc0959baf130d3c020a7d",
+            "planSha256": "6aacc0959baf130d3c020a7da4118302a95500140b78f5c64dbfa1a4a21c77f9",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 1
+          },
+          {
+            "engine": "terraform",
+            "profile": "independent-sites",
+            "component": 2,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-302090c5ab66d45f089de913",
+            "planSha256": "302090c5ab66d45f089de9132231a18a2173f9fec8f579476b22bbbbdc21b2cf",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 1
+          }
+        ]
+      },
+      {
+        "scope": "ce-r108-a-6",
+        "cloud": "azure",
+        "profile": "independent-sites",
+        "component": 3,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "independent-sites",
+            "component": 3,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-90a3db10ea3356f0bd134a6f",
+            "planSha256": "90a3db10ea3356f0bd134a6f0aad422d52f5136c949140eeeac9df972059ebda",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 1
+          },
+          {
+            "engine": "terraform",
+            "profile": "independent-sites",
+            "component": 3,
+            "nodeCount": 1,
+            "region": "canadacentral",
+            "planId": "azure-ce-f8c2b359ec66887983f40e15",
+            "planSha256": "f8c2b359ec66887983f40e159d7af3467d86e05d5867fd9cb3e72030230658c9",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 12,
+            "independentSites": 1
+          }
+        ]
+      },
+      {
+        "scope": "ce-r108-a-7",
+        "cloud": "azure",
+        "profile": "three-node-ha",
+        "component": null,
+        "savedPlanDigestsVerified": true,
+        "installedRuntimeDigestsVerified": true,
+        "plans": [
+          {
+            "engine": "native",
+            "profile": "three-node-ha",
+            "component": null,
+            "nodeCount": 3,
+            "region": "canadacentral",
+            "planId": "azure-ce-a35c59c1ed540fb4bbdfeacf",
+            "planSha256": "a35c59c1ed540fb4bbdfeacfc467cd7b1ff027e6884897db6c590550ad334513",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 24,
+            "independentSites": 0
+          },
+          {
+            "engine": "terraform",
+            "profile": "three-node-ha",
+            "component": null,
+            "nodeCount": 3,
+            "region": "canadacentral",
+            "planId": "azure-ce-a6a82b938d033aea5a1c55fc",
+            "planSha256": "a6a82b938d033aea5a1c55fc6f75b7237492a2422021a8096ec3373e254ef75c",
+            "interfaceRoles": ["slo", "data", "sli"],
+            "actions": 24,
+            "independentSites": 0
+          }
+        ]
+      }
+    ],
+    "fullReadOnlyMatrixPassed": true,
+    "cloudMutationPerformed": false,
+    "liveLifecycleQualified": false,
+    "fullCeAcceptance": false,
+    "observedAt": "2026-10-23T00:54:40.319474+00:00"
+  },
+  "archiveVerification": {
+    "observedAt": "2026-10-23T00:53:57.892761+00:00",
+    "candidateRevision": 108,
+    "sourceCommit": "80dbd6207bad226ef7d3f3190af8a1a519aad743",
+    "scopeCount": 8,
+    "archiveFileComparisons": 6144,
+    "scopes": [
+      {
+        "scope": "ce-r108-a-0",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      },
+      {
+        "scope": "ce-r108-a-1",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      },
+      {
+        "scope": "ce-r108-a-2",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      },
+      {
+        "scope": "ce-r108-a-3",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      },
+      {
+        "scope": "ce-r108-a-4",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      },
+      {
+        "scope": "ce-r108-a-5",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      },
+      {
+        "scope": "ce-r108-a-6",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      },
+      {
+        "scope": "ce-r108-a-7",
+        "filesVerified": 768,
+        "allArchiveBytesAndInstalledAssetsMatch": true
+      }
+    ],
+    "allEightInstallationsMatchImmutableArchives": true,
+    "cloudMutationPerformed": false,
+    "fullCeAcceptance": false
+  },
+  "inventory": {
+    "candidateRevision": 108,
+    "sourceCommit": "80dbd6207bad226ef7d3f3190af8a1a519aad743",
+    "cliVersion": "23.9.3",
+    "installedRuntimeDigests": [
+      {
+        "plugin": "platform",
+        "sha256": "8202bc280711fc8a5c8982428228d8267c0c0fcbc026739d7f0c42e4c12fe356"
+      },
+      {
+        "plugin": "aws",
+        "sha256": "bfdc470263d02e5cb8c908e75429adf02274f46037833243fa30daa5012559ef"
+      },
+      {
+        "plugin": "azure",
+        "sha256": "f11e8d73c4d04f5769912acaf82af7c1ee39e1297a67e63ad606dc350725c848"
+      },
+      {
+        "plugin": "terraform",
+        "sha256": "4229913baceb7337c75339a75a56e0247b759a6a71eb90264a2cbf62ca8cf1d6"
+      }
+    ],
+    "trace": [
+      {
+        "tool": "aws_ce_inventory",
+        "startedAt": "2026-10-23T00:53:23.919Z",
+        "completedAt": "2026-10-23T00:53:26.214Z",
+        "isError": false
+      },
+      {
+        "tool": "azure_ce_inventory",
+        "startedAt": "2026-10-23T00:53:26.214Z",
+        "completedAt": "2026-10-23T00:53:47.042Z",
+        "isError": false
+      }
+    ],
+    "cloudMutationPerformed": false,
+    "fullCeAcceptance": false,
+    "exactPublicSchemaInputs": true,
+    "schemaCorrectionPriorReceiptPreserved": true,
+    "cloudInventorySummaries": [
+      {
+        "tool": "aws_ce_inventory",
+        "counts": {
+          "instances": 0,
+          "interfaces": 0
+        },
+        "platformEvidence": "unavailable",
+        "cloudScopeComplete": true,
+        "requestedRegionCount": 1
+      },
+      {
+        "tool": "azure_ce_inventory",
+        "counts": {
+          "azureNodes": 4,
+          "logicalDeployments": 8,
+          "platformSites": 0
+        },
+        "platformEvidence": "unavailable",
+        "cloudScopeComplete": true,
+        "azureGraphPages": 1
+      }
+    ],
+    "fullPlatformInventoryQualified": false,
+    "observedAt": "2026-10-23T00:54:17.032753+00:00"
+  },
+  "scope": "Public installed discovery/planning and cloud inventory; live lifecycle, platform inventory, interface state/freshness and HA mutations remain unqualified",
+  "consumerProducerPin": "v12.2.0",
+  "consumerRepinned": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
