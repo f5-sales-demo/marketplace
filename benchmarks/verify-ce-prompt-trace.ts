@@ -24,7 +24,7 @@ interface TraceEvent {
   result?: { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
 }
 
-const CONTRACT = 'f5xc-ce-automation/v1';
+const CONTRACT = 'f5xc-ce-automation-policy/v2';
 
 export function parseTrace(jsonl: string): TraceEvent[] {
   return jsonl
@@ -136,8 +136,8 @@ export function evaluateTrace(scenario: PromptScenario, jsonl: string): TraceEva
   else {
     if (result.result?.isError) errors.push(`${discoveryTool} returned an error`);
     const text = (result.result?.content ?? []).map((item) => item.text ?? '').join('\n');
-    if (!text.includes('Shared contract: f5xc-ce-automation/v1'))
-      errors.push(`discovery result lacks ${CONTRACT} receipt`);
+    const identity = provider === 'aws' ? 'f5xc-ce-automation-policy/v2' : CONTRACT;
+    if (!text.includes(`Shared contract: ${identity}`)) errors.push(`discovery result lacks ${identity} receipt`);
     if (!text.includes('Discovery artifact: artifact://')) errors.push('discovery result lacks a session artifact');
     if (provider === 'aws' && !text.includes('Pinned AMI: ami-'))
       errors.push('discovery result lacks a pinned regional AMI');
