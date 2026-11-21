@@ -1,6 +1,4 @@
 import { expect, spyOn, test } from 'bun:test';
-import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,6 +9,7 @@ import { rendererOwnershipErrors, sourceOwnershipErrors } from './presentation-o
 import {
   parseRetiredTasks,
   parseTasks,
+  pluginSourceFingerprint,
   reconcileTasks,
   renderTracker,
   seedTasks,
@@ -40,7 +39,6 @@ interface InventoryPlugin {
 }
 const root = resolve(import.meta.dir, '..');
 const trackerPath = join(root, 'docs/marketplace-presentation-todo.md');
-const hash = (text: string | Uint8Array) => createHash('sha256').update(text).digest('hex');
 
 test('canonical presentation tracker covers actual registrations and every shipped content surface', async () => {
   const catalog = JSON.parse(readFileSync(join(root, '.xcsh-plugin/marketplace.json'), 'utf8')) as {
@@ -60,19 +58,7 @@ test('canonical presentation tracker covers actual registrations and every shipp
     expect(manifest.name).toBe(plugin.name);
     expect(manifest.version).toBe(plugin.version);
     expect(manifest.lifecycle).toEqual(plugin.lifecycle);
-    const paths = execFileSync(
-      'git',
-      ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', plugin.source],
-      { cwd: root },
-    )
-      .toString()
-      .split('\0')
-      .filter(Boolean)
-      .sort();
-    // Include all shipped dependencies/references; changes reopen acceptance conservatively.
-    const fingerprint = hash(
-      `${runtime}\n${paths.map((path) => `${path}\n${hash(readFileSync(join(root, path)))}`).join('\n')}`,
-    );
+    const fingerprint = pluginSourceFingerprint(root, plugin.source, runtime);
     const surfaces = shippedFiles(root, plugin).map((surface: Surface) => ({ ...surface, fingerprint }));
     surfaces.push({
       id: `${plugin.name}.lifecycle.status`,

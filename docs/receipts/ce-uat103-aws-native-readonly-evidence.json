@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 103,
+  "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+  "cliVersion": "23.9.3",
+  "installedArchiveReceipt": "docs/receipts/ce-uat103-archive-evidence.json",
+  "publicTools": [
+    {
+      "tool": "aws_sts_whoami",
+      "startedAt": "2026-10-22T10:33:00.794Z",
+      "completedAt": "2026-10-22T10:33:01.379Z",
+      "isError": false
+    },
+    {
+      "tool": "f5xc_ce_v2_capabilities",
+      "startedAt": "2026-10-22T10:33:01.379Z",
+      "completedAt": "2026-10-22T10:33:13.760Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_compute_discover",
+      "startedAt": "2026-10-22T10:33:13.760Z",
+      "completedAt": "2026-10-22T10:34:46.798Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_plan",
+      "startedAt": "2026-10-22T10:34:49.604Z",
+      "completedAt": "2026-10-22T10:34:49.622Z",
+      "isError": false
+    },
+    {
+      "tool": "aws_ce_inventory",
+      "startedAt": "2026-10-22T10:34:52.435Z",
+      "completedAt": "2026-10-22T10:34:54.718Z",
+      "isError": false
+    }
+  ],
+  "planId": "aws-ce-e87f3976420ccacbec956b0c",
+  "planSha256": "e87f3976420ccacbec956b0c6a55e05dcb91a04141dd639cc68fd18765d61b41",
+  "engine": "native",
+  "nodeCount": 1,
+  "interfaceRoles": ["slo", "sli"],
+  "explicitGuestDevices": ["ens5", "ens6"],
+  "actions": 21,
+  "independentBaselineEmpty": true,
+  "cloudMutationPerformed": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}

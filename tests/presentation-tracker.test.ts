@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { presentationFingerprintErrors } from '../scripts/check-presentation-fingerprints.mjs';
 import {
   parseRetiredTasks,
   parseTasks,
+  pluginSourceFingerprint,
   reconcileTasks,
   renderRetiredTasks,
   renderTasks,
@@ -126,4 +132,165 @@ test('retired appendix roundtrips all historical cells and stays out of active t
   const text = renderTasks([seedTasks(inventory, links)[0]]) + renderRetiredTasks(retired);
   expect(parseTasks(text)).toHaveLength(1);
   expect(parseRetiredTasks(text)).toEqual(retired);
+});
+
+test('repeated invalidation coalesces only its warning and preserves every fingerprint and receipt', () => {
+  const previous = seedTasks(inventory, links);
+  const notice = 'Evidence invalidated by source/runtime/scope change; next action: requalify this gate.';
+  const originalNotes = 'Recorded failure; next action: resolve vendor dependency';
+  const history = ['a'.repeat(64), 'b'.repeat(64)];
+  previous[4].status = 'BLOCKED';
+  previous[4].evidence = 'scenario=retained; outcome=failed';
+  previous[4].receipt = 'private:failed-receipt';
+  previous[4].blocker = `${notice} Prior input=${history[0]}. ${notice} Prior input=${history[1]}. ${originalNotes}`;
+  const unchanged = reconcileTasks(previous, previous);
+  expect(unchanged[4].status).toBe('BLOCKED');
+  expect(unchanged[4].blocker.split(notice)).toHaveLength(2);
+  for (const fingerprint of history) expect(unchanged[4].blocker).toContain(`Prior input=${fingerprint}.`);
+  expect(unchanged[4].blocker).toContain(originalNotes);
+  expect(unchanged[4].evidence).toBe(previous[4].evidence);
+  expect(unchanged[4].receipt).toBe(previous[4].receipt);
+  expect(reconcileTasks(unchanged, unchanged)).toEqual(unchanged);
+  const changed = seedTasks(
+    [{ ...inventory[0], surfaces: [{ ...inventory[0].surfaces[0], fingerprint: 'changed' }] }],
+    links,
+  );
+  const reopened = reconcileTasks(changed, unchanged);
+  expect(reopened[4].status).toBe('TODO');
+  expect(reopened[4].blocker.split(notice)).toHaveLength(2);
+  expect(reopened[4].blocker).toContain(`Prior input=${previous[4].input}.`);
+  for (const fingerprint of history) expect(reopened[4].blocker).toContain(`Prior input=${fingerprint}.`);
+  expect(reopened[4].blocker).toContain(originalNotes);
+  expect(reopened[4].receipt).toBe(previous[4].receipt);
+});
+
+function fingerprintFixture(run: (root: string, regenerate: () => void) => void) {
+  const root = mkdtempSync(join(tmpdir(), 'tracker-final-bytes-'));
+  try {
+    for (const path of ['plugins/example/.xcsh-plugin', 'scripts/agent-validation-runtime', '.xcsh-plugin', 'docs'])
+      mkdirSync(join(root, path), { recursive: true });
+    writeFileSync(
+      join(root, '.xcsh-plugin/marketplace.json'),
+      JSON.stringify({
+        plugins: [{ name: 'example', source: 'plugins/example' }],
+      }),
+    );
+    writeFileSync(
+      join(root, 'scripts/agent-validation-runtime/package.json'),
+      JSON.stringify({ dependencies: { '@f5-sales-demo/xcsh': '23.10.13' } }),
+    );
+    writeFileSync(
+      join(root, 'plugins/example/.xcsh-plugin/plugin.json'),
+      JSON.stringify({ name: 'example', version: '1.0.0', tags: ['one', 'two'] }, null, 2),
+    );
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Fixture',
+        '-c',
+        'user.email=fixture@example.invalid',
+        '-c',
+        'core.hooksPath=/dev/null',
+        'commit',
+        '--quiet',
+        '-m',
+        'test: seed',
+      ],
+      { cwd: root },
+    );
+    const regenerate = () => {
+      const fingerprint = pluginSourceFingerprint(root, 'plugins/example', '23.10.13');
+      const current = [
+        {
+          ...inventory[0],
+          fingerprint,
+          surfaces: inventory[0].surfaces.map((surface) => ({ ...surface, fingerprint })),
+        },
+      ];
+      writeFileSync(
+        join(root, 'docs/marketplace-presentation-todo.md'),
+        `<!-- tracker-metadata\n{"runtime":"23.10.13"}\n-->\n${renderTasks(seedTasks(current, links))}`,
+      );
+    };
+    regenerate();
+    run(root, regenerate);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test('manifest formatting after tracker generation fails until final bytes are regenerated', () => {
+  fingerprintFixture((root, regenerate) => {
+    expect(presentationFingerprintErrors(root)).toEqual([]);
+    const path = join(root, 'plugins/example/.xcsh-plugin/plugin.json');
+    writeFileSync(path, JSON.stringify(JSON.parse(readFileSync(path, 'utf8'))));
+    expect(presentationFingerprintErrors(root)).toEqual(['Stale presentation fingerprint: example']);
+    regenerate();
+    expect(presentationFingerprintErrors(root)).toEqual([]);
+  });
+});
+
+test('new forced-tracked runtime chunks reopen evidence and checkout fingerprints remain identical', () => {
+  fingerprintFixture((root, regenerate) => {
+    writeFileSync(join(root, '.gitignore'), 'plugins/example/dist/\n');
+    mkdirSync(join(root, 'plugins/example/dist'));
+    writeFileSync(join(root, 'plugins/example/dist/runtime-new.js'), 'export const ready = true;');
+    expect(presentationFingerprintErrors(root)).toEqual([]);
+    execFileSync('git', ['add', '-f', 'plugins/example/dist/runtime-new.js'], { cwd: root });
+    expect(presentationFingerprintErrors(root)).toEqual(['Stale presentation fingerprint: example']);
+    regenerate();
+    expect(presentationFingerprintErrors(root)).toEqual([]);
+    const original = pluginSourceFingerprint(root, 'plugins/example', '23.10.13');
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Fixture',
+        '-c',
+        'user.email=fixture@example.invalid',
+        '-c',
+        'core.hooksPath=/dev/null',
+        'commit',
+        '--quiet',
+        '-m',
+        'test: stage chunk',
+      ],
+      { cwd: root },
+    );
+    const checkout = join(root, 'checkout');
+    execFileSync('git', ['clone', '--quiet', '--local', root, checkout]);
+    expect(pluginSourceFingerprint(checkout, 'plugins/example', '23.10.13')).toBe(original);
+    expect(presentationFingerprintErrors(checkout)).toEqual([]);
+  });
+});
+
+test('commit checker rejects unstaged input bytes even when the working tracker matches', () => {
+  fingerprintFixture((root, regenerate) => {
+    execFileSync('git', ['add', '.'], { cwd: root });
+    writeFileSync(join(root, 'plugins/example/.xcsh-plugin/plugin.json'), '{"version":"2.0.0"}');
+    regenerate();
+    const checker = resolve(import.meta.dir, '../scripts/check-presentation-fingerprints.mjs');
+    const result = spawnSync('node', [checker, root], { encoding: 'utf8' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Stage all tracker inputs');
+    execFileSync('git', ['add', '.'], { cwd: root });
+    expect(spawnSync('node', [checker, root], { encoding: 'utf8' }).status).toBe(0);
+  });
+});
+
+test('runtime changes fail independently of source bytes', () => {
+  fingerprintFixture((root) => {
+    writeFileSync(
+      join(root, 'scripts/agent-validation-runtime/package.json'),
+      JSON.stringify({ dependencies: { '@f5-sales-demo/xcsh': '23.10.14' } }),
+    );
+    expect(presentationFingerprintErrors(root)).toEqual([
+      'Tracker runtime differs from the declared validation runtime',
+      'Stale presentation fingerprint: example',
+    ]);
+  });
 });
