@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 103,
+  "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+  "cliVersion": "23.9.3",
+  "installedArchiveReceipt": "docs/receipts/ce-uat103-archive-evidence.json",
+  "observedAt": "2026-10-22T11:12:54.417443+00:00",
+  "prebootConfiguration": {
+    "observedAt": "2026-10-22T10:44:07.456351+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "sourcePrivateReceipt": "independent-inventory-20261022T104321817872Z.private.json",
+    "configuredNodes": 1,
+    "configuredAndGeneratedInterfaces": 2,
+    "explicitDevices": ["ens5", "ens6"],
+    "mtu": 1500,
+    "configuredMacCloudOwnershipAndDeviceIndexJoins": true,
+    "generatedOwnerUidNodeDeviceRoleJoins": true,
+    "generatedChildMacField": "absent; no direct child-MAC observation claimed",
+    "prebootReplacementNeededForMtu": false,
+    "operationalLinkState": "unqualified",
+    "originalCeSampleAge": "unknown",
+    "installationComplete": false,
+    "fullCeAcceptance": false
+  },
+  "registeredHardware": {
+    "observedAt": "2026-10-22T10:52:53.079884+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "registeredNodeCount": 1,
+    "configuredMacAndRegisteredDeviceJoins": 2,
+    "registeredDevices": ["ens5", "ens6"],
+    "osVersion": "9.2026.17",
+    "logicalSiteState": "UPGRADING",
+    "physicalSiteState": "UPGRADING",
+    "originalCeSampleAge": "unknown",
+    "fullProvisioningAcceptance": false,
+    "fullCeAcceptance": false
+  },
+  "publicHeadlessBootstrap": {
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "cliVersion": "23.9.3",
+    "publicTool": "f5xc_ce_v2_bootstrap",
+    "headlessApiCheckout": "pass",
+    "opaqueReferenceOnly": true,
+    "ownershipNodeSiteUidContractBound": true,
+    "checkoutIsolatedUnderFixture": true,
+    "expirySeconds": 60,
+    "upstreamRevocationPendingOwnedTeardown": false,
+    "fullCeAcceptance": false,
+    "upstreamTokensIndependentlyAbsent": 2
+  },
+  "installationAttempt": {
+    "status": "failed",
+    "durationLimitMilliseconds": 1200000,
+    "checkpointedActions": 20,
+    "totalActions": 21,
+    "samePlanResumeRecommended": true,
+    "error": "F5 CE API cancelled. Resume with the same plan ID and SHA-256; 20/21 actions are checkpointed.",
+    "fullProvisioningAcceptance": false
+  },
+  "publicToolTraces": {
+    "apply-safe-receipt.json": [
+      {
+        "tool": "aws_ce_apply",
+        "startedAt": "2026-10-22T10:38:40.907Z",
+        "completedAt": "2026-10-22T10:58:40.908Z",
+        "isError": true
+      }
+    ],
+    "teardown-apply-safe-receipt.json": [
+      {
+        "tool": "aws_ce_teardown",
+        "startedAt": "2026-10-22T11:03:05.022Z",
+        "completedAt": "2026-10-22T11:09:36.363Z",
+        "isError": false
+      }
+    ],
+    "final-plan-safe-receipt.json": [
+      {
+        "tool": "aws_ce_plan",
+        "startedAt": "2026-10-22T11:11:26.161Z",
+        "completedAt": "2026-10-22T11:11:26.181Z",
+        "isError": false
+      }
+    ],
+    "status-safe-receipt.json": [
+      {
+        "tool": "aws_ce_status",
+        "startedAt": "2026-10-22T10:58:43.755Z",
+        "completedAt": "2026-10-22T10:59:19.259Z",
+        "isError": false
+      }
+    ],
+    "diagnose-safe-receipt.json": [
+      {
+        "tool": "aws_ce_diagnose",
+        "startedAt": "2026-10-22T10:59:21.866Z",
+        "completedAt": "2026-10-22T11:00:07.948Z",
+        "isError": false
+      }
+    ],
+    "interfaces-safe-receipt.json": [
+      {
+        "tool": "f5xc_ce_v2_status",
+        "startedAt": "2026-10-22T11:00:10.753Z",
+        "completedAt": "2026-10-22T11:00:23.742Z",
+        "isError": false
+      }
+    ],
+    "site-read-safe-receipt.json": [
+      {
+        "tool": "f5xc_ce_v2_site",
+        "startedAt": "2026-10-22T11:00:26.389Z",
+        "completedAt": "2026-10-22T11:00:38.462Z",
+        "isError": false
+      }
+    ]
+  },
+  "independentCleanup": {
+    "observedAt": "2026-10-22T11:11:56.158448+00:00",
+    "candidateRevision": 103,
+    "sourceCommit": "ac11503e37a2b078fd4e153dc12128f0d7901797",
+    "exactCloudIds": 11,
+    "rootVolumesAbsent": 1,
+    "tokensAbsent": 2,
+    "interfaceBaselines": 2,
+    "freshOwnershipInventoryEmpty": true,
+    "logicalPhysicalSitesAbsent": true,
+    "nativeFinalPlanNoChanges": true,
+    "finalPlanSha256": "efd107b248ffd95702e7b5d1fccbac07597b6b7e8682d1379c4a33c370148e8b",
+    "terraformState": "not-applicable-native",
+    "sensitiveStagingRetired": true,
+    "fullCleanupAcceptance": true,
+    "fullCeAcceptance": false,
+    "sensitiveRetirementReceipt": "sensitive-retirement103-safe.json"
+  },
+  "postCleanupVerification": {
+    "exitCodes": [0, 0],
+    "observedAt": "2026-10-22T11:11:56.166905+00:00",
+    "fullCeAcceptance": false
+  },
+  "sensitiveRetirement": {
+    "observedAt": "2026-10-22T11:12:05.012077+00:00",
+    "sensitiveFilesRetired": 3,
+    "sensitiveBytesRetired": 2145,
+    "inventorySha256": "a0ea166895825feba536f1a6c8be3f40d0f2a5b94c635515c5cd8a2839a9f61b",
+    "remainingJwtOrPrivateKeyMatches": 0,
+    "sharedContextUntouched": true,
+    "cloudKeysCreated": false,
+    "fullCeAcceptance": false
+  },
+  "focusedFeatureRegression": {
+    "tests": 24,
+    "assertions": 111,
+    "files": [
+      "plugins/aws/test/ce/native-teardown.test.ts",
+      "plugins/aws/test/ce/terraform-teardown-plan.test.ts",
+      "plugins/platform/test/ce/tools.test.ts",
+      "plugins/platform/test/ce/bootstrap.test.ts"
+    ]
+  },
+  "operationalInterfaceFreshnessQualified": false,
+  "historicalAwsTerraformRecovery": {
+    "measuredMilliseconds": 212977,
+    "maximumMilliseconds": 45000,
+    "status": "failed"
+  },
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
