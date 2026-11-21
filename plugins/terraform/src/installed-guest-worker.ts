@@ -3,6 +3,7 @@ import { lstat, open, readFile, readlink, realpath, stat } from 'node:fs/promise
 import { dirname, join } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
 import sourcePins from './gcp-capture-source-pins.json';
+import { runOriginalGuestCaptureRound } from './guest-capture-round';
 import { assertOriginalApplyCallback, type OriginalApplyCallbackContext } from './installed-apply-controller';
 import { freezeAdmittedCaptureInputs, type InstalledCaptureContext } from './installed-capture-context';
 import pins from './installed-runtime-pins.json';
@@ -21,6 +22,16 @@ import {
 
 type Message = Record<string, unknown>;
 type Identity = ExecutionCaptureAdmission['identity'];
+type GuestRoundReport = Awaited<ReturnType<typeof runOriginalGuestCaptureRound>>;
+const originalRoundSources = new WeakMap<object, () => Promise<GuestRoundReport>>();
+/** A copied packet, matching actor or user-supplied command port cannot select
+ * this source-owned worker. Full guest acceptance remains independently gated. */
+export async function collectInstalledOriginalGuestRound(value: unknown) {
+  if (!value || typeof value !== 'object') throw new Error('Original installed guest worker required');
+  const collect = originalRoundSources.get(value);
+  if (!collect) throw new Error('Original source-issued installed guest worker required');
+  return collect();
+}
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const equalIdentity = (a: Identity | undefined, b: Identity | undefined) =>
   !!a && !!b && ['pid', 'group', 'start', 'boot'].every((key) => a[key as keyof Identity] === b[key as keyof Identity]);
@@ -144,6 +155,10 @@ async function openOriginalGuestWorkerSource(
   let outcome: Promise<unknown> | undefined;
   let outcomeError: unknown;
   let requestMonitor: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
+  let collecting = false,
+    roundFailure: unknown;
+  let roundPromise: Promise<GuestRoundReport> | undefined;
+  const rounds: GuestRoundReport[] = [];
   const assertInputs = async (full = true) => {
     await assertContext();
     if (full) {
@@ -350,7 +365,15 @@ async function openOriginalGuestWorkerSource(
     await parent.initialize();
     initialized = true;
   };
-  return Object.freeze({
+  const commandOriginal = async (value: Message) => {
+    if (!initialized || disposed || !parent) throw new Error('Original installed guest command lifecycle unavailable');
+    await assertInputs();
+    if (after) await assertOriginalApplyCallback(after);
+    const result = await parent.command(value);
+    await assertInputs();
+    return result;
+  };
+  const worker = Object.freeze({
     root,
     async initialize() {
       if (started || disposed) throw new Error('Original installed guest lifecycle already started or retired');
@@ -373,16 +396,13 @@ async function openOriginalGuestWorkerSource(
       }
     },
     async command(value: Message) {
-      if (!initialized || disposed || !parent)
-        throw new Error('Original installed guest command lifecycle unavailable');
-      await assertInputs();
-      if (after) await assertOriginalApplyCallback(after);
-      const result = await parent.command(value);
-      await assertInputs();
-      return result;
+      if (collecting || (roundFailure && value.operation !== 'close'))
+        throw new Error('Original guest collection active or refused');
+      return commandOriginal(value);
     },
     async dispose() {
       if (disposed) return;
+      if (roundPromise) await Promise.allSettled([roundPromise]);
       if (initialized && !terminal && parent) {
         try {
           await parent.command({ operation: 'close' });
@@ -449,10 +469,57 @@ async function openOriginalGuestWorkerSource(
         submissions,
         terminal,
         disposed,
+        collectionRounds: rounds.length,
+        ...(roundFailure ? { collectionFailureRetained: true } : {}),
         ...(outcomeError ? { executionFailureRetained: true } : {}),
         ...(finalTiming ? { originalFinalCapture: finalTiming, originalParent: after?.execution.identity } : {}),
         guestAcceptanceComplete: false,
       });
     },
   });
+  originalRoundSources.set(worker, async () => {
+    if (!initialized || disposed || terminal || collecting || roundFailure)
+      throw new Error('Original installed guest round lifecycle unavailable, active or refused');
+    const previous = rounds.at(-1);
+    if (previous && linuxMonotonicMs() - previous.finishedMonotonicMs < 45000)
+      throw new Error('Original guest rounds require forty-five-second spacing');
+    collecting = true;
+    roundPromise = (async () => {
+      await withinContext();
+      await assertActor();
+      const report = await runOriginalGuestCaptureRound(
+        {
+          async assertOriginal() {
+            await withinContext();
+            await assertActor();
+          },
+          command: commandOriginal,
+          async persist(event) {
+            await persist(
+              join(root, `guest-round-event-${randomUUID()}.private.json`),
+              Buffer.from(JSON.stringify(event)),
+            );
+          },
+        },
+        {
+          instanceId: String(binding.instance_id),
+          observerId: String(binding.observer_id),
+          tokenSha256: String(binding.token_sha256),
+          ownershipSha256: String(binding.ownership_sha256),
+        },
+        finalTiming?.finalDeadlineMs ?? budget.deadline,
+      );
+      rounds.push(report);
+      return report;
+    })();
+    try {
+      return await roundPromise;
+    } catch (error) {
+      roundFailure ??= error;
+      throw error;
+    } finally {
+      collecting = false;
+    }
+  });
+  return worker;
 }

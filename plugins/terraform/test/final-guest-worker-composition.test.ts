@@ -4,11 +4,16 @@ import { expect, test } from 'bun:test';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { acknowledgeOriginalApplyGroupClosure } from '../src/installed-apply-controller';
-import { openInstalledFinalGuestWorker, openInstalledGuestWorker } from '../src/installed-guest-worker';
+import {
+  collectInstalledOriginalGuestRound,
+  openInstalledFinalGuestWorker,
+  openInstalledGuestWorker,
+} from '../src/installed-guest-worker';
 import { inspectInstalledCaptureScripts, readOwnedInstalledInput } from '../src/installed-runtime';
 import { linuxMonotonicMs } from '../src/linux-clock';
 import { monitorOriginalInputs, type OriginalInputBinding } from '../src/original-input-monitor';
 import { withApplyInventory } from './fixtures/original-apply-inventory.fixture';
+import { retainOwnedTestCapture } from './retained-test-capture';
 
 const terminalSource = String.raw`
 #include <poll.h>
@@ -30,7 +35,7 @@ int main(int argc, char **argv) {
   fputs(">>> ", stdout);
   for (;;) {
     clock_gettime(CLOCK_MONOTONIC, &now);
-    if (now.tv_sec - began.tv_sec >= 90) return 4;
+    if (now.tv_sec - began.tv_sec >= 270) return 4;
     struct pollfd input = {0, POLLIN, 0};
     if (poll(&input, 1, 100) < 0) return 5;
     if (!(input.revents & POLLIN)) continue;
@@ -42,9 +47,12 @@ int main(int argc, char **argv) {
     if (byte == '\t') {
       if (!strncmp(command, "execcli journalctl ", 18))
         fputs("\r\n--help -u -b -p -o --no-pager --utc\r\n>>> ", stdout);
+      else if (!strncmp(command, "execcli crictl-logs ", 19))
+        fputs("\r\n--help --tail\r\n>>> ", stdout);
       else if (!strncmp(command, "execcli ", 8))
-        fputs("\r\njournalctl\r\n>>> ", stdout);
-      else fputs("\r\nhealth status execcli exit\r\n>>> ", stdout);
+        fputs("\r\ndate ip-address ip-route journalctl crictl-ps-a crictl-inspect crictl-logs\r\n>>> ", stdout);
+      else if (!strncmp(command, "status ", 7)) fputs("\r\nvpm\r\n>>> ", stdout);
+      else fputs("\r\nhealth diagnosis status execcli exit\r\n>>> ", stdout);
       continue;
     }
     if (byte == '\r') {
@@ -53,6 +61,8 @@ int main(int argc, char **argv) {
       if (!strcmp(command, "execcli journalctl --help")) {
         fputs("journalctl [OPTIONS...] [MATCHES...]\r\n", stdout);
         fputs(" -u --unit=UNIT Show logs from the specified unit\r\n", stdout);
+        fputs(" -b --boot[=ID] Show logs from the specified boot\r\n", stdout);
+        fputs(" -p --priority=RANGE Show entries of the specified priority\r\n", stdout);
         fputs(" -o --output=STRING Change journal output mode\r\n", stdout);
         fputs(" --no-pager Do not pipe output into a pager\r\n", stdout);
         fputs(" --utc Express time in Coordinated Universal Time\r\n", stdout);
@@ -60,6 +70,12 @@ int main(int argc, char **argv) {
       if (!strcmp(command, "execcli journalctl -u vpm --no-pager --utc -o short-iso-precise"))
         for (int index = 0; index < 250; index++)
           printf("2026-11-21T00:00:00+0000 OFFLINE_JOURNAL_%d\r\n", index);
+      if (!strcmp(command, "execcli crictl-logs --help"))
+        fputs("NAME:\r\n crictl logs - Fetch the logs of a container\r\nUSAGE:\r\n crictl logs [command options] CONTAINER-ID\r\nOPTIONS:\r\n --tail value Number of lines to show from the end of the logs (default: -1)\r\n", stdout);
+      if (!strcmp(command, "execcli crictl-ps-a"))
+        fputs("CONTAINER ID IMAGE\r\ncccccccccccccccc offline-vpm\r\ndddddddddddddddd offline-exited\r\n", stdout);
+      if (!strncmp(command, "execcli crictl-logs ", 19) && strstr(command, "--tail=-1"))
+        fputs("OFFLINE_FULL_CONTAINER_LOG\r\n", stdout);
       fputs(">>> ", stdout);
       length = 0; command[0] = 0; continue;
     }
@@ -97,6 +113,8 @@ test('actual final worker captures after original operation expiry and closes wi
         const options = { context: original, inputs, binding, guards };
         await expect(openInstalledGuestWorker(options)).rejects.toThrow(/expired/);
         const worker = await openInstalledFinalGuestWorker(options, final);
+        let captureSucceeded = false;
+        let captureFailure: unknown;
         try {
           await worker.initialize();
           const request = JSON.parse(await readFile(join(worker.root, 'request.private.json'), 'utf8'));
@@ -128,9 +146,47 @@ test('actual final worker captures after original operation expiry and closes wi
           const fullRaw = await readFile(String(journalEvidence[0].path), 'utf8');
           expect(fullRaw).toContain('OFFLINE_JOURNAL_0');
           expect(fullRaw).toContain('OFFLINE_JOURNAL_249');
-        } finally {
-          await worker.dispose();
+          const round = collectInstalledOriginalGuestRound(worker);
+          await expect(collectInstalledOriginalGuestRound(worker)).rejects.toThrow(/active/);
+          await expect(worker.command({ operation: 'capture', kind: 'health' })).rejects.toThrow(/active/);
+          const report = await round;
+          expect(report.status).toBe('captured');
+          expect(report.bootstrapCoverageVerified).toBe(false);
+          expect(report.guestAcceptanceComplete).toBe(false);
+          expect(report.original.instanceId).toBe(String(binding.instance_id));
+          expect(report.deadlineMs).toBe(final.reserve.finalDeadlineMs);
+          expect(report.captures.filter((item) => item.kind === 'cri-inspect').map((item) => item.containerId)).toEqual(
+            ['cccccccccccccccc', 'dddddddddddddddd'],
+          );
+          expect(report.captures.filter((item) => item.kind === 'cri-logs-full')).toHaveLength(2);
+          expect(worker.evidence().collectionRounds).toBe(1);
+          await expect(collectInstalledOriginalGuestRound({ ...worker })).rejects.toThrow(/source-issued/);
+          await expect(collectInstalledOriginalGuestRound(worker)).rejects.toThrow(/spacing/);
+          captureSucceeded = true;
+        } catch (error) {
+          captureFailure = error;
         }
+        const failures: unknown[] = [];
+        try {
+          await worker.dispose();
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          const retained = await retainOwnedTestCapture(
+            worker.root,
+            'final-guest-round',
+            captureSucceeded ? 'success' : 'failure',
+          );
+          console.info(JSON.stringify({ kind: 'private-native-capture-retained', ...retained }));
+        } catch (error) {
+          failures.push(error);
+        }
+        if (captureFailure || failures.length)
+          throw new AggregateError(
+            [...(captureFailure ? [captureFailure] : []), ...failures],
+            'Original native capture closure or retention incomplete',
+          );
         const evidence = worker.evidence();
         expect(evidence.submissions).toBe(1);
         expect(evidence.disposed).toBe(true);
@@ -190,7 +246,7 @@ test('actual final worker captures after original operation expiry and closes wi
         const expected = structuredClone(binding),
           originalMonitor = monitor;
         guards = {
-          inputs: () => originalMonitor.assertOriginal(),
+          inputs: () => originalMonitor.assertOriginalIdentity(),
           async original(value) {
             expect(value).toEqual(expected);
             guardCalls.push('original');

@@ -13,10 +13,11 @@ import type { GcpCeIntent } from '../../gcloud/src/ce/types';
 import { intent as baseIntent } from '../../gcloud/test/ce/fixtures';
 import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { createInstalledCaptureContext, type InstalledCaptureContext } from '../src/installed-capture-context';
+import { createInstalledCaptureInputChecks } from '../src/installed-capture-input-checks';
 import { inspectInstalledCaptureScripts, readOwnedInstalledInput } from '../src/installed-runtime';
 import { resolveInstalledGcpVersionProfile } from '../src/installed-version-profile';
 import { linuxMonotonicMs } from '../src/linux-clock';
-import { assertSameOriginalInput, monitorOriginalInputs } from '../src/original-input-monitor';
+import { monitorOriginalInputs } from '../src/original-input-monitor';
 import { type Deployment, type Invocation, readOriginalTerraformPlanSource, TerraformRunner } from '../src/runner';
 
 export const credential = {
@@ -259,6 +260,15 @@ export async function fixture(
           throw new Error('Bounded offline original operation remainder required');
         // A late-arriving original operation still has the immutable two-hour duration.
         const start = linuxMonotonicMs() - 7200000 + operationRemainingMs;
+        const actualInputs = { ...inputs, ...(symbolicTerraform ? { terraform: symbolicTerraform } : {}) };
+        const captureMonitor = await monitorOriginalInputs(actualInputs);
+        await captureMonitor.assertOriginal();
+        const inputChecks = createInstalledCaptureInputChecks({
+          verifyStore: async () => {},
+          monitors: () => [captureMonitor],
+          budget: { start, deadline: start + 7200000 },
+          clock: linuxMonotonicMs,
+        });
         const context = createInstalledCaptureContext({
           owner,
           executionDirectory: request.cwd,
@@ -274,18 +284,10 @@ export async function fixture(
             XCSH_API_TOKEN: 'synthetic',
           },
           inputs,
-          assertInputs: async () => {
-            await interpreter.assertOriginalIdentity();
-            for (const [name, binding] of Object.entries(inputs)) {
-              if (name === 'python') continue;
-              assertSameOriginalInput(
-                name === 'terraform' && symbolicTerraform ? symbolicTerraform : binding,
-                (await readOwnedInstalledInput(binding.path)).binding,
-              );
-            }
-          },
+          assertInputs: inputChecks.assertCaptureInputs,
           assertWithinDeadline: async () => {
             if (expired() || linuxMonotonicMs() >= start + 7200000) throw new Error('original operation expired');
+            await inputChecks.assertCaptureWithinDeadline();
           },
           readProviderInputs: async () => providers,
           readOriginalPlanSource: () =>
@@ -302,8 +304,9 @@ export async function fixture(
           await run(context, store, request);
         } finally {
           try {
-            await interpreter.assertOriginal();
+            await inputChecks.assertInputs();
           } finally {
+            captureMonitor.close();
             interpreter.close();
           }
         }

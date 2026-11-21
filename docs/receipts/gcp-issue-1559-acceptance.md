@@ -2090,3 +2090,13 @@ absences. No apply was submitted. The preceding-head presentation tracker CI
 failure and all preparation/funding failures remain retained. Current source,
 installed runtime, original guest capture, full live acceptance, parent review
 and CI, merge and qualified publication/installation remain separate gates.
+
+## Installed original guest round source continuation
+
+The [installed round source receipt](gcp-installed-round-source-20261121.md)
+records source-issued collection, retained private captures, freshness repairs
+and original-descriptor guards. Native fixture capture and independent closure
+pass within the original final reserve. Source, runtime installation, actual
+GCP guest/bootstrap behavior, full lifecycle and networking campaigns, cleanup,
+CI, review and publication remain separate gates. This source qualification
+does not complete issue 1559 or release its publication holds.

@@ -6,6 +6,7 @@ import type { GcpBootstrapObservationSourceBinding } from '../../platform/src/ce
 import { openOriginalGcpBootstrapObservation } from '../../platform/src/ce/gcp-bootstrap-observation';
 import { openInstalledInitialInventory } from '../src/installed-initial-inventory';
 import { prepareOriginalGcpInventoryScope } from '../src/original-gcp-inventory-scope';
+import { OriginalInputMonitorError } from '../src/original-input-monitor';
 import { authInfo, fixture } from './original-gcp-inventory-fixture';
 
 function transport(cloudReply?: (url: URL) => Response | Promise<Response>) {
@@ -148,48 +149,56 @@ test('a present cloud resource retains partial inventory and permanently refuses
 });
 
 test('initial evidence cannot survive credential rotation or restored bytes', async () => {
-  await fixture(
-    async (context, store) => {
-      const scope = await prepareOriginalGcpInventoryScope(context, store);
-      const cloud = transport();
-      const platform = {
-        gcpBootstrapSource: () => originalGcpBootstrapSource,
-        gcpBootstrapObservation: async (
-          _owner: unknown,
-          _name: string,
-          binding: GcpBootstrapObservationSourceBinding,
-        ) =>
-          openOriginalGcpBootstrapObservation(
-            {
-              ...binding,
-              store,
-              credential: context.environment.XCSH_API_TOKEN,
-              origin: context.environment.XCSH_API_URL,
-            },
-            { fetcher: async () => Response.json({}, { status: 404 }) },
+  let snapshotRefusals = 0;
+  await expect(
+    fixture(
+      async (context, store) => {
+        const scope = await prepareOriginalGcpInventoryScope(context, store);
+        const cloud = transport();
+        const platform = {
+          gcpBootstrapSource: () => originalGcpBootstrapSource,
+          gcpBootstrapObservation: async (
+            _owner: unknown,
+            _name: string,
+            binding: GcpBootstrapObservationSourceBinding,
+          ) =>
+            openOriginalGcpBootstrapObservation(
+              {
+                ...binding,
+                store,
+                credential: context.environment.XCSH_API_TOKEN,
+                origin: context.environment.XCSH_API_URL,
+              },
+              { fetcher: async () => Response.json({}, { status: 404 }) },
+            ),
+        };
+        const collector = await openInstalledInitialInventory(
+          { context, scope, store, platform },
+          { fetcher: cloud.fetcher },
+        );
+        const snapshot = await collector.capture();
+        const path = context.inputs.adc.path,
+          original = await readFile(path);
+        await chmod(path, 0o600);
+        await writeFile(path, 'replaced credential');
+        await expect(collector.assertSnapshot(snapshot)).rejects.toThrow();
+        snapshotRefusals++;
+        expect(
+          (await readdir(store.directory)).some(
+            (name) => name.includes('initial-inventory') && name.includes('failed'),
           ),
-      };
-      const collector = await openInstalledInitialInventory(
-        { context, scope, store, platform },
-        { fetcher: cloud.fetcher },
-      );
-      const snapshot = await collector.capture();
-      const path = context.inputs.adc.path,
-        original = await readFile(path);
-      await chmod(path, 0o600);
-      await writeFile(path, 'replaced credential');
-      await expect(collector.assertSnapshot(snapshot)).rejects.toThrow();
-      expect(
-        (await readdir(store.directory)).some((name) => name.includes('initial-inventory') && name.includes('failed')),
-      ).toBe(true);
-      await writeFile(path, original);
-      await chmod(path, 0o400);
-      await expect(collector.assertSnapshot(snapshot)).rejects.toThrow('retired');
-      await collector.close();
-    },
-    '',
-    false,
-  );
+        ).toBe(true);
+        await writeFile(path, original);
+        await chmod(path, 0o400);
+        await expect(collector.assertSnapshot(snapshot)).rejects.toThrow('retired');
+        snapshotRefusals++;
+        await collector.close();
+      },
+      '',
+      false,
+    ),
+  ).rejects.toBeInstanceOf(OriginalInputMonitorError);
+  expect(snapshotRefusals).toBe(2);
 });
 
 test('closing a pending initial capture retains partial bytes and its failed record before returning', async () => {

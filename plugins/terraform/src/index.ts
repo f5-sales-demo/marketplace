@@ -15,6 +15,12 @@ export {
 } from './gcp-preapply-bootstrap';
 export { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
 export { openInstalledBootstrapCapture } from './installed-bootstrap-capture';
+export { openInstalledGcpGuestBinding } from './installed-guest-binding';
+export {
+  collectInstalledOriginalGuestRound,
+  openInstalledFinalGuestWorker,
+  openInstalledGuestWorker,
+} from './installed-guest-worker';
 export { openInstalledXcshCreationReader, readOriginalInstalledXcshCreation } from './installed-xcsh-creation-reader';
 export {
   assertOriginalGcpInventoryInputs,

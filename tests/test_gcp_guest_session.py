@@ -487,3 +487,76 @@ def test_transport_truncation_keeps_full_log_incomplete(tmp_path, binding):
     assert guest.retained[-1]["truncated"]
     assert not guest.retained[-1]["guestAcceptanceComplete"]
     assert guest.failed
+
+
+def test_collector_receives_original_discovery_and_listing_selections(
+    tmp_path, binding
+):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    assert "--no-pager" in guest.retained[-1]["availableCommands"]
+    guest.run("cri-list")
+    assert guest.retained[-1]["containerIds"] == ["abcdef1234567890"]
+    assert guest.retained[-1]["instanceId"] == binding.instance_id
+    assert not guest.retained[-1]["guestAcceptanceComplete"]
+
+
+def test_help_expiring_during_original_guard_refuses_before_write(tmp_path, binding):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    guest.run("journal-help")
+    clock = [300990]
+    guest.monotonic = lambda: clock[0]
+
+    def owner(_binding):
+        clock[0] = 301001
+
+    guest.verify_original = owner
+    before = len(guest.transport.calls)
+    with pytest.raises(ValueError, match="Fresh"):
+        guest.run("vpm-journal-full")
+    assert len(guest.transport.calls) == before
+    assert guest.failed
+
+
+def test_help_expiring_during_capture_keeps_raw_without_verification(tmp_path, binding):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    guest.discover("journal")
+    guest.run("journal-help")
+    clock = [300990]
+    guest.monotonic = lambda: clock[0]
+
+    def exchange(_command, _suffix=b"\r", **_kwargs):
+        clock[0] = 301001
+        return b"retained original journal\r\n>>> "
+
+    guest.transport.exchange = exchange
+    before = len(guest.retained)
+    with pytest.raises(ValueError, match="Fresh"):
+        guest.run("vpm-journal-full")
+    assert len(guest.retained) == before + 1
+    assert not (
+        guest.transport.root / f"guest-{before + 1}.verified.private.json"
+    ).exists()
+    assert guest.failed
+
+
+def test_parent_completion_expiring_during_discovery_keeps_raw_unverified(
+    tmp_path, binding
+):
+    guest, _responses = full_capture_session(tmp_path, binding)
+    clock = [300990]
+    guest.monotonic = lambda: clock[0]
+    original = guest.transport.exchange
+
+    def exchange(command, suffix=b"\r", **kwargs):
+        clock[0] = 301001
+        return original(command, suffix, **kwargs)
+
+    guest.transport.exchange = exchange
+    before = len(guest.retained)
+    with pytest.raises(ValueError, match="Fresh"):
+        guest.discover("journal")
+    assert len(guest.retained) == before + 1
+    assert "journal" not in guest.completions
+    assert guest.failed

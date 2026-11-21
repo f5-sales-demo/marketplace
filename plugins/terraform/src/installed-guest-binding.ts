@@ -141,12 +141,13 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
     busy = false,
     transferred = false,
     transferClaimed = false;
-  const lease = async () => {
+  const lease = async (full = true) => {
     if (closed) throw new Error('Original guest binding lease closed');
     if (failure) throw new Error('Original guest binding source refused; failure retained');
     try {
       await context.assertInputs();
-      await monitor.assertOriginal();
+      if (full) await monitor.assertOriginal();
+      else await monitor.assertOriginalIdentity();
     } catch (error) {
       failure ??= error;
       throw error;
@@ -157,15 +158,15 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
       throw new Error('Original guest source transfer changed identity/token/NIC ownership');
     assertOriginalGuestBindingTransfer(binding, current.binding, original.inputs, current.inputs);
   };
-  const verify = async (value?: Readonly<Record<string, unknown>>) => {
+  const verify = async (value?: Readonly<Record<string, unknown>>, full = true) => {
     if (busy) throw new Error('Original guest binding operation already active');
     busy = true;
     try {
-      await lease();
+      await lease(full);
       if (value && canonical(value) !== anchor) throw new Error('Original immutable guest binding differs');
       const current = await readSources(sources);
       sameInputs(current);
-      await lease();
+      await lease(full);
     } catch (error) {
       failure ??= error;
       throw error;
@@ -178,15 +179,17 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
     binding,
     inputs: original.inputs,
     guards: Object.freeze({
-      inputs: lease,
-      original: (value: Readonly<Record<string, unknown>>) => verify(value),
+      // The worker hashes these exact merged inputs before/after each command.
+      // Ongoing IPC keeps the original descriptors and sticky mutation watches.
+      inputs: () => lease(false),
+      original: (value: Readonly<Record<string, unknown>>) => verify(value, false),
       async trust(value: Readonly<Record<string, unknown>>, role: 'observer' | 'ce') {
         if (busy) throw new Error('Original guest binding operation already active');
         busy = true;
         try {
           if (role !== 'observer' && role !== 'ce') throw new Error('Original guest trust role required');
           if (canonical(value) !== anchor) throw new Error('Original immutable guest trust binding differs');
-          await lease();
+          await lease(false);
           const callback = sources.callback;
           const view =
             role === 'observer'
@@ -199,7 +202,7 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
           const name = role === 'observer' ? 'observer_hosts' : 'ce_hosts';
           if (host.knownHosts.sha256 !== original.inputs[name].sha256)
             throw new Error('Original guest host trust changed');
-          await lease();
+          await lease(false);
         } catch (error) {
           failure ??= error;
           throw error;

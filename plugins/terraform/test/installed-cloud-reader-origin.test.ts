@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import * as readers from '../src/gcp-cloud-serial-reader';
+import { OriginalInputMonitorError } from '../src/original-input-monitor';
 import { authInfo, fixture } from './original-gcp-inventory-fixture';
 
 const fetcher = (async (url: string | URL | Request) => {
@@ -30,22 +31,28 @@ test('installed cloud reader proves its exact original context without accepting
 
 test('a changed original credential retires reader provenance even after byte restoration', async () => {
   expect(typeof readers.assertOriginalInstalledGcpCloudReader).toBe('function');
-  await fixture(async (context) => {
-    const reader = await readers.openInstalledGcpCloudSerialReader(context, undefined, fetcher);
-    const path = context.inputs.adc.path;
-    const bytes = await readFile(path);
-    const replacement = `${path}.replacement`;
-    try {
-      await writeFile(replacement, 'changed original credential', { flag: 'wx', mode: 0o400 });
-      await rename(replacement, path);
-      await expect(readers.assertOriginalInstalledGcpCloudReader(reader, context)).rejects.toThrow();
-      await writeFile(replacement, bytes, { flag: 'wx', mode: 0o400 });
-      await rename(replacement, path);
-      await expect(readers.assertOriginalInstalledGcpCloudReader(reader, context)).rejects.toThrow('retired');
-    } finally {
-      await reader.close();
-    }
-  });
+  let readerRefusals = 0;
+  await expect(
+    fixture(async (context) => {
+      const reader = await readers.openInstalledGcpCloudSerialReader(context, undefined, fetcher);
+      const path = context.inputs.adc.path;
+      const bytes = await readFile(path);
+      const replacement = `${path}.replacement`;
+      try {
+        await writeFile(replacement, 'changed original credential', { flag: 'wx', mode: 0o400 });
+        await rename(replacement, path);
+        await expect(readers.assertOriginalInstalledGcpCloudReader(reader, context)).rejects.toThrow();
+        readerRefusals++;
+        await writeFile(replacement, bytes, { flag: 'wx', mode: 0o400 });
+        await rename(replacement, path);
+        await expect(readers.assertOriginalInstalledGcpCloudReader(reader, context)).rejects.toThrow('retired');
+        readerRefusals++;
+      } finally {
+        await reader.close();
+      }
+    }),
+  ).rejects.toBeInstanceOf(OriginalInputMonitorError);
+  expect(readerRefusals).toBe(2);
 });
 
 test('a generic cloud reader cannot attest an installed context', async () => {

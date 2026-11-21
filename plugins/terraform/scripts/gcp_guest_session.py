@@ -603,6 +603,11 @@ class GuestSession:
             # Ctrl-U clears an unfinished completion line; it does not run it.
             self.transport.clear_pending(deadline_ms=deadline)
             self.guard(deadline)
+            if words:
+                self.require("root", {words[0]})
+            if len(words) > 1:
+                self.require("execcli", {words[1]})
+            item["availableCommands"] = sorted(tokens)
             self.completions[scope] = (
                 self.monotonic(),
                 frozenset(tokens),
@@ -686,6 +691,8 @@ class GuestSession:
         deadline = min(self.deadlines[0], started + COMMAND_MS)
         try:
             self.guard(deadline)
+            if self.command(kind, container_id).encode() != command:
+                reject("Original command selection changed before capture")
             raw = self.transport.exchange(command, _deadline_ms=deadline)
             item = self.retain(kind, command + b"\r", raw, started)
             if container_id is not None:
@@ -716,6 +723,8 @@ class GuestSession:
                     )
                     item["helpSha256"] = self.evidence.help[scope][2]
             self.guard(deadline)
+            if self.command(kind, container_id).encode() != command:
+                reject("Original command selection changed during capture")
             if kind in HELP_SCOPES:
                 scope = HELP_SCOPES[kind]
                 self.evidence.help[scope] = (
@@ -749,6 +758,7 @@ class GuestSession:
                 parsed_ids = tuple(ids)
                 if len(parsed_ids) != len(set(parsed_ids)):
                     reject("Ambiguous original container listing")
+                item["containerIds"] = list(parsed_ids)
                 self.listings[kind.split("-", 1)[0]] = (
                     self.monotonic(),
                     parsed_ids,

@@ -1758,7 +1758,7 @@ var gcp_capture_source_pins_default = {
   files: {
     '__init__.py': 'e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb',
     'guest_pty.py': '2fa89c34dcfc3973ac401c919b40a40639a7cfddfcab3bac0f66a54628cd4ad5',
-    'gcp_guest_session.py': '62aaa2ef0f4e7e09a02a86ba1ff72bfd98a9855bde4d95f75a3c93dfe64d4e38',
+    'gcp_guest_session.py': 'ca4d621aa9e4e0527351078206bab7ce8d2d29fe08491139cead6e89bed1e264',
     'gcp_host_trust.py': 'b60e21a70b96a08192ff2d533b7bba89c9a46a80680aa04540e241b6d16e4589',
     'guest_control.py': '6fee424ef312d2c42b5b5c594993d8ab3db9f75d1268a6173ff348fa5220de7d',
     'guest_worker.py': 'b333a4288e3ce0522864099e5956b4647a3b11e7002eae3cb6bac842eb2dce3f',
@@ -9069,7 +9069,12 @@ async function bindOriginalGcpCampaignAccess(store, binding) {
 }
 
 // plugins/terraform/src/gcp-observer-campaign-key.ts
-var _origins5 = new WeakMap();
+var origins5 = new WeakMap();
+async function assertOriginalGcpObserverCampaignKeyContext(value, callback) {
+  const origin = value && typeof value === 'object' ? origins5.get(value) : undefined;
+  if (!origin || origin.callback !== callback) throw new Error('Original campaign key and actual callback required');
+  return origin.read();
+}
 
 // plugins/terraform/src/gcp-observer-host-trust-reader.ts
 // plugins/terraform/src/gcp-observer-trust-material.ts
@@ -12542,6 +12547,12 @@ async function readOriginalGcpObserverHostTrust(value) {
   if (origin?.family !== 'observer') throw new Error('Original observer host trust source required');
   return origin.read();
 }
+async function assertOriginalGcpObserverHostTrustContext(value, callback) {
+  const origin = value && typeof value === 'object' ? origins17.get(value) : undefined;
+  if (origin?.family !== 'observer' || origin.callback !== callback)
+    throw new Error('Original host trust and actual capture callback required');
+  return origin.read();
+}
 async function readOriginalGcpCeHostTrust(value) {
   const origin = value && typeof value === 'object' ? origins17.get(value) : undefined;
   if (origin?.family !== 'ce') throw new Error('Original CE host trust source required');
@@ -13132,6 +13143,27 @@ function signalFreeFinalReaderExecutor(input, reserve) {
       !isAbsolute10(invocation.args[2])
     )
       throw new Error('Exact isolated final reader script arguments required');
+    return execute(invocation);
+  };
+}
+function signalFreeFinalGuestWorkerExecutor(input, reserve) {
+  if (input.stdin !== undefined) throw new Error('Final guest workers do not accept caller stdin');
+  const original = inspectFinalReaderReserve(reserve);
+  if (input.python.path !== input.executable.path || input.python.sha256 !== input.executable.sha256)
+    throw new Error('Original final guest workers require the same pinned interpreter');
+  if (input.originalStartMs !== original.originalStartMs || input.originalDeadlineMs !== original.originalDeadlineMs)
+    throw new Error('Original final guest operation budget differs');
+  if (input.timeoutMs !== undefined && input.timeoutMs > 300000)
+    throw new Error('Original final guest worker exceeds its five-minute reserve');
+  const execute = originalExecutor({ ...input, timeoutMs: input.timeoutMs ?? 300000 }, reserve);
+  return async (invocation) => {
+    if (
+      invocation.args.length < 3 ||
+      invocation.args[0] !== '-I' ||
+      invocation.args[1] !== '-B' ||
+      !isAbsolute10(invocation.args[2])
+    )
+      throw new Error('Exact isolated original final guest script arguments required');
     return execute(invocation);
   };
 }
@@ -18669,8 +18701,8 @@ var object15 = (value) => {
     throw new Error('Original bootstrap VM object required');
   return value;
 };
-var _finalBootstrapOrigins = new WeakMap();
-var _earlyBootstrapOrigins = new WeakMap();
+var finalBootstrapOrigins = new WeakMap();
+var earlyBootstrapOrigins = new WeakMap();
 async function joinOriginalGcpBootstrapVm(input) {
   const { context, bootstrap, cloud } = input;
   await assertOriginalGcpPreapplyBootstrapContext(bootstrap, context);
@@ -18755,6 +18787,22 @@ async function joinOriginalGcpBootstrapVm(input) {
     bootstrapOwnershipQualified: false,
     originalInsertQualified: false,
   });
+}
+async function readOriginalGcpBootstrapVmSource(value, bootstrap, callback, vm) {
+  const origin =
+    value && typeof value === 'object'
+      ? callback.phase === 'after'
+        ? finalBootstrapOrigins.get(value)
+        : earlyBootstrapOrigins.get(value)
+      : undefined;
+  if (
+    !origin ||
+    origin.callback !== callback ||
+    origin.bootstrap !== bootstrap ||
+    (vm !== undefined && origin.vm !== vm)
+  )
+    throw new Error('Original VM/bootstrap source and actual callback required');
+  return origin.read();
 }
 
 // plugins/terraform/src/installed-bootstrap-capture.ts
@@ -19111,10 +19159,1777 @@ async function openInstalledBootstrapCapture(input, options = {}) {
     },
   });
 }
+// plugins/terraform/src/gcp-ce-campaign-key.ts
+var origins21 = new WeakMap();
+async function readOriginalGcpCeCampaignKey(value, callback) {
+  const origin = value && typeof value === 'object' ? origins21.get(value) : undefined;
+  if (!origin || origin.callback !== callback) throw new Error('Original CE campaign key and actual callback required');
+  return origin.read();
+}
+
+// plugins/terraform/src/gcp-guest-binding-projection.ts
+import { isIP as isIP5 } from 'node:net';
+import { isAbsolute as isAbsolute17, resolve as resolve18 } from 'node:path';
+
+var uint644 = (value) =>
+  typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value) && BigInt(value) <= 18446744073709551615n;
+var name6 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
+function projectGcpGuestBinding(input, nowMs) {
+  const { owner, vm, observer, target, paths } = input;
+  if (
+    owner.provider !== 'gcp' ||
+    owner.engine !== 'terraform' ||
+    ![
+      owner.account,
+      owner.region,
+      owner.deploymentId,
+      vm.project,
+      vm.zone,
+      vm.nodeName,
+      vm.siteName,
+      observer.name,
+      observer.zone,
+    ].every(name6) ||
+    vm.project !== owner.account ||
+    observer.project !== owner.account ||
+    target.project !== owner.account ||
+    !vm.zone.startsWith(`${owner.region}-`) ||
+    !observer.zone.startsWith(`${owner.region}-`) ||
+    !uint644(vm.instanceId) ||
+    !uint644(observer.instanceId) ||
+    vm.instanceId === observer.instanceId ||
+    vm.nodeName === observer.name ||
+    target.instanceId !== vm.instanceId ||
+    target.nodeName !== vm.nodeName ||
+    target.zone !== vm.zone ||
+    target.interfaceIndex !== 1 ||
+    target.role !== 'sli' ||
+    vm.interfaces.length !== 2 ||
+    vm.interfaces[0] === vm.interfaces[1] ||
+    target.address !== vm.interfaces[1] ||
+    ![...vm.interfaces, observer.externalAddress, target.address].every((address) => isIP5(address) === 4) ||
+    vm.interfaces.includes(observer.externalAddress) ||
+    !/^[a-f0-9]{64}$/.test(vm.jwtSha256) ||
+    !/^[a-f0-9]{64}$/.test(vm.ownershipSha256)
+  )
+    throw new Error('Original guest identity, token or NIC consistency differs');
+  const expires = Date.parse(vm.expiresAt);
+  if (!Number.isFinite(nowMs) || nowMs <= 0 || !Number.isFinite(expires) || expires <= nowMs)
+    throw new Error('Original guest token expiry is invalid or expired');
+  const values = Object.values(paths);
+  if (
+    Object.keys(paths).sort().join(',') !== 'ce_hosts,ce_key,observer_hosts,observer_key' ||
+    values.some(
+      (path) =>
+        typeof path !== 'string' ||
+        !isAbsolute17(path) ||
+        resolve18(path) !== path ||
+        !/^\/[A-Za-z0-9_./-]+$/.test(path),
+    ) ||
+    new Set(values).size !== 4
+  )
+    throw new Error('Original guest key/host paths are unsafe or aliased');
+  const binding = Object.freeze({
+    project: owner.account,
+    region: owner.region,
+    site_name: vm.siteName,
+    node_name: vm.nodeName,
+    zone: vm.zone,
+    instance_id: vm.instanceId,
+    observer_name: observer.name,
+    observer_id: observer.instanceId,
+    observer_address: observer.externalAddress,
+    address: target.address,
+    original_interfaces: Object.freeze([...vm.interfaces]),
+    token_node: vm.nodeName,
+    token_site: vm.siteName,
+    token_expires: expires / 1000,
+    token_sha256: vm.jwtSha256,
+    ownership_sha256: vm.ownershipSha256,
+    observer_key: paths.observer_key,
+    ce_key: paths.ce_key,
+    observer_hosts: paths.observer_hosts,
+    ce_hosts: paths.ce_hosts,
+    observer_algorithm: 'ssh-ed25519',
+    ce_algorithm: 'rsa-sha2-512',
+  });
+  return Object.freeze({ binding, commandsAuthorized: false, guestAcceptanceComplete: false });
+}
+
+// plugins/terraform/src/installed-ce-access.ts
+var accessViews = new WeakMap();
+async function readOriginalInstalledGcpCeAccess(value, callback) {
+  const origin = value && typeof value === 'object' ? accessViews.get(value) : undefined;
+  if (!origin || origin.callback !== callback) throw new Error('Original ce access view and actual callback required');
+  await origin.check();
+  return value;
+}
+
+// plugins/terraform/src/installed-observer-access.ts
+var accessViews2 = new WeakMap();
+async function readOriginalInstalledGcpObserverAccess(value, callback) {
+  const origin = value && typeof value === 'object' ? accessViews2.get(value) : undefined;
+  if (!origin || origin.callback !== callback)
+    throw new Error('Original observer access view and actual callback required');
+  await origin.check();
+  return value;
+}
+
+// plugins/terraform/src/installed-guest-binding.ts
+var inputNames = ['observer_key', 'ce_key', 'observer_hosts', 'ce_hosts'];
+var core = (binding) =>
+  fingerprint(Object.fromEntries(Object.entries(binding).filter(([name]) => !inputNames.includes(name))));
+var canonical6 = (value) => fingerprint(value);
+function assertOriginalGuestBindingTransfer(before, after, original, current) {
+  if (core(before) !== core(after))
+    throw new Error('Original guest source transfer changed identity/token/NIC ownership');
+  for (const name of inputNames)
+    if (!original[name] || !current[name] || before[name] !== original[name].path || after[name] !== current[name].path)
+      throw new Error('Original guest binding and input paths differ');
+  for (const name of ['observer_key', 'ce_key', 'ssh']) {
+    if (!original[name] || !current[name]) throw new Error('Original guest key/executable input missing');
+    assertSameOriginalInput(original[name], current[name]);
+  }
+  for (const name of ['observer_hosts', 'ce_hosts'])
+    if (original[name].sha256 !== current[name].sha256)
+      throw new Error('Original guest serial/wire host trust changed');
+}
+async function readSources(sources) {
+  const { callback } = sources;
+  if (callback.phase === 'after') await assertOriginalApplyCallback(callback);
+  else await assertOriginalApplyLifetime(callback);
+  const context = callback.original;
+  const ce = await readOriginalInstalledGcpCeAccess(sources.ce, callback);
+  const observer = await readOriginalInstalledGcpObserverAccess(sources.observer, callback);
+  const vm = await readOriginalGcpBootstrapVmSource(ce.bootstrapVm, ce.bootstrap, callback, ce.vm);
+  const target = await assertOriginalGcpCeSliTargetContext(ce.target, callback);
+  const observed = await assertOriginalGcpObserverVmCaptureCallback(observer.vm, callback);
+  const ceKey = await readOriginalGcpCeCampaignKey(ce.key, callback);
+  const observerKey = await assertOriginalGcpObserverCampaignKeyContext(observer.key, callback);
+  const ceHost = await assertOriginalGcpCeHostTrustContext(ce.trust, callback);
+  const observerHost = await assertOriginalGcpObserverHostTrustContext(observer.trust, callback);
+  const wire = await readOriginalGcpCeWireKeys(ce.wire);
+  const clients = await assertOriginalQualifiedGcpObserverClientsContext(observer.clients, callback);
+  const command = await readOriginalGcpObserverSshCommand(observer.command);
+  await observer.localInputs.assertOriginal();
+  if (
+    ce.clients !== observer.clients ||
+    clients.peer !== observer.peer ||
+    ce.callback !== callback ||
+    observer.callback !== callback ||
+    command.callback !== callback ||
+    command.instanceId !== observed.instanceId ||
+    ceKey.instanceId !== vm.instanceId ||
+    observerKey.instanceId !== observed.instanceId ||
+    ceHost.instanceId !== vm.instanceId ||
+    ceHost.address !== target.address ||
+    observerHost.instanceId !== observed.instanceId ||
+    observerHost.address !== observed.externalAddress ||
+    wire.instanceId !== vm.instanceId ||
+    wire.observerInstanceId !== observed.instanceId ||
+    wire.algorithm !== 'ssh-rsa'
+  )
+    throw new Error('Original guest CE/observer/key/trust/client identities differ');
+  const inputs = freezeAdmittedCaptureInputs({
+    ...context.inputs,
+    ssh: observer.localInputs.bindings.ssh,
+    observer_key: observerKey.key,
+    ce_key: ceKey.key,
+    observer_hosts: observerHost.knownHosts,
+    ce_hosts: ceHost.knownHosts,
+  });
+  assertSameOriginalInput(observerKey.key, observer.localInputs.bindings.key);
+  assertSameOriginalInput(observerHost.knownHosts, observer.localInputs.bindings.hosts);
+  if (inputs.ssh.path !== command.executable.path || inputs.ssh.sha256 !== command.executable.sha256)
+    throw new Error('Original guest SSH executable and observer command differ');
+  const projected = projectGcpGuestBinding(
+    {
+      owner: context.owner,
+      vm: { ...vm, interfaces: vm.interfaces.map((nic) => nic.address) },
+      observer: observed,
+      target,
+      paths: Object.fromEntries(inputNames.map((name) => [name, inputs[name].path])),
+    },
+    Date.now(),
+  );
+  await context.assertInputs();
+  if (callback.phase === 'after') await assertOriginalApplyCallback(callback);
+  else await assertOriginalApplyLifetime(callback);
+  return Object.freeze({ ...projected, inputs, context });
+}
+async function openInstalledGcpGuestBinding(initial) {
+  let sources = Object.freeze({ ...initial });
+  const original = await readSources(sources);
+  const binding = Object.freeze({ ...original.binding });
+  const anchor = canonical6(binding),
+    identity = core(binding);
+  const context = original.context;
+  const monitor = await monitorOriginalInputs(original.inputs);
+  let failure,
+    closed = false,
+    busy = false,
+    transferred = false,
+    transferClaimed = false;
+  const lease = async (full = true) => {
+    if (closed) throw new Error('Original guest binding lease closed');
+    if (failure) throw new Error('Original guest binding source refused; failure retained');
+    try {
+      await context.assertInputs();
+      if (full) await monitor.assertOriginal();
+      else await monitor.assertOriginalIdentity();
+    } catch (error) {
+      failure ??= error;
+      throw error;
+    }
+  };
+  const sameInputs = (current) => {
+    if (current.context !== context || core(current.binding) !== identity)
+      throw new Error('Original guest source transfer changed identity/token/NIC ownership');
+    assertOriginalGuestBindingTransfer(binding, current.binding, original.inputs, current.inputs);
+  };
+  const verify = async (value, full = true) => {
+    if (busy) throw new Error('Original guest binding operation already active');
+    busy = true;
+    try {
+      await lease(full);
+      if (value && canonical6(value) !== anchor) throw new Error('Original immutable guest binding differs');
+      const current = await readSources(sources);
+      sameInputs(current);
+      await lease(full);
+    } catch (error) {
+      failure ??= error;
+      throw error;
+    } finally {
+      busy = false;
+    }
+  };
+  return Object.freeze({
+    context,
+    binding,
+    inputs: original.inputs,
+    guards: Object.freeze({
+      inputs: () => lease(false),
+      original: (value) => verify(value, false),
+      async trust(value, role) {
+        if (busy) throw new Error('Original guest binding operation already active');
+        busy = true;
+        try {
+          if (role !== 'observer' && role !== 'ce') throw new Error('Original guest trust role required');
+          if (canonical6(value) !== anchor) throw new Error('Original immutable guest trust binding differs');
+          await lease(false);
+          const callback = sources.callback;
+          const view =
+            role === 'observer'
+              ? await readOriginalInstalledGcpObserverAccess(sources.observer, callback)
+              : await readOriginalInstalledGcpCeAccess(sources.ce, callback);
+          const host =
+            role === 'observer'
+              ? await assertOriginalGcpObserverHostTrustContext(view.trust, callback)
+              : await assertOriginalGcpCeHostTrustContext(view.trust, callback);
+          const name = role === 'observer' ? 'observer_hosts' : 'ce_hosts';
+          if (host.knownHosts.sha256 !== original.inputs[name].sha256)
+            throw new Error('Original guest host trust changed');
+          await lease(false);
+        } catch (error) {
+          failure ??= error;
+          throw error;
+        } finally {
+          busy = false;
+        }
+      },
+    }),
+    assertOriginal: () => verify(),
+    async handoff(next) {
+      if (transferred || transferClaimed || busy || closed || failure)
+        throw new Error('Original guest binding transfer already claimed, busy or refused');
+      const after = next.callback,
+        before = initial.callback;
+      if (
+        after.phase !== 'after' ||
+        !after.reserve ||
+        after.original !== context ||
+        after.nonce !== before.nonce ||
+        after.execution.output !== before.execution.output ||
+        ['pid', 'group', 'start', 'boot'].some(
+          (name) => after.execution.identity[name] !== before.execution.identity[name],
+        )
+      )
+        throw new Error('Original guest binding actual final callback and same actor required');
+      await assertOriginalApplyCallback(after);
+      if (transferred || transferClaimed || busy || closed || failure)
+        throw new Error('Original guest binding transfer already claimed, busy or refused');
+      transferClaimed = true;
+      busy = true;
+      try {
+        await lease();
+        const replacement = Object.freeze({ ...next });
+        sameInputs(await readSources(replacement));
+        await assertOriginalApplyCallback(after);
+        sources = replacement;
+        transferred = true;
+        await lease();
+      } catch (error) {
+        failure ??= error;
+        throw error;
+      } finally {
+        busy = false;
+      }
+    },
+    close() {
+      closed = true;
+      monitor.close();
+    },
+    evidence: () =>
+      Object.freeze({
+        transferred,
+        transferClaimed,
+        closed,
+        failed: !!failure,
+        originalBindingSha256: anchor.slice(7),
+        guestAcceptanceComplete: false,
+        executionAuthorized: false,
+      }),
+  });
+}
+
+// plugins/terraform/src/installed-guest-worker.ts
+import { createHash as createHash38, randomBytes as randomBytes6, randomUUID as randomUUID18 } from 'node:crypto';
+import {
+  lstat as lstat23,
+  open as open22,
+  readFile as readFile8,
+  readlink as readlink2,
+  realpath as realpath22,
+  stat as stat3,
+} from 'node:fs/promises';
+import { dirname as dirname16, join as join32 } from 'node:path';
+
+// plugins/terraform/src/guest-capture-round.ts
+var sha2562 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+var object16 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+var scopeCommands = {
+  root: ['health', 'diagnosis', 'status', 'execcli'],
+  status: ['vpm'],
+  execcli: ['date', 'ip-address', 'ip-route', 'journalctl'],
+};
+var linuxCaptures = {
+  'vpm-unit': 'systemctl-status-vpm',
+  'cloud-init': 'cloud-init-status',
+  'failed-units': 'systemctl-failed',
+};
+async function runOriginalGuestCaptureRound(supplied, original, deadline, monotonic = linuxMonotonicMs) {
+  const identity = Object.freeze({ ...original });
+  if (
+    !/^[1-9][0-9]{0,19}$/.test(identity.instanceId) ||
+    !/^[1-9][0-9]{0,19}$/.test(identity.observerId) ||
+    identity.instanceId === identity.observerId ||
+    !sha2562(identity.tokenSha256) ||
+    !sha2562(identity.ownershipSha256) ||
+    !Number.isSafeInteger(deadline)
+  )
+    throw new Error('Original guest round identity and deadline required');
+  const port = Object.freeze({
+    assertOriginal: supplied.assertOriginal.bind(supplied),
+    command: supplied.command.bind(supplied),
+    persist: supplied.persist.bind(supplied),
+  });
+  const started = monotonic();
+  const captures = [],
+    unavailable = [];
+  let anchor,
+    sequence = 0,
+    refreshed = started;
+  const commands = new Map();
+  const report = (status) =>
+    Object.freeze({
+      schemaVersion: 1,
+      kind: 'original-gcp-guest-round',
+      status,
+      original: identity,
+      startedMonotonicMs: started,
+      finishedMonotonicMs: monotonic(),
+      deadlineMs: deadline,
+      captures: Object.freeze([...captures]),
+      unavailableCommands: Object.freeze([...unavailable]),
+      bootstrapCoverageVerified: false,
+      guestAcceptanceComplete: false,
+    });
+  const persist = (phase, details = {}) =>
+    port.persist(
+      Object.freeze({
+        schemaVersion: 1,
+        kind: 'original-gcp-guest-round-event',
+        phase,
+        original: identity,
+        startedMonotonicMs: started,
+        observedMonotonicMs: monotonic(),
+        deadlineMs: deadline,
+        guestAcceptanceComplete: false,
+        ...details,
+      }),
+    );
+  const within = () => {
+    const now = monotonic();
+    if (!Number.isSafeInteger(now) || now < started || now >= deadline)
+      throw new Error('Original guest round deadline exhausted or clock changed');
+  };
+  const execute = async (request) => {
+    within();
+    await port.assertOriginal();
+    within();
+    const command = Object.freeze({ ...request });
+    const step = ++sequence;
+    await persist('command-started', { step, request: command });
+    within();
+    const result = await port.command(command);
+    within();
+    await port.assertOriginal();
+    within();
+    const kind = command.operation === 'discover' ? `completion-${command.scope}` : command.kind;
+    const evidence = Array.isArray(result.evidence) && result.evidence.length === 1 ? result.evidence[0] : undefined;
+    if (
+      result.type !== 'command-result' ||
+      result.operation !== command.operation ||
+      result.guestAcceptanceComplete !== false ||
+      !sha2562(result.anchor) ||
+      (anchor !== undefined && result.anchor !== anchor) ||
+      !Number.isSafeInteger(result.id) ||
+      Number(result.id) <= 0 ||
+      !object16(evidence) ||
+      evidence.schemaVersion !== 1 ||
+      evidence.kind !== kind ||
+      evidence.truncated !== false ||
+      evidence.guestAcceptanceComplete !== false ||
+      !sha2562(evidence.sha256) ||
+      !sha2562(evidence.commandSha256) ||
+      typeof evidence.path !== 'string' ||
+      !evidence.path.startsWith('/') ||
+      Object.entries(identity).some(([name, value]) => evidence[name] !== value) ||
+      !Number.isSafeInteger(evidence.startedMonotonicMs) ||
+      !Number.isSafeInteger(evidence.finishedMonotonicMs) ||
+      Number(evidence.startedMonotonicMs) < started ||
+      Number(evidence.finishedMonotonicMs) > monotonic() ||
+      Number(evidence.finishedMonotonicMs) < Number(evidence.startedMonotonicMs) ||
+      Number(evidence.finishedMonotonicMs) - Number(evidence.startedMonotonicMs) > 60000
+    )
+      throw new Error('Original guest round evidence identity, framing or timing differs');
+    anchor = result.anchor;
+    const retained = Object.freeze(structuredClone(evidence));
+    captures.push(retained);
+    await persist('command-captured', { step, request: command, evidence: retained });
+    within();
+    return retained;
+  };
+  const requireSupported = (scope, required) => {
+    if (required.some((name) => !commands.get(scope)?.has(name)))
+      throw new Error(`Required supported guest commands unavailable in ${scope}`);
+  };
+  const discover = async (scope) => {
+    const evidence = await execute({ operation: 'discover', scope });
+    const available = evidence.availableCommands;
+    if (
+      !Array.isArray(available) ||
+      available.some((value) => typeof value !== 'string') ||
+      new Set(available).size !== available.length
+    )
+      throw new Error('Original scoped command selections unavailable');
+    commands.set(scope, new Set(available));
+    return evidence;
+  };
+  const coreDiscovery = async () => {
+    for (const [scope, required] of Object.entries(scopeCommands)) {
+      await discover(scope);
+      requireSupported(scope, required);
+    }
+    refreshed = monotonic();
+  };
+  const capture = (kind, containerId) =>
+    execute({
+      operation: 'capture',
+      kind,
+      ...(containerId ? { containerId } : {}),
+    });
+  const fullLog = async (kind, help, containerId) => {
+    const evidence = await capture(kind, containerId);
+    if (evidence.logSelection !== 'all-retained' || evidence.helpSha256 !== help.sha256)
+      throw new Error('Original complete log selection or help attribution differs');
+  };
+  const listing = async (runtime) => {
+    const evidence = await capture(`${runtime}-list`),
+      ids = evidence.containerIds;
+    if (
+      !Array.isArray(ids) ||
+      !ids.length ||
+      ids.some((id) => typeof id !== 'string' || !/^[a-f0-9]{12,64}$/.test(id)) ||
+      new Set(ids).size !== ids.length ||
+      ids.some((id, i) => ids.some((other, j) => i !== j && (id.startsWith(other) || other.startsWith(id))))
+    )
+      throw new Error('Original nonempty unambiguous container listing required');
+    return Object.freeze([...ids]);
+  };
+  try {
+    await persist('round-started');
+    await coreDiscovery();
+    for (const kind of ['health', 'diagnosis', 'vpm', 'clock', 'interfaces', 'routes']) await capture(kind);
+    for (const [kind, executable] of Object.entries(linuxCaptures)) {
+      if (commands.get('execcli')?.has(executable)) await capture(kind);
+      else unavailable.push(kind);
+    }
+    await discover('journal');
+    requireSupported('journal', ['--help', '-u', '-o', '--no-pager', '--utc']);
+    const journalHelp = await capture('journal-help');
+    await fullLog('vpm-journal-full', journalHelp);
+    if (['-b', '-p'].every((flag) => commands.get('journal')?.has(flag)))
+      await fullLog('boot-warnings-full', journalHelp);
+    else unavailable.push('boot-warnings-full');
+    const runtimes = ['cri', 'docker'].filter((runtime) => {
+      const prefix = runtime === 'cri' ? 'crictl' : 'docker';
+      return ['ps-a', 'inspect', 'logs'].some((name) => commands.get('execcli')?.has(`${prefix}-${name}`));
+    });
+    if (!runtimes.length) throw new Error('Required supported guest runtime listing unavailable');
+    for (const runtime of runtimes) {
+      const prefix = runtime === 'cri' ? 'crictl' : 'docker';
+      const runtimeDiscovery = async () => {
+        requireSupported(
+          'execcli',
+          ['ps-a', 'inspect', 'logs'].map((name) => `${prefix}-${name}`),
+        );
+        await discover(`${runtime}-logs`);
+        requireSupported(`${runtime}-logs`, ['--help', '--tail']);
+        return capture(`${runtime}-logs-help`);
+      };
+      if (monotonic() - refreshed >= 240000) await coreDiscovery();
+      let help = await runtimeDiscovery();
+      const ids = await listing(runtime);
+      for (const id of ids) {
+        if (monotonic() - refreshed >= 240000) {
+          await coreDiscovery();
+          help = await runtimeDiscovery();
+          const current = await listing(runtime);
+          if (current.length !== ids.length || current.some((value) => !ids.includes(value)))
+            throw new Error('Original runtime listing changed during round');
+        }
+        await capture(`${runtime}-inspect`, id);
+        await fullLog(`${runtime}-logs-full`, help, id);
+      }
+    }
+    within();
+    await port.assertOriginal();
+    within();
+    await persist('round-captured', { report: report('captured') });
+    return report('captured');
+  } catch (error) {
+    try {
+      await persist('round-refused', {
+        errorType: error instanceof Error ? error.name : typeof error,
+        report: report('incomplete'),
+      });
+    } catch (retention) {
+      throw new AggregateError([error, retention], 'Original guest round failure retention incomplete');
+    }
+    throw error;
+  }
+}
+
+// plugins/terraform/src/original-guest-fifo.ts
+import { dlopen as dlopen2, FFIType as FFIType2, ptr as ptr2 } from 'bun:ffi';
+import { constants as constants10 } from 'node:fs';
+import { lstat as lstat22, mkdir as mkdir19, open as open21, realpath as realpath21 } from 'node:fs/promises';
+import { dirname as dirname15, isAbsolute as isAbsolute18, join as join31, resolve as resolve19 } from 'node:path';
+
+// plugins/terraform/src/original-guest-control.ts
+var maximumFrame = 65536;
+var maximumSequence = 2 ** 31 - 1;
+var object17 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+var integer5 = (value) => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= maximumSequence;
+function jsonValue(value, depth = 0, ancestors = new Set()) {
+  if (depth >= 64) throw new Error('Original guest control JSON nesting exceeds bound');
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number' && Number.isFinite(value)) return;
+  if (!value || typeof value !== 'object') throw new Error('Original guest control JSON cannot discard evidence');
+  if (ancestors.has(value)) throw new Error('Original guest control JSON cycle refused');
+  if (!Array.isArray(value) && ![null, Object.prototype].includes(Object.getPrototypeOf(value)))
+    throw new Error('Original guest control plain JSON required');
+  ancestors.add(value);
+  for (const item of Array.isArray(value) ? value : Object.values(value)) jsonValue(item, depth + 1, ancestors);
+  ancestors.delete(value);
+}
+function assertOriginalGuestJson(value) {
+  jsonValue(value);
+}
+function wireIntegers(source) {
+  let depth = 0;
+  for (let i = 0; i < source.length; i++) {
+    const character = source[i];
+    if (character === '{' || character === '[') depth++;
+    else if (character === '}' || character === ']') depth--;
+    else if (character === '"') {
+      const start = i++;
+      while (i < source.length && source[i] !== '"') {
+        if (source[i] === '\\') i++;
+        i++;
+      }
+      let next = i + 1;
+      while (next < source.length && /\s/.test(source[next])) next++;
+      if (source[next] !== ':') continue;
+      const key = JSON.parse(source.slice(start, i + 1));
+      if ((depth === 1 && ['schemaVersion', 'sequence'].includes(key)) || (depth === 2 && key === 'id')) {
+        const token = source.slice(next + 1).trimStart();
+        if (!/^(?:0|[1-9][0-9]*)(?=\s*[,}])/.test(token))
+          throw new Error('Original guest control integer wire identity required');
+      }
+    }
+  }
+}
+
+class OriginalGuestControlFrames {
+  session;
+  pending = Buffer.alloc(0);
+  received = 0;
+  sent = 0;
+  retired = false;
+  constructor(session) {
+    this.session = session;
+    if (typeof session !== 'string' || !/^[a-f0-9]{64}$/.test(session))
+      throw new Error('Original guest control nonce required');
+  }
+  active() {
+    if (this.retired) throw new Error('Original guest control port retired');
+  }
+  encode(message) {
+    this.active();
+    try {
+      if (!object17(message) || !integer5(this.sent + 1)) throw new Error('Original guest control message required');
+      jsonValue(message);
+      const raw = Buffer.from(
+        JSON.stringify({
+          schemaVersion: 1,
+          kind: 'original-guest-control',
+          session: this.session,
+          sequence: this.sent + 1,
+          message,
+        }),
+      );
+      wireIntegers(raw.toString('utf8'));
+      if (!raw.length || raw.length > maximumFrame) throw new Error('Original guest control frame exceeds bound');
+      const header = Buffer.alloc(4);
+      header.writeUInt32BE(raw.length);
+      this.sent++;
+      return Buffer.concat([header, raw]);
+    } catch (error) {
+      this.retired = true;
+      throw error;
+    }
+  }
+  push(chunk) {
+    this.active();
+    try {
+      if (!(chunk instanceof Uint8Array) || chunk.length > maximumFrame + 4)
+        throw new Error('Original guest control receive chunk exceeds bound');
+      this.pending = Buffer.concat([this.pending, chunk]);
+      const messages = [];
+      while (this.pending.length >= 4) {
+        const size = this.pending.readUInt32BE(0);
+        if (!size || size > maximumFrame) throw new Error('Original guest control frame exceeds bound');
+        if (this.pending.length < size + 4) break;
+        if (messages.length >= 32) throw new Error('Original guest control batch exceeds bound');
+        const raw = this.pending.subarray(4, size + 4);
+        const value = decodeEvidenceObject(raw);
+        jsonValue(value);
+        wireIntegers(new TextDecoder('utf8', { fatal: true }).decode(raw));
+        if (
+          Object.keys(value).sort().join(',') !== 'kind,message,schemaVersion,sequence,session' ||
+          value.schemaVersion !== 1 ||
+          value.kind !== 'original-guest-control' ||
+          value.session !== this.session ||
+          !integer5(value.sequence) ||
+          value.sequence !== this.received + 1 ||
+          !object17(value.message)
+        )
+          throw new Error('Original guest control attribution differs');
+        this.received++;
+        messages.push(value.message);
+        this.pending = this.pending.subarray(size + 4);
+      }
+      return messages;
+    } catch (error) {
+      this.retired = true;
+      throw error;
+    }
+  }
+  end() {
+    this.active();
+    this.retired = true;
+    if (this.pending.length) throw new Error('Original guest control frame interrupted');
+  }
+}
+
+// plugins/terraform/src/original-guest-fifo.ts
+var identity2 = (info) => ({
+  dev: String(info.dev),
+  ino: String(info.ino),
+  uid: String(info.uid),
+  mode: String(info.mode),
+  nlink: String(info.nlink),
+});
+var same5 = (a, b) => Object.keys(a).every((key) => a[key] === b[key]);
+function privateDirectory5(info) {
+  return (
+    info.isDirectory() &&
+    !info.isSymbolicLink() &&
+    info.uid === BigInt(process.getuid?.() ?? -1) &&
+    (info.mode & 0o777n) === 0o700n
+  );
+}
+async function openOriginalGuestFifoPeer(options) {
+  if (
+    process.platform !== 'linux' ||
+    !isAbsolute18(options.root) ||
+    resolve19(options.root) !== options.root ||
+    Array.from(options.root).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) ||
+    typeof options.assertOriginal !== 'function'
+  )
+    throw new Error('Original private Linux guest IPC admission required');
+  const frames = new OriginalGuestControlFrames(options.session);
+  const parent = dirname15(options.root);
+  if ((await realpath21(parent)) !== parent || !privateDirectory5(await lstat22(parent, { bigint: true })))
+    throw new Error('Original private guest IPC parent required');
+  await mkdir19(options.root, { mode: 448 });
+  const originalRoot = await lstat22(options.root, { bigint: true });
+  const rootIdentity = { dev: originalRoot.dev, ino: originalRoot.ino, uid: originalRoot.uid, mode: originalRoot.mode };
+  const assertCaller = options.assertOriginal.bind(options);
+  const paths = { request: join31(options.root, 'request.fifo'), response: join31(options.root, 'response.fifo') };
+  const libc = dlopen2('libc.so.6', { mkfifo: { args: [FFIType2.ptr, FFIType2.u32], returns: FFIType2.i32 } });
+  try {
+    for (const path of Object.values(paths)) {
+      const raw = Buffer.concat([Buffer.from(path), Buffer.from([0])]);
+      if (libc.symbols.mkfifo(ptr2(raw), 384) !== 0) throw new Error('Original guest FIFO creation failed');
+    }
+  } finally {
+    libc.close();
+  }
+  const handles = [];
+  const bind = async (path, fifo) => {
+    const before = await lstat22(path, { bigint: true });
+    if (
+      (fifo ? !before.isFIFO() : !before.isFile()) ||
+      before.uid !== BigInt(process.getuid?.() ?? -1) ||
+      before.nlink !== 1n ||
+      (before.mode & 0o777n) !== 0o600n
+    )
+      throw new Error('Original private guest IPC file required');
+    const handle = await open21(
+      path,
+      constants10.O_RDWR | constants10.O_NOFOLLOW | (fifo ? constants10.O_NONBLOCK : 0),
+    );
+    const original = identity2(before);
+    if (!same5(identity2(await handle.stat({ bigint: true })), original))
+      throw new Error('Original guest IPC descriptor changed during open');
+    handles.push({ path, handle, original });
+    return { handle, binding: Object.freeze({ path, identity: Object.freeze(original) }) };
+  };
+  const request = await bind(paths.request, true),
+    response = await bind(paths.response, true);
+  const logs = {};
+  for (const name of ['intent', 'delivered', 'observed']) {
+    const path = join31(options.root, `${name}.private.bin`);
+    const file = await open21(path, 'wx', 384);
+    await file.close();
+    logs[name] = (await bind(path, false)).handle;
+  }
+  let retired = false,
+    reading = false,
+    writing = false;
+  const queue = [];
+  const assertFiles = async () => {
+    if (retired) throw new Error('Original guest FIFO peer retired');
+    const actual = await lstat22(options.root, { bigint: true });
+    if (
+      !privateDirectory5(actual) ||
+      (await realpath21(options.root)) !== options.root ||
+      actual.dev !== rootIdentity.dev ||
+      actual.ino !== rootIdentity.ino ||
+      actual.uid !== rootIdentity.uid ||
+      actual.mode !== rootIdentity.mode
+    )
+      throw new Error('Original guest IPC directory changed');
+    for (const bound of [request, response]) {
+      if (
+        !same5(identity2(await lstat22(bound.binding.path, { bigint: true })), bound.binding.identity) ||
+        !same5(identity2(await bound.handle.stat({ bigint: true })), bound.binding.identity)
+      )
+        throw new Error('Original guest FIFO path or descriptor changed');
+    }
+    for (const bound of handles)
+      if (
+        !same5(identity2(await lstat22(bound.path, { bigint: true })), bound.original) ||
+        !same5(identity2(await bound.handle.stat({ bigint: true })), bound.original)
+      )
+        throw new Error('Original guest IPC journal path or descriptor changed');
+  };
+  const check = async (deadline) => {
+    const now = linuxMonotonicMs();
+    if (!Number.isSafeInteger(deadline) || deadline <= now || deadline - now > 60000)
+      throw new Error('Original guest FIFO deadline exhausted or exceeds bound');
+    await assertFiles();
+    await assertCaller();
+    await assertFiles();
+    if (linuxMonotonicMs() >= deadline) throw new Error('Original guest FIFO deadline exhausted');
+  };
+  const record = async (name, raw) => {
+    await logs[name].writeFile(raw);
+    await logs[name].sync();
+  };
+  const retire = async () => {
+    if (retired) return;
+    retired = true;
+    const failures = [];
+    for (const bound of handles) {
+      try {
+        if (!same5(identity2(await bound.handle.stat({ bigint: true })), bound.original))
+          throw new Error('Original guest IPC descriptor ownership changed before retirement');
+        await bound.handle.close();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length) throw new AggregateError(failures, 'Original guest IPC retirement unresolved');
+  };
+  return Object.freeze({
+    bindings: Object.freeze({ root: options.root, read: request.binding, write: response.binding }),
+    async assertOriginal() {
+      await assertFiles();
+      await assertCaller();
+      await assertFiles();
+    },
+    retire,
+    async send(message, deadline) {
+      if (writing) throw new Error('Original guest FIFO concurrent write refused');
+      writing = true;
+      try {
+        await check(deadline);
+        const raw = frames.encode(message);
+        await record('intent', raw);
+        for (let offset = 0; offset < raw.length; ) {
+          await check(deadline);
+          try {
+            const { bytesWritten } = await request.handle.write(raw, offset, Math.min(4096, raw.length - offset), null);
+            if (!bytesWritten) throw new Error('Original guest FIFO write interrupted');
+            await record('delivered', raw.subarray(offset, offset + bytesWritten));
+            offset += bytesWritten;
+          } catch (error) {
+            if (error.code !== 'EAGAIN') throw error;
+            await Bun.sleep(Math.min(10, Math.max(0, deadline - linuxMonotonicMs())));
+          }
+        }
+        await check(deadline);
+      } finally {
+        writing = false;
+      }
+    },
+    async receive(deadline) {
+      if (reading) throw new Error('Original guest FIFO concurrent read refused');
+      reading = true;
+      try {
+        while (!queue.length) {
+          await check(deadline);
+          const raw = Buffer.alloc(4096);
+          try {
+            const { bytesRead } = await response.handle.read(raw, 0, raw.length, null);
+            if (!bytesRead) throw new Error('Original guest FIFO frame interrupted');
+            await record('observed', raw.subarray(0, bytesRead));
+            queue.push(...frames.push(raw.subarray(0, bytesRead)));
+          } catch (error) {
+            if (error.code !== 'EAGAIN') throw error;
+            await Bun.sleep(Math.min(10, Math.max(0, deadline - linuxMonotonicMs())));
+          }
+        }
+        await check(deadline);
+        const value = queue.shift();
+        if (!value) throw new Error('Original guest FIFO message unavailable');
+        return value;
+      } finally {
+        reading = false;
+      }
+    },
+  });
+}
+
+// plugins/terraform/src/original-guest-parent.ts
+var bindingKeys = [
+  'project',
+  'region',
+  'site_name',
+  'node_name',
+  'zone',
+  'instance_id',
+  'observer_name',
+  'observer_id',
+  'observer_address',
+  'address',
+  'original_interfaces',
+  'token_node',
+  'token_site',
+  'token_expires',
+  'token_sha256',
+  'ownership_sha256',
+  'observer_key',
+  'ce_key',
+  'observer_hosts',
+  'ce_hosts',
+  'observer_algorithm',
+  'ce_algorithm',
+];
+var captures = new Set([
+  'health',
+  'diagnosis',
+  'vpm',
+  'clock',
+  'interfaces',
+  'routes',
+  'vpm-unit',
+  'vpm-journal',
+  'cloud-init',
+  'failed-units',
+  'boot-warnings',
+  'cri-list',
+  'docker-list',
+  'journal-help',
+  'cri-logs-help',
+  'docker-logs-help',
+  'vpm-journal-full',
+  'boot-warnings-full',
+]);
+var inspections = new Set([
+  'cri-inspect',
+  'cri-logs',
+  'docker-inspect',
+  'docker-logs',
+  'cri-logs-full',
+  'docker-logs-full',
+]);
+var discoveries = new Set([
+  'root',
+  'status',
+  'execcli',
+  'journal',
+  'cri-inspect',
+  'cri-logs',
+  'docker-inspect',
+  'docker-logs',
+]);
+var requiredGuards = ['inputs', 'original', 'trust:observer', 'trust:ce'];
+var object18 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+var integer6 = (value) => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 2 ** 31 - 1;
+var keys3 = (value, expected) => Object.keys(value).sort().join(',') === [...expected].sort().join(',');
+function frozen(value) {
+  if (Array.isArray(value)) return Object.freeze(value.map(frozen));
+  if (object18(value))
+    return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, frozen(item)])));
+  return value;
+}
+function canonical7(value) {
+  const sorted = (item) =>
+    Array.isArray(item)
+      ? item.map(sorted)
+      : object18(item)
+        ? Object.fromEntries(
+            Object.keys(item)
+              .sort()
+              .map((key) => [key, sorted(item[key])]),
+          )
+        : item;
+  return JSON.stringify(sorted(value));
+}
+function validateCommand(value) {
+  assertOriginalGuestJson(value);
+  const operation = value.operation;
+  if (operation === 'close' && keys3(value, ['operation'])) return { operation };
+  if (
+    operation === 'discover' &&
+    keys3(value, ['operation', 'scope']) &&
+    typeof value.scope === 'string' &&
+    discoveries.has(value.scope)
+  )
+    return { operation, scope: value.scope };
+  if (operation === 'capture' && typeof value.kind === 'string') {
+    if (captures.has(value.kind) && keys3(value, ['operation', 'kind'])) return { operation, kind: value.kind };
+    if (
+      inspections.has(value.kind) &&
+      keys3(value, ['operation', 'kind', 'containerId']) &&
+      typeof value.containerId === 'string' &&
+      /^[a-f0-9]{12,64}$/.test(value.containerId)
+    )
+      return { operation, kind: value.kind, containerId: value.containerId };
+  }
+  throw new Error('Supported original guest command required');
+}
+
+class OriginalGuestCaptureFailure extends Error {
+  result;
+  constructor(result, causes) {
+    super('Original guest capture remains incomplete', {
+      cause: new AggregateError(causes, 'Original guest guard causes'),
+    });
+    this.result = frozen(structuredClone(result));
+  }
+}
+
+class OriginalGuestControlParent {
+  binding;
+  peer;
+  guards;
+  clock;
+  requestSha256;
+  operation;
+  closure;
+  startup;
+  state = 'new';
+  anchor;
+  commandId = 0;
+  guardId = 0;
+  pending = new Set();
+  guardDenials = [];
+  constructor(admission) {
+    assertOriginalGuestJson(admission.binding);
+    const binding = admission.binding;
+    if (
+      !object18(binding) ||
+      !keys3(binding, bindingKeys) ||
+      bindingKeys
+        .filter((key) => !['original_interfaces', 'token_expires'].includes(key))
+        .some(
+          (key) =>
+            typeof binding[key] !== 'string' ||
+            !binding[key] ||
+            Array.from(binding[key]).some(
+              (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+            ),
+        ) ||
+      typeof binding.token_expires !== 'number' ||
+      !Number.isFinite(binding.token_expires) ||
+      binding.token_expires <= 0 ||
+      !Array.isArray(binding.original_interfaces) ||
+      binding.original_interfaces.length !== 2 ||
+      binding.original_interfaces.some((value) => typeof value !== 'string') ||
+      !/^[1-9][0-9]{0,19}$/.test(String(binding.instance_id)) ||
+      !/^[1-9][0-9]{0,19}$/.test(String(binding.observer_id)) ||
+      binding.instance_id === binding.observer_id ||
+      !/^[a-f0-9]{64}$/.test(admission.requestSha256) ||
+      ![admission.operationDeadlineMs, admission.closureDeadlineMs, admission.startupDeadlineMs].every(
+        Number.isSafeInteger,
+      ) ||
+      admission.operationDeadlineMs <= 0 ||
+      admission.startupDeadlineMs > admission.operationDeadlineMs ||
+      admission.closureDeadlineMs < admission.operationDeadlineMs ||
+      admission.closureDeadlineMs > admission.operationDeadlineMs + 300000
+    )
+      throw new Error('Original complete guest binding and fixed deadlines required');
+    this.binding = frozen(structuredClone(binding));
+    this.peer = Object.freeze({
+      send: admission.peer.send.bind(admission.peer),
+      receive: admission.peer.receive.bind(admission.peer),
+      assertOriginal: admission.peer.assertOriginal.bind(admission.peer),
+      retire: admission.peer.retire.bind(admission.peer),
+    });
+    this.guards = Object.freeze({
+      inputs: admission.guards.inputs.bind(admission.guards),
+      original: admission.guards.original.bind(admission.guards),
+      trust: admission.guards.trust.bind(admission.guards),
+    });
+    this.clock = admission.monotonic ?? linuxMonotonicMs;
+    this.requestSha256 = admission.requestSha256;
+    this.operation = admission.operationDeadlineMs;
+    this.closure = admission.closureDeadlineMs;
+    this.startup = admission.startupDeadlineMs;
+  }
+  within(deadline) {
+    if (this.state === 'failed') throw new Error('Original guest parent retired');
+    if (this.clock() >= deadline) throw new Error('Original guest parent deadline exhausted');
+  }
+  async check(deadline) {
+    this.within(deadline);
+    await this.peer.assertOriginal();
+    this.within(deadline);
+    await this.guards.inputs();
+    this.within(deadline);
+    await this.peer.assertOriginal();
+    this.within(deadline);
+  }
+  async send(message, deadline) {
+    await this.check(deadline);
+    await this.peer.send(message, deadline);
+    await this.check(deadline);
+  }
+  async receive(deadline) {
+    await this.check(deadline);
+    const value = await this.peer.receive(deadline);
+    await this.check(deadline);
+    assertOriginalGuestJson(value);
+    if (!object18(value)) throw new Error('Original guest control message required');
+    return value;
+  }
+  async run(operation, deadline) {
+    this.within(deadline);
+    const work = Promise.resolve().then(operation);
+    this.pending.add(work);
+    work.then(
+      () => this.pending.delete(work),
+      () => this.pending.delete(work),
+    );
+    let timer;
+    const timeout = new Promise((_resolve, reject) => {
+      timer = setTimeout(
+        () => {
+          this.state = 'failed';
+          reject(new Error('Original guest parent deadline exhausted'));
+        },
+        Math.max(0, deadline - this.clock()),
+      );
+    });
+    try {
+      const value = await Promise.race([work, timeout]);
+      this.within(deadline);
+      return value;
+    } catch (error) {
+      if (error instanceof OriginalGuestCaptureFailure && (this.state === 'busy' || this.state === 'closing')) {
+        this.state = this.state === 'closing' ? 'unresolved' : 'capture-failed';
+        throw error;
+      }
+      this.state = 'failed';
+      try {
+        await this.peer.retire();
+      } catch (closure) {
+        throw new AggregateError([error, closure], 'Original guest control failure and IPC retirement unresolved');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  async guard(value, deadline, covered) {
+    const role = value.role;
+    const expected = [
+      'type',
+      'id',
+      'guard',
+      'anchor',
+      'instanceId',
+      'observerId',
+      ...(value.guard === 'trust' ? ['role'] : []),
+    ];
+    if (
+      !keys3(value, expected) ||
+      !integer6(value.id) ||
+      value.id !== this.guardId + 1 ||
+      value.anchor !== this.anchor ||
+      value.instanceId !== this.binding.instance_id ||
+      value.observerId !== this.binding.observer_id ||
+      !['inputs', 'original', 'trust'].includes(String(value.guard)) ||
+      (value.guard === 'trust' && role !== 'observer' && role !== 'ce')
+    )
+      throw new Error('Original guest parent guard attribution differs');
+    if (this.state === 'closing' && value.guard !== 'inputs')
+      throw new Error('Original guest parent is closing; cloud guards remain retired');
+    await this.check(deadline);
+    if (this.guardDenials.length && value.guard !== 'inputs')
+      throw new Error('Original guest capture guards retired after denial', {
+        cause: new AggregateError([...this.guardDenials], 'Original ownership or trust failures'),
+      });
+    let approved = true;
+    try {
+      if (value.guard === 'original') await this.guards.original(this.binding);
+      else if (value.guard === 'trust') await this.guards.trust(this.binding, role);
+    } catch (error) {
+      approved = false;
+      this.guardDenials.push(error);
+    }
+    await this.check(deadline);
+    this.guardId++;
+    if (approved) covered.add(value.guard === 'trust' ? `trust:${role}` : String(value.guard));
+    await this.send(
+      { type: 'guard-result', id: this.guardId, guard: value.guard, anchor: this.anchor, approved },
+      deadline,
+    );
+  }
+  async next(deadline, covered) {
+    for (;;) {
+      const value = await this.receive(deadline);
+      if (value.type !== 'guard') return value;
+      await this.guard(value, deadline, covered);
+    }
+  }
+  async initialize() {
+    if (this.state !== 'new') throw new Error('Original guest parent lifecycle already started');
+    this.state = 'preparing';
+    const began = this.clock();
+    if (this.startup - began > 15000) throw new Error('Original guest parent startup exceeds fixed bound');
+    const readyDeadline = Math.min(this.operation, this.startup);
+    await this.run(async () => {
+      const bound = await this.receive(this.startup);
+      if (
+        !keys3(bound, ['type', 'requestSha256', 'anchor', 'binding']) ||
+        bound.type !== 'worker-bound' ||
+        bound.requestSha256 !== this.requestSha256 ||
+        typeof bound.anchor !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(bound.anchor) ||
+        canonical7(bound.binding) !== canonical7(this.binding)
+      )
+        throw new Error('Original guest worker binding differs');
+      this.anchor = bound.anchor;
+      await this.send(
+        { type: 'binding-approved', requestSha256: this.requestSha256, anchor: this.anchor, approved: true },
+        this.startup,
+      );
+    }, this.startup);
+    await this.run(async () => {
+      const covered = new Set();
+      const ready = await this.next(readyDeadline, covered);
+      if (
+        !keys3(ready, ['type', 'anchor', 'requestSha256']) ||
+        ready.type !== 'worker-ready' ||
+        ready.anchor !== this.anchor ||
+        ready.requestSha256 !== this.requestSha256
+      )
+        throw new Error('Original guest worker readiness differs');
+      if (requiredGuards.some((value) => !covered.has(value)))
+        throw new Error('All independent original guest guards required before readiness');
+    }, readyDeadline);
+    this.state = 'ready';
+  }
+  async command(input) {
+    if (this.state !== 'ready' && !(this.state === 'capture-failed' && input.operation === 'close'))
+      throw new Error('Original guest parent command lifecycle differs');
+    const command = validateCommand(input);
+    const closing = command.operation === 'close';
+    const deadline = Math.min(closing ? this.closure : this.operation, this.clock() + 60000);
+    this.within(deadline);
+    this.state = closing ? 'closing' : 'busy';
+    const id = ++this.commandId;
+    const value = await this.run(async () => {
+      await this.send({ type: 'command', id, ...command }, deadline);
+      const covered = new Set();
+      const result = await this.next(deadline, covered);
+      if (result.type === 'command-failure') {
+        if (
+          !keys3(result, ['type', 'id', 'operation', 'anchor', 'guestAcceptanceComplete', 'evidence', 'errorType']) ||
+          !integer6(result.id) ||
+          result.id !== id ||
+          result.operation !== command.operation ||
+          result.anchor !== this.anchor ||
+          result.guestAcceptanceComplete !== false ||
+          typeof result.errorType !== 'string' ||
+          !/^[A-Za-z_][A-Za-z_0-9]{0,79}$/.test(result.errorType) ||
+          !Array.isArray(result.evidence) ||
+          result.evidence.some((value) => !object18(value))
+        )
+          throw new Error('Original guest command failure attribution differs');
+        throw new OriginalGuestCaptureFailure(result, [...this.guardDenials]);
+      }
+      if (
+        !keys3(result, [
+          'type',
+          'id',
+          'operation',
+          'anchor',
+          'guestAcceptanceComplete',
+          'evidence',
+          ...(closing ? ['closed'] : []),
+        ]) ||
+        result.type !== 'command-result' ||
+        !integer6(result.id) ||
+        result.id !== id ||
+        result.operation !== command.operation ||
+        result.anchor !== this.anchor ||
+        result.guestAcceptanceComplete !== false ||
+        !Array.isArray(result.evidence) ||
+        result.evidence.some((value) => !object18(value)) ||
+        (closing && typeof result.closed !== 'boolean')
+      )
+        throw new Error('Original guest command result attribution differs');
+      if (!closing && requiredGuards.some((value) => !covered.has(value)))
+        throw new Error('All independent original guest guards required for capture');
+      return frozen(structuredClone(result));
+    }, deadline);
+    this.state = closing ? (value.closed ? 'closed' : 'unresolved') : 'ready';
+    return value;
+  }
+  pendingOperations() {
+    return this.pending.size;
+  }
+  async settlePending() {
+    await Promise.allSettled([...this.pending]);
+  }
+}
+
+// plugins/terraform/src/installed-guest-worker.ts
+var originalRoundSources = new WeakMap();
+async function collectInstalledOriginalGuestRound(value) {
+  if (!value || typeof value !== 'object') throw new Error('Original installed guest worker required');
+  const collect = originalRoundSources.get(value);
+  if (!collect) throw new Error('Original source-issued installed guest worker required');
+  return collect();
+}
+var hash28 = (bytes) => createHash38('sha256').update(bytes).digest('hex');
+var equalIdentity2 = (a, b) => !!a && !!b && ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
+function inspectOriginalGuestCompletion(value, initial, actor) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Original guest completion required');
+  const result = value;
+  if (
+    !equalIdentity2(result.identity, actor) ||
+    result.pid !== actor.pid ||
+    result.signalsSent !== false ||
+    result.originalGroupClosed !== true ||
+    result.captureClosed !== true ||
+    typeof result.actualExitCode !== 'number' ||
+    !Number.isInteger(result.actualExitCode) ||
+    result.actualExitCode < 0 ||
+    [
+      'originalDeadlineMs',
+      'invocationStartedMs',
+      'finalStartedMs',
+      'finalDeadlineMs',
+      'stdoutPath',
+      'stderrPath',
+      'submitted',
+    ].some((key) => initial[key] !== undefined && result[key] !== initial[key])
+  )
+    throw new Error('Original guest completion identity, budget or closure differs');
+  return Object.freeze(structuredClone(result));
+}
+async function openInstalledGuestWorker(options) {
+  return openOriginalGuestWorkerSource(options);
+}
+async function openInstalledFinalGuestWorker(options, callback) {
+  await assertOriginalApplyCallback(callback);
+  if (callback.phase !== 'after' || !callback.reserve || callback.original !== options.context)
+    throw new Error('Original final guest callback/context/reserve required');
+  return openOriginalGuestWorkerSource(options, callback);
+}
+async function openOriginalGuestWorkerSource(options, after) {
+  const context = options.context;
+  const binding = Object.freeze(structuredClone(options.binding));
+  const supplied = freezeAdmittedCaptureInputs(options.inputs);
+  const guards = Object.freeze({
+    inputs: options.guards.inputs.bind(options.guards),
+    original: options.guards.original.bind(options.guards),
+    trust: options.guards.trust.bind(options.guards),
+  });
+  if (
+    context?.kind !== 'original-installed-gcp-capture-context' ||
+    context.schemaVersion !== 2 ||
+    context.owner?.provider !== 'gcp' ||
+    context.owner.engine !== 'terraform' ||
+    binding?.project !== context.owner.account ||
+    binding.region !== context.owner.region ||
+    context.budget.deadline - context.budget.start !== 7200000
+  )
+    throw new Error('Original installed GCP worker context and binding required');
+  const budget = Object.freeze({ ...context.budget });
+  const finalTiming = after?.reserve ? inspectFinalReaderReserve(after.reserve) : undefined;
+  const assertContext = context.assertInputs,
+    withinContext = after ? () => assertOriginalApplyCallback(after) : context.assertWithinDeadline;
+  await assertContext();
+  await withinContext();
+  for (const [name, original] of Object.entries(context.inputs)) {
+    if (!supplied[name]) throw new Error('Original installed worker context input missing');
+    assertSameOriginalInput(original, supplied[name]);
+  }
+  const inputs = freezeAdmittedCaptureInputs({ ...context.inputs, ...supplied });
+  const entry = inputs['script:guest_entrypoint.py'];
+  if (
+    !entry ||
+    inputs.python?.sha256 !== installed_runtime_pins_default.pythonSha256 ||
+    !inputs.ssh ||
+    Object.entries(gcp_capture_source_pins_default.files).some(
+      ([name, digest]) =>
+        inputs[`script:${name}`]?.path !== join32(dirname16(entry.path), name) ||
+        inputs[`script:${name}`]?.sha256 !== digest,
+    ) ||
+    ['observer_key', 'ce_key', 'observer_hosts', 'ce_hosts'].some(
+      (name) => !inputs[name] || binding[name] !== inputs[name].path,
+    )
+  )
+    throw new Error('Complete original installed guest source and input pins required');
+  const inputMonitor = await monitorOriginalInputs(inputs);
+  const root = join32(context.executionDirectory, `gcp-guest-worker-${randomUUID18()}`);
+  let actor, final;
+  let executionDirectory;
+  let completion;
+  let terminal = false,
+    initialized = false,
+    started = false,
+    disposed = false,
+    submissions = 0;
+  let outcome;
+  let outcomeError;
+  let requestMonitor;
+  let collecting = false,
+    roundFailure;
+  let roundPromise;
+  const rounds = [];
+  const assertInputs = async (full = true) => {
+    await assertContext();
+    if (full) {
+      await inputMonitor.assertOriginal();
+      await requestMonitor?.assertOriginal();
+    } else {
+      await inputMonitor.assertOriginalIdentity();
+      await requestMonitor?.assertOriginalIdentity();
+    }
+    await assertContext();
+  };
+  const assertActor = async () => {
+    await assertInputs(false);
+    if (!actor) throw new Error('Original installed guest actor not admitted');
+    if (terminal) {
+      if (
+        !final ||
+        !equalIdentity2(final.identity, actor) ||
+        final.pid !== actor.pid ||
+        !final.originalGroupClosed ||
+        final.actualExitCode !== 0 ||
+        final.signalsSent !== false
+      )
+        throw new Error('Original installed guest terminal actor not qualified');
+      await assertInputs(false);
+      return;
+    }
+    const before = await readFile8(`/proc/${actor.pid}/stat`, 'utf8');
+    const fields = before
+      .slice(before.lastIndexOf(') ') + 2)
+      .trim()
+      .split(/\s+/);
+    if (
+      ['T', 't', 'Z', 'X'].includes(fields[0]) ||
+      fields[19] !== actor.start ||
+      Number(fields[2]) !== actor.group ||
+      Number(fields[1]) !== process.pid ||
+      (await readFile8('/proc/sys/kernel/random/boot_id', 'utf8')).trim() !== actor.boot ||
+      (await readlink2(`/proc/${actor.pid}/exe`)) !== (await realpath22(inputs.python.path))
+    )
+      throw new Error('Original installed guest process identity changed');
+    const executable = await stat3(`/proc/${actor.pid}/exe`, { bigint: true });
+    if (
+      ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].some(
+        (key) => String(executable[key]) !== inputs.python.expectedIdentity?.[key],
+      )
+    )
+      throw new Error('Original installed guest executable identity changed');
+    const after = await readFile8(`/proc/${actor.pid}/stat`, 'utf8');
+    const current = after
+      .slice(after.lastIndexOf(') ') + 2)
+      .trim()
+      .split(/\s+/);
+    if (current[19] !== actor.start || current[2] !== fields[2] || ['T', 't', 'Z', 'X'].includes(current[0]))
+      throw new Error('Original installed guest actor changed during inspection');
+    await assertInputs(false);
+  };
+  const nonce = randomBytes6(32).toString('hex');
+  const peer = await openOriginalGuestFifoPeer({ root, session: nonce, assertOriginal: assertActor });
+  const persist = async (path, bytes) => {
+    const handle = await open22(path, 'wx', 256);
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+      const file = await handle.stat({ bigint: true }),
+        parent = await lstat23(dirname16(path), { bigint: true });
+      return Object.freeze({
+        path,
+        sha256: hash28(bytes),
+        expectedIdentity: Object.freeze(
+          Object.fromEntries(
+            ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].map((key) => [key, String(file[key])]),
+          ),
+        ),
+        expectedParentIdentity: Object.freeze(
+          Object.fromEntries(['dev', 'ino', 'uid', 'mode'].map((key) => [key, String(parent[key])])),
+        ),
+      });
+    } finally {
+      await handle.close();
+    }
+  };
+  let parent;
+  const run = async () => {
+    const effectiveDeadline = finalTiming?.finalDeadlineMs ?? budget.deadline;
+    const startup = Math.min(effectiveDeadline, linuxMonotonicMs() + 15000);
+    const request = {
+      schemaVersion: finalTiming ? 2 : 1,
+      kind: finalTiming ? 'original-gcp-final-guest-worker' : 'original-gcp-guest-worker',
+      nonce,
+      inputs,
+      binding,
+      originalStartMs: budget.start,
+      ...(finalTiming && after
+        ? {
+            originalDeadlineMs: budget.deadline,
+            finalCapture: {
+              callbackNonce: after.nonce,
+              parentIdentity: after.execution.identity,
+              finalStartedMs: finalTiming.finalStartedMs,
+              finalDeadlineMs: finalTiming.finalDeadlineMs,
+            },
+          }
+        : {}),
+      deadlines: finalTiming ? [effectiveDeadline, effectiveDeadline] : [budget.deadline, budget.deadline + 300000],
+      startupDeadlineMs: startup,
+      ports: peer.bindings,
+    };
+    const raw = Buffer.from(JSON.stringify(request));
+    const requestInput = await persist(join32(root, 'request.private.json'), raw);
+    requestMonitor = await monitorOriginalInputs({ request: requestInput });
+    parent = new OriginalGuestControlParent({
+      peer,
+      binding,
+      requestSha256: requestInput.sha256,
+      operationDeadlineMs: effectiveDeadline,
+      closureDeadlineMs: finalTiming ? effectiveDeadline : budget.deadline + 300000,
+      startupDeadlineMs: startup,
+      guards,
+    });
+    const args = ['-I', '-B', entry.path, '--request', requestInput.path, '--sha256', requestInput.sha256];
+    const executionPolicy = {
+      python: { path: inputs.python.path, sha256: inputs.python.sha256 },
+      executable: { path: inputs.python.path, sha256: inputs.python.sha256 },
+      originalStartMs: budget.start,
+      originalDeadlineMs: budget.deadline,
+      assertOriginal: () => assertInputs(false),
+      beforeRelease: async (admitted) => {
+        await assertInputs();
+        if (
+          actor ||
+          admitted.originalStartMs !== budget.start ||
+          admitted.originalDeadlineMs !== budget.deadline ||
+          admitted.directory !== root ||
+          JSON.stringify(admitted.args) !== JSON.stringify(args) ||
+          admitted.startupDeadlineMs < startup
+        )
+          throw new Error('Original installed guest execution admission differs');
+        const bootstrap = decodeEvidenceObject(
+          await readFile8(join32(dirname16(admitted.stdoutPath), 'bootstrap.json')),
+        );
+        if (
+          !equalIdentity2(admitted.identity, bootstrap) ||
+          bootstrap.pythonSha256 !== inputs.python.sha256 ||
+          bootstrap.ppid !== process.pid ||
+          typeof bootstrap.sdkCreateTime !== 'number' ||
+          !Number.isFinite(bootstrap.sdkCreateTime)
+        )
+          throw new Error('Original installed guest kernel and SDK admission differs');
+        actor = Object.freeze({ ...admitted.identity });
+        executionDirectory = dirname16(admitted.stdoutPath);
+        await persist(
+          join32(root, 'original-execution.private.json'),
+          Buffer.from(JSON.stringify({ identity: actor, bootstrap, args, budget })),
+        );
+        await assertActor();
+      },
+      finalCapture: async (capture) => {
+        await assertInputs();
+        await persist(join32(root, 'final-execution.private.json'), Buffer.from(JSON.stringify(capture)));
+        if (
+          !equalIdentity2(capture.identity, actor) ||
+          capture.pid !== actor?.pid ||
+          capture.originalDeadlineMs !== budget.deadline ||
+          capture.signalsSent !== false
+        )
+          throw new Error('Original installed guest final execution differs');
+        final = Object.freeze(structuredClone(capture));
+        if (initialized && capture.actualExitCode === null && parent) {
+          await parent.settlePending();
+          try {
+            await parent.command({ operation: 'close' });
+          } catch (error) {
+            outcomeError ??= error;
+          }
+        }
+      },
+    };
+    const execute = after?.reserve
+      ? signalFreeFinalGuestWorkerExecutor(executionPolicy, after.reserve)
+      : signalFreeTerraformExecutor(executionPolicy);
+    submissions++;
+    outcome = execute({ cwd: root, args, env: { PATH: '/usr/bin:/bin' } });
+    outcome.then(
+      () => {
+        terminal = true;
+      },
+      (error) => {
+        terminal = true;
+        outcomeError = error;
+      },
+    );
+    while (!actor && !terminal && linuxMonotonicMs() < startup) {
+      await assertInputs();
+      await Bun.sleep(10);
+    }
+    if (!actor || terminal || linuxMonotonicMs() >= startup)
+      throw new Error('Original installed guest startup deadline or admission unavailable');
+    await parent.initialize();
+    initialized = true;
+  };
+  const commandOriginal = async (value) => {
+    if (!initialized || disposed || !parent) throw new Error('Original installed guest command lifecycle unavailable');
+    await assertInputs();
+    if (after) await assertOriginalApplyCallback(after);
+    const result = await parent.command(value);
+    await assertInputs();
+    return result;
+  };
+  const worker = Object.freeze({
+    root,
+    async initialize() {
+      if (started || disposed) throw new Error('Original installed guest lifecycle already started or retired');
+      started = true;
+      await assertInputs();
+      await withinContext();
+      try {
+        await run();
+      } catch (error) {
+        outcomeError ??= error;
+        const details =
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : { name: 'unknown' };
+        await persist(
+          join32(root, 'startup-failure.private.json'),
+          Buffer.from(JSON.stringify({ details, budget, guestAcceptanceComplete: false })),
+        );
+        throw error;
+      }
+    },
+    async command(value) {
+      if (collecting || (roundFailure && value.operation !== 'close'))
+        throw new Error('Original guest collection active or refused');
+      return commandOriginal(value);
+    },
+    async dispose() {
+      if (disposed) return;
+      if (roundPromise) await Promise.allSettled([roundPromise]);
+      if (initialized && !terminal && parent) {
+        try {
+          await parent.command({ operation: 'close' });
+        } catch (error) {
+          outcomeError ??= error;
+        }
+      }
+      await peer.retire();
+      if (outcome) await Promise.allSettled([outcome]);
+      await assertInputs();
+      if (started && terminal && final && actor && executionDirectory) {
+        const path = join32(executionDirectory, 'completion.private.json');
+        const before = await lstat23(path, { bigint: true });
+        if (
+          !before.isFile() ||
+          before.isSymbolicLink() ||
+          before.uid !== BigInt(process.getuid?.() ?? -1) ||
+          before.nlink !== 1n ||
+          (before.mode & 0o077n) !== 0n
+        )
+          throw new Error('Original owned guest completion required');
+        const raw = await readFile8(path);
+        const after = await lstat23(path, { bigint: true });
+        if (
+          ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].some((key) => before[key] !== after[key])
+        )
+          throw new Error('Original guest completion changed during review');
+        completion = inspectOriginalGuestCompletion(decodeEvidenceObject(raw), final, actor);
+        await persist(
+          join32(root, 'completion-review.private.json'),
+          Buffer.from(
+            JSON.stringify({
+              original: actor,
+              initialCapture: final,
+              completion,
+              completionSha256: hash28(raw),
+              guestAcceptanceComplete: false,
+            }),
+          ),
+        );
+      }
+      if (
+        started &&
+        (!terminal ||
+          !final ||
+          !equalIdentity2(final.identity, actor) ||
+          !completion ||
+          completion.originalGroupClosed !== true ||
+          completion.actualExitCode === null)
+      )
+        throw new Error('Original installed guest closure unresolved; original evidence remains held');
+      requestMonitor?.close();
+      inputMonitor.close();
+      disposed = true;
+    },
+    evidence() {
+      return Object.freeze({
+        root,
+        identity: actor,
+        final,
+        completion,
+        submissions,
+        terminal,
+        disposed,
+        collectionRounds: rounds.length,
+        ...(roundFailure ? { collectionFailureRetained: true } : {}),
+        ...(outcomeError ? { executionFailureRetained: true } : {}),
+        ...(finalTiming ? { originalFinalCapture: finalTiming, originalParent: after?.execution.identity } : {}),
+        guestAcceptanceComplete: false,
+      });
+    },
+  });
+  originalRoundSources.set(worker, async () => {
+    if (!initialized || disposed || terminal || collecting || roundFailure)
+      throw new Error('Original installed guest round lifecycle unavailable, active or refused');
+    const previous = rounds.at(-1);
+    if (previous && linuxMonotonicMs() - previous.finishedMonotonicMs < 45000)
+      throw new Error('Original guest rounds require forty-five-second spacing');
+    collecting = true;
+    roundPromise = (async () => {
+      await withinContext();
+      await assertActor();
+      const report = await runOriginalGuestCaptureRound(
+        {
+          async assertOriginal() {
+            await withinContext();
+            await assertActor();
+          },
+          command: commandOriginal,
+          async persist(event) {
+            await persist(
+              join32(root, `guest-round-event-${randomUUID18()}.private.json`),
+              Buffer.from(JSON.stringify(event)),
+            );
+          },
+        },
+        {
+          instanceId: String(binding.instance_id),
+          observerId: String(binding.observer_id),
+          tokenSha256: String(binding.token_sha256),
+          ownershipSha256: String(binding.ownership_sha256),
+        },
+        finalTiming?.finalDeadlineMs ?? budget.deadline,
+      );
+      rounds.push(report);
+      return report;
+    })();
+    try {
+      return await roundPromise;
+    } catch (error) {
+      roundFailure ??= error;
+      throw error;
+    } finally {
+      collecting = false;
+    }
+  });
+  return worker;
+}
 
 // plugins/terraform/src/installed-ssh-clients.ts
 import { homedir as homedir3 } from 'node:os';
-import { join as join31 } from 'node:path';
+import { join as join33 } from 'node:path';
 
 class InstalledGcpSshClientSetupRequired extends Error {
   constructor() {
@@ -19125,11 +20940,11 @@ async function openInstalledGcpSshClientProfile(environment = process.env) {
   const env = { ...environment };
   const root =
     env.XCSH_TERRAFORM_SSH_CLIENTS_DIR ??
-    join31(homedir3(), '.local/share/xcsh/terraform/ssh-clients', gcp_ssh_client_pins_default.version);
+    join33(homedir3(), '.local/share/xcsh/terraform/ssh-clients', gcp_ssh_client_pins_default.version);
   const inputs = {};
   let profile;
   try {
-    const installer = await owned(join31(import.meta.dir, '../scripts/install_ssh_clients.py'));
+    const installer = await owned(join33(import.meta.dir, '../scripts/install_ssh_clients.py'));
     if (installer.binding.sha256 !== gcp_ssh_client_pins_default.installerSha256)
       throw new InstalledGcpSshClientSetupRequired();
     inputs['installation:installer'] = installer.binding;
@@ -19138,11 +20953,11 @@ async function openInstalledGcpSshClientProfile(environment = process.env) {
       ['LICENCE', gcp_ssh_client_pins_default.licenseSha256],
       ['BUILD.json', gcp_ssh_client_pins_default.buildSha256],
     ]) {
-      const input = await owned(join31(root, name), 16 * 1024 * 1024);
+      const input = await owned(join33(root, name), 16 * 1024 * 1024);
       if (input.binding.sha256 !== expected) throw new InstalledGcpSshClientSetupRequired();
       inputs[`installation:${name}`] = input.binding;
     }
-    const declaration = await owned(join31(root, 'installation.json'));
+    const declaration = await owned(join33(root, 'installation.json'));
     const original = decodeEvidenceObject(declaration.bytes);
     if (
       original.schemaVersion !== 1 ||
@@ -19181,7 +20996,7 @@ async function assertInstalledGcpSshClientSetup(environment = process.env) {
 }
 
 // plugins/terraform/src/service.ts
-import { join as join32 } from 'node:path';
+import { join as join34 } from 'node:path';
 
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 function freezeRuntime(options) {
@@ -19219,7 +21034,7 @@ function createCeTerraformService(platform, options = {}) {
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
         throw new Error('Invalid Terraform stage identity');
       const directory = deployment.stage
-        ? join32(store.directory, 'terraform-stages', deployment.stage)
+        ? join34(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
       const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
         ? freezeRuntime(
@@ -19451,10 +21266,10 @@ function requestPlatform(bus) {
 }
 
 // plugins/terraform/src/installed-vm-capture.ts
-import { randomUUID as randomUUID18 } from 'node:crypto';
-import { constants as constants10 } from 'node:fs';
-import { lstat as lstat22, mkdir as mkdir19, open as open21 } from 'node:fs/promises';
-import { join as join33 } from 'node:path';
+import { randomUUID as randomUUID19 } from 'node:crypto';
+import { constants as constants11 } from 'node:fs';
+import { lstat as lstat24, mkdir as mkdir20, open as open23 } from 'node:fs/promises';
+import { join as join35 } from 'node:path';
 
 async function openInstalledVmCapture(input) {
   if (process.platform !== 'linux') throw new Error('Original GCP VM capture requires the qualified Linux runtime');
@@ -19467,7 +21282,7 @@ async function openInstalledVmCapture(input) {
   const budget = Object.freeze({ ...context.budget });
   const expectedParent = context.inputs['workspace:main.tf.json']?.expectedParentIdentity;
   const assertDirectory = async () => {
-    const current = await lstat22(context.executionDirectory, { bigint: true });
+    const current = await lstat24(context.executionDirectory, { bigint: true });
     if (
       !current.isDirectory() ||
       current.isSymbolicLink() ||
@@ -19494,9 +21309,9 @@ async function openInstalledVmCapture(input) {
   }
   for (const [name, slot] of slots) slots.set(name, { ...slot });
   if (!slots.size) throw new Error('Original VM inventory is empty');
-  const directory = join33(context.executionDirectory, `gcp-vm-capture-${randomUUID18()}`);
-  await mkdir19(directory, { mode: 448 });
-  const directoryIdentity = await lstat22(directory, { bigint: true });
+  const directory = join35(context.executionDirectory, `gcp-vm-capture-${randomUUID19()}`);
+  await mkdir20(directory, { mode: 448 });
+  const directoryIdentity = await lstat24(directory, { bigint: true });
   let phase = 'before';
   let refused = false,
     busy = false;
@@ -19505,7 +21320,7 @@ async function openInstalledVmCapture(input) {
   let packetReader = reader;
   const retain = async (event, value) => {
     await assertDirectory();
-    const parent = await lstat22(directory, { bigint: true });
+    const parent = await lstat24(directory, { bigint: true });
     if (
       !parent.isDirectory() ||
       parent.isSymbolicLink() ||
@@ -19514,14 +21329,14 @@ async function openInstalledVmCapture(input) {
       ['dev', 'ino', 'uid', 'mode'].some((key) => parent[key] !== directoryIdentity[key])
     )
       throw new Error('Original VM capture retention directory changed');
-    const name = `${event}-${randomUUID18()}.private.json`;
-    const path = join33(directory, name);
-    const folder = await open21(directory, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW);
+    const name = `${event}-${randomUUID19()}.private.json`;
+    const path = join35(directory, name);
+    const folder = await open23(directory, constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW);
     try {
       const original = await folder.stat({ bigint: true });
       if (['dev', 'ino', 'uid', 'mode'].some((key) => original[key] !== directoryIdentity[key]))
         throw new Error('Original VM capture retention directory changed during open');
-      const file = await open21(join33('/proc/self/fd', String(folder.fd), name), 'wx', 256);
+      const file = await open23(join35('/proc/self/fd', String(folder.fd), name), 'wx', 256);
       try {
         await file.writeFile(
           JSON.stringify({
@@ -19541,7 +21356,7 @@ async function openInstalledVmCapture(input) {
       } finally {
         await file.close();
       }
-      const after = await lstat22(directory, { bigint: true });
+      const after = await lstat24(directory, { bigint: true });
       if (['dev', 'ino', 'uid', 'mode'].some((key) => after[key] !== directoryIdentity[key]))
         throw new Error('Original VM capture retention directory changed during write');
     } finally {
@@ -19899,6 +21714,7 @@ export {
   closeOriginalGcpObserverClientAbiCommand,
   closeOriginalGcpObserverClientAbiRenewalCommand,
   closeOriginalGcpObserverClientInstallation,
+  collectInstalledOriginalGuestRound,
   collectOriginalEarlyGcpInsertIdentity,
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,
@@ -19931,6 +21747,9 @@ export {
   openGcpObserverImageReader,
   openGcpObserverWireKeyReader,
   openInstalledBootstrapCapture,
+  openInstalledFinalGuestWorker,
+  openInstalledGcpGuestBinding,
+  openInstalledGuestWorker,
   openInstalledInitialInventory,
   openInstalledProviderReader,
   openInstalledVmCapture,

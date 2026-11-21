@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { createInstalledGcpInvocationCompiler } from '../src/installed-gcp-invocation';
+import { OriginalInputMonitorError } from '../src/original-input-monitor';
 import { fixture, roots } from './original-gcp-inventory-fixture';
 
 for (const ha of [false, true])
@@ -42,16 +43,22 @@ test('inventory intent file replacement remains refused after bytes are restored
   const { prepareOriginalGcpInventoryScope, assertOriginalGcpInventoryScope } = await import(
     '../src/original-gcp-inventory-scope'
   );
-  await fixture(async (context, store) => {
-    const packet = await prepareOriginalGcpInventoryScope(context, store);
-    const path = join(store.directory, 'gcp-terraform-input-identity.json');
-    await rename(path, `${path}.original`);
-    await writeFile(path, await readFile(`${path}.original`), { mode: 0o400 });
-    await expect(assertOriginalGcpInventoryScope(packet)).rejects.toThrow();
-    await rm(path);
-    await rename(`${path}.original`, path);
-    await expect(assertOriginalGcpInventoryScope(packet)).rejects.toThrow();
-  });
+  let scopeRefusals = 0;
+  await expect(
+    fixture(async (context, store) => {
+      const packet = await prepareOriginalGcpInventoryScope(context, store);
+      const path = join(store.directory, 'gcp-terraform-input-identity.json');
+      await rename(path, `${path}.original`);
+      await writeFile(path, await readFile(`${path}.original`), { mode: 0o400 });
+      await expect(assertOriginalGcpInventoryScope(packet)).rejects.toThrow();
+      scopeRefusals++;
+      await rm(path);
+      await rename(`${path}.original`, path);
+      await expect(assertOriginalGcpInventoryScope(packet)).rejects.toThrow();
+      scopeRefusals++;
+    }),
+  ).rejects.toBeInstanceOf(OriginalInputMonitorError);
+  expect(scopeRefusals).toBe(2);
 });
 
 test('expired operation preserves read-only original inventory inputs without renewing authority', async () => {
