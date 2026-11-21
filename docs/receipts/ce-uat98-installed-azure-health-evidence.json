@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-22T06:39:11.542855+00:00",
+  "candidateRevision": 98,
+  "sourceCommit": "52bf929f402a859d1101d2bcaf275cdefebcc6b6",
+  "cliVersion": "23.9.3",
+  "exactArchiveRuntimeDigestsVerified": true,
+  "publicTool": "azure_ce_status",
+  "installedPublicHealthPathQualified": true,
+  "healthState": "PROVISIONED",
+  "registrationState": "ONLINE",
+  "producerManifestDigest": "sha256:ae8b47d1a3dcdeedb2c054ec0d5cd6063e253d397728d360890ae2420b190453",
+  "scope": "site-global-and-registration-only",
+  "perNodeHealth": "unknown",
+  "originalCeSampleFreshnessQualified": false,
+  "interfaceStateQualified": false,
+  "haHealthQualified": false,
+  "fullCeAcceptance": false,
+  "cleanupPending": true
+}
