@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "plugin": "platform",
+  "assets": [],
+  "bundles": [
+    {
+      "runtimePath": "runtime-9cctakkf.js",
+      "kind": "chunk",
+      "sha256": "120cc7374c1e1980b3b4a0bea3afcbaf80b3e6b48b80fe9c7fd04fc6d5c96901"
+    },
+    {
+      "runtimePath": "runtime-afkskas7.js",
+      "kind": "chunk",
+      "sha256": "5788242662aed3acb6dbe997fa0577f02ee362ab316d28081d44361cdd90441b"
+    },
+    {
+      "runtimePath": "runtime-bv9agd7a.js",
+      "kind": "chunk",
+      "sha256": "ef9d6f7f373941faa1bedc5a3c3db1136394dc7034e2e46288854b56954b518a"
+    },
+    {
+      "runtimePath": "runtime-ckzns5aw.js",
+      "kind": "chunk",
+      "sha256": "e5571c6de24b7455aa36393a602ee348d674e6dffffeca88ca0dadbc8477796b"
+    },
+    {
+      "runtimePath": "runtime-d13c8c0b.js",
+      "kind": "chunk",
+      "sha256": "58f496c0ccd29f2f1794c88f4a53cd2339e749e01f05a8d1ad3b1d453a152c3c"
+    },
+    {
+      "runtimePath": "runtime-x0wpf92c.js",
+      "kind": "chunk",
+      "sha256": "68d4b5e78beb740407f9e58b70aa7d6d5f0661c03c4c899095be1e10acc309ba"
+    },
+    {
+      "runtimePath": "runtime.js",
+      "kind": "entry-point",
+      "sha256": "a9a639dadf7aa0bb07204cd24e66f12eebb9e7969176932664d0f695daf235fa"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -254,6 +255,11 @@ export function validateTasks(tasks, inventory, links, retired = []) {
   for (const id of expected.keys()) if (!seen.has(id)) errors.push(`missing ID: ${id}`);
   return errors;
 }
+const INVALIDATION_NOTICE = 'Evidence invalidated by source/runtime/scope change; next action: requalify this gate.';
+function coalesceInvalidationNotice(blocker) {
+  if (!blocker.includes(INVALIDATION_NOTICE)) return blocker;
+  return `${INVALIDATION_NOTICE} ${blocker.replaceAll(INVALIDATION_NOTICE, '').trim()}`.trim();
+}
 export function reconcileTasks(expected, previous, { retirements = {}, retired = [] } = {}) {
   const old = new Map(previous.map((t) => [t.id, t]));
   if (old.size !== previous.length) throw new Error('duplicate prior task IDs');
@@ -267,12 +273,13 @@ export function reconcileTasks(expected, previous, { retirements = {}, retired =
       evidence: prior.evidence,
       receipt: prior.receipt,
       delivery: /^https:\/\/\S+$/.test(prior.delivery) ? `<${prior.delivery}>` : prior.delivery,
-      blocker: prior.blocker,
+      blocker: coalesceInvalidationNotice(prior.blocker),
     };
     if (task.input !== prior.input || task.scope !== prior.scope || task.acceptance !== prior.acceptance) {
       updated.status = 'TODO';
-      updated.blocker =
-        `Evidence invalidated by source/runtime/scope change; next action: requalify this gate. Prior input=${prior.input}. ${prior.blocker}`.trim();
+      updated.blocker = coalesceInvalidationNotice(
+        `${INVALIDATION_NOTICE} Prior input=${prior.input}. ${prior.blocker}`,
+      );
     }
     return updated;
   });
@@ -331,8 +338,7 @@ export function renderRetiredTasks(retired) {
     ' |\n' +
     retired
       .map(
-        (t) =>
-          '| ' + retirementFields.map((f) => encode(f === 'removalDelivery' ? `<${t[f]}>` : t[f])).join(' | ') + ' |',
+        (t) => `| ${retirementFields.map((f) => encode(f === 'removalDelivery' ? `<${t[f]}>` : t[f])).join(' | ')} |`,
       )
       .join('\n') +
     '\n\n'
@@ -373,4 +379,20 @@ export function renderTracker(inventory, metadata, tasks, retired = []) {
   text += renderRetiredTasks(retired);
   text += `<!-- tracker-metadata\n${JSON.stringify(metadata, null, 2)}\n-->\n`;
   return text;
+}
+
+// Hash exact shipped bytes after formatting and staging; runtime changes also reopen evidence.
+export function pluginSourceFingerprint(root, source, runtime) {
+  const paths = [
+    ...new Set(
+      execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', source], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+        .split('\0')
+        .filter(Boolean),
+    ),
+  ].sort();
+  const hash = (value) => createHash('sha256').update(value).digest('hex');
+  return hash(`${runtime}\n${paths.map((path) => `${path}\n${hash(readFileSync(join(root, path)))}`).join('\n')}`);
 }
