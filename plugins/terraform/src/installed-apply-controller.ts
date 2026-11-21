@@ -246,6 +246,9 @@ export function createInstalledApplyController(
       )
         throw new Error('Original apply execution identity required');
       await within();
+      // A companion call may claim startup while original inputs are awaited.
+      // Check again immediately before this synchronous ownership transition.
+      if (started || closed || finalStarted) throw new Error('Original apply execution already claimed');
       if (now() >= admission.startupDeadlineMs) throw new Error('Original apply startup deadline elapsed');
       started = Object.freeze({
         ...admission,

@@ -65,3 +65,16 @@ test('shipped XC reader and TypeScript consumer select the same current artifact
     select('xcsh_creation_reader.py', 'select_xcsh_pins', { ...input, xcsh: { sha256: '0'.repeat(64) } }).code,
   ).not.toBe(0);
 });
+
+test('shipped XC reader binds the independently verified latest artifact and refuses mixed pairs', () => {
+  const latest = 'a480b2e2c07fb0bd890b94563fc0357538066c8d0a38dcb2349c3cd2555c4fc1';
+  const input = { bootstrap: { sha256: bootstrap }, terraform: { sha256: terraform }, xcsh: { sha256: latest } };
+  const actual = select('xcsh_creation_reader.py', 'select_xcsh_pins', input);
+  expect(actual.err).toBe('');
+  expect(actual.code).toBe(0);
+  expect(JSON.parse(actual.out)).toEqual({ bootstrap, terraform, xcsh: latest });
+  expect(profiles.resolveInstalledXcshCreationExecutableProfile(terraform, latest).xcshVersion).toBe('15.17.8');
+  expect(
+    select('xcsh_creation_reader.py', 'select_xcsh_pins', { ...input, terraform: { sha256: '0'.repeat(64) } }).code,
+  ).not.toBe(0);
+});

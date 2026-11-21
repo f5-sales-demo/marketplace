@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { readLinuxProcessGroupRecord } from './linux-process-group';
 
 interface Claim {
   schemaVersion: 1 | 2;
@@ -27,15 +28,7 @@ function vanishedProcess(error: unknown): boolean {
 
 async function processGroup(pid: number): Promise<number> {
   if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
-  const text = await readFile(`/proc/${pid}/stat`, 'utf8');
-  const fields = text
-    .slice(text.lastIndexOf(') ') + 2)
-    .trim()
-    .split(/\s+/);
-  const group = Number(fields[2]);
-  if (!/^\d+$/.test(fields[2] ?? '') || !Number.isSafeInteger(group) || group < 0)
-    throw new Error('Original executor group is unavailable');
-  return group;
+  return readLinuxProcessGroupRecord(pid, () => readFile(`/proc/${pid}/stat`, 'utf8'));
 }
 
 async function readGroupLifetime(path: string, owner: Claim) {

@@ -17,6 +17,8 @@ test('current CE collector retains pending insertion, binds the original VM and 
       const vm = await stage.reconcile(input.identity.nodeName);
       expect(vm?.instanceId).toBe(input.state.vm.id as string);
       const serial = await stage.captureSerial(input.identity.nodeName, '0');
+      expect(await stage.readSerialPacket(input.identity.nodeName, input.callback)).toBe(serial);
+      expect(Object.isFrozen(serial)).toBe(true);
       expect(serial.source.contents).toBe(`original-node-serial${String.fromCharCode(10)}`);
       if (!vm) throw new Error('Original VM required');
       expect(serial.source.instanceId).toBe(vm.instanceId);
@@ -110,6 +112,13 @@ test('final capture uses the original after callback and separate reader reserve
       expect(result.guestAcceptanceComplete).toBe(false);
       expect(result.capturedNames).toContain(name);
       expect(result.finalDeadlineMs - result.finalStartedMs).toBe(300000);
+      const packet = await stage.readSerialPacket(name, input.callback);
+      expect(packet.vm.kind).toBe('original-final-gcp-vm-evidence');
+      expect(packet.source.instanceId).toBe(String(input.state.vm.id));
+      expect(await stage.readSerialPacket(name, input.callback)).toBe(packet);
+      await expect(
+        stage.readSerialPacket(name, { ...input.callback, original: input.callback.original }),
+      ).rejects.toThrow('Original');
       await expect(stage.finalCapture(input.callback, input.reader)).rejects.toThrow('already');
     },
     undefined,

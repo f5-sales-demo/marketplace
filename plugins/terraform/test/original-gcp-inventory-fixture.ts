@@ -1,6 +1,6 @@
 import { afterEach } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fingerprint } from '../../gcloud/src/ce/discovery';
@@ -13,7 +13,8 @@ import type { GcpCeIntent } from '../../gcloud/src/ce/types';
 import { intent as baseIntent } from '../../gcloud/test/ce/fixtures';
 import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { createInstalledCaptureContext, type InstalledCaptureContext } from '../src/installed-capture-context';
-import { readOwnedInstalledInput } from '../src/installed-runtime';
+import { inspectInstalledCaptureScripts, readOwnedInstalledInput } from '../src/installed-runtime';
+import { resolveInstalledGcpVersionProfile } from '../src/installed-version-profile';
 import { linuxMonotonicMs } from '../src/linux-clock';
 import { assertSameOriginalInput, monitorOriginalInputs } from '../src/original-input-monitor';
 import { type Deployment, type Invocation, readOriginalTerraformPlanSource, TerraformRunner } from '../src/runner';
@@ -77,6 +78,8 @@ export async function fixture(
   configuration?: (intent: GcpCeIntent) => string,
   prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
   providerLock = GCP_PUBLIC_TERRAFORM_ARTIFACTS.providerLock,
+  sourceCaptureInputs = false,
+  operationRemainingMs = 7200000,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'original-inventory-scope-'));
   roots.push(root);
@@ -90,10 +93,22 @@ export async function fixture(
   };
   const store = await CeDeploymentStore.open(root, owner);
   await prepareIntent?.(intent, store);
+  const configurationText = configuration?.(intent) ?? '{"terraform":{"required_version":"= 1.17.2"}}';
+  const requestReason = JSON.parse(configurationText)?.provider?.google?.[0]?.request_reason;
   await store.write('gcp-terraform-input-identity.json', {
     intent,
     intentFingerprint: fingerprint(intent),
     platformContext: intent.platformContext,
+    ...(typeof requestReason === 'string'
+      ? {
+          requestReasonFingerprint: fingerprint({
+            schemaVersion: 1,
+            scope: 'gcp-terraform-deployment',
+            intentFingerprint: fingerprint(intent),
+            reason: requestReason,
+          }),
+        }
+      : {}),
   });
   const cloud = publicTerraformCloudScope(intent);
   const platform = publicTerraformPlatformScope(intent);
@@ -150,7 +165,7 @@ export async function fixture(
     engine: 'terraform',
     scope: { cloud: 'gcp', account: intent.project, region: intent.region },
     terraformVersion: '1.17.2',
-    configuration: configuration?.(intent) ?? '{"terraform":{"required_version":"= 1.17.2"}}',
+    configuration: configurationText,
     providerLock,
     backendIdentity: `local:${owner.deploymentId}`,
   };
@@ -180,6 +195,21 @@ export async function fixture(
             ),
           ),
         );
+        // Explicit offline source profile: real files and identities are checked,
+        // while provider/executable labels simulate the qualified binaries. The
+        // native gated child still runs only the real qualified fixture Python.
+        let symbolicTerraform: (typeof inputs)[string] | undefined;
+        const sourceProfile = sourceCaptureInputs
+          ? resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256: hash(providerLock) })
+          : undefined;
+        if (sourceCaptureInputs) {
+          if (!sourceProfile) throw new Error('Original source fixture profile required');
+          Object.assign(inputs, await inspectInstalledCaptureScripts());
+          const path = join(request.cwd, 'symbolic-terraform.private');
+          await writeFile(path, 'offline-qualified-terraform-label', { mode: 0o500 });
+          symbolicTerraform = (await readOwnedInstalledInput(path)).binding;
+          inputs.terraform = { ...symbolicTerraform, sha256: sourceProfile.terraformSha256 };
+        }
         const providers: Record<string, (typeof inputs)[string]> = {};
         const interpreter = await monitorOriginalInputs({ python: inputs.python });
         for (let i = 0; i < 6; i++) {
@@ -187,7 +217,48 @@ export async function fixture(
           await writeFile(path, `original-provider-${i}`, { mode: 0o400 });
           providers[`offline:${i}`] = (await readOwnedInstalledInput(path)).binding;
         }
-        const start = linuxMonotonicMs();
+        if (sourceCaptureInputs) {
+          if (!sourceProfile) throw new Error('Original source fixture profile required');
+          for (const name of Object.keys(providers)) delete providers[name];
+          for (const [address, version, names] of [
+            [
+              'hashicorp/google',
+              sourceProfile.googleVersion,
+              ['LICENSE.txt', `terraform-provider-google_v${sourceProfile.googleVersion}_x5`],
+            ],
+            [
+              'f5-sales-demo/xcsh',
+              sourceProfile.xcshVersion,
+              ['CHANGELOG.md', 'LICENSE', 'README.md', `terraform-provider-xcsh_v${sourceProfile.xcshVersion}`],
+            ],
+          ] as const) {
+            const folder = join(
+              request.cwd,
+              '.terraform/providers/registry.terraform.io',
+              address,
+              version,
+              'linux_amd64',
+            );
+            await mkdir(folder, { recursive: true, mode: 0o700 });
+            for (const name of names) {
+              const path = join(folder, name);
+              await writeFile(path, `offline-qualified-provider-label:${name}`, {
+                mode: name.startsWith('terraform-provider-') ? 0o500 : 0o400,
+              });
+              const actual = (await readOwnedInstalledInput(path)).binding;
+              const digest = name.startsWith('terraform-provider-google')
+                ? sourceProfile.googleProviderSha256
+                : name.startsWith('terraform-provider-xcsh')
+                  ? sourceProfile.xcProviderSha256
+                  : actual.sha256;
+              providers[`registry.terraform.io/${address}:${name}`] = { ...actual, sha256: digest };
+            }
+          }
+        }
+        if (!Number.isSafeInteger(operationRemainingMs) || operationRemainingMs <= 0 || operationRemainingMs > 7200000)
+          throw new Error('Bounded offline original operation remainder required');
+        // A late-arriving original operation still has the immutable two-hour duration.
+        const start = linuxMonotonicMs() - 7200000 + operationRemainingMs;
         const context = createInstalledCaptureContext({
           owner,
           executionDirectory: request.cwd,
@@ -207,11 +278,14 @@ export async function fixture(
             await interpreter.assertOriginalIdentity();
             for (const [name, binding] of Object.entries(inputs)) {
               if (name === 'python') continue;
-              assertSameOriginalInput(binding, (await readOwnedInstalledInput(binding.path)).binding);
+              assertSameOriginalInput(
+                name === 'terraform' && symbolicTerraform ? symbolicTerraform : binding,
+                (await readOwnedInstalledInput(binding.path)).binding,
+              );
             }
           },
           assertWithinDeadline: async () => {
-            if (expired()) throw new Error('original operation expired');
+            if (expired() || linuxMonotonicMs() >= start + 7200000) throw new Error('original operation expired');
           },
           readProviderInputs: async () => providers,
           readOriginalPlanSource: () =>

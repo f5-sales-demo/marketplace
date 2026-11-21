@@ -12,6 +12,7 @@ import {
   collectOriginalGcpTerraformBootstrap,
   collectOriginalGcpTerraformBootstrapV2,
   collectOriginalGcpTerraformBootstrapV3,
+  collectOriginalGcpTerraformBootstrapV4,
   readOriginalGcpTerraformBootstrapJwt,
 } from '../src/gcp-bootstrap-evidence';
 import type { AppliedResourceProjection, PlanReceipt } from '../src/runner';
@@ -362,15 +363,30 @@ it('version 2 rejects legacy profiles and changing applied state without migrati
   await expect(collectOriginalGcpTerraformBootstrapV2({ ...latest.input, reader })).rejects.toThrow('state changed');
 });
 
-it('current XC15.17.6 bootstrap collection uses schema3 and preserves historical mapping refusal', async () => {
-  const run = await fixture();
-  run.input.terraformVersion = '1.17.2';
-  run.input.receipt.providerLockSha256 = 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5';
-  const value = await collectOriginalGcpTerraformBootstrapV3(run.input);
-  expect(value.schemaVersion).toBe(3);
-  expect(value.xcshProviderVersion).toBe('15.17.6');
-  expect(value.bootstrapOwnershipQualified).toBe(false);
-  expect(await readOriginalGcpTerraformBootstrapJwt(value)).toBe(run.jwt);
-  await expect(readOriginalGcpTerraformBootstrapJwt({ ...value })).rejects.toThrow('Original');
-  await expect(collectOriginalGcpTerraformBootstrapV2(run.input)).rejects.toThrow('mapping');
-});
+for (const profile of [
+  {
+    version: '15.17.6',
+    schemaVersion: 3,
+    lock: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+    collect: collectOriginalGcpTerraformBootstrapV3,
+  },
+  {
+    version: '15.17.8',
+    schemaVersion: 4,
+    lock: '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
+    collect: collectOriginalGcpTerraformBootstrapV4,
+  },
+] as const) {
+  it(`current XC${profile.version} bootstrap uses schema${profile.schemaVersion} without migrating historical evidence`, async () => {
+    const run = await fixture();
+    run.input.terraformVersion = '1.17.2';
+    run.input.receipt.providerLockSha256 = profile.lock;
+    const value = await profile.collect(run.input);
+    expect(value.schemaVersion).toBe(profile.schemaVersion);
+    expect(value.xcshProviderVersion).toBe(profile.version);
+    expect(value.bootstrapOwnershipQualified).toBe(false);
+    expect(await readOriginalGcpTerraformBootstrapJwt(value)).toBe(run.jwt);
+    await expect(readOriginalGcpTerraformBootstrapJwt({ ...value })).rejects.toThrow('Original');
+    await expect(collectOriginalGcpTerraformBootstrapV2(run.input)).rejects.toThrow('mapping');
+  });
+}

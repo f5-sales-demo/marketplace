@@ -67,8 +67,10 @@ class ParentGuestGuards:
         *,
         monotonic: Callable[[], int] = clock_ms,
         closure_deadline_ms: int | None = None,
+        startup_deadline_ms: int | None = None,
     ) -> None:
         """Retain the original peer, fixed budget and capture identity."""
+        self.startup_deadline = startup_deadline_ms
         self.port = port
         self.binding = binding
         self.anchor = binding_anchor(binding)
@@ -90,6 +92,8 @@ class ParentGuestGuards:
             if self.closing and guard != "inputs":
                 refuse("Original guest guard is closing; cloud capture remains retired")
             limit = self.closure_deadline if self.closing else self.deadline
+            if not self.closing and self.startup_deadline is not None:
+                limit = min(limit, self.startup_deadline)
             deadline = min(limit, now + 60000)
             if now >= deadline or binding_anchor(self.binding) != self.anchor:
                 msg = "Original guest guard budget or binding differs"
@@ -130,6 +134,15 @@ class ParentGuestGuards:
         except BaseException:
             self.failed = True
             raise
+
+    def begin_capture(self) -> None:
+        """End startup only after readiness within its original fixed deadline."""
+        if (
+            self.startup_deadline is not None
+            and self.monotonic() >= self.startup_deadline
+        ):
+            expired("Original guest startup deadline exhausted")
+        self.startup_deadline = None
 
     def begin_close(self) -> None:
         """Retire cloud commands and retain only the fixed original close checks."""
@@ -304,10 +317,25 @@ def open_guest_control_worker(
     executable: Path,
     executable_sha256: str,
     deadlines: tuple[int, int],
+    *,
+    startup_deadline_ms: int | None = None,
 ) -> GuestControlWorker:
     """Open the shipped real SSH PTY; no conversational transport override."""
+    startup = (
+        min(deadlines[0], clock_ms() + 15000)
+        if startup_deadline_ms is None
+        else startup_deadline_ms
+    )
+    if not integer_type(startup) or not clock_ms() < startup <= min(
+        deadlines[0], clock_ms() + 15000
+    ):
+        expired("Original guest startup deadline required")
     guards = ParentGuestGuards(
-        port, binding, deadlines[0], closure_deadline_ms=deadlines[1]
+        port,
+        binding,
+        deadlines[0],
+        closure_deadline_ms=deadlines[1],
+        startup_deadline_ms=startup,
     )
     session = GuestSession(
         root,
@@ -317,8 +345,10 @@ def open_guest_control_worker(
             executable_sha256=executable_sha256,
             guards=GuestGuards(guards.inputs, guards.original, guards.trust),
             deadlines=deadlines,
+            startup_deadline_ms=startup,
         ),
     )
+    guards.begin_capture()
     return GuestControlWorker(
         port,
         session,

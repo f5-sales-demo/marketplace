@@ -7,7 +7,7 @@ import {
 } from './observer-scope';
 import { assertGcpTerraformRequestReason, type GcpTerraformRequestReason } from './request-reason';
 import { assertGcpSiteAccessProfile } from './site-access';
-import { GCP_XCSH15176_OBSERVER_ARTIFACTS } from './terraform-public-artifacts';
+import { GCP_XCSH15176_OBSERVER_ARTIFACTS, GCP_XCSH15178_OBSERVER_ARTIFACTS } from './terraform-public-artifacts';
 import { validateIntent } from './validation';
 
 export { GCP_TERRAFORM_OBSERVER_IMAGE, type GcpTerraformObserverScope } from './observer-scope';
@@ -30,6 +30,7 @@ export function translateGcpTerraformObserverSiteCompute(
   const tuples = [
     ...['15.15.7', '15.16.2', '15.17.3'].map((xcsh) => ({ terraform: '1.17.2', google: '8.11.0', xcsh })),
     GCP_XCSH15176_OBSERVER_ARTIFACTS.versions,
+    GCP_XCSH15178_OBSERVER_ARTIFACTS.versions,
   ];
   if (!tuples.some((tuple) => fingerprint(versions) === fingerprint(tuple)))
     throw new Error('Qualified exact observer Terraform/provider tuple required');

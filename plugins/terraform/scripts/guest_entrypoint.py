@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 ASCII_GRAPHIC_MIN = 32
 ASCII_DELETE = 127
 DEADLINE_COUNT = 2
+LEGACY_SCHEMA = 1
+FINAL_SCHEMA = 2
 ORIGINAL_BUDGET_MS = 7200000
 CLOSE_RESERVE_MS = 300000
 STARTUP_MS = 15000
@@ -40,6 +42,7 @@ SOURCE_FILES = (
     "guest_worker.py",
     "gcp_provider_process.py",
     "gcp_provider_reader.py",
+    "guest_final_budget.py",
     "guest_entrypoint.py",
 )
 FILE_FIELDS = ("dev", "ino", "uid", "nlink", "mode", "size", "mtimeNs", "ctimeNs")
@@ -369,9 +372,10 @@ class OriginalGuestEntry:
                 refuse("Original guest control FIFO changed")
 
 
-def prepare_entry(path: Path, expected: str) -> OriginalGuestEntry:
-    """Admit exact private inputs before any control or SSH session is opened."""
-    request = read_request(path, expected)
+def validate_guest_request_schema(request: dict) -> bool:
+    """Shape only; source/actor/input/actual reserve validation is separate."""
+    if not isinstance(request, dict):
+        refuse("Original guest worker request schema required")
     expected_keys = {
         "schemaVersion",
         "kind",
@@ -383,24 +387,44 @@ def prepare_entry(path: Path, expected: str) -> OriginalGuestEntry:
         "startupDeadlineMs",
         "ports",
     }
+    final = (
+        request.get("schemaVersion") == FINAL_SCHEMA
+        and request.get("kind") == "original-gcp-final-guest-worker"
+    )
+    if final:
+        expected_keys |= {"originalDeadlineMs", "finalCapture"}
     if (
         set(request) != expected_keys
-        or not _integer(request["schemaVersion"])
-        or request["schemaVersion"] != 1
-        or request["kind"] != "original-gcp-guest-worker"
-        or not isinstance(request["inputs"], dict)
+        or not _integer(request.get("schemaVersion"))
+        or request.get("schemaVersion") != (FINAL_SCHEMA if final else LEGACY_SCHEMA)
+        or request.get("kind")
+        != ("original-gcp-final-guest-worker" if final else "original-gcp-guest-worker")
+        or not isinstance(request.get("inputs"), dict)
     ):
         refuse("Original guest worker request schema required")
+    return final
+
+
+def prepare_entry(path: Path, expected: str) -> OriginalGuestEntry:
+    """Admit exact private inputs before any control or SSH session is opened."""
+    request = read_request(path, expected)
+    final = validate_guest_request_schema(request)
     private_root(path.parent)
     identities = (
         file_identity(path.lstat()),
         {key: file_identity(path.parent.lstat())[key] for key in PARENT_FIELDS},
     )
-    budget = validate_budget(request, time.monotonic_ns() // 1000000)
+    budget = None if final else validate_budget(request, time.monotonic_ns() // 1000000)
     captured = verify_inputs(request["inputs"])
     if not {"python", "ssh", *KEY_ROLES} <= set(request["inputs"]):
         refuse("Original guest interpreter SSH and private key inputs required")
     modules = load_sources(request["inputs"], captured)
+    if final:
+        budget = modules["guest_final_budget"].validate_final_guest_budget(
+            request, time.monotonic_ns() // 1000000
+        )
+    if budget is None:
+        refuse("Original guest execution budget required")
     modules["gcp_provider_reader"].ensure_reader_session()
     if Path(sys.executable).resolve() != canonical(request["inputs"]["python"]["path"]):
         refuse("Original guest interpreter differs")
@@ -483,10 +507,11 @@ def serve_entry(entry: OriginalGuestEntry) -> None:
             canonical(entry.request["inputs"]["ssh"]["path"]),
             entry.request["inputs"]["ssh"]["sha256"],
             entry.budget[:2],
+            startup_deadline_ms=entry.budget[2],
         )
         port.send(
             {"type": "worker-ready", "requestSha256": entry.expected, "anchor": anchor},
-            min(entry.budget[0], control.clock_ms() + COMMAND_MS),
+            entry.budget[2],
         )
         while not original.closed:
             original.serve_once()

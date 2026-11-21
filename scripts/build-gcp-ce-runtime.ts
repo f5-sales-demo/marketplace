@@ -11,6 +11,7 @@ const captureScripts = [
   'gcp_host_trust.py',
   'guest_control.py',
   'guest_worker.py',
+  'guest_final_budget.py',
   'guest_entrypoint.py',
   'gcp_provider_process.py',
   'gcp_provider_reader.py',

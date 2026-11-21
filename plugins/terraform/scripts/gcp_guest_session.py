@@ -305,6 +305,7 @@ class GuestOptions:
     epoch: Callable[[], float] = time.time
     monotonic: Callable[[], int] = now_ms
     transport: Callable[..., Transport] = OriginalPtySession
+    startup_deadline_ms: int | None = None
 
 
 class GuestSession:
@@ -369,6 +370,7 @@ class GuestSession:
                 guards=PtyGuards(self.check_inputs, self.check_owner),
                 operation_deadline_ms=operation_deadline_ms,
                 closure_deadline_ms=closure_deadline_ms,
+                startup_deadline_ms=options.startup_deadline_ms,
             ),
         )
 

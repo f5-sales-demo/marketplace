@@ -71,13 +71,13 @@ var init_security = __esm(() => {
 });
 
 // plugins/platform/src/ce/release-contract.ts
-import { createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash8 } from 'node:crypto';
 
 function fail(message) {
   throw new ReleaseContractFailure(message);
 }
 function sha256(bytes) {
-  return `sha256:${createHash7('sha256').update(bytes).digest('hex')}`;
+  return `sha256:${createHash8('sha256').update(bytes).digest('hex')}`;
 }
 async function json(fetcher, url) {
   let response;
@@ -647,7 +647,7 @@ var init_site_config = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash18, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash19, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -660,7 +660,7 @@ function canonical5(value) {
   return JSON.stringify(value);
 }
 function hash7(value) {
-  return createHash18('sha256').update(canonical5(value)).digest('hex');
+  return createHash19('sha256').update(canonical5(value)).digest('hex');
 }
 function hashesEqual(left, right) {
   if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
@@ -819,7 +819,7 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash19, randomUUID as randomUUID5 } from 'node:crypto';
+import { createHash as createHash20, randomUUID as randomUUID5 } from 'node:crypto';
 import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute as isAbsolute3, join as join6, resolve, sep } from 'node:path';
@@ -851,7 +851,7 @@ async function storeBootstrapToken(input) {
   await chmod2(sessionDir, 448);
   await mkdir3(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash19('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash20('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,
@@ -1520,7 +1520,7 @@ var originalGcpBootstrapSource = Object.freeze({
 });
 
 // plugins/platform/src/ce/gcp-http.ts
-import { createHash as createHash6 } from 'node:crypto';
+import { createHash as createHash7 } from 'node:crypto';
 
 // plugins/platform/src/ce/bgp-evidence.ts
 import { isIP } from 'node:net';
@@ -1733,26 +1733,51 @@ function bindAwsCloudInit(response, jwt) {
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
 // plugins/platform/src/ce/process-lock.ts
-import { createHash as createHash3, randomUUID as randomUUID2 } from 'node:crypto';
+// plugins/platform/src/ce/linux-process-group.ts
+import { createHash as createHash3, createHash as createHash4, randomUUID as randomUUID2 } from 'node:crypto';
 import { lstat as lstat2, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { isIP as isIP3 } from 'node:net';
 import { basename, dirname, join as join2, join as join3 } from 'node:path';
 
+async function readLinuxProcessGroupRecord(pid, readRecord) {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
+  let text = await readRecord();
+  if (text.length === 0) text = await readRecord();
+  const end = text.lastIndexOf(') ');
+  const header = text.match(/^([1-9][0-9]*) \(/);
+  const fields =
+    end < 0
+      ? []
+      : text
+          .slice(end + 2)
+          .trim()
+          .split(/\s+/);
+  const group = Number(fields[2]);
+  if (
+    header?.[1] !== String(pid) ||
+    end < (header?.[0].length ?? 0) ||
+    !/^[RSDZTtXxKWPI]$/.test(fields[0] ?? '') ||
+    !/^[0-9]+$/.test(fields[19] ?? '') ||
+    !/^[0-9]+$/.test(fields[2] ?? '') ||
+    !Number.isSafeInteger(group) ||
+    group < 0
+  ) {
+    const sha256 = createHash3('sha256').update(text).digest('hex');
+    throw new Error(
+      `Original executor group is unavailable (pid=${pid}, bytes=${Buffer.byteLength(text)}, sha256=${sha256})`,
+    );
+  }
+  return group;
+}
+
+// plugins/platform/src/ce/process-lock.ts
 function vanishedProcess(error) {
   const code = error.code;
   return code === 'ENOENT' || code === 'ESRCH';
 }
 async function processGroup(pid) {
   if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
-  const text = await readFile(`/proc/${pid}/stat`, 'utf8');
-  const fields = text
-    .slice(text.lastIndexOf(') ') + 2)
-    .trim()
-    .split(/\s+/);
-  const group = Number(fields[2]);
-  if (!/^\d+$/.test(fields[2] ?? '') || !Number.isSafeInteger(group) || group < 0)
-    throw new Error('Original executor group is unavailable');
-  return group;
+  return readLinuxProcessGroupRecord(pid, () => readFile(`/proc/${pid}/stat`, 'utf8'));
 }
 async function readGroupLifetime(path, owner) {
   const file = join2(path, 'lifetime.json');
@@ -2005,7 +2030,7 @@ function canonical(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash3 = (value) => createHash3('sha256').update(canonical(value)).digest('hex');
+var hash3 = (value) => createHash4('sha256').update(canonical(value)).digest('hex');
 var same = (a, b) => canonical(a) === canonical(b);
 var uid = (value) => {
   const result = object6(value.system_metadata).uid;
@@ -2654,7 +2679,7 @@ function correlateCeInterfaces(configuration, objects, physical, expected, provi
 }
 
 // plugins/platform/src/ce/origin-teardown.ts
-import { createHash as createHash4 } from 'node:crypto';
+import { createHash as createHash5 } from 'node:crypto';
 
 function object8(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed origin evidence');
@@ -2669,7 +2694,7 @@ function canonical2(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var digest = (value) => createHash4('sha256').update(canonical2(value)).digest('hex');
+var digest = (value) => createHash5('sha256').update(canonical2(value)).digest('hex');
 function path(locator, kind) {
   if (
     !locator ||
@@ -2800,7 +2825,7 @@ class CeOriginTeardown {
 }
 
 // plugins/platform/src/ce/platform-drain.ts
-import { createHash as createHash5 } from 'node:crypto';
+import { createHash as createHash6 } from 'node:crypto';
 
 function canonical3(value) {
   if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
@@ -2812,7 +2837,7 @@ function canonical3(value) {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-var hash4 = (value) => createHash5('sha256').update(canonical3(value)).digest('hex');
+var hash4 = (value) => createHash6('sha256').update(canonical3(value)).digest('hex');
 var name2 = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 var text = (value) => typeof value === 'string' && !!value.trim();
 var list = (value, maximum) => Array.isArray(value) && value.length <= maximum;
@@ -4911,8 +4936,8 @@ function createGcpLifecycleHttpPort(apiUrl, credential, fetcher = fetch, capture
           origin: base.origin,
           path,
           method,
-          credentialSha256: createHash6('sha256').update(credential).digest('hex'),
-          requestBodySha256: requestBody ? createHash6('sha256').update(requestBody).digest('hex') : null,
+          credentialSha256: createHash7('sha256').update(credential).digest('hex'),
+          requestBodySha256: requestBody ? createHash7('sha256').update(requestBody).digest('hex') : null,
         },
         requestBody,
       );
@@ -5207,7 +5232,7 @@ init_driver();
 // plugins/platform/src/ce/service.ts
 // plugins/gcloud/src/ce/contract.ts
 // plugins/gcloud/src/ce/discovery.ts
-import { createHash as createHash8, createHash as createHash10, createHash as createHash17 } from 'node:crypto';
+import { createHash as createHash9, createHash as createHash11, createHash as createHash18 } from 'node:crypto';
 import { readFile as readFile3 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join as join5 } from 'node:path';
@@ -5261,10 +5286,15 @@ var _GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
   version: '15.17.6',
   sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
 });
+var _GCP_XCSH15178_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.17.8',
+  sourceSchemaSha256: '0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30',
+});
 class GcpSiteAccessMappingUnavailable extends Error {
   constructor() {
     super(
-      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3 or 15.17.6 mapping',
+      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3, 15.17.6 or 15.17.8 mapping',
     );
   }
 }
@@ -5528,13 +5558,13 @@ function fingerprint(value) {
               .map(([k, v]) => [k, stable(v)]),
           )
         : item;
-  return `sha256:${createHash8('sha256')
+  return `sha256:${createHash9('sha256')
     .update(JSON.stringify(stable(value)))
     .digest('hex')}`;
 }
 
 // plugins/gcloud/src/ce/operational-release.ts
-import { createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash10 } from 'node:crypto';
 
 // plugins/gcloud/src/ce/operational-health.ts
 var GCP_OPERATIONAL_CORE_SEED = [
@@ -5922,7 +5952,7 @@ async function resolveGcpOperationalRelease(
     if (assets.length !== 1 || assets[0].digest !== digest || assets[0].browser_download_url !== url)
       throw new Error('Operational release asset identity differs');
     const bytes = await read(url);
-    if (`sha256:${createHash9('sha256').update(bytes).digest('hex')}` !== digest)
+    if (`sha256:${createHash10('sha256').update(bytes).digest('hex')}` !== digest)
       throw new Error('Operational release asset bytes differ');
     return decode(bytes);
   };
@@ -6023,7 +6053,7 @@ async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
   )
     throw new Error('Contract asset identity mismatch');
   const bytes = await read(expectedUrl, 4 * 1024 * 1024);
-  if (`sha256:${createHash10('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
+  if (`sha256:${createHash11('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
     throw new Error('Contract asset digest mismatch');
   const contract = decode(bytes);
   if (
@@ -6097,7 +6127,7 @@ async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
 }
 
 // plugins/platform/src/ce/deployment-store.ts
-import { createHash as createHash11, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash12, randomUUID as randomUUID3 } from 'node:crypto';
 import {
   chmod,
   lstat as lstat3,
@@ -6112,7 +6142,7 @@ import {
 import { dirname as dirname2, isAbsolute as isAbsolute2, join as join4 } from 'node:path';
 
 function key(owner) {
-  return createHash11('sha256')
+  return createHash12('sha256')
     .update(JSON.stringify([owner.provider, owner.account, owner.region, owner.deploymentId]))
     .digest('hex');
 }
@@ -6481,7 +6511,7 @@ class GcpPlatformLifecycle {
 }
 
 // plugins/platform/src/ce/gcp-observation.ts
-import { createHash as createHash14 } from 'node:crypto';
+import { createHash as createHash15 } from 'node:crypto';
 
 // plugins/gcloud/src/ce/ownership.ts
 var COLLECTIONS = {
@@ -6542,7 +6572,7 @@ function sameScope(a, b) {
 }
 
 // plugins/platform/src/ce/gcp-owned-operational.ts
-import { createHash as createHash13, randomUUID as randomUUID4 } from 'node:crypto';
+import { createHash as createHash14, randomUUID as randomUUID4 } from 'node:crypto';
 
 // plugins/gcloud/src/ce/interface-identity.ts
 function object15(value) {
@@ -6722,7 +6752,7 @@ function publicTerraformCloudScope(intent) {
 }
 
 // plugins/platform/src/ce/gcp-operational-binding.ts
-import { createHash as createHash12 } from 'node:crypto';
+import { createHash as createHash13 } from 'node:crypto';
 
 var object16 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational binding malformed');
@@ -6748,7 +6778,7 @@ async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sour
     metadata.name !== expected.siteName ||
     metadata.namespace !== 'system' ||
     typeof uid !== 'string' ||
-    `sha256:${createHash12('sha256').update(uid).digest('hex')}` !== expected.configurationIdentitySha256
+    `sha256:${createHash13('sha256').update(uid).digest('hex')}` !== expected.configurationIdentitySha256
   )
     throw new Error('Original operational configuration identity differs');
   const runtime = object16(await port.runtimeSite(signal));
@@ -6800,7 +6830,7 @@ async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sour
     const tokenMetadata = object16(token.metadata);
     if (
       typeof tokenUid !== 'string' ||
-      `sha256:${createHash12('sha256').update(tokenUid).digest('hex')}` !== node.tokenIdentitySha256 ||
+      `sha256:${createHash13('sha256').update(tokenUid).digest('hex')}` !== node.tokenIdentitySha256 ||
       tokenMetadata.name !== `${node.nodeName}-token` ||
       tokenMetadata.namespace !== 'system' ||
       object16(token.spec).site_name !== expected.siteName ||
@@ -7691,7 +7721,7 @@ var uid2 = (value) => {
   if (typeof identity !== 'string' || !identity) throw new Error('Original operational identity unavailable');
   return identity;
 };
-var identityHash = (value) => `sha256:${createHash13('sha256').update(uid2(value)).digest('hex')}`;
+var identityHash = (value) => `sha256:${createHash14('sha256').update(uid2(value)).digest('hex')}`;
 async function collectGcpOwnedOperationalHealth(
   store,
   intent,
@@ -8245,7 +8275,7 @@ async function createGcpPlatformObservations(
               const uid = configuration.system_metadata?.uid;
               if (
                 typeof uid !== 'string' ||
-                `sha256:${createHash14('sha256').update(uid).digest('hex')}` !== siteIdentitySha256
+                `sha256:${createHash15('sha256').update(uid).digest('hex')}` !== siteIdentitySha256
               )
                 throw new Error('HA original site identity differs');
             };
@@ -8373,7 +8403,7 @@ async function createGcpPlatformObservations(
         const labels = token.metadata.labels;
         if (labels['xcsh-node'] !== node.name || token.spec?.site_name !== site)
           throw new Error('GCP teardown observation token binding differs');
-        tokenIdentitySha256 = `sha256:${createHash14('sha256').update(uid).digest('hex')}`;
+        tokenIdentitySha256 = `sha256:${createHash15('sha256').update(uid).digest('hex')}`;
         tokenIdentityHash = fingerprint({ name: tokenName, uid, siteName: site, nodeName: node.name });
       }
       if (fingerprint(await loadIntent()) !== fingerprint(original))
@@ -8386,7 +8416,7 @@ async function createGcpPlatformObservations(
         ...(store.owner.engine === 'terraform'
           ? {
               siteIdentitySha256: siteUid
-                ? `sha256:${createHash14('sha256').update(siteUid).digest('hex')}`
+                ? `sha256:${createHash15('sha256').update(siteUid).digest('hex')}`
                 : undefined,
               tokenIdentitySha256,
             }
@@ -8400,7 +8430,7 @@ async function createGcpPlatformObservations(
 
 // plugins/platform/src/ce/verified-contract.ts
 // plugins/platform/src/ce/verified-api-release.ts
-import { createHash as createHash15, createHash as createHash16 } from 'node:crypto';
+import { createHash as createHash16, createHash as createHash17 } from 'node:crypto';
 
 var repository2 = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v7.0.1';
@@ -8461,7 +8491,7 @@ async function loadPublishedCeApi(fetcher = fetch, signal) {
   const resolved = parse(await read(`https://api.github.com/repos/${repository2}/commits/${tag}`));
   if (resolved.sha !== commit) throw new Error('CE API release tag moved');
   const bytes = await read(assetUrl, 64 * 1024 * 1024);
-  if (`sha256:${createHash15('sha256').update(bytes).digest('hex')}` !== digest2)
+  if (`sha256:${createHash16('sha256').update(bytes).digest('hex')}` !== digest2)
     throw new Error('CE API schema checksum mismatch');
   const api = parse(bytes);
   combined.throwIfAborted();
@@ -9121,7 +9151,7 @@ function buildWireSite(intent, schemas) {
 }
 
 // plugins/platform/src/ce/verified-contract.ts
-var hash6 = (bytes) => `sha256:${createHash16('sha256').update(bytes).digest('hex')}`;
+var hash6 = (bytes) => `sha256:${createHash17('sha256').update(bytes).digest('hex')}`;
 var commitPattern = /^[0-9a-f]{40}$/;
 var digestPattern = /^sha256:[0-9a-f]{64}$/;
 function object25(value) {
@@ -9512,7 +9542,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
         const current = await context(env, contextName);
         if (
           new URL(current.url).origin !== expected.origin ||
-          createHash17('sha256').update(current.credential).digest('hex') !== expected.credentialSha256
+          createHash18('sha256').update(current.credential).digest('hex') !== expected.credentialSha256
         )
           throw new Error('Original selected bootstrap observation credential differs');
         await assertOriginal();

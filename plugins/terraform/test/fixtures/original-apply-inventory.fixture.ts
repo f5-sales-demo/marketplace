@@ -14,7 +14,9 @@ import {
   type OriginalApplyCallbackContext,
 } from '../../src/installed-apply-controller';
 import type { InstalledCaptureContext } from '../../src/installed-capture-context';
+import { createInstalledCaptureCoordinator } from '../../src/installed-capture-coordinator';
 import * as inventories from '../../src/installed-initial-inventory';
+import { openInstalledInventoryCaptureStage } from '../../src/installed-inventory-capture-stage';
 import { linuxMonotonicMs } from '../../src/linux-clock';
 import { prepareOriginalGcpInventoryScope } from '../../src/original-gcp-inventory-scope';
 import { admitFinalReaderReserve } from '../../src/reader-final-reserve';
@@ -27,17 +29,31 @@ export async function withApplyInventory(
     before: OriginalApplyCallbackContext;
     stage: Awaited<ReturnType<typeof inventories.openInstalledInitialInventory>>;
     snapshot: inventories.OriginalInitialGcpInventory;
+    store: CeDeploymentStore;
   }) => Promise<void>,
   ha = true,
   finalRun?: (value: {
     packet: inventories.OriginalApplyGcpInventory;
     final: OriginalApplyCallbackContext;
+    capture: FinalExecutionCapture;
   }) => Promise<void>,
-  output?: (context: InstalledCaptureContext, store: CeDeploymentStore) => Promise<{ prefix: string; tail: string }>,
-  expectedOutcome?: 'deadline',
+  output?: (
+    context: InstalledCaptureContext,
+    store: CeDeploymentStore,
+  ) => Promise<{
+    prefix: string;
+    tail: string;
+    stdoutPrefix?: string;
+    stdoutTail?: string;
+  }>,
+  expectedOutcome?: 'deadline' | 'capture',
   configuration?: (intent: GcpCeIntent) => string,
   prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
   providerLock?: string,
+  coordinatedInventory = false,
+  finalClock?: () => number,
+  sourceCaptureInputs = false,
+  operationRemainingMs = 7200000,
 ) {
   await fixture(
     async (context, store, invocation) => {
@@ -69,7 +85,11 @@ export async function withApplyInventory(
           ),
       };
       const stage = await inventories.openInstalledInitialInventory({ context, scope, store, platform }, { fetcher });
-      const snapshot = await stage.capture();
+      const inventoryWorker = coordinatedInventory
+        ? await openInstalledInventoryCaptureStage({ context, store, platform }, { fetcher })
+        : undefined;
+      if (inventoryWorker) await inventoryWorker.prepare?.(context);
+      const snapshot = inventoryWorker ? await inventoryWorker.readSnapshot() : await stage.capture();
       const trace = await output?.(context, store);
       const startedPath = join(invocation.cwd, 'child-started'),
         releasedPath = join(invocation.cwd, 'child-release');
@@ -80,6 +100,7 @@ export async function withApplyInventory(
           'import os,time,sys',
           ...(trace
             ? [
+                `sys.stdout.buffer.write(bytes.fromhex("${Buffer.from(trace.stdoutPrefix ?? '').toString('hex')}"));sys.stdout.flush()`,
                 `sys.stderr.buffer.write(bytes.fromhex("${Buffer.from(trace.prefix).toString('hex')}"));sys.stderr.flush()`,
               ]
             : []),
@@ -93,6 +114,7 @@ export async function withApplyInventory(
           ' time.sleep(0.01)',
           ...(trace
             ? [
+                `sys.stdout.buffer.write(bytes.fromhex("${Buffer.from(trace.stdoutTail ?? '').toString('hex')}"));sys.stdout.flush()`,
                 `sys.stderr.buffer.write(bytes.fromhex("${Buffer.from(trace.tail).toString('hex')}"));sys.stderr.flush()`,
               ]
             : []),
@@ -111,24 +133,41 @@ export async function withApplyInventory(
       let check: Promise<void> | undefined;
       let checkError: unknown;
       let finishedCapture: FinalExecutionCapture | undefined;
-      const control = createInstalledApplyController(
-        context,
-        {
-          start: async (_admission, callback) => {
-            if (!callback) throw new Error('Original callback required');
-            before = callback;
-            packet = await stage.bindForApply(snapshot, callback);
-          },
-          assertOriginal: async () => {},
-          finalCapture: async (_finished, _reserve, final) => {
-            if (!finalRun) return;
-            if (!packet || !final) throw new Error('Original final bound inventory required');
-            await finalRun({ packet, final });
-          },
-          closeAfterExecutorExit: async () => {},
+      let captureCheckPassed = false;
+      const worker = {
+        prepare: inventoryWorker?.prepare,
+        start: async (
+          _admission: import('../../src/signal-free-executor').ExecutionCaptureAdmission,
+          callback?: OriginalApplyCallbackContext,
+        ) => {
+          if (!callback) throw new Error('Original callback required');
+          before = callback;
+          if (inventoryWorker) {
+            await inventoryWorker.start(_admission, callback);
+            packet = await inventoryWorker.readBaseline(callback);
+          } else packet = await stage.bindForApply(snapshot, callback);
         },
-        { persist: async () => {} },
-      );
+        assertOriginal: inventoryWorker?.assertOriginal ?? (async () => {}),
+        finalCapture: async (
+          _finished: FinalExecutionCapture,
+          _reserve?: import('../../src/reader-final-reserve').FinalReaderReserve,
+          final?: OriginalApplyCallbackContext,
+        ) => {
+          if (inventoryWorker) await inventoryWorker.finalCapture(_finished, _reserve, final);
+          if (!finalRun) return;
+          if (!packet || !final) throw new Error('Original final bound inventory required');
+          await finalRun({ packet, final, capture: _finished });
+          captureCheckPassed = true;
+        },
+        closeAfterExecutorExit: inventoryWorker?.closeAfterExecutorExit ?? (async () => {}),
+      };
+      const coordinatedWorker = coordinatedInventory
+        ? createInstalledCaptureCoordinator(context, {
+            stages: async () => [{ name: 'inventory', worker }],
+            persist: async () => {},
+          })
+        : worker;
+      const control = createInstalledApplyController(context, coordinatedWorker, { persist: async () => {} });
       await control.prepare?.(context);
       const execute = signalFreeTerraformExecutor({
         python: binary,
@@ -151,7 +190,7 @@ export async function withApplyInventory(
                 await Bun.sleep(10);
               }
               if (!packet || !before) throw new Error('Original bound inventory required');
-              await run({ packet, before, stage, snapshot });
+              await run({ packet, before, stage, snapshot, store });
             } catch (error) {
               checkError = error;
             } finally {
@@ -164,14 +203,17 @@ export async function withApplyInventory(
           await check;
           if (checkError) throw checkError;
           if (!finished.identity) throw new Error('Original final identity required');
-          const reserve = admitFinalReaderReserve({
-            identity: finished.identity,
-            originalStartMs: context.budget.start,
-            originalDeadlineMs: context.budget.deadline,
-            finalStartedMs: finished.finalStartedMs,
-            finalDeadlineMs: finished.finalDeadlineMs,
-            assertOriginal: context.assertInputs,
-          });
+          const reserve = admitFinalReaderReserve(
+            {
+              identity: finished.identity,
+              originalStartMs: context.budget.start,
+              originalDeadlineMs: context.budget.deadline,
+              finalStartedMs: finished.finalStartedMs,
+              finalDeadlineMs: finished.finalDeadlineMs,
+              assertOriginal: context.assertInputs,
+            },
+            finalClock ? { clock: finalClock } : undefined,
+          );
           await control.finalCapture(finished, reserve);
           await control.closeAfterExecutorExit();
         },
@@ -190,6 +232,9 @@ export async function withApplyInventory(
             finishedCapture.originalDeadlineMs !== context.budget.deadline
           )
             throw new Error('Original fixture deadline refusal required');
+        } else if (expectedOutcome === 'capture') {
+          if (result.code !== 1 || !finishedCapture?.originalGroupClosed || finishedCapture.signalsSent !== false)
+            throw new Error('Original fixture closed-parent capture refusal required');
         } else if (result.code !== 0) throw new Error('Original fixture execution failed');
       } catch (error) {
         const index = roots.indexOf(dirname(dirname(invocation.cwd)));
@@ -202,6 +247,19 @@ export async function withApplyInventory(
           }),
           { flag: 'wx', mode: 0o400 },
         );
+        // The injected final clock intentionally exhausts the original reserve.
+        // Accept this expected test outcome only after its adversarial assertions
+        // passed; retain the original executor failure and unresolved lock.
+        if (
+          expectedOutcome === 'capture' &&
+          captureCheckPassed &&
+          !checkError &&
+          finishedCapture?.originalGroupClosed &&
+          finishedCapture.signalsSent === false &&
+          error instanceof Error &&
+          error.message === 'Original final reader reserve is exhausted or has not started'
+        )
+          return;
         throw error;
       } finally {
         await stage.close();
@@ -213,5 +271,7 @@ export async function withApplyInventory(
     configuration,
     prepareIntent,
     providerLock,
+    sourceCaptureInputs,
+    operationRemainingMs,
   );
 }

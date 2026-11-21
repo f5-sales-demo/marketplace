@@ -1,6 +1,7 @@
 /** Original plan, callback, descriptor and cloud-reader issuers; HTTP/serial replies are offline fixtures. */
 import { GCP_XCSH15176_TERRAFORM_ARTIFACTS } from '../../../gcloud/src/ce/terraform-public-artifacts';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
+import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { openInstalledGcpCloudSerialReader } from '../../src/gcp-cloud-serial-reader';
 import { GoogleHttpRpcTraceParser, type OriginalGoogleHttpResponseObservation } from '../../src/gcp-http-rpc-trace';
 import {
@@ -11,6 +12,7 @@ import {
   acknowledgeOriginalApplyGroupClosure,
   type OriginalApplyCallbackContext,
 } from '../../src/installed-apply-controller';
+import type { InstalledCaptureContext } from '../../src/installed-capture-context';
 import type { OriginalApplyGcpInventory } from '../../src/installed-initial-inventory';
 import { authInfo } from '../original-gcp-inventory-fixture';
 import { operationFixture, requestFixture, scope, traceFixture } from './gcp-insert.fixture';
@@ -32,6 +34,7 @@ export interface EarlyVmFixtureInput {
   callback: OriginalApplyCallbackContext;
   reader: Awaited<ReturnType<typeof openInstalledGcpCloudSerialReader>>;
   state: EarlyVmFixtureState;
+  store: CeDeploymentStore;
 }
 const retainedBinding = {
   terraformVersion: '1.17.2',
@@ -42,6 +45,11 @@ export async function withEarlyVmFixture(
   finalRun?: (input: EarlyVmFixtureInput) => Promise<void>,
   expectedOutcome?: 'deadline',
   latest = false,
+  options: {
+    sourceCaptureInputs?: boolean;
+    prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>;
+    prepare?: (context: InstalledCaptureContext, store: CeDeploymentStore, state: EarlyVmFixtureState) => Promise<void>;
+  } = {},
 ) {
   const binding = latest
     ? {
@@ -59,7 +67,7 @@ export async function withEarlyVmFixture(
     node = '';
   try {
     await withApplyInventory(
-      async ({ packet, before }) => {
+      async ({ packet, before, store }) => {
         if (!state) throw new Error('Original trace fixture required');
         const originalPlan = await before.original.readOriginalPlanSource?.();
         if (!originalPlan) throw new Error('Original plan fixture required');
@@ -115,7 +123,7 @@ export async function withEarlyVmFixture(
         }) as typeof fetch;
         const reader = await openInstalledGcpCloudSerialReader(before.original, undefined, fetcher);
         try {
-          beforeInput = { identity, baseline: packet, callback: before, reader, state };
+          beforeInput = { identity, baseline: packet, callback: before, reader, state, store };
           await run(beforeInput);
         } finally {
           if (!finalRun) await reader.close();
@@ -226,6 +234,7 @@ export async function withEarlyVmFixture(
             })),
           },
         };
+        await options.prepare?.(context, store, state);
         const lines = traceFixture(request, operation, latest ? '8.12.0' : '8.11.0')
           .replaceAll('us-central1-a', zone)
           .trimEnd()
@@ -241,8 +250,11 @@ export async function withEarlyVmFixture(
       },
       expectedOutcome,
       undefined,
-      undefined,
+      options.prepareIntent,
       latest ? GCP_XCSH15176_TERRAFORM_ARTIFACTS.providerLock : undefined,
+      false,
+      undefined,
+      options.sourceCaptureInputs ?? false,
     );
   } finally {
     await beforeInput?.reader.close();

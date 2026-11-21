@@ -85,7 +85,7 @@ function fixture(options: { operation?: number; closure?: number; startup?: numb
   const peer = new Peer(),
     calls: string[] = [];
   const now = { value: 1000 };
-  const controls = { refuseOriginal: false, lateOriginal: false };
+  const controls = { refuseOriginal: false, lateOriginal: false, lateStartup: false };
   const callbacks = {
     async inputs() {
       calls.push('inputs');
@@ -95,6 +95,7 @@ function fixture(options: { operation?: number; closure?: number; startup?: numb
       calls.push('original');
       if (controls.refuseOriginal) throw new Error('Original ownership changed');
       if (controls.lateOriginal) now.value = options.operation ?? 100000;
+      if (controls.lateStartup) now.value = (options.startup ?? 2000) + 1;
     },
     async trust(value: Message, role: 'observer' | 'ce') {
       expect(value).toEqual(binding);
@@ -295,4 +296,14 @@ test('typed failed capture preserves evidence and allows only original closure w
     'capture',
     'close',
   ]);
+});
+
+test('all worker readiness guards share the original fifteen-second startup deadline', async () => {
+  const f = fixture();
+  f.controls.lateStartup = true;
+  await expect(f.parent.initialize()).rejects.toThrow(/deadline/);
+  expect(f.peer.sent.some((value) => value.type === 'guard-result' && value.id === 2 && value.approved === true)).toBe(
+    false,
+  );
+  expect(f.peer.retired).toBe(1);
 });

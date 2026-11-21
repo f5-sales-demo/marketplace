@@ -544,6 +544,34 @@ export function signalFreeFinalReaderExecutor(input: SignalFreeExecutionPolicy, 
   };
 }
 
+/** A multi-command guest worker inherits only the actual parent's final window.
+ * Each Site CLI command retains its separate sixty-second parent/session bound;
+ * this never widens isolated final readers or the original operation budget. */
+export function signalFreeFinalGuestWorkerExecutor(
+  input: SignalFreeExecutionPolicy,
+  reserve: FinalReaderReserve,
+): Executor {
+  if (input.stdin !== undefined) throw new Error('Final guest workers do not accept caller stdin');
+  const original = inspectFinalReaderReserve(reserve);
+  if (input.python.path !== input.executable.path || input.python.sha256 !== input.executable.sha256)
+    throw new Error('Original final guest workers require the same pinned interpreter');
+  if (input.originalStartMs !== original.originalStartMs || input.originalDeadlineMs !== original.originalDeadlineMs)
+    throw new Error('Original final guest operation budget differs');
+  if (input.timeoutMs !== undefined && input.timeoutMs > 300000)
+    throw new Error('Original final guest worker exceeds its five-minute reserve');
+  const execute = originalExecutor({ ...input, timeoutMs: input.timeoutMs ?? 300000 }, reserve);
+  return async (invocation) => {
+    if (
+      invocation.args.length < 3 ||
+      invocation.args[0] !== '-I' ||
+      invocation.args[1] !== '-B' ||
+      !isAbsolute(invocation.args[2])
+    )
+      throw new Error('Exact isolated original final guest script arguments required');
+    return execute(invocation);
+  };
+}
+
 function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReaderReserve): Executor {
   const stdin = input.stdin === undefined ? undefined : freezeAdmittedCaptureInputs({ stdin: input.stdin }).stdin;
   const policy = { ...input, stdin, python: { ...input.python }, executable: { ...input.executable } };

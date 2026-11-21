@@ -10,15 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.139 adds an original VM and serial capture stage with
-  scoped insertion identities, asynchronous observation, durable partial evidence
-  and the unchanged final reserve. Monitored key-scan input leases keep repeated
-  cloud observations outside continuous startup polling; full VM ownership checks
-  remain at release and evidence boundaries. Ownership changes and copied sources
-  are refused. Guest and traffic acceptance and default creation admission remain held.
+- **`terraform`** v2.4.140 binds original GCP inventory, bootstrap, VM,
+  serial and guest inputs. Adds a separate final guest evidence window after
+  operation expiry and qualifies current signed provider identities. Live GCP
+  campaign qualification remains held.
 
-- **`platform`** v6.3.30 rebuilds the shared CE runtime with Bun 1.4.4.
-  Production operational deadlines and evidence requirements are preserved.
+- **`platform`** v6.3.31 rebuilds the shared CE runtime with Bun 1.4.4 and
+  retains independent Linux process group closure evidence without signals.
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
   explicitly types and manages fixture resources so full Python CI can check
@@ -36,9 +34,9 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.63 preserves typed authentication, expired-session, permission
-  and missing-resource reasons in Customer Edge tools with static setup guidance.
-  Raw provider diagnostics stay private; mutation reconciliation remains required.
+- **`gcloud`** v1.7.64 preserves typed authentication, expiry, permission
+  and setup refusals, and qualifies the current provider tuple and Site SSH
+  schema. Live GCP qualification remains held.
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding

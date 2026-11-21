@@ -3,16 +3,17 @@
   "kind": "gcp-original-capture-sources",
   "files": {
     "__init__.py": "e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb",
-    "guest_pty.py": "274de216c148e2a6e267b4082cce552ca04a17adf78a8c8a6dda5ed9579829e3",
-    "gcp_guest_session.py": "f07f68da3da07ffbe2b57152d958e0215356c024ed2da66e30a0c5c3da9d4723",
+    "guest_pty.py": "2fa89c34dcfc3973ac401c919b40a40639a7cfddfcab3bac0f66a54628cd4ad5",
+    "gcp_guest_session.py": "9a16adb69f0428f58aa48debad229a675cc43e11fa88a4a1e558aefaa259808f",
     "gcp_host_trust.py": "b60e21a70b96a08192ff2d533b7bba89c9a46a80680aa04540e241b6d16e4589",
     "guest_control.py": "1c04972ed1a4576f450cc71d6e01539e20a9ab3c72d82242f55fcb4e115ed032",
-    "guest_worker.py": "8cccbddd35d02ffb64d9c91adbf15c016f6f9ecaf817f9b71c0088257d43a392",
-    "guest_entrypoint.py": "f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151",
+    "guest_worker.py": "b333a4288e3ce0522864099e5956b4647a3b11e7002eae3cb6bac842eb2dce3f",
+    "guest_final_budget.py": "cdc8265b79abf561cae68b345557733a72f7b7d10c5527c22800daf93be066c9",
+    "guest_entrypoint.py": "30890a7033fae2fd5261987736c25279331f3978a1172eeba8fb41a6edcde0a5",
     "gcp_provider_process.py": "2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00",
     "gcp_provider_reader.py": "7c74ad218ac485164e767c86c7cb3f46ea091729b21d14f08ed4a596a0b48ffb",
     "xcsh_creation_observer.py": "6ebd1f53ef6e1ae69c41533a6930351fca4e3a0d928d46fb6d3f0ea0fb918b5b",
-    "xcsh_creation_reader.py": "5dba7f304cf8d7b5e036119dc9455231df51c26b115326f370c6629bbfc729a6",
+    "xcsh_creation_reader.py": "856825048ca0f9afab22edd0033a8b9c5c8a608b435206cabac538db432209a9",
     "publish_bootstrap_grant.py": "6309afaebcd31730e750d14fb03d12afff5b83e3b9f06f765f1c1178d156ab9a"
   }
 }

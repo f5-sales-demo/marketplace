@@ -203,6 +203,41 @@ var init_gcloud_exec_guard = __esm(() => {
     'explicitly confirmed path (delegate to the gcloud:cli-operator agent), not gcloud_exec.';
 });
 
+// plugins/platform/src/ce/linux-process-group.ts
+import { createHash } from 'node:crypto';
+
+async function readLinuxProcessGroupRecord(pid, readRecord) {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
+  let text = await readRecord();
+  if (text.length === 0) text = await readRecord();
+  const end = text.lastIndexOf(') ');
+  const header = text.match(/^([1-9][0-9]*) \(/);
+  const fields =
+    end < 0
+      ? []
+      : text
+          .slice(end + 2)
+          .trim()
+          .split(/\s+/);
+  const group = Number(fields[2]);
+  if (
+    header?.[1] !== String(pid) ||
+    end < (header?.[0].length ?? 0) ||
+    !/^[RSDZTtXxKWPI]$/.test(fields[0] ?? '') ||
+    !/^[0-9]+$/.test(fields[19] ?? '') ||
+    !/^[0-9]+$/.test(fields[2] ?? '') ||
+    !Number.isSafeInteger(group) ||
+    group < 0
+  ) {
+    const sha256 = createHash('sha256').update(text).digest('hex');
+    throw new Error(
+      `Original executor group is unavailable (pid=${pid}, bytes=${Buffer.byteLength(text)}, sha256=${sha256})`,
+    );
+  }
+  return group;
+}
+var init_linux_process_group = () => {};
+
 // plugins/platform/src/ce/process-lock.ts
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -214,15 +249,7 @@ function vanishedProcess(error) {
 }
 async function processGroup(pid) {
   if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
-  const text = await readFile(`/proc/${pid}/stat`, 'utf8');
-  const fields = text
-    .slice(text.lastIndexOf(') ') + 2)
-    .trim()
-    .split(/\s+/);
-  const group = Number(fields[2]);
-  if (!/^\d+$/.test(fields[2] ?? '') || !Number.isSafeInteger(group) || group < 0)
-    throw new Error('Original executor group is unavailable');
-  return group;
+  return readLinuxProcessGroupRecord(pid, () => readFile(`/proc/${pid}/stat`, 'utf8'));
 }
 async function readGroupLifetime(path, owner) {
   const file = join(path, 'lifetime.json');
@@ -466,6 +493,7 @@ async function acquireProcessLock(path, ownerPid = process.pid, options = {}) {
 }
 var tokenPattern, bootPattern;
 var init_process_lock = __esm(() => {
+  init_linux_process_group();
   tokenPattern = /^[a-f0-9-]{36}$/;
   bootPattern = /^[a-f0-9-]{36}$/;
 });
@@ -1271,6 +1299,7 @@ function resolveGcpSiteAccessMapping(providerVersion) {
   if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_XCSH15176_SITE_ACCESS_MAPPING.version) return GCP_XCSH15176_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15178_SITE_ACCESS_MAPPING.version) return GCP_XCSH15178_SITE_ACCESS_MAPPING;
   throw new GcpSiteAccessMappingUnavailable();
 }
 function validateGcpSiteAccess(value) {
@@ -1340,6 +1369,7 @@ var GCP_SITE_ACCESS_MAPPING,
   GCP_XCSH15162_SITE_ACCESS_MAPPING,
   GCP_PUBLISHED_SITE_ACCESS_MAPPING,
   GCP_XCSH15176_SITE_ACCESS_MAPPING,
+  GCP_XCSH15178_SITE_ACCESS_MAPPING,
   GcpSiteAccessMappingUnavailable;
 var init_site_access = __esm(() => {
   init_discovery();
@@ -1372,10 +1402,15 @@ var init_site_access = __esm(() => {
     version: '15.17.6',
     sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
   });
+  GCP_XCSH15178_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.17.8',
+    sourceSchemaSha256: '0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30',
+  });
   GcpSiteAccessMappingUnavailable = class GcpSiteAccessMappingUnavailable extends Error {
     constructor() {
       super(
-        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3 or 15.17.6 mapping',
+        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3, 15.17.6 or 15.17.8 mapping',
       );
     }
   };
@@ -1600,7 +1635,7 @@ var init_validation = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/discovery.ts
-import { createHash } from 'node:crypto';
+import { createHash as createHash2 } from 'node:crypto';
 
 function fingerprint(value) {
   const stable = (item) =>
@@ -1613,7 +1648,7 @@ function fingerprint(value) {
               .map(([k, v]) => [k, stable(v)]),
           )
         : item;
-  return `sha256:${createHash('sha256')
+  return `sha256:${createHash2('sha256')
     .update(JSON.stringify(stable(value)))
     .digest('hex')}`;
 }
@@ -2437,7 +2472,7 @@ var init_terraform_ha_profile = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/operational-release.ts
-import { createHash as createHash2 } from 'node:crypto';
+import { createHash as createHash3 } from 'node:crypto';
 
 async function resolveGcpOperationalRelease(
   fetcher = fetchGcpRelease,
@@ -2511,7 +2546,7 @@ async function resolveGcpOperationalRelease(
     if (assets.length !== 1 || assets[0].digest !== digest || assets[0].browser_download_url !== url)
       throw new Error('Operational release asset identity differs');
     const bytes = await read(url);
-    if (`sha256:${createHash2('sha256').update(bytes).digest('hex')}` !== digest)
+    if (`sha256:${createHash3('sha256').update(bytes).digest('hex')}` !== digest)
       throw new Error('Operational release asset bytes differ');
     return decode(bytes);
   };
@@ -2576,7 +2611,7 @@ var init_operational_release = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/contract.ts
-import { createHash as createHash3 } from 'node:crypto';
+import { createHash as createHash4 } from 'node:crypto';
 
 function qualifiedGcpHaObservationMappings(assets) {
   if (!Array.isArray(assets)) return;
@@ -2643,7 +2678,7 @@ async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
   )
     throw new Error('Contract asset identity mismatch');
   const bytes = await read(expectedUrl, 4 * 1024 * 1024);
-  if (`sha256:${createHash3('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
+  if (`sha256:${createHash4('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
     throw new Error('Contract asset digest mismatch');
   const contract = decode(bytes);
   if (
@@ -2765,14 +2800,14 @@ var object2 = (value) => {
 };
 
 // plugins/platform/src/ce/gcp-http-capture.ts
-import { createHash as createHash4 } from 'node:crypto';
+import { createHash as createHash5 } from 'node:crypto';
 
 async function assertOriginalGcpPlatformHttpBody(value) {
   const issued = bodies.get(value);
   if (!issued || hash2(value.bytes) !== issued.sha256) throw new Error('Original GCP Platform HTTP body required');
   await issued.assertOriginal();
 }
-var hash2 = (bytes) => createHash4('sha256').update(bytes).digest('hex'),
+var hash2 = (bytes) => createHash5('sha256').update(bytes).digest('hex'),
   bodies;
 var init_gcp_http_capture = __esm(() => {
   bodies = new WeakMap();
@@ -2788,7 +2823,7 @@ function containsControlCharacters(value) {
 var init_security = () => {};
 
 // plugins/platform/src/ce/gcp-bootstrap-evidence.ts
-import { createHash as createHash5 } from 'node:crypto';
+import { createHash as createHash6 } from 'node:crypto';
 
 function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -2926,7 +2961,7 @@ async function readOriginalGcpBootstrapJwt(value) {
   await assertOriginalGcpPlatformHttpBody(source.token);
   return source.jwt;
 }
-var hash3 = (value) => createHash5('sha256').update(value).digest('hex'),
+var hash3 = (value) => createHash6('sha256').update(value).digest('hex'),
   name2,
   issued,
   _originalGcpBootstrapSource;
@@ -4822,7 +4857,7 @@ var init_byol_vm_contract = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/corporate-funding.ts
-import { createHash as createHash6 } from 'node:crypto';
+import { createHash as createHash7 } from 'node:crypto';
 import { lstat as lstat3, readFile as readFile2 } from 'node:fs/promises';
 import { homedir as homedir2 } from 'node:os';
 import { join as join4 } from 'node:path';
@@ -4845,7 +4880,7 @@ async function readGcpCorporateFundingPolicy(
   const raw = await readFile2(filename, 'utf8');
   const policy = JSON.parse(raw);
   validatePolicy(policy, project);
-  return { policy, policySha256: `sha256:${createHash6('sha256').update(raw).digest('hex')}` };
+  return { policy, policySha256: `sha256:${createHash7('sha256').update(raw).digest('hex')}` };
 }
 function validatePolicy(policy, project) {
   if (
@@ -4943,7 +4978,7 @@ var init_corporate_funding = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/byol-terms.ts
-import { createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash8 } from 'node:crypto';
 
 async function normalizedGoogleMarketplaceTerms(bytes) {
   const cleaned = await new HTMLRewriter()
@@ -5031,7 +5066,7 @@ async function binding(intent, source, signal, profile = byol_vm_contract_defaul
     const bytes = await source.document(expected.url, signal);
     const content =
       expected.digestKind === 'normalized-current-legal-text' ? await normalizedGoogleMarketplaceTerms(bytes) : bytes;
-    const sha256 = `sha256:${createHash7('sha256').update(content).digest('hex')}`;
+    const sha256 = `sha256:${createHash8('sha256').update(content).digest('hex')}`;
     if (sha256 !== expected.sha256) throw new Error('BYOL legal document changed; requalification required');
     documents.push({ role: expected.role, url: expected.url, version: expected.version, sha256 });
   }
@@ -6260,7 +6295,7 @@ var init_planner = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/policy.ts
-import { createHash as createHash8 } from 'node:crypto';
+import { createHash as createHash9 } from 'node:crypto';
 
 function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
   if (!/^contract_id:\s*f5xc-ce-automation-policy\s*$/m.test(text) || !/^contract_version:\s*v2\s*$/m.test(text))
@@ -6279,7 +6314,7 @@ function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
     identity: 'f5xc-ce-automation-policy/v2',
     url: GCP_CE_POLICY_URL,
     observedAt,
-    normalizedSha256: `sha256:${createHash8('sha256').update(normalized).digest('hex')}`,
+    normalizedSha256: `sha256:${createHash9('sha256').update(normalized).digest('hex')}`,
   };
 }
 async function readGcpCePolicy(fetcher = fetch) {
@@ -7677,7 +7712,7 @@ var init_owned_status = __esm(() => {
 });
 
 // plugins/terraform/src/google-adc-session.ts
-import { createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash10 } from 'node:crypto';
 import { constants, watch } from 'node:fs';
 import { lstat as lstat5, open, realpath as realpath3 } from 'node:fs/promises';
 import { dirname as dirname2, isAbsolute as isAbsolute2, resolve } from 'node:path';
@@ -7849,7 +7884,7 @@ async function openGoogleAdcSession(input, expectedInput) {
   return Object.freeze({ environment, verify, close });
 }
 var googleCredentialAlternatives,
-  hash4 = (value) => createHash9('sha256').update(value).digest('hex'),
+  hash4 = (value) => createHash10('sha256').update(value).digest('hex'),
   validHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   sameOwner = (a, b) =>
     a?.engine === 'terraform' &&
@@ -7959,7 +7994,7 @@ var init_installed_capture_context = __esm(() => {
 });
 
 // plugins/terraform/src/original-input-monitor.ts
-import { createHash as createHash10 } from 'node:crypto';
+import { createHash as createHash11 } from 'node:crypto';
 import { constants as constants2, watch as watch2 } from 'node:fs';
 import { lstat as lstat6, open as open2, realpath as realpath4 } from 'node:fs/promises';
 import { basename as basename3, dirname as dirname3, isAbsolute as isAbsolute4, resolve as resolve3 } from 'node:path';
@@ -8009,33 +8044,36 @@ async function monitorOriginalInputs(input) {
   const inspectOriginal = async (verifyBytes) => {
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
-      for (const { binding, file, parent } of originals) {
-        const current = await metadata2(binding.path);
-        if (keys2.some((key) => current[key].toString() !== file[key]))
-          throw new OriginalInputMonitorError('file-identity-changed');
-        const currentParent = await lstat6(dirname3(binding.path), { bigint: true });
-        if (
-          !currentParent.isDirectory() ||
-          currentParent.isSymbolicLink() ||
-          parentKeys2.some((key) => currentParent[key].toString() !== parent[key]) ||
-          (await realpath4(binding.path)) !== binding.path
-        )
-          throw new OriginalInputMonitorError('parent-identity-changed');
-        const handle = await open2(binding.path, constants2.O_RDONLY | constants2.O_NOFOLLOW);
-        try {
-          const opened = await handle.stat({ bigint: true });
-          if (keys2.some((key) => opened[key].toString() !== file[key]))
-            throw new OriginalInputMonitorError('open-identity-changed');
-          if (verifyBytes && hash5(await handle.readFile()) !== binding.sha256)
-            throw new OriginalInputMonitorError('bytes-changed');
-        } finally {
-          await handle.close();
-        }
-        const after = await metadata2(binding.path);
-        if (keys2.some((key) => after[key].toString() !== file[key]))
-          throw new OriginalInputMonitorError('read-identity-changed');
-        if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
-      }
+      const results = await Promise.allSettled(
+        originals.map(async ({ binding, file, parent }) => {
+          const current = await metadata2(binding.path);
+          if (keys2.some((key) => current[key].toString() !== file[key]))
+            throw new OriginalInputMonitorError('file-identity-changed');
+          const currentParent = await lstat6(dirname3(binding.path), { bigint: true });
+          if (
+            !currentParent.isDirectory() ||
+            currentParent.isSymbolicLink() ||
+            parentKeys2.some((key) => currentParent[key].toString() !== parent[key]) ||
+            (await realpath4(binding.path)) !== binding.path
+          )
+            throw new OriginalInputMonitorError('parent-identity-changed');
+          const handle = await open2(binding.path, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+          try {
+            const opened = await handle.stat({ bigint: true });
+            if (keys2.some((key) => opened[key].toString() !== file[key]))
+              throw new OriginalInputMonitorError('open-identity-changed');
+            if (verifyBytes && hash5(await handle.readFile()) !== binding.sha256)
+              throw new OriginalInputMonitorError('bytes-changed');
+          } finally {
+            await handle.close();
+          }
+          const after = await metadata2(binding.path);
+          if (keys2.some((key) => after[key].toString() !== file[key]))
+            throw new OriginalInputMonitorError('read-identity-changed');
+          if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
+        }),
+      );
+      for (const result of results) if (result.status === 'rejected') throw result.reason;
     } catch (error) {
       throw latch(error instanceof OriginalInputMonitorError ? error.reason : 'filesystem-read-unavailable');
     }
@@ -8101,7 +8139,7 @@ async function monitorOriginalInputs(input) {
 var OriginalInputMonitorError,
   keys2,
   parentKeys2,
-  hash5 = (raw) => createHash10('sha256').update(raw).digest('hex'),
+  hash5 = (raw) => createHash11('sha256').update(raw).digest('hex'),
   maximum,
   identity = (stat) => Object.fromEntries(keys2.map((key) => [key, stat[key].toString()]));
 var init_original_input_monitor = __esm(() => {
@@ -8119,7 +8157,7 @@ var init_original_input_monitor = __esm(() => {
 });
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash11, randomUUID as randomUUID4 } from 'node:crypto';
+import { createHash as createHash12, randomUUID as randomUUID4 } from 'node:crypto';
 import {
   chmod,
   lstat as lstat7,
@@ -9727,7 +9765,7 @@ var originalPlanSources,
 }
 disable_checkpoint = true
 `,
-  digest2 = (value) => createHash11('sha256').update(value).digest('hex'),
+  digest2 = (value) => createHash12('sha256').update(value).digest('hex'),
   safeId,
   executeTerraform;
 var init_runner = __esm(() => {
@@ -11179,6 +11217,8 @@ var GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_OBSERVER_TERRAFORM_ARTIFACTS,
   GCP_XCSH15176_TERRAFORM_ARTIFACTS,
   GCP_XCSH15176_OBSERVER_ARTIFACTS,
+  GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15178_OBSERVER_ARTIFACTS,
   packagedProfiles;
 var init_terraform_public_artifacts = __esm(() => {
   GCP_LEGACY_TERRAFORM_ARTIFACTS = {
@@ -11548,6 +11588,59 @@ provider "registry.terraform.io/hashicorp/google" {
     ...GCP_XCSH15176_TERRAFORM_ARTIFACTS,
     configurationVersion: 3,
   };
+  GCP_XCSH15178_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.8' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.17.8"
+  constraints = "15.17.8"
+  hashes = [
+    "h1:BDzdbsyeGRSL+69aYkK28Y32gOORRvpL/qo6TpoEho4=",
+    "h1:sdWqL1TklnHZRkFOOWmr9yFVOuRO93LG3jRMB/q0xyI=",
+    "zh:1d8f62ed772a35675fd8d22be5001b3e9160af99253cc3c24516b7b7defd76be",
+    "zh:22afbde3a99622921b5537a89436091465c8645dd140bf98fc0f1c6af3a151a4",
+    "zh:287c8ed6dde6f913dd218ec713dd17459587e9cf4bf197bc811c84deb65f16ed",
+    "zh:5519792b1dbd23ebb162546b43e68fd7a8c43c5aa69a95e745c0f48f556c593a",
+    "zh:6720c8d5bd97a3071dbf320c2f996bc9bc4d3b674d594e017d8e9d9e42403b99",
+    "zh:87f46dc4b4ca79f1d358e902705321770dfcf5ff2e2c1e8fadb41e67de7a5605",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:bee54896d0c9de3f95c08ea1794caf693c4bb85428fbac462ae159cc8f11dfb9",
+    "zh:d2ef28ceb07719d8830ba5d16057596344c8627303561c062541e7b99a52ab9f",
+    "zh:e302f36aa22111ef6bf42ad01a47c6ab92371efe8a712246c9ae348a4fa53641",
+    "zh:fdc9aa9390a34608f6434631706ef6756e8fce9fadacce5c6cd659bb129e6489",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.12.0"
+  constraints = "8.12.0"
+  hashes = [
+    "h1:9d+FdGigXECjhHgs8RcW5JhsTTXVNga0X1Pd4O4QHjY=",
+    "h1:es4kOf5hndCahoF3bLHmsLKX93JpkeuThvKQ4Pnm6m8=",
+    "zh:0b486637c4f4a2ff260dcf98e0ab74aa2655884c27df909fc79de9c2829ea6ef",
+    "zh:0b9c04d4bb269389d799f6b871877172d13cd059571768c6c36b28cf297b6fba",
+    "zh:0c63d340b3fda4156bccbd4f02e8ef7d320bea75bd1706573a90851e00129c47",
+    "zh:20371948b3d7f0469f2ad99608d9626a816127c9eb1b4cd007f09e1f68878728",
+    "zh:2a6d9c60699366894da043e604ebe5fee9246bb01bef73ebd100d3dbaf3e5e34",
+    "zh:47aa133c201e1edd2d1eb789f2ef4ccc769fdb49d5000b042280c2ac37acf368",
+    "zh:58e2910ee0625ecd352c2e55050ed35771ed7860dd1e738ee4b53eab695a2ee8",
+    "zh:84a44faf0dc811e48a8590e244c02ffff4a6a10095a4bc869979e7b0e94ae46d",
+    "zh:b8f42d7d79776b54d37c93b51a3f10ae45425fb91fb182bcb2a966e1bd52bdad",
+    "zh:eddf30f53a99381388ff25702ed0c727586deb8c502cd5af395dc98afb217a49",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+    "zh:f79b40a9d29763535baed6de1cd0d42960059916a1723f8fb4af8a2801dd2f4c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
+  };
+  GCP_XCSH15178_OBSERVER_ARTIFACTS = {
+    ...GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+    configurationVersion: 3,
+  };
   packagedProfiles = [
     GCP_LEGACY_TERRAFORM_ARTIFACTS,
     GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
@@ -11561,6 +11654,8 @@ provider "registry.terraform.io/hashicorp/google" {
     GCP_OBSERVER_TERRAFORM_ARTIFACTS,
     GCP_XCSH15176_TERRAFORM_ARTIFACTS,
     GCP_XCSH15176_OBSERVER_ARTIFACTS,
+    GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15178_OBSERVER_ARTIFACTS,
   ].filter((profile) => profile !== undefined);
   Object.freeze(packagedProfiles);
   for (const profile of packagedProfiles) {
@@ -11630,6 +11725,7 @@ function translateGcpTerraformObserverSiteCompute(intent, versions, observer, re
   const tuples = [
     ...['15.15.7', '15.16.2', '15.17.3'].map((xcsh) => ({ terraform: '1.17.2', google: '8.11.0', xcsh })),
     GCP_XCSH15176_OBSERVER_ARTIFACTS.versions,
+    GCP_XCSH15178_OBSERVER_ARTIFACTS.versions,
   ];
   if (!tuples.some((tuple) => fingerprint(versions) === fingerprint(tuple)))
     throw new Error('Qualified exact observer Terraform/provider tuple required');

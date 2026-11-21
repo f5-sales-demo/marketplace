@@ -72,6 +72,15 @@ const profiles = [
     googleProviderSha256: '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0',
     xcProviderSha256: '3c38dd6ceba946a199970effa34ce0bfcfd4348524b11ec51df3dd9124c5d65f',
   },
+  {
+    terraformVersion: '1.17.2',
+    googleVersion: '8.12.0',
+    xcshVersion: '15.17.8',
+    providerLockSha256: '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
+    terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+    googleProviderSha256: '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0',
+    xcProviderSha256: 'a480b2e2c07fb0bd890b94563fc0357538066c8d0a38dcb2349c3cd2555c4fc1',
+  },
 ];
 
 for (const profile of profiles) Object.freeze(profile);
@@ -110,7 +119,7 @@ export function resolveInstalledGcpExecutableProfile(
 /** Current source mapping only; this predicate grants no live execution acceptance.
  * Reference identity prevents a copied or mixed artifact tuple from entering it. */
 export type OriginalXcshCreationProfile = InstalledGcpVersionProfile & {
-  readonly xcshVersion: '15.17.3' | '15.17.6';
+  readonly xcshVersion: '15.17.3' | '15.17.6' | '15.17.8';
 };
 export function isOriginalCreationScopeProfile(
   profile: InstalledGcpVersionProfile,
@@ -118,6 +127,7 @@ export function isOriginalCreationScopeProfile(
   return [
     'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
     'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+    '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
   ].some(
     (providerLockSha256) =>
       profile === resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256 }),

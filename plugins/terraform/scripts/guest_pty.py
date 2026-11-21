@@ -325,6 +325,7 @@ class PtyOptions:
     closure_deadline_ms: int
     command_timeout_ms: int = COMMAND_MAX_MS
     max_output_bytes: int = 4 * 1024 * 1024
+    startup_deadline_ms: int | None = None
 
 
 @dataclass
@@ -362,9 +363,17 @@ class OriginalPtySession:
         self, root: str | Path, argv: Sequence[str], *, options: PtyOptions
     ) -> None:
         """Prepare one original owned capture without replaying an actor."""
-        construction_deadline = min(
-            options.operation_deadline_ms, now_ms() + COMMAND_MAX_MS
-        )
+        began = now_ms()
+        startup = options.startup_deadline_ms
+        if startup is None:
+            startup = min(options.operation_deadline_ms, began + 15000)
+        if (
+            not isinstance(startup, int)
+            or isinstance(startup, bool)
+            or not began < startup <= min(options.operation_deadline_ms, began + 15000)
+        ):
+            _deadline_error("Original fixed PTY startup deadline required")
+        construction_deadline = startup
         if (
             not callable(options.guards.inputs)
             or not callable(options.guards.owner)
@@ -492,16 +501,28 @@ class OriginalPtySession:
         )
         self.options.guards.inputs()
         self.options.guards.owner()
+        if now_ms() >= startup:
+            _deadline_error("Original startup deadline exhausted before release")
         release = self._release_pipe()
         release.write(b"go\n")
         release.close()
         self.actor.released = True
+        record(
+            self.root / "release-observation.private.json",
+            {
+                "identity": self.actor.original,
+                "releaseClosed": release.closed,
+                "startupDeadlineMs": startup,
+                "observedMs": now_ms(),
+            },
+        )
         self._await_exec(startup)
         self._guard()
         self._read_prompt(startup)
 
     def _await_exec(self, startup: int) -> None:
         """Preserve the original startup bound across the bootstrap transition."""
+        first = True
         while True:
             self._guard(actor=False)
             if self._child().poll() is not None or now_ms() >= startup:
@@ -511,7 +532,22 @@ class OriginalPtySession:
                 .read_bytes()
                 .split(bytes([0]))
             )
-            if parts[:-1] == [arg.encode() for arg in self.argv]:
+            matched = parts[:-1] == [arg.encode() for arg in self.argv]
+            if first:
+                record(
+                    self.root / "exec-observation.private.json",
+                    {
+                        "identity": self.actor.original,
+                        "matched": matched,
+                        "observedArgvSha256": digest(bytes([0]).join(parts[:-1])),
+                        "expectedArgvSha256": digest(
+                            bytes([0]).join(arg.encode() for arg in self.argv)
+                        ),
+                        "observedMs": now_ms(),
+                    },
+                )
+                first = False
+            if matched:
                 return
             time.sleep(0.005)
 

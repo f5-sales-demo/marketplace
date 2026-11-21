@@ -12,6 +12,7 @@ const names = [
   'gcp_host_trust.py',
   'guest_control.py',
   'guest_worker.py',
+  'guest_final_budget.py',
   'guest_entrypoint.py',
   'gcp_provider_process.py',
   'gcp_provider_reader.py',
@@ -102,6 +103,15 @@ test('installed source admission refuses a missing or changed host-trust mapping
   const scripts = await fixture();
   const path = join(scripts, 'gcp_host_trust.py');
   await writeFile(path, 'raise RuntimeError("foreign host trust")\n');
+  await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
+  await rm(path);
+  await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
+});
+
+test('installed source admission refuses a missing or changed final budget validator', async () => {
+  const scripts = await fixture();
+  const path = join(scripts, 'guest_final_budget.py');
+  await writeFile(path, 'raise RuntimeError("foreign final budget")\n');
   await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');
   await rm(path);
   await expect(inspectInstalledCaptureScripts(scripts)).rejects.toThrow('capture sources');

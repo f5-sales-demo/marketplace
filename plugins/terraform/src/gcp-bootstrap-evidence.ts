@@ -57,10 +57,16 @@ export interface OriginalGcpTerraformBootstrapEvidenceV3
   readonly schemaVersion: 3;
   readonly xcshProviderVersion: '15.17.6';
 }
+export interface OriginalGcpTerraformBootstrapEvidenceV4
+  extends Omit<OriginalGcpTerraformBootstrapEvidenceV2, 'schemaVersion' | 'xcshProviderVersion'> {
+  readonly schemaVersion: 4;
+  readonly xcshProviderVersion: '15.17.8';
+}
 type BootstrapEvidence =
   | OriginalGcpTerraformBootstrapEvidence
   | OriginalGcpTerraformBootstrapEvidenceV2
-  | OriginalGcpTerraformBootstrapEvidenceV3;
+  | OriginalGcpTerraformBootstrapEvidenceV3
+  | OriginalGcpTerraformBootstrapEvidenceV4;
 const issued = new WeakMap<
   BootstrapEvidence,
   { bootstrap: OriginalGcpBootstrapEvidence; platform: GcpBootstrapEvidenceSource }
@@ -125,9 +131,18 @@ export async function collectOriginalGcpTerraformBootstrapV3(
   return evidence;
 }
 
+/** New exact tuple retains a distinct receipt without migrating previous evidence. */
+export async function collectOriginalGcpTerraformBootstrapV4(
+  input: GcpTerraformBootstrapInput,
+): Promise<OriginalGcpTerraformBootstrapEvidenceV4> {
+  const evidence = await collectBootstrap(input, '15.17.8');
+  if (evidence.schemaVersion !== 4) throw new Error('Version 4 bootstrap evidence schema required');
+  return evidence;
+}
+
 async function collectBootstrap(
   input: GcpTerraformBootstrapInput,
-  providerVersion: '15.15.7' | '15.17.3' | '15.17.6',
+  providerVersion: '15.15.7' | '15.17.3' | '15.17.6' | '15.17.8',
 ): Promise<BootstrapEvidence> {
   input = { ...input, environment: { ...input.environment } };
   const platform = Object.freeze({ ...input.platform });
@@ -158,7 +173,7 @@ async function collectBootstrap(
     providerLockSha256: receipt.providerLockSha256,
   });
   if (
-    profile.googleVersion !== (providerVersion === '15.17.6' ? '8.12.0' : '8.11.0') ||
+    profile.googleVersion !== (['15.17.6', '15.17.8'].includes(providerVersion) ? '8.12.0' : '8.11.0') ||
     profile.xcshVersion !== providerVersion
   )
     throw new Error('Original qualified Terraform bootstrap provider mapping required');
@@ -234,9 +249,11 @@ async function collectBootstrap(
   const value: BootstrapEvidence =
     providerVersion === '15.15.7'
       ? Object.freeze({ ...common, schemaVersion: 1, xcshProviderVersion: '15.15.7' })
-      : providerVersion === '15.17.6'
-        ? Object.freeze({ ...common, schemaVersion: 3, xcshProviderVersion: '15.17.6' })
-        : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
+      : providerVersion === '15.17.8'
+        ? Object.freeze({ ...common, schemaVersion: 4, xcshProviderVersion: '15.17.8' })
+        : providerVersion === '15.17.6'
+          ? Object.freeze({ ...common, schemaVersion: 3, xcshProviderVersion: '15.17.6' })
+          : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
   issued.set(value, { bootstrap, platform });
   return value;
 }

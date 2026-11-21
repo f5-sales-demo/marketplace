@@ -112,33 +112,36 @@ export async function monitorOriginalInputs(input: Readonly<Record<string, Origi
   const inspectOriginal = async (verifyBytes: boolean) => {
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
-      for (const { binding, file, parent } of originals) {
-        const current = await metadata(binding.path);
-        if (keys.some((key) => current[key].toString() !== file[key]))
-          throw new OriginalInputMonitorError('file-identity-changed');
-        const currentParent = await lstat(dirname(binding.path), { bigint: true });
-        if (
-          !currentParent.isDirectory() ||
-          currentParent.isSymbolicLink() ||
-          parentKeys.some((key) => currentParent[key].toString() !== parent[key]) ||
-          (await realpath(binding.path)) !== binding.path
-        )
-          throw new OriginalInputMonitorError('parent-identity-changed');
-        const handle = await open(binding.path, constants.O_RDONLY | constants.O_NOFOLLOW);
-        try {
-          const opened = await handle.stat({ bigint: true });
-          if (keys.some((key) => opened[key].toString() !== file[key]))
-            throw new OriginalInputMonitorError('open-identity-changed');
-          if (verifyBytes && hash(await handle.readFile()) !== binding.sha256)
-            throw new OriginalInputMonitorError('bytes-changed');
-        } finally {
-          await handle.close();
-        }
-        const after = await metadata(binding.path);
-        if (keys.some((key) => after[key].toString() !== file[key]))
-          throw new OriginalInputMonitorError('read-identity-changed');
-        if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
-      }
+      const results = await Promise.allSettled(
+        originals.map(async ({ binding, file, parent }) => {
+          const current = await metadata(binding.path);
+          if (keys.some((key) => current[key].toString() !== file[key]))
+            throw new OriginalInputMonitorError('file-identity-changed');
+          const currentParent = await lstat(dirname(binding.path), { bigint: true });
+          if (
+            !currentParent.isDirectory() ||
+            currentParent.isSymbolicLink() ||
+            parentKeys.some((key) => currentParent[key].toString() !== parent[key]) ||
+            (await realpath(binding.path)) !== binding.path
+          )
+            throw new OriginalInputMonitorError('parent-identity-changed');
+          const handle = await open(binding.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+          try {
+            const opened = await handle.stat({ bigint: true });
+            if (keys.some((key) => opened[key].toString() !== file[key]))
+              throw new OriginalInputMonitorError('open-identity-changed');
+            if (verifyBytes && hash(await handle.readFile()) !== binding.sha256)
+              throw new OriginalInputMonitorError('bytes-changed');
+          } finally {
+            await handle.close();
+          }
+          const after = await metadata(binding.path);
+          if (keys.some((key) => after[key].toString() !== file[key]))
+            throw new OriginalInputMonitorError('read-identity-changed');
+          if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
+        }),
+      );
+      for (const result of results) if (result.status === 'rejected') throw result.reason;
     } catch (error) {
       throw latch(error instanceof OriginalInputMonitorError ? error.reason : 'filesystem-read-unavailable');
     }

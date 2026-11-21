@@ -41,6 +41,19 @@ import { inspectFinalReaderReserve } from './reader-final-reserve';
 
 type Reader = Awaited<ReturnType<typeof openGcpCloudSerialReader>>;
 type Vm = OriginalEarlyGcpVmEvidence | OriginalFinalGcpVmEvidence | OriginalGcpObserverVmEvidence;
+type SerialEvidence =
+  | Awaited<ReturnType<typeof collectOriginalEarlyGcpSerialEvidence>>
+  | Awaited<ReturnType<typeof collectOriginalFinalGcpSerialEvidence>>
+  | Awaited<ReturnType<typeof collectOriginalGcpObserverSerialEvidence>>;
+type SerialSource =
+  | Awaited<ReturnType<typeof readOriginalEarlyGcpSerialSource>>
+  | Awaited<ReturnType<typeof readOriginalFinalGcpSerialSource>>
+  | Awaited<ReturnType<typeof readOriginalGcpObserverSerialSource>>;
+interface VmSerialPacket {
+  readonly vm: Vm;
+  readonly evidence: SerialEvidence;
+  readonly source: SerialSource;
+}
 type View =
   | Awaited<ReturnType<typeof readOriginalEarlyGcpVmEvidence>>
   | Awaited<ReturnType<typeof readOriginalFinalGcpVmEvidence>>
@@ -54,6 +67,7 @@ interface Slot {
   vm?: Vm;
   view?: View;
   anchor?: string;
+  serialPacket?: Readonly<VmSerialPacket>;
 }
 export interface InstalledVmCaptureInput {
   readonly callback: OriginalApplyCallbackContext;
@@ -113,6 +127,7 @@ export async function openInstalledVmCapture(input: InstalledVmCaptureInput) {
     busy = false;
   let activeFinish: Promise<void> | undefined;
   let finalNames: readonly string[] | undefined;
+  let packetReader = reader;
   const retain = async (event: string, value: Record<string, unknown>) => {
     await assertDirectory();
     const parent = await lstat(directory, { bigint: true });
@@ -238,14 +253,14 @@ export async function openInstalledVmCapture(input: InstalledVmCaptureInput) {
     slot.anchor ??= anchor;
     slot.view = view;
   };
-  const serial = async (slot: Slot, final: boolean) => {
+  const serial = async (slot: Slot, final: boolean, start = '0') => {
     if (!slot.vm) throw new Error('Original observed VM required before serial capture');
     const evidence =
       slot.role === 'observer'
-        ? await collectOriginalGcpObserverSerialEvidence(slot.vm, '0')
+        ? await collectOriginalGcpObserverSerialEvidence(slot.vm, start)
         : final
-          ? await collectOriginalFinalGcpSerialEvidence(slot.vm, '0')
-          : await collectOriginalEarlyGcpSerialEvidence(slot.vm, '0');
+          ? await collectOriginalFinalGcpSerialEvidence(slot.vm, start)
+          : await collectOriginalEarlyGcpSerialEvidence(slot.vm, start);
     const source =
       slot.role === 'observer'
         ? await readOriginalGcpObserverSerialSource(slot.vm, evidence)
@@ -253,7 +268,9 @@ export async function openInstalledVmCapture(input: InstalledVmCaptureInput) {
           ? await readOriginalFinalGcpSerialSource(slot.vm, evidence)
           : await readOriginalEarlyGcpSerialSource(slot.vm, evidence);
     await retain('serial', { name: slot.name, role: slot.role, source });
-    return { evidence, source };
+    const packet = Object.freeze({ vm: slot.vm, evidence, source });
+    slot.serialPacket = packet;
+    return packet;
   };
   await retain('opened', { resources: inventory.resources, targets: [...slots.values()] });
   return Object.freeze({
@@ -351,18 +368,33 @@ export async function openInstalledVmCapture(input: InstalledVmCaptureInput) {
     captureSerial(name: string, start: string) {
       return perform(async () => {
         const slot = slotFor(name);
-        if (!slot.vm) throw new Error('Original observed VM required before serial capture');
-        const evidence =
-          slot.role === 'observer'
-            ? await collectOriginalGcpObserverSerialEvidence(slot.vm, start)
-            : await collectOriginalEarlyGcpSerialEvidence(slot.vm, start);
-        const source =
-          slot.role === 'observer'
-            ? await readOriginalGcpObserverSerialSource(slot.vm, evidence)
-            : await readOriginalEarlyGcpSerialSource(slot.vm, evidence);
-        await retain('serial', { name, role: slot.role, source });
-        return { vm: slot.vm, evidence, source };
+        return serial(slot, false, start);
       });
+    },
+    /** Return the same source-issued packet for guest trust, never a recapture,
+     * copied receipt or promotion of partial VM coverage to guest acceptance. */
+    async readSerialPacket(name: string, callback: OriginalApplyCallbackContext) {
+      if (
+        busy ||
+        (phase === 'before'
+          ? refused || callback.phase !== 'before'
+          : phase !== 'closed' || callback.phase !== 'after' || !finalNames?.includes(name))
+      )
+        throw new Error('Original VM serial packet lifetime unavailable');
+      await guard(callback, packetReader);
+      const slot = slotFor(name);
+      const packet = slot.serialPacket;
+      if (!packet) throw new Error('Original VM serial packet unavailable');
+      const source =
+        slot.role === 'observer'
+          ? await readOriginalGcpObserverSerialSource(packet.vm, packet.evidence)
+          : callback.phase === 'after'
+            ? await readOriginalFinalGcpSerialSource(packet.vm, packet.evidence)
+            : await readOriginalEarlyGcpSerialSource(packet.vm, packet.evidence);
+      if (fingerprint(source) !== fingerprint(packet.source) || slot.serialPacket !== packet)
+        throw new Error('Original VM serial packet source changed');
+      await guard(callback, packetReader);
+      return packet;
     },
     async finalCapture(callback: OriginalApplyCallbackContext, selected: Reader) {
       if (phase !== 'before') throw new Error('Original VM final capture already started or operation unresolved');
@@ -370,6 +402,7 @@ export async function openInstalledVmCapture(input: InstalledVmCaptureInput) {
       await guard(callback, selected);
       const timing = inspectFinalReaderReserve(callback.reserve);
       phase = 'final';
+      packetReader = selected;
       const pending = activeFinish;
       if (pending) {
         let timer: ReturnType<typeof setTimeout> | undefined;

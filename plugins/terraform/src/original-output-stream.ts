@@ -12,6 +12,15 @@ const parentKeys = ['dev', 'ino', 'uid', 'mode'] as const;
 const maximumChunk = 65536;
 const maximumRetention = 64 * 1024 * 1024;
 const digest = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
+/** Linux include/linux/sched.h PF_EXITING (0x00000004) is set before the
+ * original task finishes exit. This is a leader-state fact, never EOF proof. */
+export function originalLinuxLeaderIsExiting(state: string, flags: string): boolean {
+  if (!/^[0-9]{1,20}$/.test(flags) || BigInt(flags) > 0xffffffffffffffffn)
+    throw new Error('Original Linux producer flags are malformed');
+  if (['Z', 'X', 'x'].includes(state)) return true;
+  if (!['R', 'S', 'D', 'I', 'W', 'P'].includes(state)) return false;
+  return (BigInt(flags) & 4n) !== 0n;
+}
 
 export interface OriginalOutputChunk {
   readonly offset: number;
@@ -126,6 +135,7 @@ export async function bindOriginalExecutionOutput(input: {
   let busy = false;
   let phase = 'admission';
   let failureRecord: Promise<void> | undefined;
+  let closingLeader: Readonly<{ state: string; flags: string; exiting: boolean }> | undefined;
   const close = async () => {
     closed = true;
     await Promise.all(Object.values(streams).map((s) => s.reader.close()));
@@ -171,6 +181,7 @@ export async function bindOriginalExecutionOutput(input: {
                 }
               : null,
           offsets: { stdout: streams.stdout?.offset ?? 0, stderr: streams.stderr?.offset ?? 0 },
+          ...(closingLeader ? { closingLeader } : {}),
           applyRpcQualified: false,
           originalInsertQualified: false,
         });
@@ -218,7 +229,9 @@ export async function bindOriginalExecutionOutput(input: {
         Number(fields[3]) !== identity.group
       )
         throw new OutputRefusal('Original output closing producer identity changed');
-      if (!['Z', 'X', 'x'].includes(fields[0])) return false;
+      const exiting = originalLinuxLeaderIsExiting(fields[0], fields[6]);
+      closingLeader = Object.freeze({ state: fields[0], flags: fields[6], exiting });
+      if (!exiting) return false;
     } catch (error) {
       if (!(error instanceof Error) || !['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? ''))
         throw error;

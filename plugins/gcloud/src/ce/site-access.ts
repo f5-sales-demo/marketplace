@@ -46,19 +46,27 @@ export const GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
   sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
 } as const);
 
+/** Current signed provider has identical native schema and unchanged GCP source behavior. */
+export const GCP_XCSH15178_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.17.8',
+  sourceSchemaSha256: '0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30',
+} as const);
+
 export function resolveGcpSiteAccessMapping(providerVersion: string) {
   if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
   if (providerVersion === GCP_XCSH15176_SITE_ACCESS_MAPPING.version) return GCP_XCSH15176_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15178_SITE_ACCESS_MAPPING.version) return GCP_XCSH15178_SITE_ACCESS_MAPPING;
   throw new GcpSiteAccessMappingUnavailable();
 }
 
 export class GcpSiteAccessMappingUnavailable extends Error {
   constructor() {
     super(
-      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3 or 15.17.6 mapping',
+      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3, 15.17.6 or 15.17.8 mapping',
     );
   }
 }

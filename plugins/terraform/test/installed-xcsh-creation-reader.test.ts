@@ -1430,7 +1430,7 @@ for (const duplicate of ['nonce', 'identity'] as const) {
   });
 }
 
-for (const stageCase of [
+for (const stageVariant of [
   'published',
   'authentication',
   'uncertain',
@@ -1438,8 +1438,14 @@ for (const stageCase of [
   'replaced-token',
   'reader-startup',
   'ha',
+  'coordinated-published',
+  'coordinated-reader-startup',
+  'coordinated-ha',
+  'coordinated-uncertain',
 ] as const) {
-  test(`original installed bootstrap stage: ${stageCase}`, async () => {
+  const coordinated = stageVariant.startsWith('coordinated-');
+  const stageCase = coordinated ? stageVariant.slice('coordinated-'.length) : stageVariant;
+  test(`original installed bootstrap stage: ${stageVariant}`, async () => {
     await scoped(
       async (context, originalAdmission, packet) => {
         const { openInstalledBootstrapCapture } = await import('../src/installed-bootstrap-capture');
@@ -1669,7 +1675,16 @@ for (const stageCase of [
         });
         const events: Record<string, unknown>[] = [];
         let postStartup = false;
-        const controller = createInstalledApplyController(context, worker, {
+        const { createInstalledCaptureCoordinator } = await import('../src/installed-capture-coordinator');
+        const coordinatedWorker = coordinated
+          ? createInstalledCaptureCoordinator(context, {
+              stages: async () => [{ name: 'bootstrap', worker }],
+              persist: async (event) => {
+                events.push({ ...event });
+              },
+            })
+          : worker;
+        const controller = createInstalledApplyController(context, coordinatedWorker, {
           clock: () =>
             postStartup ? Math.max(linuxMonotonicMs(), admission.startupDeadlineMs + 1) : linuxMonotonicMs(),
           persist: async (event) => {
@@ -1741,9 +1756,10 @@ for (const stageCase of [
           });
           if (stageCase === 'published' || stageCase === 'ha') await controller.finalCapture(finished, reserve);
           else await expect(controller.finalCapture(finished, reserve)).rejects.toThrow();
-          if (stageCase === 'reader-startup') {
+          if (stageCase === 'reader-startup' || (coordinated && stageCase === 'uncertain')) {
             await expect(controller.closeAfterExecutorExit()).rejects.toThrow();
             expect(events.some((event) => event.phase === 'final-failed')).toBe(true);
+            if (coordinated) expect(events.some((event) => event.phase === 'final-refused')).toBe(true);
           } else {
             await controller.closeAfterExecutorExit();
             expect(events.some((event) => event.phase === 'closed')).toBe(true);

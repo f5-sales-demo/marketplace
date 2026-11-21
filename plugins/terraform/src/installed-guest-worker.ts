@@ -3,15 +3,19 @@ import { lstat, open, readFile, readlink, realpath, stat } from 'node:fs/promise
 import { dirname, join } from 'node:path';
 import { decodeEvidenceObject } from './evidence-json';
 import sourcePins from './gcp-capture-source-pins.json';
+import { assertOriginalApplyCallback, type OriginalApplyCallbackContext } from './installed-apply-controller';
 import { freezeAdmittedCaptureInputs, type InstalledCaptureContext } from './installed-capture-context';
 import pins from './installed-runtime-pins.json';
 import { linuxMonotonicMs } from './linux-clock';
 import { openOriginalGuestFifoPeer } from './original-guest-fifo';
 import { OriginalGuestControlParent, type OriginalGuestParentAdmission } from './original-guest-parent';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import { inspectFinalReaderReserve } from './reader-final-reserve';
 import {
   type ExecutionCaptureAdmission,
   type FinalExecutionCapture,
+  type SignalFreeExecutionPolicy,
+  signalFreeFinalGuestWorkerExecutor,
   signalFreeTerraformExecutor,
 } from './signal-free-executor';
 
@@ -65,6 +69,23 @@ export interface InstalledGuestWorkerOptions {
 
 /** Installed source bridge only. Caller supplies independently verified original VM/token/NIC/serial joins. */
 export async function openInstalledGuestWorker(options: InstalledGuestWorkerOptions) {
+  return openOriginalGuestWorkerSource(options);
+}
+/** Final capture is selected only by the actual original controller callback.
+ * The original operation budget remains immutable in policy and evidence. */
+export async function openInstalledFinalGuestWorker(
+  options: InstalledGuestWorkerOptions,
+  callback: OriginalApplyCallbackContext,
+) {
+  await assertOriginalApplyCallback(callback);
+  if (callback.phase !== 'after' || !callback.reserve || callback.original !== options.context)
+    throw new Error('Original final guest callback/context/reserve required');
+  return openOriginalGuestWorkerSource(options, callback);
+}
+async function openOriginalGuestWorkerSource(
+  options: InstalledGuestWorkerOptions,
+  after?: OriginalApplyCallbackContext,
+) {
   const context = options.context;
   const binding = Object.freeze(structuredClone(options.binding));
   const supplied = freezeAdmittedCaptureInputs(options.inputs);
@@ -84,8 +105,9 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
   )
     throw new Error('Original installed GCP worker context and binding required');
   const budget = Object.freeze({ ...context.budget });
+  const finalTiming = after?.reserve ? inspectFinalReaderReserve(after.reserve) : undefined;
   const assertContext = context.assertInputs,
-    withinContext = context.assertWithinDeadline;
+    withinContext = after ? () => assertOriginalApplyCallback(after) : context.assertWithinDeadline;
   await assertContext();
   await withinContext();
   for (const [name, original] of Object.entries(context.inputs)) {
@@ -122,14 +144,19 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
   let outcome: Promise<unknown> | undefined;
   let outcomeError: unknown;
   let requestMonitor: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
-  const assertInputs = async () => {
+  const assertInputs = async (full = true) => {
     await assertContext();
-    await inputMonitor.assertOriginal();
-    await requestMonitor?.assertOriginal();
+    if (full) {
+      await inputMonitor.assertOriginal();
+      await requestMonitor?.assertOriginal();
+    } else {
+      await inputMonitor.assertOriginalIdentity();
+      await requestMonitor?.assertOriginalIdentity();
+    }
     await assertContext();
   };
   const assertActor = async () => {
-    await assertInputs();
+    await assertInputs(false);
     if (!actor) throw new Error('Original installed guest actor not admitted');
     if (terminal) {
       if (
@@ -141,7 +168,7 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
         final.signalsSent !== false
       )
         throw new Error('Original installed guest terminal actor not qualified');
-      await assertInputs();
+      await assertInputs(false);
       return;
     }
     const before = await readFile(`/proc/${actor.pid}/stat`, 'utf8');
@@ -174,7 +201,7 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
       .split(/\s+/);
     if (current[19] !== actor.start || current[2] !== fields[2] || ['T', 't', 'Z', 'X'].includes(current[0]))
       throw new Error('Original installed guest actor changed during inspection');
-    await assertInputs();
+    await assertInputs(false);
   };
   const nonce = randomBytes(32).toString('hex');
   const peer = await openOriginalGuestFifoPeer({ root, session: nonce, assertOriginal: assertActor });
@@ -208,15 +235,27 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
   };
   let parent: OriginalGuestControlParent | undefined;
   const run = async () => {
-    const startup = Math.min(budget.deadline, linuxMonotonicMs() + 15000);
+    const effectiveDeadline = finalTiming?.finalDeadlineMs ?? budget.deadline;
+    const startup = Math.min(effectiveDeadline, linuxMonotonicMs() + 15000);
     const request = {
-      schemaVersion: 1,
-      kind: 'original-gcp-guest-worker',
+      schemaVersion: finalTiming ? 2 : 1,
+      kind: finalTiming ? 'original-gcp-final-guest-worker' : 'original-gcp-guest-worker',
       nonce,
       inputs,
       binding,
       originalStartMs: budget.start,
-      deadlines: [budget.deadline, budget.deadline + 300000],
+      ...(finalTiming && after
+        ? {
+            originalDeadlineMs: budget.deadline,
+            finalCapture: {
+              callbackNonce: after.nonce,
+              parentIdentity: after.execution.identity,
+              finalStartedMs: finalTiming.finalStartedMs,
+              finalDeadlineMs: finalTiming.finalDeadlineMs,
+            },
+          }
+        : {}),
+      deadlines: finalTiming ? [effectiveDeadline, effectiveDeadline] : [budget.deadline, budget.deadline + 300000],
       startupDeadlineMs: startup,
       ports: peer.bindings,
     };
@@ -227,19 +266,20 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
       peer,
       binding,
       requestSha256: requestInput.sha256,
-      operationDeadlineMs: budget.deadline,
-      closureDeadlineMs: budget.deadline + 300000,
+      operationDeadlineMs: effectiveDeadline,
+      closureDeadlineMs: finalTiming ? effectiveDeadline : budget.deadline + 300000,
       startupDeadlineMs: startup,
       guards,
     });
     const args = ['-I', '-B', entry.path, '--request', requestInput.path, '--sha256', requestInput.sha256];
-    const execute = signalFreeTerraformExecutor({
+    const executionPolicy: SignalFreeExecutionPolicy = {
       python: { path: inputs.python.path, sha256: inputs.python.sha256 },
       executable: { path: inputs.python.path, sha256: inputs.python.sha256 },
       originalStartMs: budget.start,
       originalDeadlineMs: budget.deadline,
-      assertOriginal: assertInputs,
+      assertOriginal: () => assertInputs(false),
       beforeRelease: async (admitted) => {
+        await assertInputs();
         if (
           actor ||
           admitted.originalStartMs !== budget.start ||
@@ -267,6 +307,7 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
         await assertActor();
       },
       finalCapture: async (capture) => {
+        await assertInputs();
         await persist(join(root, 'final-execution.private.json'), Buffer.from(JSON.stringify(capture)));
         if (
           !equalIdentity(capture.identity, actor) ||
@@ -285,7 +326,10 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
           }
         }
       },
-    });
+    };
+    const execute = after?.reserve
+      ? signalFreeFinalGuestWorkerExecutor(executionPolicy, after.reserve)
+      : signalFreeTerraformExecutor(executionPolicy);
     submissions++;
     outcome = execute({ cwd: root, args, env: { PATH: '/usr/bin:/bin' } });
     void outcome.then(
@@ -332,7 +376,10 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
       if (!initialized || disposed || !parent)
         throw new Error('Original installed guest command lifecycle unavailable');
       await assertInputs();
-      return parent.command(value);
+      if (after) await assertOriginalApplyCallback(after);
+      const result = await parent.command(value);
+      await assertInputs();
+      return result;
     },
     async dispose() {
       if (disposed) return;
@@ -403,6 +450,7 @@ export async function openInstalledGuestWorker(options: InstalledGuestWorkerOpti
         terminal,
         disposed,
         ...(outcomeError ? { executionFailureRetained: true } : {}),
+        ...(finalTiming ? { originalFinalCapture: finalTiming, originalParent: after?.execution.identity } : {}),
         guestAcceptanceComplete: false,
       });
     },

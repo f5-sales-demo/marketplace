@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process';
 import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
@@ -57,5 +58,15 @@ if (check) {
     throw new Error('marketplace catalog is not generated from plugin manifests');
   }
 } else {
-  await writeFile(catalogPath, output);
+  const formatted = spawnSync('biome', ['format', '--stdin-file-path', catalogPath], {
+    cwd: root,
+    input: output,
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  if (formatted.error || formatted.status !== 0)
+    throw new Error('Marketplace catalog formatter failed', { cause: formatted.error });
+  if (JSON.stringify(JSON.parse(formatted.stdout)) !== JSON.stringify(generated))
+    throw new Error('Marketplace catalog formatter changed generated content');
+  await writeFile(catalogPath, formatted.stdout);
 }

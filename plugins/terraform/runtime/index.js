@@ -110,6 +110,15 @@ var profiles = [
     googleProviderSha256: '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0',
     xcProviderSha256: '3c38dd6ceba946a199970effa34ce0bfcfd4348524b11ec51df3dd9124c5d65f',
   },
+  {
+    terraformVersion: '1.17.2',
+    googleVersion: '8.12.0',
+    xcshVersion: '15.17.8',
+    providerLockSha256: '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
+    terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+    googleProviderSha256: '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0',
+    xcProviderSha256: 'a480b2e2c07fb0bd890b94563fc0357538066c8d0a38dcb2349c3cd2555c4fc1',
+  },
 ];
 for (const profile of profiles) Object.freeze(profile);
 Object.freeze(profiles);
@@ -138,6 +147,7 @@ function isOriginalCreationScopeProfile(profile) {
   return [
     'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
     'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+    '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
   ].some(
     (providerLockSha256) =>
       profile === resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256 }),
@@ -236,7 +246,7 @@ async function collectBootstrap(input, providerVersion) {
     providerLockSha256: receipt.providerLockSha256,
   });
   if (
-    profile.googleVersion !== (providerVersion === '15.17.6' ? '8.12.0' : '8.11.0') ||
+    profile.googleVersion !== (['15.17.6', '15.17.8'].includes(providerVersion) ? '8.12.0' : '8.11.0') ||
     profile.xcshVersion !== providerVersion
   )
     throw new Error('Original qualified Terraform bootstrap provider mapping required');
@@ -312,9 +322,11 @@ async function collectBootstrap(input, providerVersion) {
   const value =
     providerVersion === '15.15.7'
       ? Object.freeze({ ...common, schemaVersion: 1, xcshProviderVersion: '15.15.7' })
-      : providerVersion === '15.17.6'
-        ? Object.freeze({ ...common, schemaVersion: 3, xcshProviderVersion: '15.17.6' })
-        : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
+      : providerVersion === '15.17.8'
+        ? Object.freeze({ ...common, schemaVersion: 4, xcshProviderVersion: '15.17.8' })
+        : providerVersion === '15.17.6'
+          ? Object.freeze({ ...common, schemaVersion: 3, xcshProviderVersion: '15.17.6' })
+          : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
   issued.set(value, { bootstrap, platform });
   return value;
 }
@@ -325,8 +337,364 @@ async function readOriginalGcpTerraformBootstrapJwt(value) {
 }
 
 // plugins/terraform/src/gcp-bootstrap-vm-binding.ts
+// plugins/gcloud/src/ce/discovery.ts
+import { createHash as createHash2, createHash as createHash36 } from 'node:crypto';
+
+// plugins/gcloud/src/ce/types.ts
+var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
+var GCP_CE_OPERATIONS = [
+  'deploy',
+  'reconcile',
+  'start',
+  'stop',
+  'resize',
+  'update-network',
+  'replace-node',
+  'repair',
+  'upgrade',
+  'failover',
+  'teardown',
+];
+
+// plugins/gcloud/src/gcloud/types.ts
+var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
+// plugins/gcloud/src/ce/site-access.ts
+var GCP_SITE_ACCESS_MAPPING = Object.freeze({
+  schemaVersion: 1,
+  provider: 'f5-sales-demo/xcsh',
+  version: '15.13.0',
+  credentials: 'admin_user_credentials.ssh_key',
+  blockedServices: 'blocked_services.blocked_service',
+  sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
+  user: 'admin',
+});
+var GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.15.7',
+  sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
+});
+var GCP_XCSH15162_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.16.2',
+  sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
+});
+var GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.17.3',
+  sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
+});
+var GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.17.6',
+  sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
+});
+var GCP_XCSH15178_SITE_ACCESS_MAPPING = Object.freeze({
+  ...GCP_SITE_ACCESS_MAPPING,
+  version: '15.17.8',
+  sourceSchemaSha256: '0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30',
+});
+function resolveGcpSiteAccessMapping(providerVersion) {
+  if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15176_SITE_ACCESS_MAPPING.version) return GCP_XCSH15176_SITE_ACCESS_MAPPING;
+  if (providerVersion === GCP_XCSH15178_SITE_ACCESS_MAPPING.version) return GCP_XCSH15178_SITE_ACCESS_MAPPING;
+  throw new GcpSiteAccessMappingUnavailable();
+}
+
+class GcpSiteAccessMappingUnavailable extends Error {
+  constructor() {
+    super(
+      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3, 15.17.6 or 15.17.8 mapping',
+    );
+  }
+}
+function validateGcpSiteAccess(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
+  const access = value;
+  if (
+    Object.keys(value).sort().join(',') !== 'profile,publicKey,schemaVersion' ||
+    access.schemaVersion !== 1 ||
+    access.profile !== 'site-ssh-sli' ||
+    typeof access.publicKey !== 'string' ||
+    access.publicKey.length > 8192
+  )
+    throw new Error('Site SSH access requires the versioned SLI-only public-key profile');
+  const match = /^ssh-ed25519 ([A-Za-z0-9+/]+={0,2})$/.exec(access.publicKey);
+  if (!match) throw new Error('Site SSH requires one Ed25519 public key without options or comments');
+  const bytes = Buffer.from(match[1], 'base64');
+  if (
+    bytes.length !== 51 ||
+    bytes.toString('base64') !== match[1] ||
+    bytes.readUInt32BE(0) !== 11 ||
+    !bytes.subarray(4, 15).equals(Buffer.from('ssh-ed25519')) ||
+    bytes.readUInt32BE(15) !== 32
+  )
+    throw new Error('Site SSH public key wire format differs');
+}
+function assertGcpSiteAccessProfile(intent) {
+  if (intent.initialAccess === undefined) return;
+  validateGcpSiteAccess(intent.initialAccess);
+  if (
+    intent.engine !== 'terraform' ||
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 3 ||
+    intent.sites[0].nodes.some(
+      (node) => node.interfaces.length !== 2 || node.interfaces[0].role !== 'slo' || node.interfaces[1].role !== 'sli',
+    ) ||
+    intent.egress.mode !== 'external-ip' ||
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new GcpSiteAccessMappingUnavailable();
+}
+function gcpSiteAccessSpec(intent, providerVersion) {
+  if (intent.initialAccess === undefined) return;
+  assertGcpSiteAccessProfile(intent);
+  resolveGcpSiteAccessMapping(providerVersion);
+  return {
+    admin_user_credentials: { ssh_key: intent.initialAccess.publicKey },
+    blocked_services: {
+      blocked_service: [
+        { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', ssh: {} },
+        ...['VIRTUAL_NETWORK_SITE_LOCAL', 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE'].flatMap((network_type) => [
+          { network_type, dns: {} },
+          { network_type, web_user_interface: {} },
+        ]),
+      ],
+    },
+  };
+}
+
+// plugins/gcloud/src/ce/observer-scope.ts
+var GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
+  project: 'ubuntu-os-cloud',
+  name: 'ubuntu-2404-noble-amd64-v20261021',
+  id: '4996011480491275419',
+});
+function assertGcpTerraformObserverScope(scope, intent) {
+  if (
+    !scope ||
+    typeof scope !== 'object' ||
+    Array.isArray(scope) ||
+    Object.keys(scope).sort().join(',') !== 'profile,publicKey,schemaVersion,sshSourceCidr' ||
+    scope.schemaVersion !== 1 ||
+    scope.profile !== 'original-ha-observer'
+  )
+    throw new Error('Exact versioned original observer scope required');
+  validateGcpSiteAccess({ schemaVersion: 1, profile: 'site-ssh-sli', publicKey: scope.publicKey });
+  assertGcpSiteAccessProfile(intent);
+  if (!intent.initialAccess || intent.initialAccess.publicKey === scope.publicKey)
+    throw new Error('Distinct observer and CE campaign public keys required');
+  if (typeof scope.sshSourceCidr !== 'string') throw new Error('One exact observer SSH source required');
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/32$/.exec(scope.sshSourceCidr);
+  if (
+    !match ||
+    match[0] !== scope.sshSourceCidr ||
+    match.slice(1).some((part) => Number(part) > 255 || String(Number(part)) !== part) ||
+    [0, 127].includes(Number(match[1])) ||
+    Number(match[1]) >= 224 ||
+    (Number(match[1]) === 169 && Number(match[2]) === 254)
+  )
+    throw new Error('Observer SSH requires one canonical unicast IPv4 /32 source');
+}
+function gcpTerraformObserverIdentity(intent) {
+  if (intent.schemaVersion !== 2 || !intent.observer) throw new Error('Versioned observer intent required');
+  assertGcpTerraformObserverScope(intent.observer, intent);
+  const name = `${intent.deploymentName}-observer`,
+    firewallName = `${name}-ssh`;
+  if (firewallName.length > 63 || intent.sites[0].nodes.some((node) => node.name === name))
+    throw new Error('Derived observer identities collide or exceed GCP name limits');
+  const sli = intent.sites[0].nodes[0].interfaces[1];
+  return {
+    name,
+    key: name.replaceAll('-', '_'),
+    firewallName,
+    firewallKey: firewallName.replaceAll('-', '_'),
+    zone: intent.sites[0].nodes[0].zone,
+    network: sli.network,
+    subnet: sli.subnet,
+  };
+}
+
+// plugins/gcloud/src/ce/validation.ts
+var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
+function validateScope(project, region) {
+  if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
+  if (region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(region)) throw new Error('Invalid GCP region');
+}
+function name2(value) {
+  if (typeof value !== 'string' || !NAME.test(value)) throw new Error('Invalid GCP resource name');
+}
+function ipv4Range(cidr) {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(cidr);
+  if (!match) throw new Error('Invalid IPv4 CIDR');
+  const octets = match.slice(1, 5).map(Number);
+  const prefix = Number(match[5]);
+  if (octets.some((value) => value > 255) || prefix > 32) throw new Error('Invalid IPv4 CIDR');
+  const ip = octets.reduce((value, octet) => value * 256 + octet, 0);
+  const size = 2 ** (32 - prefix);
+  if (ip % size !== 0) throw new Error('CIDR must use a network boundary');
+  return [ip, ip + size - 1];
+}
+function validateImage(image) {
+  name2(image.name);
+  if (!/^f5xc-ce(?:-crt|crt)-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
+  const expected = `https://www.googleapis.com/compute/v1/projects/${GCP_CE_IMAGE_PROJECT}/global/images/${image.name}`;
+  if (
+    !/^\d+$/.test(image.id) ||
+    image.selfLink !== expected ||
+    image.status !== 'READY' ||
+    image.architecture !== 'X86_64'
+  )
+    throw new Error('Image must pin an exact ready x86 F5-owned image identity');
+  if (
+    !Array.isArray(image.licenses) ||
+    image.licenses.length === 0 ||
+    image.licenses.some(
+      (license) =>
+        !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/[a-z][a-z0-9-]+\/global\/licenses\/[a-z0-9-]+$/.test(
+          license,
+        ),
+    )
+  )
+    throw new Error('Image must pin its exact license identities');
+}
+function keys(value, allowed) {
+  if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
+}
+function validateIntent(intent) {
+  if (intent?.schemaVersion !== 1 && intent?.schemaVersion !== 2) throw new Error('Unsupported GCP CE intent version');
+  if (
+    (intent.schemaVersion === 1 && Object.hasOwn(intent, 'observer')) ||
+    (intent.schemaVersion === 2 && !intent.observer)
+  )
+    throw new Error('Observer scope requires its complete version2 intent');
+  keys(intent, [
+    'schemaVersion',
+    'project',
+    'region',
+    'deploymentName',
+    'platformContext',
+    'engine',
+    'operation',
+    'sites',
+    'machineType',
+    'diskGiB',
+    'image',
+    'ipForwarding',
+    'initialVersions',
+    'initialAccess',
+    ...(intent.schemaVersion === 2 ? ['observer'] : []),
+    'egress',
+    'ingress',
+    'routing',
+  ]);
+  keys(intent.image, ['id', 'name', 'selfLink', 'licenses', 'architecture', 'status']);
+  keys(intent.egress, ['mode', 'resource']);
+  keys(intent.ingress, ['profile']);
+  keys(intent.routing, ['profile', 'destinationCidrs']);
+  validateScope(intent.project, intent.region);
+  name2(intent.deploymentName);
+  name2(intent.machineType);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(intent.platformContext)) throw new Error('Explicit F5 context required');
+  if (!['native', 'terraform'].includes(intent.engine)) throw new Error('Explicit owning engine required');
+  if (!GCP_CE_OPERATIONS.includes(intent.operation)) throw new Error('Unsupported CE operation');
+  if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
+  if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
+  validateImage(intent.image);
+  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
+  if (intent.initialVersions) {
+    keys(intent.initialVersions, ['software', 'os']);
+    if (
+      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
+      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
+    )
+      throw new Error('Explicit initial software/OS version pair required');
+  }
+  if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
+    throw new Error('Unsupported egress');
+  if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
+    throw new Error('Explicit egress resource required');
+  if (!['none', 'internal-passthrough-lb'].includes(intent.ingress.profile)) throw new Error('Unsupported ingress');
+  if (!['static-insertion', 'ilb-next-hop', 'ncc-router-appliance'].includes(intent.routing.profile))
+    throw new Error('Unsupported routing');
+  for (const cidr of intent.routing.destinationCidrs) ipv4Range(cidr);
+  if (!Array.isArray(intent.sites) || !intent.sites.length) throw new Error('Explicitly named sites required');
+  const sites = new Set();
+  const nodes = new Set();
+  for (const site of intent.sites) {
+    keys(site, ['name', 'nodes']);
+    name2(site.name);
+    if (sites.has(site.name)) throw new Error('Independent sites require unique names');
+    sites.add(site.name);
+    if (![1, 3].includes(site.nodes.length)) throw new Error('Sites require one node or three HA nodes');
+    let shape;
+    for (const node of site.nodes) {
+      keys(node, ['name', 'zone', 'interfaces']);
+      name2(node.name);
+      if (nodes.has(node.name)) throw new Error('Node names must be unique');
+      nodes.add(node.name);
+      if (!new RegExp(`^${intent.region}-[a-z]$`).test(node.zone))
+        throw new Error('Node zone must belong to the explicit region');
+      if (!node.interfaces.length || node.interfaces.length > 8)
+        throw new Error('CE requires 1-8 interfaces; machine limit remains a separate gate');
+      const networks = new Set();
+      const ranges = [];
+      for (const [index, nic] of node.interfaces.entries()) {
+        keys(nic, ['index', 'role', 'vrf', 'network', 'subnet', 'cidr']);
+        if (nic.index !== index || (index === 0 && nic.role !== 'slo'))
+          throw new Error('Contiguous NIC order must start with SLO');
+        if (!['slo', 'sli', 'management'].includes(nic.role) || (index > 0 && nic.role === 'slo'))
+          throw new Error('Invalid NIC role');
+        name2(nic.vrf);
+        name2(nic.network);
+        name2(nic.subnet);
+        if (networks.has(nic.network)) throw new Error('Each NIC requires a distinct VPC');
+        networks.add(nic.network);
+        const range = ipv4Range(nic.cidr);
+        if (ranges.some(([start, end]) => range[0] <= end && start <= range[1]))
+          throw new Error('NIC subnets must not overlap');
+        ranges.push(range);
+      }
+      const current = JSON.stringify(
+        node.interfaces.map(({ index, role, vrf, network, subnet, cidr }) => [index, role, vrf, network, subnet, cidr]),
+      );
+      if (shape !== undefined && shape !== current)
+        throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
+      shape = current;
+    }
+  }
+  if (intent.schemaVersion === 2) {
+    const observer = intent.observer;
+    if (!observer) throw new Error('Versioned observer scope required');
+    assertGcpTerraformObserverScope(observer, intent);
+    gcpTerraformObserverIdentity(intent);
+  }
+}
+
+// plugins/gcloud/src/ce/discovery.ts
+function fingerprint(value) {
+  const stable = (item) =>
+    Array.isArray(item)
+      ? item.map(stable)
+      : item && typeof item === 'object'
+        ? Object.fromEntries(
+            Object.entries(item)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => [k, stable(v)]),
+          )
+        : item;
+  return `sha256:${createHash2('sha256')
+    .update(JSON.stringify(stable(value)))
+    .digest('hex')}`;
+}
+
 // plugins/terraform/src/gcp-insert-audit-evidence.ts
-import { createHash as createHash34, createHash as createHash35 } from 'node:crypto';
+import { createHash as createHash35 } from 'node:crypto';
 
 // plugins/terraform/src/evidence-rfc3339.ts
 function isEvidenceRfc3339(value) {
@@ -400,7 +768,7 @@ import { dlopen, FFIType, ptr } from 'bun:ffi';
 // plugins/terraform/src/gcp-insert-evidence.ts
 // plugins/terraform/src/gcp-http-rpc-trace.ts
 // plugins/terraform/src/original-output-stream.ts
-import { createHash as createHash2, createHash as createHash3, createHash as createHash33 } from 'node:crypto';
+import { createHash as createHash3, createHash as createHash4, createHash as createHash34 } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, readFile, realpath, stat } from 'node:fs/promises';
 import {
@@ -437,7 +805,14 @@ var stableKeys = ['dev', 'ino', 'uid', 'nlink', 'mode'];
 var parentKeys = ['dev', 'ino', 'uid', 'mode'];
 var maximumChunk = 65536;
 var maximumRetention = 64 * 1024 * 1024;
-var digest = (value) => createHash2('sha256').update(value).digest('hex');
+var digest = (value) => createHash3('sha256').update(value).digest('hex');
+function originalLinuxLeaderIsExiting(state, flags) {
+  if (!/^[0-9]{1,20}$/.test(flags) || BigInt(flags) > 0xffffffffffffffffn)
+    throw new Error('Original Linux producer flags are malformed');
+  if (['Z', 'X', 'x'].includes(state)) return true;
+  if (!['R', 'S', 'D', 'I', 'W', 'P'].includes(state)) return false;
+  return (BigInt(flags) & 4n) !== 0n;
+}
 var prefixOrigins = new WeakMap();
 var prefixReaders = new WeakMap();
 async function readOriginalExecutionPrefix(output, expected) {
@@ -487,6 +862,7 @@ async function bindOriginalExecutionOutput(input) {
   let busy = false;
   let phase = 'admission';
   let failureRecord;
+  let closingLeader;
   const close = async () => {
     closed = true;
     await Promise.all(Object.values(streams).map((s) => s.reader.close()));
@@ -526,6 +902,7 @@ async function bindOriginalExecutionOutput(input) {
                 }
               : null,
           offsets: { stdout: streams.stdout?.offset ?? 0, stderr: streams.stderr?.offset ?? 0 },
+          ...(closingLeader ? { closingLeader } : {}),
           applyRpcQualified: false,
           originalInsertQualified: false,
         });
@@ -573,7 +950,9 @@ async function bindOriginalExecutionOutput(input) {
         Number(fields[3]) !== identity.group
       )
         throw new OutputRefusal('Original output closing producer identity changed');
-      if (!['Z', 'X', 'x'].includes(fields[0])) return false;
+      const exiting = originalLinuxLeaderIsExiting(fields[0], fields[6]);
+      closingLeader = Object.freeze({ state: fields[0], flags: fields[6], exiting });
+      if (!exiting) return false;
     } catch (error) {
       if (!(error instanceof Error) || !['ENOENT', 'ESRCH'].includes(error.code ?? '')) throw error;
     }
@@ -659,7 +1038,7 @@ async function bindOriginalExecutionOutput(input) {
   };
   const verifyPrefix = async (stream) => {
     phase = 'retained-prefix';
-    const prefix = createHash2('sha256');
+    const prefix = createHash3('sha256');
     for (let offset = 0; offset < stream.offset; offset += maximumChunk)
       prefix.update(await readAt(stream, offset, Math.min(maximumChunk, stream.offset - offset)));
     if (prefix.digest('hex') !== stream.hash.copy().digest('hex')) {
@@ -716,7 +1095,7 @@ async function bindOriginalExecutionOutput(input) {
         parent,
         descriptor: channel === 'stdout' ? 1 : 2,
         offset: 0,
-        hash: createHash2('sha256'),
+        hash: createHash3('sha256'),
       };
       streams[channel] = stream;
       await guard(stream);
@@ -795,7 +1174,7 @@ async function bindOriginalExecutionOutput(input) {
           const bound = expected?.[channel];
           if (bound) {
             if (bound.bytes > stream.offset) throw new OutputRefusal('Original prefix is ahead of its consumed output');
-            const hash = createHash2('sha256');
+            const hash = createHash3('sha256');
             for (let offset = 0; offset < bound.bytes; offset += maximumChunk)
               hash.update(await readAt(stream, offset, Math.min(maximumChunk, bound.bytes - offset)));
             if (hash.digest('hex') !== bound.sha256) throw new OutputRefusal('Original issued output prefix changed');
@@ -848,7 +1227,7 @@ var providerAddress = 'registry.terraform.io/hashicorp/google';
 var maximumLine = 1024 * 1024;
 var maximumStream = 64 * 1024 * 1024;
 var maximumDump = 4 * 1024 * 1024;
-var hash2 = (value) => createHash3('sha256').update(value).digest('hex');
+var hash2 = (value) => createHash4('sha256').update(value).digest('hex');
 var ending = '-----------------------------------------------------';
 var markers = {
   request: '---[ REQUEST ]---------------------------------------',
@@ -914,7 +1293,7 @@ class GoogleHttpRpcTraceParser {
   #originOutput;
   #originCompletion;
   #sourceEnd = 0;
-  #sourceHash = createHash3('sha256');
+  #sourceHash = createHash4('sha256');
   constructor(scope, binding) {
     const googleVersion = binding ? resolveInstalledGcpVersionProfile(binding).googleVersion : '8.7.0';
     this.#googleVersion = googleVersion;
@@ -1047,7 +1426,7 @@ class GoogleHttpRpcTraceParser {
         marker: true,
         lines: [],
         bytes: 0,
-        hash: createHash3('sha256')
+        hash: createHash4('sha256')
           .update(raw)
           .update(`
 `),
@@ -1095,7 +1474,7 @@ class GoogleHttpRpcTraceParser {
         eligible:
           rpc === this.#scope.rpc &&
           (record.tf_resource_type ?? record.tf_data_source_type) === this.#scope.resourceType,
-        receivedHash: createHash3('sha256')
+        receivedHash: createHash4('sha256')
           .update(raw)
           .update(`
 `)
@@ -1125,7 +1504,7 @@ class GoogleHttpRpcTraceParser {
       requestRecordsSha256: transaction.request.recordsHash,
       responseRecordsSha256: transaction.recordsHash,
       receivedRecordSha256: active.receivedHash,
-      servedRecordSha256: createHash3('sha256')
+      servedRecordSha256: createHash4('sha256')
         .update(raw)
         .update(`
 `)
@@ -1368,7 +1747,7 @@ var _maximumStream2 = 64 * 1024 * 1024;
 
 // plugins/terraform/src/original-google-provider-source.ts
 // plugins/terraform/src/installed-provider-reader.ts
-import { createHash as createHash30, createHash as createHash31, randomUUID as randomUUID16 } from 'node:crypto';
+import { createHash as createHash31, createHash as createHash32, randomUUID as randomUUID16 } from 'node:crypto';
 import { lstat as lstat21, mkdir as mkdir18, open as open20, realpath as realpath20 } from 'node:fs/promises';
 import { dirname as dirname14, join as join30 } from 'node:path';
 
@@ -1378,23 +1757,30 @@ var gcp_capture_source_pins_default = {
   kind: 'gcp-original-capture-sources',
   files: {
     '__init__.py': 'e15c038a408c0c4c10311bdec72a98327f2fb24b1d132132691fa2e69fd26fcb',
-    'guest_pty.py': '274de216c148e2a6e267b4082cce552ca04a17adf78a8c8a6dda5ed9579829e3',
-    'gcp_guest_session.py': 'f07f68da3da07ffbe2b57152d958e0215356c024ed2da66e30a0c5c3da9d4723',
+    'guest_pty.py': '2fa89c34dcfc3973ac401c919b40a40639a7cfddfcab3bac0f66a54628cd4ad5',
+    'gcp_guest_session.py': '9a16adb69f0428f58aa48debad229a675cc43e11fa88a4a1e558aefaa259808f',
     'gcp_host_trust.py': 'b60e21a70b96a08192ff2d533b7bba89c9a46a80680aa04540e241b6d16e4589',
     'guest_control.py': '1c04972ed1a4576f450cc71d6e01539e20a9ab3c72d82242f55fcb4e115ed032',
-    'guest_worker.py': '8cccbddd35d02ffb64d9c91adbf15c016f6f9ecaf817f9b71c0088257d43a392',
-    'guest_entrypoint.py': 'f55af410f939a1d01efa30d2cb14775b060b78a8d2ec7bbdeee1da2335f3e151',
+    'guest_worker.py': 'b333a4288e3ce0522864099e5956b4647a3b11e7002eae3cb6bac842eb2dce3f',
+    'guest_final_budget.py': 'cdc8265b79abf561cae68b345557733a72f7b7d10c5527c22800daf93be066c9',
+    'guest_entrypoint.py': '30890a7033fae2fd5261987736c25279331f3978a1172eeba8fb41a6edcde0a5',
     'gcp_provider_process.py': '2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00',
     'gcp_provider_reader.py': '7c74ad218ac485164e767c86c7cb3f46ea091729b21d14f08ed4a596a0b48ffb',
     'xcsh_creation_observer.py': '6ebd1f53ef6e1ae69c41533a6930351fca4e3a0d928d46fb6d3f0ea0fb918b5b',
-    'xcsh_creation_reader.py': '5dba7f304cf8d7b5e036119dc9455231df51c26b115326f370c6629bbfc729a6',
+    'xcsh_creation_reader.py': '856825048ca0f9afab22edd0033a8b9c5c8a608b435206cabac538db432209a9',
     'publish_bootstrap_grant.py': '6309afaebcd31730e750d14fb03d12afff5b83e3b9f06f765f1c1178d156ab9a',
   },
 };
 
 // plugins/terraform/src/runner.ts
 // plugins/platform/src/ce/process-lock.ts
-import { createHash as createHash5, randomUUID, randomUUID as randomUUID2 } from 'node:crypto';
+// plugins/platform/src/ce/linux-process-group.ts
+import {
+  createHash as createHash5,
+  createHash as createHash7,
+  randomUUID,
+  randomUUID as randomUUID2,
+} from 'node:crypto';
 import {
   chmod,
   lstat as lstat2,
@@ -1425,21 +1811,45 @@ import {
   resolve as resolve4,
 } from 'node:path';
 
+async function readLinuxProcessGroupRecord(pid, readRecord) {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
+  let text = await readRecord();
+  if (text.length === 0) text = await readRecord();
+  const end = text.lastIndexOf(') ');
+  const header = text.match(/^([1-9][0-9]*) \(/);
+  const fields =
+    end < 0
+      ? []
+      : text
+          .slice(end + 2)
+          .trim()
+          .split(/\s+/);
+  const group = Number(fields[2]);
+  if (
+    header?.[1] !== String(pid) ||
+    end < (header?.[0].length ?? 0) ||
+    !/^[RSDZTtXxKWPI]$/.test(fields[0] ?? '') ||
+    !/^[0-9]+$/.test(fields[19] ?? '') ||
+    !/^[0-9]+$/.test(fields[2] ?? '') ||
+    !Number.isSafeInteger(group) ||
+    group < 0
+  ) {
+    const sha256 = createHash5('sha256').update(text).digest('hex');
+    throw new Error(
+      `Original executor group is unavailable (pid=${pid}, bytes=${Buffer.byteLength(text)}, sha256=${sha256})`,
+    );
+  }
+  return group;
+}
+
+// plugins/platform/src/ce/process-lock.ts
 function vanishedProcess(error) {
   const code = error.code;
   return code === 'ENOENT' || code === 'ESRCH';
 }
 async function processGroup(pid) {
   if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
-  const text = await readFile2(`/proc/${pid}/stat`, 'utf8');
-  const fields = text
-    .slice(text.lastIndexOf(') ') + 2)
-    .trim()
-    .split(/\s+/);
-  const group = Number(fields[2]);
-  if (!/^\d+$/.test(fields[2] ?? '') || !Number.isSafeInteger(group) || group < 0)
-    throw new Error('Original executor group is unavailable');
-  return group;
+  return readLinuxProcessGroupRecord(pid, () => readFile2(`/proc/${pid}/stat`, 'utf8'));
 }
 async function readGroupLifetime(path, owner) {
   const file = join2(path, 'lifetime.json');
@@ -1720,7 +2130,7 @@ class TerraformCommandError extends Error {
 }
 
 // plugins/terraform/src/original-input-monitor.ts
-import { createHash as createHash4 } from 'node:crypto';
+import { createHash as createHash6 } from 'node:crypto';
 import { constants as constants2, watch } from 'node:fs';
 import { lstat as lstat3, open as open2, realpath as realpath2 } from 'node:fs/promises';
 import { basename as basename2, dirname as dirname3, isAbsolute as isAbsolute2, resolve as resolve2 } from 'node:path';
@@ -1733,7 +2143,7 @@ class OriginalInputMonitorError extends Error {
     this.reason = reason;
   }
 }
-var keys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+var keys2 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var parentKeys2 = ['dev', 'ino', 'uid', 'mode'];
 function assertSameOriginalInput(original, current) {
   if (
@@ -1743,7 +2153,7 @@ function assertSameOriginalInput(original, current) {
     !current.expectedIdentity ||
     !original.expectedParentIdentity ||
     !current.expectedParentIdentity ||
-    keys.some(
+    keys2.some(
       (key) =>
         typeof original.expectedIdentity?.[key] !== 'string' ||
         original.expectedIdentity[key] !== current.expectedIdentity?.[key],
@@ -1756,9 +2166,9 @@ function assertSameOriginalInput(original, current) {
   )
     throw new Error('Original selected input identity or bytes changed');
 }
-var hash3 = (raw) => createHash4('sha256').update(raw).digest('hex');
+var hash3 = (raw) => createHash6('sha256').update(raw).digest('hex');
 var maximum = 256n * 1024n * 1024n;
-var identity = (stat) => Object.fromEntries(keys.map((key) => [key, stat[key].toString()]));
+var identity = (stat) => Object.fromEntries(keys2.map((key) => [key, stat[key].toString()]));
 async function metadata(path) {
   const stat = await lstat3(path, { bigint: true });
   if (
@@ -1804,33 +2214,36 @@ async function monitorOriginalInputs(input) {
   const inspectOriginal = async (verifyBytes) => {
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
-      for (const { binding, file, parent } of originals) {
-        const current = await metadata(binding.path);
-        if (keys.some((key) => current[key].toString() !== file[key]))
-          throw new OriginalInputMonitorError('file-identity-changed');
-        const currentParent = await lstat3(dirname3(binding.path), { bigint: true });
-        if (
-          !currentParent.isDirectory() ||
-          currentParent.isSymbolicLink() ||
-          parentKeys2.some((key) => currentParent[key].toString() !== parent[key]) ||
-          (await realpath2(binding.path)) !== binding.path
-        )
-          throw new OriginalInputMonitorError('parent-identity-changed');
-        const handle = await open2(binding.path, constants2.O_RDONLY | constants2.O_NOFOLLOW);
-        try {
-          const opened = await handle.stat({ bigint: true });
-          if (keys.some((key) => opened[key].toString() !== file[key]))
-            throw new OriginalInputMonitorError('open-identity-changed');
-          if (verifyBytes && hash3(await handle.readFile()) !== binding.sha256)
-            throw new OriginalInputMonitorError('bytes-changed');
-        } finally {
-          await handle.close();
-        }
-        const after = await metadata(binding.path);
-        if (keys.some((key) => after[key].toString() !== file[key]))
-          throw new OriginalInputMonitorError('read-identity-changed');
-        if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
-      }
+      const results = await Promise.allSettled(
+        originals.map(async ({ binding, file, parent }) => {
+          const current = await metadata(binding.path);
+          if (keys2.some((key) => current[key].toString() !== file[key]))
+            throw new OriginalInputMonitorError('file-identity-changed');
+          const currentParent = await lstat3(dirname3(binding.path), { bigint: true });
+          if (
+            !currentParent.isDirectory() ||
+            currentParent.isSymbolicLink() ||
+            parentKeys2.some((key) => currentParent[key].toString() !== parent[key]) ||
+            (await realpath2(binding.path)) !== binding.path
+          )
+            throw new OriginalInputMonitorError('parent-identity-changed');
+          const handle = await open2(binding.path, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+          try {
+            const opened = await handle.stat({ bigint: true });
+            if (keys2.some((key) => opened[key].toString() !== file[key]))
+              throw new OriginalInputMonitorError('open-identity-changed');
+            if (verifyBytes && hash3(await handle.readFile()) !== binding.sha256)
+              throw new OriginalInputMonitorError('bytes-changed');
+          } finally {
+            await handle.close();
+          }
+          const after = await metadata(binding.path);
+          if (keys2.some((key) => after[key].toString() !== file[key]))
+            throw new OriginalInputMonitorError('read-identity-changed');
+          if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
+        }),
+      );
+      for (const result of results) if (result.status === 'rejected') throw result.reason;
     } catch (error) {
       throw latch(error instanceof OriginalInputMonitorError ? error.reason : 'filesystem-read-unavailable');
     }
@@ -1864,7 +2277,7 @@ async function monitorOriginalInputs(input) {
       };
       if (parentKeys2.some((key) => !/^(?:0|[1-9][0-9]*)$/.test(parentIdentity[key])))
         throw new Error('Original input monitor requires exact admitted parent identities');
-      if (keys.some((key) => typeof file[key] !== 'string' || !/^(?:0|[1-9][0-9]*)$/.test(file[key])))
+      if (keys2.some((key) => typeof file[key] !== 'string' || !/^(?:0|[1-9][0-9]*)$/.test(file[key])))
         throw new Error('Original input monitor requires exact admitted identities');
       observe(
         watch(binding.path, { persistent: false }, () => {
@@ -1944,7 +2357,7 @@ var cliConfig = `provider_installation {
 }
 disable_checkpoint = true
 `;
-var digest2 = (value) => createHash5('sha256').update(value).digest('hex');
+var digest2 = (value) => createHash7('sha256').update(value).digest('hex');
 function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Terraform JSON object is malformed');
@@ -3674,8 +4087,8 @@ function createInstalledCaptureContext(admission) {
 }
 
 // plugins/terraform/src/installed-runtime.ts
-// plugins/gcloud/src/ce/discovery.ts
-import { createHash as createHash6, createHash as createHash29, randomUUID as randomUUID15 } from 'node:crypto';
+// plugins/terraform/src/google-adc-authentication.ts
+import { createHash as createHash8, createHash as createHash30, randomUUID as randomUUID15 } from 'node:crypto';
 import { constants as constants9 } from 'node:fs';
 import {
   lstat as lstat20,
@@ -3688,356 +4101,6 @@ import {
 } from 'node:fs/promises';
 import { homedir as homedir2 } from 'node:os';
 import { dirname as dirname13, isAbsolute as isAbsolute15, join as join29, resolve as resolve16 } from 'node:path';
-
-// plugins/gcloud/src/ce/types.ts
-var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
-var GCP_CE_OPERATIONS = [
-  'deploy',
-  'reconcile',
-  'start',
-  'stop',
-  'resize',
-  'update-network',
-  'replace-node',
-  'repair',
-  'upgrade',
-  'failover',
-  'teardown',
-];
-
-// plugins/gcloud/src/gcloud/types.ts
-var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-
-// plugins/gcloud/src/ce/site-access.ts
-var GCP_SITE_ACCESS_MAPPING = Object.freeze({
-  schemaVersion: 1,
-  provider: 'f5-sales-demo/xcsh',
-  version: '15.13.0',
-  credentials: 'admin_user_credentials.ssh_key',
-  blockedServices: 'blocked_services.blocked_service',
-  sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
-  user: 'admin',
-});
-var GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.15.7',
-  sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
-});
-var GCP_XCSH15162_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.16.2',
-  sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
-});
-var GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.17.3',
-  sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
-});
-var GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.17.6',
-  sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
-});
-function resolveGcpSiteAccessMapping(providerVersion) {
-  if (providerVersion === GCP_SITE_ACCESS_MAPPING.version) return GCP_SITE_ACCESS_MAPPING;
-  if (providerVersion === GCP_CURRENT_SITE_ACCESS_MAPPING.version) return GCP_CURRENT_SITE_ACCESS_MAPPING;
-  if (providerVersion === GCP_XCSH15162_SITE_ACCESS_MAPPING.version) return GCP_XCSH15162_SITE_ACCESS_MAPPING;
-  if (providerVersion === GCP_PUBLISHED_SITE_ACCESS_MAPPING.version) return GCP_PUBLISHED_SITE_ACCESS_MAPPING;
-  if (providerVersion === GCP_XCSH15176_SITE_ACCESS_MAPPING.version) return GCP_XCSH15176_SITE_ACCESS_MAPPING;
-  throw new GcpSiteAccessMappingUnavailable();
-}
-
-class GcpSiteAccessMappingUnavailable extends Error {
-  constructor() {
-    super(
-      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3 or 15.17.6 mapping',
-    );
-  }
-}
-function validateGcpSiteAccess(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
-  const access = value;
-  if (
-    Object.keys(value).sort().join(',') !== 'profile,publicKey,schemaVersion' ||
-    access.schemaVersion !== 1 ||
-    access.profile !== 'site-ssh-sli' ||
-    typeof access.publicKey !== 'string' ||
-    access.publicKey.length > 8192
-  )
-    throw new Error('Site SSH access requires the versioned SLI-only public-key profile');
-  const match = /^ssh-ed25519 ([A-Za-z0-9+/]+={0,2})$/.exec(access.publicKey);
-  if (!match) throw new Error('Site SSH requires one Ed25519 public key without options or comments');
-  const bytes = Buffer.from(match[1], 'base64');
-  if (
-    bytes.length !== 51 ||
-    bytes.toString('base64') !== match[1] ||
-    bytes.readUInt32BE(0) !== 11 ||
-    !bytes.subarray(4, 15).equals(Buffer.from('ssh-ed25519')) ||
-    bytes.readUInt32BE(15) !== 32
-  )
-    throw new Error('Site SSH public key wire format differs');
-}
-function assertGcpSiteAccessProfile(intent) {
-  if (intent.initialAccess === undefined) return;
-  validateGcpSiteAccess(intent.initialAccess);
-  if (
-    intent.engine !== 'terraform' ||
-    intent.sites.length !== 1 ||
-    intent.sites[0].nodes.length !== 3 ||
-    intent.sites[0].nodes.some(
-      (node) => node.interfaces.length !== 2 || node.interfaces[0].role !== 'slo' || node.interfaces[1].role !== 'sli',
-    ) ||
-    intent.egress.mode !== 'external-ip' ||
-    intent.ingress.profile !== 'none' ||
-    intent.routing.profile !== 'static-insertion' ||
-    intent.routing.destinationCidrs.length !== 0
-  )
-    throw new GcpSiteAccessMappingUnavailable();
-}
-function gcpSiteAccessSpec(intent, providerVersion) {
-  if (intent.initialAccess === undefined) return;
-  assertGcpSiteAccessProfile(intent);
-  resolveGcpSiteAccessMapping(providerVersion);
-  return {
-    admin_user_credentials: { ssh_key: intent.initialAccess.publicKey },
-    blocked_services: {
-      blocked_service: [
-        { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', ssh: {} },
-        ...['VIRTUAL_NETWORK_SITE_LOCAL', 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE'].flatMap((network_type) => [
-          { network_type, dns: {} },
-          { network_type, web_user_interface: {} },
-        ]),
-      ],
-    },
-  };
-}
-
-// plugins/gcloud/src/ce/observer-scope.ts
-var GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
-  project: 'ubuntu-os-cloud',
-  name: 'ubuntu-2404-noble-amd64-v20261021',
-  id: '4996011480491275419',
-});
-function assertGcpTerraformObserverScope(scope, intent) {
-  if (
-    !scope ||
-    typeof scope !== 'object' ||
-    Array.isArray(scope) ||
-    Object.keys(scope).sort().join(',') !== 'profile,publicKey,schemaVersion,sshSourceCidr' ||
-    scope.schemaVersion !== 1 ||
-    scope.profile !== 'original-ha-observer'
-  )
-    throw new Error('Exact versioned original observer scope required');
-  validateGcpSiteAccess({ schemaVersion: 1, profile: 'site-ssh-sli', publicKey: scope.publicKey });
-  assertGcpSiteAccessProfile(intent);
-  if (!intent.initialAccess || intent.initialAccess.publicKey === scope.publicKey)
-    throw new Error('Distinct observer and CE campaign public keys required');
-  if (typeof scope.sshSourceCidr !== 'string') throw new Error('One exact observer SSH source required');
-  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/32$/.exec(scope.sshSourceCidr);
-  if (
-    !match ||
-    match[0] !== scope.sshSourceCidr ||
-    match.slice(1).some((part) => Number(part) > 255 || String(Number(part)) !== part) ||
-    [0, 127].includes(Number(match[1])) ||
-    Number(match[1]) >= 224 ||
-    (Number(match[1]) === 169 && Number(match[2]) === 254)
-  )
-    throw new Error('Observer SSH requires one canonical unicast IPv4 /32 source');
-}
-function gcpTerraformObserverIdentity(intent) {
-  if (intent.schemaVersion !== 2 || !intent.observer) throw new Error('Versioned observer intent required');
-  assertGcpTerraformObserverScope(intent.observer, intent);
-  const name = `${intent.deploymentName}-observer`,
-    firewallName = `${name}-ssh`;
-  if (firewallName.length > 63 || intent.sites[0].nodes.some((node) => node.name === name))
-    throw new Error('Derived observer identities collide or exceed GCP name limits');
-  const sli = intent.sites[0].nodes[0].interfaces[1];
-  return {
-    name,
-    key: name.replaceAll('-', '_'),
-    firewallName,
-    firewallKey: firewallName.replaceAll('-', '_'),
-    zone: intent.sites[0].nodes[0].zone,
-    network: sli.network,
-    subnet: sli.subnet,
-  };
-}
-
-// plugins/gcloud/src/ce/validation.ts
-var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
-function validateScope(project, region) {
-  if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
-  if (region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(region)) throw new Error('Invalid GCP region');
-}
-function name2(value) {
-  if (typeof value !== 'string' || !NAME.test(value)) throw new Error('Invalid GCP resource name');
-}
-function ipv4Range(cidr) {
-  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(cidr);
-  if (!match) throw new Error('Invalid IPv4 CIDR');
-  const octets = match.slice(1, 5).map(Number);
-  const prefix = Number(match[5]);
-  if (octets.some((value) => value > 255) || prefix > 32) throw new Error('Invalid IPv4 CIDR');
-  const ip = octets.reduce((value, octet) => value * 256 + octet, 0);
-  const size = 2 ** (32 - prefix);
-  if (ip % size !== 0) throw new Error('CIDR must use a network boundary');
-  return [ip, ip + size - 1];
-}
-function validateImage(image) {
-  name2(image.name);
-  if (!/^f5xc-ce(?:-crt|crt)-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
-  const expected = `https://www.googleapis.com/compute/v1/projects/${GCP_CE_IMAGE_PROJECT}/global/images/${image.name}`;
-  if (
-    !/^\d+$/.test(image.id) ||
-    image.selfLink !== expected ||
-    image.status !== 'READY' ||
-    image.architecture !== 'X86_64'
-  )
-    throw new Error('Image must pin an exact ready x86 F5-owned image identity');
-  if (
-    !Array.isArray(image.licenses) ||
-    image.licenses.length === 0 ||
-    image.licenses.some(
-      (license) =>
-        !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/[a-z][a-z0-9-]+\/global\/licenses\/[a-z0-9-]+$/.test(
-          license,
-        ),
-    )
-  )
-    throw new Error('Image must pin its exact license identities');
-}
-function keys2(value, allowed) {
-  if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
-}
-function validateIntent(intent) {
-  if (intent?.schemaVersion !== 1 && intent?.schemaVersion !== 2) throw new Error('Unsupported GCP CE intent version');
-  if (
-    (intent.schemaVersion === 1 && Object.hasOwn(intent, 'observer')) ||
-    (intent.schemaVersion === 2 && !intent.observer)
-  )
-    throw new Error('Observer scope requires its complete version2 intent');
-  keys2(intent, [
-    'schemaVersion',
-    'project',
-    'region',
-    'deploymentName',
-    'platformContext',
-    'engine',
-    'operation',
-    'sites',
-    'machineType',
-    'diskGiB',
-    'image',
-    'ipForwarding',
-    'initialVersions',
-    'initialAccess',
-    ...(intent.schemaVersion === 2 ? ['observer'] : []),
-    'egress',
-    'ingress',
-    'routing',
-  ]);
-  keys2(intent.image, ['id', 'name', 'selfLink', 'licenses', 'architecture', 'status']);
-  keys2(intent.egress, ['mode', 'resource']);
-  keys2(intent.ingress, ['profile']);
-  keys2(intent.routing, ['profile', 'destinationCidrs']);
-  validateScope(intent.project, intent.region);
-  name2(intent.deploymentName);
-  name2(intent.machineType);
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(intent.platformContext)) throw new Error('Explicit F5 context required');
-  if (!['native', 'terraform'].includes(intent.engine)) throw new Error('Explicit owning engine required');
-  if (!GCP_CE_OPERATIONS.includes(intent.operation)) throw new Error('Unsupported CE operation');
-  if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
-  if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
-  validateImage(intent.image);
-  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
-  if (intent.initialVersions) {
-    keys2(intent.initialVersions, ['software', 'os']);
-    if (
-      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
-      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
-    )
-      throw new Error('Explicit initial software/OS version pair required');
-  }
-  if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
-    throw new Error('Unsupported egress');
-  if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
-    throw new Error('Explicit egress resource required');
-  if (!['none', 'internal-passthrough-lb'].includes(intent.ingress.profile)) throw new Error('Unsupported ingress');
-  if (!['static-insertion', 'ilb-next-hop', 'ncc-router-appliance'].includes(intent.routing.profile))
-    throw new Error('Unsupported routing');
-  for (const cidr of intent.routing.destinationCidrs) ipv4Range(cidr);
-  if (!Array.isArray(intent.sites) || !intent.sites.length) throw new Error('Explicitly named sites required');
-  const sites = new Set();
-  const nodes = new Set();
-  for (const site of intent.sites) {
-    keys2(site, ['name', 'nodes']);
-    name2(site.name);
-    if (sites.has(site.name)) throw new Error('Independent sites require unique names');
-    sites.add(site.name);
-    if (![1, 3].includes(site.nodes.length)) throw new Error('Sites require one node or three HA nodes');
-    let shape;
-    for (const node of site.nodes) {
-      keys2(node, ['name', 'zone', 'interfaces']);
-      name2(node.name);
-      if (nodes.has(node.name)) throw new Error('Node names must be unique');
-      nodes.add(node.name);
-      if (!new RegExp(`^${intent.region}-[a-z]$`).test(node.zone))
-        throw new Error('Node zone must belong to the explicit region');
-      if (!node.interfaces.length || node.interfaces.length > 8)
-        throw new Error('CE requires 1-8 interfaces; machine limit remains a separate gate');
-      const networks = new Set();
-      const ranges = [];
-      for (const [index, nic] of node.interfaces.entries()) {
-        keys2(nic, ['index', 'role', 'vrf', 'network', 'subnet', 'cidr']);
-        if (nic.index !== index || (index === 0 && nic.role !== 'slo'))
-          throw new Error('Contiguous NIC order must start with SLO');
-        if (!['slo', 'sli', 'management'].includes(nic.role) || (index > 0 && nic.role === 'slo'))
-          throw new Error('Invalid NIC role');
-        name2(nic.vrf);
-        name2(nic.network);
-        name2(nic.subnet);
-        if (networks.has(nic.network)) throw new Error('Each NIC requires a distinct VPC');
-        networks.add(nic.network);
-        const range = ipv4Range(nic.cidr);
-        if (ranges.some(([start, end]) => range[0] <= end && start <= range[1]))
-          throw new Error('NIC subnets must not overlap');
-        ranges.push(range);
-      }
-      const current = JSON.stringify(
-        node.interfaces.map(({ index, role, vrf, network, subnet, cidr }) => [index, role, vrf, network, subnet, cidr]),
-      );
-      if (shape !== undefined && shape !== current)
-        throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
-      shape = current;
-    }
-  }
-  if (intent.schemaVersion === 2) {
-    const observer = intent.observer;
-    if (!observer) throw new Error('Versioned observer scope required');
-    assertGcpTerraformObserverScope(observer, intent);
-    gcpTerraformObserverIdentity(intent);
-  }
-}
-
-// plugins/gcloud/src/ce/discovery.ts
-function fingerprint(value) {
-  const stable = (item) =>
-    Array.isArray(item)
-      ? item.map(stable)
-      : item && typeof item === 'object'
-        ? Object.fromEntries(
-            Object.entries(item)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([k, v]) => [k, stable(v)]),
-          )
-        : item;
-  return `sha256:${createHash6('sha256')
-    .update(JSON.stringify(stable(value)))
-    .digest('hex')}`;
-}
-
-// plugins/terraform/src/google-adc-authentication.ts
-import { createHash as createHash7 } from 'node:crypto';
 
 // plugins/terraform/src/gcp-inventory-target.ts
 var validName = (value) => typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
@@ -4071,7 +4134,7 @@ var GCP_OBSERVER_IMAGE_PIN = Object.freeze({
 // plugins/terraform/src/google-adc-authentication.ts
 var tokenEndpoint = 'https://oauth2.googleapis.com/token';
 var inspectionEndpoint = 'https://www.googleapis.com/oauth2/v2/tokeninfo';
-var hash4 = (value) => createHash7('sha256').update(value).digest('hex');
+var hash4 = (value) => createHash8('sha256').update(value).digest('hex');
 var validHash = (value) => /^[a-f0-9]{64}$/.test(value);
 var maximum2 = 65536;
 
@@ -4708,6 +4771,7 @@ function createInstalledApplyController(original, worker, hooks) {
       )
         throw new Error('Original apply execution identity required');
       await within();
+      if (started || closed || finalStarted) throw new Error('Original apply execution already claimed');
       if (now() >= admission.startupDeadlineMs) throw new Error('Original apply startup deadline elapsed');
       started = Object.freeze({
         ...admission,
@@ -4956,7 +5020,7 @@ async function finalizeInstalledCapture(invocations, finished, hooks) {
 }
 
 // plugins/terraform/src/google-adc-session.ts
-import { createHash as createHash8 } from 'node:crypto';
+import { createHash as createHash9 } from 'node:crypto';
 import { constants as constants3, watch as watch2 } from 'node:fs';
 import { lstat as lstat5, open as open3, realpath as realpath4 } from 'node:fs/promises';
 // plugins/terraform/src/installed-gcp-invocation.ts
@@ -4978,7 +5042,7 @@ var googleCredentialAlternatives = Object.freeze([
   'GCLOUD_KEYFILE_JSON',
   'GOOGLE_CLOUD_KEYFILE_JSON',
 ]);
-var hash5 = (value) => createHash8('sha256').update(value).digest('hex');
+var hash5 = (value) => createHash9('sha256').update(value).digest('hex');
 var validHash2 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 var sameOwner = (a, b) =>
   a?.engine === 'terraform' &&
@@ -5159,8 +5223,8 @@ async function openGoogleAdcSession(input, expectedInput) {
 // plugins/terraform/src/prepared-creation-scope.ts
 // plugins/terraform/src/bootstrap-grant-publication.ts
 import {
-  createHash as createHash24,
-  createHash as createHash27,
+  createHash as createHash25,
+  createHash as createHash28,
   generateKeyPairSync as generateKeyPairSync2,
   randomBytes as randomBytes5,
   sign,
@@ -5215,7 +5279,7 @@ var installed_runtime_pins_default = {
 
 // plugins/terraform/src/signal-free-executor.ts
 // plugins/terraform/src/gcp-observer-insert-evidence.ts
-import { createHash as createHash12, createHash as createHash23, randomUUID as randomUUID12 } from 'node:crypto';
+import { createHash as createHash13, createHash as createHash24, randomUUID as randomUUID12 } from 'node:crypto';
 import { constants as constants6, watch as watch3 } from 'node:fs';
 import {
   lstat as lstat15,
@@ -5856,6 +5920,59 @@ var GCP_XCSH15176_OBSERVER_ARTIFACTS = {
   ...GCP_XCSH15176_TERRAFORM_ARTIFACTS,
   configurationVersion: 3,
 };
+var GCP_XCSH15178_TERRAFORM_ARTIFACTS = {
+  configurationVersion: 2,
+  versions: { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.8' },
+  providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.17.8"
+  constraints = "15.17.8"
+  hashes = [
+    "h1:BDzdbsyeGRSL+69aYkK28Y32gOORRvpL/qo6TpoEho4=",
+    "h1:sdWqL1TklnHZRkFOOWmr9yFVOuRO93LG3jRMB/q0xyI=",
+    "zh:1d8f62ed772a35675fd8d22be5001b3e9160af99253cc3c24516b7b7defd76be",
+    "zh:22afbde3a99622921b5537a89436091465c8645dd140bf98fc0f1c6af3a151a4",
+    "zh:287c8ed6dde6f913dd218ec713dd17459587e9cf4bf197bc811c84deb65f16ed",
+    "zh:5519792b1dbd23ebb162546b43e68fd7a8c43c5aa69a95e745c0f48f556c593a",
+    "zh:6720c8d5bd97a3071dbf320c2f996bc9bc4d3b674d594e017d8e9d9e42403b99",
+    "zh:87f46dc4b4ca79f1d358e902705321770dfcf5ff2e2c1e8fadb41e67de7a5605",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:bee54896d0c9de3f95c08ea1794caf693c4bb85428fbac462ae159cc8f11dfb9",
+    "zh:d2ef28ceb07719d8830ba5d16057596344c8627303561c062541e7b99a52ab9f",
+    "zh:e302f36aa22111ef6bf42ad01a47c6ab92371efe8a712246c9ae348a4fa53641",
+    "zh:fdc9aa9390a34608f6434631706ef6756e8fce9fadacce5c6cd659bb129e6489",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.12.0"
+  constraints = "8.12.0"
+  hashes = [
+    "h1:9d+FdGigXECjhHgs8RcW5JhsTTXVNga0X1Pd4O4QHjY=",
+    "h1:es4kOf5hndCahoF3bLHmsLKX93JpkeuThvKQ4Pnm6m8=",
+    "zh:0b486637c4f4a2ff260dcf98e0ab74aa2655884c27df909fc79de9c2829ea6ef",
+    "zh:0b9c04d4bb269389d799f6b871877172d13cd059571768c6c36b28cf297b6fba",
+    "zh:0c63d340b3fda4156bccbd4f02e8ef7d320bea75bd1706573a90851e00129c47",
+    "zh:20371948b3d7f0469f2ad99608d9626a816127c9eb1b4cd007f09e1f68878728",
+    "zh:2a6d9c60699366894da043e604ebe5fee9246bb01bef73ebd100d3dbaf3e5e34",
+    "zh:47aa133c201e1edd2d1eb789f2ef4ccc769fdb49d5000b042280c2ac37acf368",
+    "zh:58e2910ee0625ecd352c2e55050ed35771ed7860dd1e738ee4b53eab695a2ee8",
+    "zh:84a44faf0dc811e48a8590e244c02ffff4a6a10095a4bc869979e7b0e94ae46d",
+    "zh:b8f42d7d79776b54d37c93b51a3f10ae45425fb91fb182bcb2a966e1bd52bdad",
+    "zh:eddf30f53a99381388ff25702ed0c727586deb8c502cd5af395dc98afb217a49",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+    "zh:f79b40a9d29763535baed6de1cd0d42960059916a1723f8fb4af8a2801dd2f4c",
+  ]
+}
+`,
+  expectedLockSha256: 'sha256:74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
+};
+var GCP_XCSH15178_OBSERVER_ARTIFACTS = {
+  ...GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+  configurationVersion: 3,
+};
 var packagedProfiles = [
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
@@ -5869,6 +5986,8 @@ var packagedProfiles = [
   GCP_OBSERVER_TERRAFORM_ARTIFACTS,
   GCP_XCSH15176_TERRAFORM_ARTIFACTS,
   GCP_XCSH15176_OBSERVER_ARTIFACTS,
+  GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15178_OBSERVER_ARTIFACTS,
 ].filter((profile) => profile !== undefined);
 Object.freeze(packagedProfiles);
 for (const profile of packagedProfiles) {
@@ -5886,6 +6005,7 @@ function translateGcpTerraformObserverSiteCompute(intent, versions, observer, re
   const tuples = [
     ...['15.15.7', '15.16.2', '15.17.3'].map((xcsh) => ({ terraform: '1.17.2', google: '8.11.0', xcsh })),
     GCP_XCSH15176_OBSERVER_ARTIFACTS.versions,
+    GCP_XCSH15178_OBSERVER_ARTIFACTS.versions,
   ];
   if (!tuples.some((tuple) => fingerprint(versions) === fingerprint(tuple)))
     throw new Error('Qualified exact observer Terraform/provider tuple required');
@@ -6010,7 +6130,7 @@ function translateGcpTerraformObserverSiteCompute(intent, versions, observer, re
 }
 
 // plugins/terraform/src/gcp-cloud-serial-reader.ts
-import { createHash as createHash9, randomUUID as randomUUID4 } from 'node:crypto';
+import { createHash as createHash10, randomUUID as randomUUID4 } from 'node:crypto';
 import { lstat as lstat6, mkdir as mkdir3, open as open4, realpath as realpath5 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute7, join as join5, resolve as resolve7 } from 'node:path';
 
@@ -6043,7 +6163,7 @@ async function assertOriginalInstalledGcpFinalCloudReader(reader, callback) {
   await assertOriginalInstalledGcpCloudReader(reader, callback.original);
   await assertOriginalApplyCallback(callback);
 }
-var hash6 = (raw) => createHash9('sha256').update(raw).digest('hex');
+var hash6 = (raw) => createHash10('sha256').update(raw).digest('hex');
 var name3 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var numericId = /^[1-9][0-9]{0,19}$/;
 var uint64 = (value) => typeof value === 'string' && numericId.test(value) && BigInt(value) <= 18446744073709551615n;
@@ -6791,11 +6911,11 @@ async function openInstalledGcpCloudSerialReader(context, signal, fetcher = fetc
 }
 
 // plugins/terraform/src/gcp-observer-image.ts
-import { createHash as createHash10, randomUUID as randomUUID5 } from 'node:crypto';
+import { createHash as createHash11, randomUUID as randomUUID5 } from 'node:crypto';
 import { lstat as lstat7, mkdir as mkdir4, open as open5, realpath as realpath6 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute8, join as join6, resolve as resolve8 } from 'node:path';
 
-var hash7 = (raw) => createHash10('sha256').update(raw).digest('hex');
+var hash7 = (raw) => createHash11('sha256').update(raw).digest('hex');
 var fileKeys2 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var originalReaders = new WeakMap();
 async function captureOriginalGcpObserverImage(reader) {
@@ -7016,7 +7136,7 @@ async function openGcpObserverImageReader(input, signal, fetcher = fetch) {
 }
 
 // plugins/terraform/src/installed-initial-inventory.ts
-import { createHash as createHash11, randomUUID as randomUUID6 } from 'node:crypto';
+import { createHash as createHash12, randomUUID as randomUUID6 } from 'node:crypto';
 // plugins/terraform/src/original-gcp-inventory-scope.ts
 import { join as join7, join as join8 } from 'node:path';
 
@@ -7391,7 +7511,7 @@ async function openInitialInventory(input, options = {}) {
   try {
     observation = await openObservation(owner, saved.platformContext, {
       origin,
-      credentialSha256: createHash11('sha256').update(credential).digest('hex'),
+      credentialSha256: createHash12('sha256').update(credential).digest('hex'),
       targets: view.platform.map((row) => row.target),
       assertOriginal: guard,
     });
@@ -7584,7 +7704,7 @@ async function openInitialInventory(input, options = {}) {
             const retained = await owned(entry.value.path, 4 * 1024 * 1024);
             if (
               retained.binding.sha256 !== entry.value.sha256 ||
-              createHash11('sha256').update(read.raw).digest('hex') !== entry.value.sha256
+              createHash12('sha256').update(read.raw).digest('hex') !== entry.value.sha256
             )
               throw new Error('Original inventory absence bytes differ');
             records.push({ binding: retained.binding, evidence: entry.value, cloud: view.cloud[index] });
@@ -7771,7 +7891,7 @@ async function openInitialInventory(input, options = {}) {
 }
 
 // plugins/terraform/src/gcp-observer-insert-evidence.ts
-var hash8 = (value) => createHash12('sha256').update(value).digest('hex');
+var hash8 = (value) => createHash13('sha256').update(value).digest('hex');
 var object5 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Original observer object required');
   return value;
@@ -8557,7 +8677,7 @@ var _origins4 = new WeakMap();
 
 // plugins/terraform/src/gcp-campaign-access.ts
 import {
-  createHash as createHash13,
+  createHash as createHash14,
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
@@ -8569,7 +8689,7 @@ import { dirname as dirname6, isAbsolute as isAbsolute9, join as join10, resolve
 
 var fileKeys3 = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 var parentKeys4 = ['dev', 'ino', 'uid', 'mode'];
-var hash9 = (bytes) => createHash13('sha256').update(bytes).digest('hex');
+var hash9 = (bytes) => createHash14('sha256').update(bytes).digest('hex');
 var magic = Buffer.from('openssh-key-v1\x00');
 var scalar = (value) => {
   const bytes = Buffer.alloc(4);
@@ -8956,9 +9076,9 @@ var _origins5 = new WeakMap();
 // plugins/terraform/src/gcp-observer-client-abi.ts
 // plugins/terraform/src/gcp-observer-client-abi-command.ts
 import {
-  createHash as createHash15,
-  createHash as createHash21,
+  createHash as createHash16,
   createHash as createHash22,
+  createHash as createHash23,
   randomBytes as randomBytes2,
   randomUUID as randomUUID7,
   randomUUID as randomUUID11,
@@ -9252,9 +9372,9 @@ print(json.dumps(result,sort_keys=True))
 }
 
 // plugins/terraform/src/gcp-observer-guest-process.ts
-import { createHash as createHash14 } from 'node:crypto';
+import { createHash as createHash15 } from 'node:crypto';
 
-var hash10 = (raw) => createHash14('sha256').update(raw).digest('hex');
+var hash10 = (raw) => createHash15('sha256').update(raw).digest('hex');
 var integer = (value) => typeof value === 'number' && Number.isSafeInteger(value);
 var exact = (value, keys) => Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 var object6 = (value) => {
@@ -9372,7 +9492,7 @@ function inspectGcpObserverGuestProcess(item, request, mapping, window) {
 }
 
 // plugins/terraform/src/gcp-observer-client-abi.ts
-var hash11 = (raw) => createHash15('sha256').update(raw).digest('hex');
+var hash11 = (raw) => createHash16('sha256').update(raw).digest('hex');
 var same2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 var integer2 = (value) => typeof value === 'number' && Number.isSafeInteger(value);
 var exact2 = (value, keys) => Object.keys(value).sort().join(',') === [...keys].sort().join(',');
@@ -9748,7 +9868,7 @@ async function openGcpObserverClientAbi(command) {
 
 // plugins/terraform/src/gcp-observer-client-abi-renewal.ts
 // plugins/terraform/src/gcp-observer-client-abi-renewal-command.ts
-import { createHash as createHash16, randomBytes as randomBytes3, randomUUID as randomUUID8 } from 'node:crypto';
+import { createHash as createHash17, randomBytes as randomBytes3, randomUUID as randomUUID8 } from 'node:crypto';
 import {
   lstat as lstat11,
   mkdir as mkdir8,
@@ -9937,7 +10057,7 @@ print(json.dumps(result,sort_keys=True))
 }
 
 // plugins/terraform/src/gcp-observer-client-abi-renewal.ts
-var hash12 = (raw) => createHash16('sha256').update(raw).digest('hex');
+var hash12 = (raw) => createHash17('sha256').update(raw).digest('hex');
 var same3 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 var integer3 = (value) => typeof value === 'number' && Number.isSafeInteger(value);
 var requestFields = [
@@ -10356,10 +10476,10 @@ async function assertOriginalQualifiedGcpObserverClientsContext(value, callback)
 }
 
 // plugins/terraform/src/gcp-vm-evidence.ts
-import { createHash as createHash17 } from 'node:crypto';
+import { createHash as createHash18 } from 'node:crypto';
 import { isIP as isIP3 } from 'node:net';
 
-var hash13 = (value) => createHash17('sha256').update(value).digest('hex');
+var hash13 = (value) => createHash18('sha256').update(value).digest('hex');
 var object7 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original VM evidence object required');
@@ -11209,7 +11329,7 @@ var _scans = new WeakMap();
 
 // plugins/terraform/src/gcp-ce-wire-key-reader.ts
 // plugins/terraform/src/gcp-ce-keyscan-command.ts
-import { createHash as createHash19, randomBytes as randomBytes4, randomUUID as randomUUID9 } from 'node:crypto';
+import { createHash as createHash20, randomBytes as randomBytes4, randomUUID as randomUUID9 } from 'node:crypto';
 import {
   lstat as lstat12,
   mkdir as mkdir10,
@@ -11388,7 +11508,7 @@ print(json.dumps(result,sort_keys=True))
 }
 
 // plugins/terraform/src/gcp-wire-key.ts
-import { createHash as createHash18 } from 'node:crypto';
+import { createHash as createHash19 } from 'node:crypto';
 
 function inspectGcpWireHostKey(stdout, address, algorithm = 'ssh-ed25519') {
   const text = new TextDecoder('utf-8', { fatal: true }).decode(stdout);
@@ -11453,12 +11573,12 @@ function inspectGcpWireHostKey(stdout, address, algorithm = 'ssh-ed25519') {
   }
   return {
     knownHostsLine: line,
-    fingerprint: `SHA256:${createHash18('sha256').update(bytes).digest('base64').replace(/=+$/, '')}`,
+    fingerprint: `SHA256:${createHash19('sha256').update(bytes).digest('base64').replace(/=+$/, '')}`,
   };
 }
 
 // plugins/terraform/src/gcp-ce-wire-key-reader.ts
-var hash14 = (raw) => createHash19('sha256').update(raw).digest('hex');
+var hash14 = (raw) => createHash20('sha256').update(raw).digest('hex');
 var same4 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 var integer4 = (value) => typeof value === 'number' && Number.isSafeInteger(value);
 var requestFields2 = [
@@ -11826,13 +11946,13 @@ async function openGcpCeWireKeyReader(command) {
 }
 
 // plugins/terraform/src/gcp-observer-wire-key-reader.ts
-import { createHash as createHash20, randomUUID as randomUUID10 } from 'node:crypto';
+import { createHash as createHash21, randomUUID as randomUUID10 } from 'node:crypto';
 import { constants as constants5 } from 'node:fs';
 import { lstat as lstat13, mkdir as mkdir12, open as open13, realpath as realpath12 } from 'node:fs/promises';
 import { join as join18 } from 'node:path';
 
 var maximum3 = 65536;
-var hash15 = (value) => createHash20('sha256').update(value).digest('hex');
+var hash15 = (value) => createHash21('sha256').update(value).digest('hex');
 var sameIdentity2 = (left, right) => ['pid', 'group', 'start', 'boot'].every((key) => left[key] === right[key]);
 var origins15 = new WeakMap();
 async function readOriginalGcpObserverWireKeys(value) {
@@ -12202,7 +12322,7 @@ async function openGcpObserverWireKeyReader(vm, callback, profile, options = {})
 }
 
 // plugins/terraform/src/gcp-observer-trust-material.ts
-var hash16 = (bytes) => createHash21('sha256').update(bytes).digest('hex');
+var hash16 = (bytes) => createHash22('sha256').update(bytes).digest('hex');
 var origins16 = new WeakMap();
 async function readOriginalGcpObserverTrustMaterial(value) {
   const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
@@ -12414,7 +12534,7 @@ async function sealOriginalTrustMaterial(family, callback, collect) {
 
 // plugins/terraform/src/gcp-observer-host-trust-reader.ts
 var maximum4 = 65536;
-var hash17 = (value) => createHash22('sha256').update(value).digest('hex');
+var hash17 = (value) => createHash23('sha256').update(value).digest('hex');
 var sameIdentity3 = (left, right) => ['pid', 'group', 'start', 'boot'].every((key) => left[key] === right[key]);
 var origins17 = new WeakMap();
 async function readOriginalGcpObserverHostTrust(value) {
@@ -12651,7 +12771,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
         throw new Error('Original observer serial/wire fingerprint verification failed; private evidence retained');
       const reply = decodeEvidenceObject(stdout);
       const key = original.wire.toString().trimEnd().split(' ')[2];
-      const fingerprint = `SHA256:${createHash22('sha256').update(Buffer.from(key, 'base64')).digest('base64').replace(/=+$/, '')}`;
+      const fingerprint = `SHA256:${createHash23('sha256').update(Buffer.from(key, 'base64')).digest('base64').replace(/=+$/, '')}`;
       if (
         reply.schemaVersion !== 1 ||
         reply.kind !== 'original-gcp-observer-trust-parser-result' ||
@@ -12791,7 +12911,7 @@ async function assertOriginalGcpObserverClientDeliveryInputs(value) {
 }
 
 // plugins/terraform/src/signal-free-executor.ts
-var hash18 = (value) => createHash23('sha256').update(value).digest('hex');
+var hash18 = (value) => createHash24('sha256').update(value).digest('hex');
 var now = linuxMonotonicMs;
 var pause = () => Bun.sleep(25);
 var signalFreeBootstrapSource = `import fcntl,hashlib,json,os,stat,sys,time
@@ -13846,7 +13966,7 @@ async function signalFreeGcpCeKeyScanExecutor(input, command) {
 }
 
 // plugins/terraform/src/bootstrap-grant-publication.ts
-var hash19 = (raw) => createHash24('sha256').update(raw).digest('hex');
+var hash19 = (raw) => createHash25('sha256').update(raw).digest('hex');
 async function retainBootstrapGrantFile(directory, name, raw) {
   const file = await open16(
     join21(directory, name),
@@ -13940,7 +14060,7 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
 }
 
 // plugins/terraform/src/xcsh-creation-body.ts
-import { createHash as createHash26 } from 'node:crypto';
+import { createHash as createHash27 } from 'node:crypto';
 
 // plugins/platform/src/ce/security.ts
 function containsControlCharacters(value) {
@@ -13951,12 +14071,12 @@ function containsControlCharacters(value) {
 }
 
 // plugins/terraform/src/installed-xcsh-creation-reader.ts
-import { createHash as createHash25, randomUUID as randomUUID13 } from 'node:crypto';
+import { createHash as createHash26, randomUUID as randomUUID13 } from 'node:crypto';
 import { lstat as lstat16, mkdir as mkdir15, open as open17, realpath as realpath15 } from 'node:fs/promises';
 import { dirname as dirname9, join as join22 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
-var hash20 = (raw) => createHash25('sha256').update(raw).digest('hex');
+var hash20 = (raw) => createHash26('sha256').update(raw).digest('hex');
 var terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e';
 var origins20 = new WeakMap();
 var openings = new WeakSet();
@@ -14538,7 +14658,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
 }
 
 // plugins/terraform/src/xcsh-creation-body.ts
-var hash21 = (bytes) => createHash26('sha256').update(bytes).digest('hex');
+var hash21 = (bytes) => createHash27('sha256').update(bytes).digest('hex');
 var object9 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Original creation object required');
   return value;
@@ -14692,6 +14812,7 @@ var object10 = (value) => {
 };
 var issued4 = new WeakMap();
 var contextChecks = new WeakMap();
+var siteAccessReads = new WeakMap();
 async function collectOriginalGcpPreapplyBootstrap(input) {
   const { site, token } = input,
     binding = structuredClone(input.binding);
@@ -14756,9 +14877,11 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
   if (siteProfile !== tokenProfile) throw new Error('Original Site and Token provider profiles differ');
   const bootstrap = await verify();
   const value = Object.freeze({
-    ...(siteProfile.xcshVersion === '15.17.6'
-      ? { schemaVersion: 5, xcshProviderVersion: '15.17.6' }
-      : { schemaVersion: 4, xcshProviderVersion: '15.17.3' }),
+    ...(siteProfile.xcshVersion === '15.17.8'
+      ? { schemaVersion: 6, xcshProviderVersion: '15.17.8' }
+      : siteProfile.xcshVersion === '15.17.6'
+        ? { schemaVersion: 5, xcshProviderVersion: '15.17.6' }
+        : { schemaVersion: 4, xcshProviderVersion: '15.17.3' }),
     executor: site.executor,
     kind: 'original-gcp-preapply-bootstrap-candidate',
     planSha256: site.planSha256,
@@ -14786,6 +14909,54 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
       return await platform.readJwt(bootstrap);
     } catch (error) {
       refused = true;
+      throw error;
+    }
+  });
+  let accessRefused = false;
+  siteAccessReads.set(value, async (context) => {
+    if (accessRefused) throw new Error('Original Site SSH source retired');
+    try {
+      await assertOriginalGcpPreapplyBootstrapContext(value, context);
+      await readOriginalGcpPreapplyBootstrapJwt(value);
+      const admitted = context.inputs['workspace:gcp-terraform-input-identity.json'];
+      if (!admitted) throw new Error('Original reviewed Site SSH intent required');
+      const input = await owned(admitted.path);
+      assertSameOriginalInput(admitted, input.binding);
+      const saved = decodeEvidenceObject(input.bytes);
+      if (
+        saved.intentFingerprint !== fingerprint(saved.intent) ||
+        saved.intent.project !== binding.owner.account ||
+        saved.intent.region !== binding.owner.region ||
+        saved.intent.deploymentName !== binding.deploymentName ||
+        !saved.intent.sites.some(
+          (site) => site.name === binding.siteName && site.nodes.some((node) => node.name === binding.nodeName),
+        )
+      )
+        throw new Error('Original reviewed Site SSH ownership differs');
+      const expected = gcpSiteAccessSpec(saved.intent, value.xcshProviderVersion);
+      if (!expected) throw new Error('Original Site SSH configuration unavailable');
+      const body = await readOriginalXcshCreationBody(site);
+      const source = decodeEvidenceObject(body.bytes),
+        spec = object10(source.spec);
+      const observed = { admin_user_credentials: spec.admin_user_credentials, blocked_services: spec.blocked_services };
+      if (
+        fingerprint(observed) !== fingerprint(expected) ||
+        object10(source.system_metadata).uid !== value.bootstrap.siteUid
+      )
+        throw new Error('Original Site SSH key or SLI-only settings differ from reviewed intent');
+      await readOriginalGcpPreapplyBootstrapJwt(value);
+      await assertOriginalGcpPreapplyBootstrapContext(value, context);
+      assertSameOriginalInput(admitted, (await owned(admitted.path)).binding);
+      return Object.freeze({
+        siteName: binding.siteName,
+        siteUid: value.bootstrap.siteUid,
+        providerVersion: value.xcshProviderVersion,
+        publicKey: expected.admin_user_credentials.ssh_key,
+        settingsSha256: fingerprint(expected).slice(7),
+        commandsAuthorized: false,
+      });
+    } catch (error) {
+      accessRefused = true;
       throw error;
     }
   });
@@ -14958,7 +15129,7 @@ async function checkoutOriginalGcpPreapplyBootstrap(evidence, store) {
 // plugins/terraform/src/prepared-creation-scope.ts
 var preparations2 = new WeakMap();
 var leases = new WeakMap();
-var hash22 = (raw) => createHash27('sha256').update(raw).digest('hex');
+var hash22 = (raw) => createHash28('sha256').update(raw).digest('hex');
 var failure = () => new Error('Trusted original prepared creation scope required');
 function lease(value) {
   const current = value && typeof value === 'object' ? leases.get(value) : undefined;
@@ -15698,11 +15869,11 @@ function createLegacyInstalledTerraformExecutor(options) {
 }
 
 // plugins/terraform/src/provider-package.ts
-import { createHash as createHash28 } from 'node:crypto';
+import { createHash as createHash29 } from 'node:crypto';
 import { lstat as lstat19, readdir as readdir2, readFile as readFile6, realpath as realpath18 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute14, join as join28, resolve as resolve15 } from 'node:path';
 
-var digest3 = (bytes) => createHash28('sha256').update(bytes).digest('hex');
+var digest3 = (bytes) => createHash29('sha256').update(bytes).digest('hex');
 function lockEntries(raw) {
   if (Buffer.byteLength(raw) > 1024 * 1024) throw new Error('Bounded provider lock required');
   const tokens = [];
@@ -15877,7 +16048,7 @@ async function verifyProviderPackage(request) {
 `,
     )
     .join('');
-  const packageHash = `h1:${createHash28('sha256').update(summary).digest('base64')}`;
+  const packageHash = `h1:${createHash29('sha256').update(summary).digest('base64')}`;
   if (!entry.hashes.includes(packageHash)) throw new Error('Provider contents differ from locked package');
   const firstInventory = JSON.stringify(files);
   files.splice(0);
@@ -15887,7 +16058,7 @@ async function verifyProviderPackage(request) {
 }
 
 // plugins/terraform/src/installed-runtime.ts
-var hash23 = (raw) => createHash29('sha256').update(raw).digest('hex');
+var hash23 = (raw) => createHash30('sha256').update(raw).digest('hex');
 var installer = join29(import.meta.dir, '../scripts/install_runtime.py');
 var modeName = 'google-runtime-mode.json';
 var retainedInspectionMonitors = new Map();
@@ -16578,7 +16749,7 @@ async function readOriginalInstalledProviderWindowClock(window) {
   if (!read) throw new Error('An original reader-issued window clock is required');
   return read();
 }
-var hash24 = (raw) => createHash30('sha256').update(raw).digest('hex');
+var hash24 = (raw) => createHash31('sha256').update(raw).digest('hex');
 var equalIdentity = (value, original) => {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !original) return false;
   const row = value;
@@ -17242,7 +17413,7 @@ async function corroborateOriginalGoogleRpcProvider(input) {
   for (const window of windows) {
     const raw = await readOriginalInstalledProviderWindow(window);
     if (
-      createHash31('sha256').update(raw).digest('hex') !== window.evidenceSha256 ||
+      createHash32('sha256').update(raw).digest('hex') !== window.evidenceSha256 ||
       ['pid', 'group', 'start', 'boot'].some((key) => source.executor[key] !== window.executor[key]) ||
       ![3, 4].includes(window.schemaVersion) ||
       !window.samplingWindowComplete ||
@@ -17316,7 +17487,7 @@ async function corroborateOriginalGoogleRpcProvider(input) {
 }
 
 // plugins/terraform/src/terraform-apply-hooks.ts
-import { createHash as createHash32 } from 'node:crypto';
+import { createHash as createHash33 } from 'node:crypto';
 
 var hookOrigins = new WeakMap();
 async function readOriginalTerraformApplyHookSource(value) {
@@ -17348,7 +17519,7 @@ var text2 = (value) => {
 function reviewedProvisioners(plan, configuration) {
   if (
     Buffer.byteLength(configuration) > maxStreamBytes ||
-    createHash32('sha256').update(configuration).digest('hex') !== plan.configurationSha256
+    createHash33('sha256').update(configuration).digest('hex') !== plan.configurationSha256
   )
     throw new Error('Original reviewed Terraform configuration bytes required');
   const config = decodeEvidenceObject(Buffer.from(configuration));
@@ -17395,7 +17566,7 @@ class TerraformApplyHookParser {
   #originOutput;
   #originCompletion;
   #sourceEnd = 0;
-  #sourceHash = createHash32('sha256');
+  #sourceHash = createHash33('sha256');
   #eventTimes = new WeakMap();
   #eventEpochMs = 0;
   constructor(plan, binding, configuration) {
@@ -17630,7 +17801,7 @@ class TerraformApplyHookParser {
       elapsedSeconds: elapsed,
       idKey,
       idValue,
-      rawLineSha256: createHash32('sha256')
+      rawLineSha256: createHash33('sha256')
         .update(raw)
         .update(`
 `)
@@ -17668,7 +17839,7 @@ class TerraformApplyHookParser {
     if (phase === 'provision_progress') {
       if (typeof hook.output !== 'string' || Buffer.byteLength(hook.output) > maxLineBytes)
         throw new Error('Original provisioner output must be bounded text');
-      outputSha256 = createHash32('sha256').update(hook.output).digest('hex');
+      outputSha256 = createHash33('sha256').update(hook.output).digest('hex');
     }
     const candidate = Object.freeze({
       address: reviewed.address,
@@ -17682,7 +17853,7 @@ class TerraformApplyHookParser {
       provisioner,
       provisionerIndex: active.provisionerNext,
       outputSha256,
-      rawLineSha256: createHash32('sha256')
+      rawLineSha256: createHash33('sha256')
         .update(raw)
         .update(`
 `)
@@ -17753,7 +17924,7 @@ function readOriginalGcpInsertSourceBodies(source) {
   return bodies;
 }
 var insertOrigins = new WeakMap();
-var hash25 = (value) => createHash33('sha256').update(value).digest('hex');
+var hash25 = (value) => createHash34('sha256').update(value).digest('hex');
 var name4 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var uint643 = (value) =>
   typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value) && BigInt(value) <= 18446744073709551615n;
@@ -18340,7 +18511,7 @@ async function collectOriginalGcpInsertWitnesses(input) {
 }
 
 // plugins/terraform/src/gcp-insert-audit-evidence.ts
-var hash26 = (value) => createHash34('sha256').update(value).digest('hex');
+var hash26 = (value) => createHash35('sha256').update(value).digest('hex');
 function object14(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original insert audit object required');
@@ -18492,12 +18663,14 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
 }
 
 // plugins/terraform/src/gcp-bootstrap-vm-binding.ts
-var hash27 = (value) => createHash35('sha256').update(value).digest('hex');
+var hash27 = (value) => createHash36('sha256').update(value).digest('hex');
 var object15 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original bootstrap VM object required');
   return value;
 };
+var _finalBootstrapOrigins = new WeakMap();
+var _earlyBootstrapOrigins = new WeakMap();
 async function joinOriginalGcpBootstrapVm(input) {
   const { context, bootstrap, cloud } = input;
   await assertOriginalGcpPreapplyBootstrapContext(bootstrap, context);
@@ -18585,7 +18758,7 @@ async function joinOriginalGcpBootstrapVm(input) {
 }
 
 // plugins/terraform/src/installed-bootstrap-capture.ts
-import { createHash as createHash36, randomUUID as randomUUID17 } from 'node:crypto';
+import { createHash as createHash37, randomUUID as randomUUID17 } from 'node:crypto';
 
 var sameActor2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 var name5 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
@@ -18715,7 +18888,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
   await guard();
   observation = await openObservation(context.owner, platformContext, {
     origin: context.environment.XCSH_API_URL,
-    credentialSha256: createHash36('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
+    credentialSha256: createHash37('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
     targets: scope.resources,
     assertOriginal: inputs,
   });
@@ -18886,7 +19059,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         publishedCount: grants.size,
         expectedCount: nodes.length,
         creationComplete: result.status === 'fulfilled' && result.value.complete,
-        creationEvidenceSha256: raw ? createHash36('sha256').update(raw).digest('hex') : undefined,
+        creationEvidenceSha256: raw ? createHash37('sha256').update(raw).digest('hex') : undefined,
         originalGroupClosed,
         finalReserve: reserve,
         failures: outcomes.filter((value) => value.status === 'rejected').length,
@@ -19329,6 +19502,7 @@ async function openInstalledVmCapture(input) {
     busy = false;
   let activeFinish;
   let finalNames;
+  let packetReader = reader;
   const retain = async (event, value) => {
     await assertDirectory();
     const parent = await lstat22(directory, { bigint: true });
@@ -19441,14 +19615,14 @@ async function openInstalledVmCapture(input) {
     slot.anchor ??= anchor;
     slot.view = view;
   };
-  const serial = async (slot, final) => {
+  const serial = async (slot, final, start = '0') => {
     if (!slot.vm) throw new Error('Original observed VM required before serial capture');
     const evidence =
       slot.role === 'observer'
-        ? await collectOriginalGcpObserverSerialEvidence(slot.vm, '0')
+        ? await collectOriginalGcpObserverSerialEvidence(slot.vm, start)
         : final
-          ? await collectOriginalFinalGcpSerialEvidence(slot.vm, '0')
-          : await collectOriginalEarlyGcpSerialEvidence(slot.vm, '0');
+          ? await collectOriginalFinalGcpSerialEvidence(slot.vm, start)
+          : await collectOriginalEarlyGcpSerialEvidence(slot.vm, start);
     const source =
       slot.role === 'observer'
         ? await readOriginalGcpObserverSerialSource(slot.vm, evidence)
@@ -19456,7 +19630,9 @@ async function openInstalledVmCapture(input) {
           ? await readOriginalFinalGcpSerialSource(slot.vm, evidence)
           : await readOriginalEarlyGcpSerialSource(slot.vm, evidence);
     await retain('serial', { name: slot.name, role: slot.role, source });
-    return { evidence, source };
+    const packet = Object.freeze({ vm: slot.vm, evidence, source });
+    slot.serialPacket = packet;
+    return packet;
   };
   await retain('opened', { resources: inventory.resources, targets: [...slots.values()] });
   return Object.freeze({
@@ -19550,18 +19726,31 @@ async function openInstalledVmCapture(input) {
     captureSerial(name, start) {
       return perform(async () => {
         const slot = slotFor(name);
-        if (!slot.vm) throw new Error('Original observed VM required before serial capture');
-        const evidence =
-          slot.role === 'observer'
-            ? await collectOriginalGcpObserverSerialEvidence(slot.vm, start)
-            : await collectOriginalEarlyGcpSerialEvidence(slot.vm, start);
-        const source =
-          slot.role === 'observer'
-            ? await readOriginalGcpObserverSerialSource(slot.vm, evidence)
-            : await readOriginalEarlyGcpSerialSource(slot.vm, evidence);
-        await retain('serial', { name, role: slot.role, source });
-        return { vm: slot.vm, evidence, source };
+        return serial(slot, false, start);
       });
+    },
+    async readSerialPacket(name, callback) {
+      if (
+        busy ||
+        (phase === 'before'
+          ? refused || callback.phase !== 'before'
+          : phase !== 'closed' || callback.phase !== 'after' || !finalNames?.includes(name))
+      )
+        throw new Error('Original VM serial packet lifetime unavailable');
+      await guard(callback, packetReader);
+      const slot = slotFor(name);
+      const packet = slot.serialPacket;
+      if (!packet) throw new Error('Original VM serial packet unavailable');
+      const source =
+        slot.role === 'observer'
+          ? await readOriginalGcpObserverSerialSource(packet.vm, packet.evidence)
+          : callback.phase === 'after'
+            ? await readOriginalFinalGcpSerialSource(packet.vm, packet.evidence)
+            : await readOriginalEarlyGcpSerialSource(packet.vm, packet.evidence);
+      if (fingerprint(source) !== fingerprint(packet.source) || slot.serialPacket !== packet)
+        throw new Error('Original VM serial packet source changed');
+      await guard(callback, packetReader);
+      return packet;
     },
     async finalCapture(callback, selected) {
       if (phase !== 'before') throw new Error('Original VM final capture already started or operation unresolved');
@@ -19569,6 +19758,7 @@ async function openInstalledVmCapture(input) {
       await guard(callback, selected);
       const timing = inspectFinalReaderReserve(callback.reserve);
       phase = 'final';
+      packetReader = selected;
       const pending = activeFinish;
       if (pending) {
         let timer;

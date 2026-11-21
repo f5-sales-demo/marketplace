@@ -408,3 +408,13 @@ test('operation lifetime retires at final capture and cannot be obtained from an
   await run.control.closeAfterExecutorExit();
   await expect(assertOriginalApplyLifetime(before)).rejects.toThrow('retired');
 });
+
+test('concurrent original startup calls cannot issue two admitted callbacks', async () => {
+  const run = fixture();
+  await run.control.prepare?.(run.context);
+  const admission = run.admission();
+  const outcomes = await Promise.allSettled([run.control.start(admission), run.control.start(admission)]);
+  expect(outcomes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+  expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(1);
+  expect(run.counts().starts).toBe(1);
+});

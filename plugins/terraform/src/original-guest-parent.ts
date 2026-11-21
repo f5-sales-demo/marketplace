@@ -334,7 +334,7 @@ export class OriginalGuestControlParent {
     this.state = 'preparing';
     const began = this.clock();
     if (this.startup - began > 15000) throw new Error('Original guest parent startup exceeds fixed bound');
-    const readyDeadline = Math.min(this.operation, began + 60000);
+    const readyDeadline = Math.min(this.operation, this.startup);
     await this.run(async () => {
       const bound = await this.receive(this.startup);
       if (

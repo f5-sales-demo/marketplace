@@ -4,6 +4,7 @@ import { assertGcpTerraformRequestReason, createGcpTerraformRequestReason } from
 import {
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   GCP_XCSH15176_OBSERVER_ARTIFACTS,
+  GCP_XCSH15178_OBSERVER_ARTIFACTS,
 } from '../../src/ce/terraform-public-artifacts';
 import { intent } from './fixtures';
 
@@ -41,46 +42,44 @@ test('current Google provider retains the exact original request correlation map
   expect(() => assertGcpTerraformRequestReason(reason, value, '8.12.1')).toThrow();
 });
 
-test('current verified provider tuple renders the full nonexecutable original observer graph without changing public selection', () => {
-  const value = originalIntent();
-  const before = JSON.stringify(value);
-  const reason = createGcpTerraformRequestReason(value);
-  const plan = translateGcpTerraformObserverSiteCompute(
-    value,
-    GCP_XCSH15176_OBSERVER_ARTIFACTS.versions,
-    value.observer!,
-    reason,
-  );
-  expect(plan.schemaVersion).toBe(3);
-  expect(plan.executable).toBe(false);
-  expect(plan.inventory.ce).toHaveLength(18);
-  expect(plan.inventory.observer).toHaveLength(3);
-  expect(new Set(plan.inventory.all).size).toBe(21);
-  const google = plan.configuration.provider.google;
-  expect((Array.isArray(google) ? google[0] : google).request_reason).toBe(reason.reason);
-  expect(plan.configuration.terraform.required_providers.google.version).toBe('= 8.12.0');
-  expect(plan.configuration.terraform.required_providers.xcsh.version).toBe('= 15.17.6');
-  const vm = plan.configuration.resource.google_compute_instance.ce_test_observer;
-  expect(Object.hasOwn(vm, 'service_account')).toBe(false);
-  expect(vm.metadata).toEqual({
-    'ssh-keys': `ubuntu:${publicKey(2)}`,
-    'block-project-ssh-keys': 'TRUE',
-    'enable-oslogin': 'FALSE',
+for (const artifact of [GCP_XCSH15176_OBSERVER_ARTIFACTS, GCP_XCSH15178_OBSERVER_ARTIFACTS]) {
+  test(`current ${artifact.versions.xcsh} tuple renders the full nonexecutable observer graph without changing public selection`, () => {
+    const value = originalIntent();
+    const before = JSON.stringify(value);
+    const reason = createGcpTerraformRequestReason(value);
+    const observer = value.observer;
+    if (!observer) throw new Error('Original observer fixture required');
+    const plan = translateGcpTerraformObserverSiteCompute(value, artifact.versions, observer, reason);
+    expect(plan.schemaVersion).toBe(3);
+    expect(plan.executable).toBe(false);
+    expect(plan.inventory.ce).toHaveLength(18);
+    expect(plan.inventory.observer).toHaveLength(3);
+    expect(new Set(plan.inventory.all).size).toBe(21);
+    const google = plan.configuration.provider.google;
+    expect((Array.isArray(google) ? google[0] : google).request_reason).toBe(reason.reason);
+    expect(plan.configuration.terraform.required_providers.google.version).toBe('= 8.12.0');
+    expect(plan.configuration.terraform.required_providers.xcsh.version).toBe(`= ${artifact.versions.xcsh}`);
+    const vm = plan.configuration.resource.google_compute_instance.ce_test_observer;
+    expect(Object.hasOwn(vm, 'service_account')).toBe(false);
+    expect(vm.metadata).toEqual({
+      'ssh-keys': `ubuntu:${publicKey(2)}`,
+      'block-project-ssh-keys': 'TRUE',
+      'enable-oslogin': 'FALSE',
+    });
+    expect(plan.configuration.resource.google_compute_disk.ce_test_observer.lifecycle).toEqual({
+      precondition: [
+        {
+          condition: `\${data.google_compute_image.ce_test_observer.image_id == "4996011480491275419" && data.google_compute_image.ce_test_observer.status == "READY"}`,
+          error_message: 'Original pinned Ubuntu observer image identity required',
+        },
+      ],
+    });
+    expect(JSON.stringify(value)).toBe(before);
+    expect(GCP_PUBLIC_TERRAFORM_ARTIFACTS?.versions).not.toEqual(artifact.versions);
+    for (const changed of [
+      { ...artifact.versions, xcsh: '15.17.3' },
+      { ...artifact.versions, google: '8.12.1' },
+    ])
+      expect(() => translateGcpTerraformObserverSiteCompute(value, changed, observer, reason)).toThrow();
   });
-  expect(plan.configuration.resource.google_compute_disk.ce_test_observer.lifecycle).toEqual({
-    precondition: [
-      {
-        condition:
-          '${data.google_compute_image.ce_test_observer.image_id == "4996011480491275419" && data.google_compute_image.ce_test_observer.status == "READY"}',
-        error_message: 'Original pinned Ubuntu observer image identity required',
-      },
-    ],
-  });
-  expect(JSON.stringify(value)).toBe(before);
-  expect(GCP_PUBLIC_TERRAFORM_ARTIFACTS?.versions).not.toEqual(GCP_XCSH15176_OBSERVER_ARTIFACTS.versions);
-  for (const changed of [
-    { ...GCP_XCSH15176_OBSERVER_ARTIFACTS.versions, xcsh: '15.17.3' },
-    { ...GCP_XCSH15176_OBSERVER_ARTIFACTS.versions, google: '8.12.1' },
-  ])
-    expect(() => translateGcpTerraformObserverSiteCompute(value, changed, value.observer!, reason)).toThrow();
-});
+}
