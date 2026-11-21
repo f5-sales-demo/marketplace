@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-22T19:07:10.885592+00:00",
+  "candidateRevision": 107,
+  "sourceCommit": "4b14d6e6d9e7127a1fd30f00f33850cf8cd65a14",
+  "evidenceKind": "qualification harness validation; no new plugin content or live acceptance",
+  "producer": {
+    "implementationPr": 1976,
+    "implementationMerge": "e4e679a4d541469ed8afc10f475c584c32400a92",
+    "exactHeadChecksSuccessOrSkipped": 24,
+    "combinedFullTestsPassed": 2985,
+    "combinedFullTestsSkipped": 4,
+    "combinedFullTestsExpectedFailure": 1,
+    "releasePr": 1978,
+    "releaseMerge": "293f23e33d6934bef574ba0c630a58ddfd9ef019",
+    "owningPublicationRun": 39832378770,
+    "owningAttempt": 2,
+    "immutablePublishedAssetQualification": "pending",
+    "consumerRepinned": false
+  },
+  "prelaunchGuard": {
+    "observedAt": "2026-10-22T19:02:09.700072+00:00",
+    "harnessSha256": "b4831ab5b7f775537bd6035f28f34eb1a8989a732895d9a9d0c7727d854a01ce",
+    "controlledCases": [
+      {
+        "case": "complete",
+        "expectedRejection": false,
+        "passed": true
+      },
+      {
+        "case": "child-failure",
+        "expectedRejection": true,
+        "passed": true
+      },
+      {
+        "case": "zero-exit-partial",
+        "expectedRejection": true,
+        "passed": true
+      },
+      {
+        "case": "wrong-plan-identity",
+        "expectedRejection": true,
+        "passed": true
+      }
+    ],
+    "allPassed": true,
+    "cloudMutationPerformed": false,
+    "liveQualification": false,
+    "fullCeAcceptance": false
+  },
+  "provisioningGuard": {
+    "observedAt": "2026-10-22T19:04:24.051912+00:00",
+    "harnessSha256": "d3d54950400f86c6f559276d403106677fc24463b464cfbc8cab2e5ab855d1a1",
+    "controlledCases": [
+      {
+        "case": "provisioning-to-provisioned",
+        "passed": true,
+        "liveApiCalled": false
+      },
+      {
+        "case": "explicit-failed",
+        "passed": true,
+        "liveApiCalled": false
+      },
+      {
+        "case": "foreign-node",
+        "passed": true,
+        "liveApiCalled": false
+      },
+      {
+        "case": "malformed-state",
+        "passed": true,
+        "liveApiCalled": false
+      },
+      {
+        "case": "deadline-expired",
+        "passed": true,
+        "liveApiCalled": false
+      }
+    ],
+    "realOpenApiValidatorUsed": true,
+    "allPassed": true,
+    "cloudMutationPerformed": false,
+    "freshLiveQualification": false,
+    "fullCeAcceptance": false
+  },
+  "deadlinePolicy": {
+    "installationSeconds": 2400,
+    "qualificationSeconds": 3000,
+    "cleanupSeconds": 4800,
+    "pendingRegistrationIsProvisioned": false,
+    "independentCleanupAndSensitiveRetirementRequired": true
+  },
+  "remainingAcceptance": {
+    "supportedPrimaryOwnerSliControl": false,
+    "originalCeSampleFreshness": false,
+    "sixInterfaceUpDownUp": false,
+    "awsRecoveryRestorationMs": 212977,
+    "awsRecoveryThresholdMs": 45000,
+    "awsRecoveryAcceptance": "failed",
+    "freshPublishedAssetQualification": false,
+    "installedNewProducerConsumption": false,
+    "fullMatrix": false
+  },
+  "cloudMutationPerformed": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
