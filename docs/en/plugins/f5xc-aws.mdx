@@ -67,6 +67,22 @@ reference and a temporary restricted file; tokens never enter plans or reports.
 See the [shared CE contract validation](https://github.com/f5-sales-demo/marketplace/blob/main/plugins/platform/src/ce/release-contract.ts)
 for the current contract and lifecycle gates.
 
+## Configure administrator access before bootstrap
+
+Set the optional `adminSshPublicKey` in an AWS CE intent to install one OpenSSH
+public key during initial site creation. Native and Terraform execution bind the
+normalized public key to the approved plan and pass it to the F5 administrator
+configuration before bootstrap. Private keys and multiline key input are rejected.
+
+Provide complete, distinct `guestDevice` identities for the planned interfaces
+before execution. Keep the corresponding private key in restricted files on the test workstation;
+never include it in an intent, plan, receipt, or plugin archive. Retire the owned
+key and verify resource and token cleanup after a diagnostic.
+
+Preboot SSH access supports the documented
+[F5 node troubleshooting workflow](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/troubleshooting/troubleshoot-site-smsv2).
+It does not establish CE readiness or qualify interface down/up control.
+
 ## Check the result
 
 Use `aws_ce_status`, `f5xc_ce_v2_status`, and passive `aws_ce_diagnose`.
