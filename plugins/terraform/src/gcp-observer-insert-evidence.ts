@@ -14,10 +14,15 @@ import {
 } from './gcp-cloud-serial-reader';
 import { type OriginalGoogleHttpResponseObservation, readOriginalGoogleHttpResponseSource } from './gcp-http-rpc-trace';
 import type { OriginalGcpObserverImageEvidence, openGcpObserverImageReader } from './gcp-observer-image';
-import { captureOriginalGcpObserverImage, readOriginalGcpObserverImageEvidence } from './gcp-observer-image';
+import {
+  assertOriginalInstalledGcpFinalImageReader,
+  captureOriginalGcpObserverImage,
+  readOriginalGcpObserverImageEvidence,
+} from './gcp-observer-image';
 import { GCP_OBSERVER_IMAGE_PIN } from './gcp-observer-image-pin';
 import type { OriginalGcpSerialSource } from './gcp-vm-evidence';
 import type { OriginalApplyCallbackContext } from './installed-apply-controller';
+import { isOriginalApplyLifetimeExpiry } from './installed-apply-controller';
 import {
   assertOriginalApplyGcpInventoryCallback,
   type OriginalApplyGcpInventory,
@@ -84,7 +89,9 @@ export interface OriginalGcpObserverInsertInput {
   readonly image: OriginalGcpObserverImageEvidence;
 }
 interface ObserverView {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 1 | 2;
+  readonly priorBeforeExpiryRetained?: true;
+  readonly finalImageSourceBound?: true;
   readonly kind: 'original-gcp-observer-insert-identity';
   readonly role: 'observer';
   readonly project: string;
@@ -111,6 +118,7 @@ const origins = new WeakMap<
   OriginalGcpObserverInsertIdentity,
   {
     read(final?: OriginalApplyCallbackContext): Promise<Readonly<ObserverView>>;
+    bindFinalImage(callback: OriginalApplyCallbackContext, reader: unknown): Promise<void>;
     context: OriginalApplyCallbackContext['original'];
     baseline: OriginalApplyGcpInventory;
     requestBody: string;
@@ -134,6 +142,17 @@ export async function assertOriginalGcpObserverInsertContext(
     throw new Error('Original observer insertion context and baseline required');
   await assertOriginalApplyGcpInventoryCallback(baseline, callback);
   return source.read(callback.phase === 'after' ? callback : undefined);
+}
+
+export async function bindOriginalGcpObserverFinalImage(
+  value: unknown,
+  callback: OriginalApplyCallbackContext,
+  reader: unknown,
+) {
+  const source =
+    value && typeof value === 'object' ? origins.get(value as OriginalGcpObserverInsertIdentity) : undefined;
+  if (!source) throw new Error('Original observer insertion reference required for final image binding');
+  await source.bindFinalImage(callback, reader);
 }
 
 /** Original source correspondence only; actual VM/disk/NIC/SSH and authorization remain separate gates. */
@@ -240,9 +259,22 @@ export async function collectOriginalGcpObserverInsertIdentity(input: OriginalGc
     diskAddress = `google_compute_disk.${key}`,
     firewallAddress = `google_compute_firewall.${firewallKey}`;
   const originalImageTimestamp = image.creationTimestamp;
-  let refused = false;
+  let refused = false,
+    beforeExpired = false;
+  let finalImage: { callback: OriginalApplyCallbackContext; reader: ImageReader } | undefined;
+  const expiry = (error: unknown) => {
+    const seen = new Set<object>();
+    let current = error;
+    for (let depth = 0; depth < 8 && current && typeof current === 'object' && !seen.has(current); depth++) {
+      if (isOriginalApplyLifetimeExpiry(current, callback)) return true;
+      seen.add(current);
+      current = current instanceof Error ? current.cause : undefined;
+    }
+    return false;
+  };
   const verify = async (final?: OriginalApplyCallbackContext): Promise<Readonly<ObserverView>> => {
     if (refused) throw new Error('Original observer insertion reference retired');
+    if (!final && beforeExpired) throw new Error('Original before observer insertion reference expired');
     try {
       const current = final ?? callback;
       if (final && (final.phase !== 'after' || final.original !== context || final.nonce !== callback.nonce))
@@ -337,8 +369,12 @@ export async function collectOriginalGcpObserverInsertIdentity(input: OriginalGc
         (op.targetId !== undefined && !uint64(op.targetId))
       )
         throw new Error('Original exact observer insertion operation required');
-      const currentImage = await captureOriginalGcpObserverImage(imageReader);
-      await readOriginalGcpObserverImageEvidence(imageReader, currentImage);
+      const selectedImageReader = final && finalImage ? finalImage.reader : imageReader;
+      if (finalImage && final && finalImage.callback !== final)
+        throw new Error('Original final image callback changed');
+      if (final && finalImage) await assertOriginalInstalledGcpFinalImageReader(selectedImageReader, context, final);
+      const currentImage = await captureOriginalGcpObserverImage(selectedImageReader);
+      await readOriginalGcpObserverImageEvidence(selectedImageReader, currentImage);
       if (
         currentImage.creationTimestamp !== originalImageTimestamp ||
         currentImage.owningProject !== intent.project ||
@@ -356,7 +392,13 @@ export async function collectOriginalGcpObserverInsertIdentity(input: OriginalGc
       for (const binding of [intentBinding, configBinding, imageBinding])
         assertSameOriginalInput(binding, (await readOwnedInstalledInput(binding.path, 64 * 1024 * 1024)).binding);
       return Object.freeze({
-        schemaVersion: 1,
+        ...(final && finalImage
+          ? {
+              schemaVersion: 2 as const,
+              finalImageSourceBound: true as const,
+              ...(beforeExpired ? { priorBeforeExpiryRetained: true as const } : {}),
+            }
+          : { schemaVersion: 1 as const }),
         kind: 'original-gcp-observer-insert-identity',
         role: 'observer',
         project: intent.project,
@@ -380,16 +422,28 @@ export async function collectOriginalGcpObserverInsertIdentity(input: OriginalGc
         originalInsertQualified: false,
       });
     } catch (error) {
-      refused = true;
+      if (!final && expiry(error)) beforeExpired = true;
+      else refused = true;
       throw error;
     }
+  };
+  const bindFinalImage = async (final: OriginalApplyCallbackContext, reader: unknown) => {
+    await assertOriginalApplyGcpInventoryCallback(baseline, final);
+    await assertOriginalInstalledGcpFinalImageReader(reader, context, final);
+    if (refused) throw new Error('Original observer insertion reference retired');
+    if (final.phase !== 'after' || final.original !== context || final.nonce !== callback.nonce)
+      throw new Error('Original observer final image callback differs');
+    if (finalImage && (finalImage.callback !== final || finalImage.reader !== reader))
+      throw new Error('Original observer final image already bound');
+    finalImage ??= { callback: final, reader: reader as ImageReader };
+    await verify(final);
   };
   await verify();
   const result: OriginalGcpObserverInsertIdentity = Object.freeze({
     schemaVersion: 1,
     kind: 'original-gcp-observer-insert-reference',
   });
-  origins.set(result, { read: verify, context, baseline, requestBody: response.requestBody });
+  origins.set(result, { read: verify, bindFinalImage, context, baseline, requestBody: response.requestBody });
   return result;
 }
 

@@ -4617,6 +4617,16 @@ async function assertFinalReaderReserve(reserve) {
 var callbacks = new WeakMap();
 var lifetimes = new WeakMap();
 var operationExpiries = new WeakMap();
+function isOriginalApplyLifetimeExpiry(error, callback) {
+  const source = error && typeof error === 'object' ? operationExpiries.get(error) : undefined;
+  return (
+    !!source &&
+    lifetimes.has(callback) &&
+    callback.phase === 'before' &&
+    source.original === callback.original &&
+    source.nonce === callback.nonce
+  );
+}
 var groupClosures = new WeakMap();
 var groupClosureChecks = new WeakMap();
 async function assertOriginalApplyGroupClosed(value) {
@@ -7228,6 +7238,62 @@ async function openGcpObserverImageReader(input, signal, fetcher = fetch) {
   originalReaders.set(reader, reader);
   return reader;
 }
+var installedImageScopes = new WeakMap();
+async function openInstalledGcpObserverImageReader(context, callback, fetcher = fetch) {
+  if (
+    context?.kind !== 'original-installed-gcp-capture-context' ||
+    context.schemaVersion !== 2 ||
+    context.owner.provider !== 'gcp' ||
+    context.owner.engine !== 'terraform' ||
+    (callback && callback.original !== context)
+  )
+    throw new Error('Original installed observer image context required');
+  const assertOriginal = async () => {
+    await context.assertInputs();
+    if (callback) {
+      if (callback.phase === 'after') await assertOriginalApplyCallback(callback);
+      else await assertOriginalApplyLifetime(callback);
+    } else await context.assertWithinDeadline();
+    await context.assertInputs();
+  };
+  await assertOriginal();
+  const admitted = context.inputs.adc;
+  if (!admitted) throw new Error('Original installed image ADC required');
+  const adc = await owned(admitted.path);
+  assertSameOriginalInput(admitted, adc.binding);
+  if (admitted.sha256 !== context.authentication.snapshotSha256)
+    throw new Error('Original installed image authentication snapshot differs');
+  const reader = await openGcpObserverImageReader(
+    {
+      root: join6(context.executionDirectory, `gcp-installed-image-${randomUUID5()}`),
+      authentication: {
+        credentialBytes: adc.bytes,
+        project: context.owner.account,
+        accountSha256: context.authentication.accountSha256,
+        audienceSha256: context.authentication.audienceSha256,
+        assertOriginal,
+      },
+    },
+    undefined,
+    fetcher,
+  );
+  installedImageScopes.set(reader, { context, callback, assertOriginal });
+  await assertOriginal();
+  return reader;
+}
+async function assertOriginalInstalledGcpFinalImageReader(reader, context, callback) {
+  const source = reader && typeof reader === 'object' ? installedImageScopes.get(reader) : undefined;
+  if (
+    !source ||
+    source.context !== context ||
+    source.callback !== callback ||
+    callback.phase !== 'after' ||
+    callback.original !== context
+  )
+    throw new Error('Original installed final image reader and callback required');
+  await assertOriginalApplyCallback(callback);
+  await source.assertOriginal();
+}
 
 // plugins/terraform/src/installed-initial-inventory.ts
 import { createHash as createHash12, randomUUID as randomUUID6 } from 'node:crypto';
@@ -8034,6 +8100,11 @@ async function assertOriginalGcpObserverInsertContext(value, callback, baseline)
   await assertOriginalApplyGcpInventoryCallback(baseline, callback);
   return source.read(callback.phase === 'after' ? callback : undefined);
 }
+async function bindOriginalGcpObserverFinalImage(value, callback, reader) {
+  const source = value && typeof value === 'object' ? origins.get(value) : undefined;
+  if (!source) throw new Error('Original observer insertion reference required for final image binding');
+  await source.bindFinalImage(callback, reader);
+}
 async function collectOriginalGcpObserverInsertIdentity(input) {
   const { callback, baseline, response, imageReader, image } = input;
   if (callback.phase !== 'before') throw new Error('Original observer before callback required');
@@ -8133,9 +8204,22 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
     diskAddress = `google_compute_disk.${key}`,
     firewallAddress = `google_compute_firewall.${firewallKey}`;
   const originalImageTimestamp = image.creationTimestamp;
-  let refused = false;
+  let refused = false,
+    beforeExpired = false;
+  let finalImage;
+  const expiry = (error) => {
+    const seen = new Set();
+    let current = error;
+    for (let depth = 0; depth < 8 && current && typeof current === 'object' && !seen.has(current); depth++) {
+      if (isOriginalApplyLifetimeExpiry(current, callback)) return true;
+      seen.add(current);
+      current = current instanceof Error ? current.cause : undefined;
+    }
+    return false;
+  };
   const verify = async (final) => {
     if (refused) throw new Error('Original observer insertion reference retired');
+    if (!final && beforeExpired) throw new Error('Original before observer insertion reference expired');
     try {
       const current = final ?? callback;
       if (final && (final.phase !== 'after' || final.original !== context || final.nonce !== callback.nonce))
@@ -8227,8 +8311,12 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
         (op.targetId !== undefined && !uint642(op.targetId))
       )
         throw new Error('Original exact observer insertion operation required');
-      const currentImage = await captureOriginalGcpObserverImage(imageReader);
-      await readOriginalGcpObserverImageEvidence(imageReader, currentImage);
+      const selectedImageReader = final && finalImage ? finalImage.reader : imageReader;
+      if (finalImage && final && finalImage.callback !== final)
+        throw new Error('Original final image callback changed');
+      if (final && finalImage) await assertOriginalInstalledGcpFinalImageReader(selectedImageReader, context, final);
+      const currentImage = await captureOriginalGcpObserverImage(selectedImageReader);
+      await readOriginalGcpObserverImageEvidence(selectedImageReader, currentImage);
       if (
         currentImage.creationTimestamp !== originalImageTimestamp ||
         currentImage.owningProject !== intent.project ||
@@ -8246,7 +8334,13 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
       for (const binding of [intentBinding, configBinding, imageBinding])
         assertSameOriginalInput(binding, (await owned(binding.path, 64 * 1024 * 1024)).binding);
       return Object.freeze({
-        schemaVersion: 1,
+        ...(final && finalImage
+          ? {
+              schemaVersion: 2,
+              finalImageSourceBound: true,
+              ...(beforeExpired ? { priorBeforeExpiryRetained: true } : {}),
+            }
+          : { schemaVersion: 1 }),
         kind: 'original-gcp-observer-insert-identity',
         role: 'observer',
         project: intent.project,
@@ -8270,16 +8364,28 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
         originalInsertQualified: false,
       });
     } catch (error) {
-      refused = true;
+      if (!final && expiry(error)) beforeExpired = true;
+      else refused = true;
       throw error;
     }
+  };
+  const bindFinalImage = async (final, reader) => {
+    await assertOriginalApplyGcpInventoryCallback(baseline, final);
+    await assertOriginalInstalledGcpFinalImageReader(reader, context, final);
+    if (refused) throw new Error('Original observer insertion reference retired');
+    if (final.phase !== 'after' || final.original !== context || final.nonce !== callback.nonce)
+      throw new Error('Original observer final image callback differs');
+    if (finalImage && (finalImage.callback !== final || finalImage.reader !== reader))
+      throw new Error('Original observer final image already bound');
+    finalImage ??= { callback: final, reader };
+    await verify(final);
   };
   await verify();
   const result = Object.freeze({
     schemaVersion: 1,
     kind: 'original-gcp-observer-insert-reference',
   });
-  origins.set(result, { read: verify, context, baseline, requestBody: response.requestBody });
+  origins.set(result, { read: verify, bindFinalImage, context, baseline, requestBody: response.requestBody });
   return result;
 }
 var vmOrigins = new WeakMap();
@@ -22066,7 +22172,9 @@ export {
   assertOriginalGcpObserverInsertContext,
   assertOriginalGcpPreapplyBootstrapContext,
   assertOriginalInstalledGcpCloudReader,
+  assertOriginalInstalledGcpFinalImageReader,
   assertOriginalQualifiedGcpObserverClientsContext,
+  bindOriginalGcpObserverFinalImage,
   bindOriginalQualifiedGcpCeObserverScanContext,
   captureOriginalGcpObserverImage,
   checkoutOriginalGcpPreapplyBootstrap,
@@ -22111,6 +22219,7 @@ export {
   openInstalledBootstrapCapture,
   openInstalledFinalGuestWorker,
   openInstalledGcpGuestBinding,
+  openInstalledGcpObserverImageReader,
   openInstalledGuestWorker,
   openInstalledInitialInventory,
   openInstalledProviderReader,

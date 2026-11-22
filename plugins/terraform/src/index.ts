@@ -143,12 +143,15 @@ export {
   readOriginalGcpObserverHostTrust,
 } from './gcp-observer-host-trust-reader';
 export {
+  assertOriginalInstalledGcpFinalImageReader,
   captureOriginalGcpObserverImage,
   openGcpObserverImageReader,
+  openInstalledGcpObserverImageReader,
   readOriginalGcpObserverImageEvidence,
 } from './gcp-observer-image';
 export {
   assertOriginalGcpObserverInsertContext,
+  bindOriginalGcpObserverFinalImage,
   collectOriginalGcpObserverInsertIdentity,
   collectOriginalGcpObserverSerialEvidence,
   collectOriginalGcpObserverVmEvidence,

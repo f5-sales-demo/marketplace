@@ -10,6 +10,12 @@ import {
   GoogleComputeReadError,
   openGoogleAdcComputeReader,
 } from './google-adc-authentication';
+import {
+  assertOriginalApplyCallback,
+  assertOriginalApplyLifetime,
+  type OriginalApplyCallbackContext,
+} from './installed-apply-controller';
+import type { InstalledCaptureContext } from './installed-capture-context';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
 
@@ -272,4 +278,80 @@ export async function openGcpObserverImageReader(
   });
   originalReaders.set(reader, reader);
   return reader;
+}
+
+const installedImageScopes = new WeakMap<
+  object,
+  {
+    context: InstalledCaptureContext;
+    callback?: OriginalApplyCallbackContext;
+    assertOriginal(): Promise<void>;
+  }
+>();
+
+/** Server-owned image producer for the actual original context and callback.
+ * The optional HTTP seam is for explicit source fixtures only. */
+export async function openInstalledGcpObserverImageReader(
+  context: InstalledCaptureContext,
+  callback?: OriginalApplyCallbackContext,
+  fetcher: typeof fetch = fetch,
+) {
+  if (
+    context?.kind !== 'original-installed-gcp-capture-context' ||
+    context.schemaVersion !== 2 ||
+    context.owner.provider !== 'gcp' ||
+    context.owner.engine !== 'terraform' ||
+    (callback && callback.original !== context)
+  )
+    throw new Error('Original installed observer image context required');
+  const assertOriginal = async () => {
+    await context.assertInputs();
+    if (callback) {
+      if (callback.phase === 'after') await assertOriginalApplyCallback(callback);
+      else await assertOriginalApplyLifetime(callback);
+    } else await context.assertWithinDeadline();
+    await context.assertInputs();
+  };
+  await assertOriginal();
+  const admitted = context.inputs.adc;
+  if (!admitted) throw new Error('Original installed image ADC required');
+  const adc = await readOwnedInstalledInput(admitted.path);
+  assertSameOriginalInput(admitted, adc.binding);
+  if (admitted.sha256 !== context.authentication.snapshotSha256)
+    throw new Error('Original installed image authentication snapshot differs');
+  const reader = await openGcpObserverImageReader(
+    {
+      root: join(context.executionDirectory, `gcp-installed-image-${randomUUID()}`),
+      authentication: {
+        credentialBytes: adc.bytes,
+        project: context.owner.account,
+        accountSha256: context.authentication.accountSha256,
+        audienceSha256: context.authentication.audienceSha256,
+        assertOriginal,
+      },
+    },
+    undefined,
+    fetcher,
+  );
+  installedImageScopes.set(reader, { context, callback, assertOriginal });
+  await assertOriginal();
+  return reader;
+}
+
+export async function assertOriginalInstalledGcpFinalImageReader(
+  reader: unknown,
+  context: InstalledCaptureContext,
+  callback: OriginalApplyCallbackContext,
+) {
+  const source = reader && typeof reader === 'object' ? installedImageScopes.get(reader) : undefined;
+  if (
+    !source ||
+    source.context !== context ||
+    source.callback !== callback ||
+    callback.phase !== 'after' ||
+    callback.original !== context
+  )
+    throw new Error('Original installed final image reader and callback required');
+  await assertOriginalApplyCallback(callback);
+  await source.assertOriginal();
 }

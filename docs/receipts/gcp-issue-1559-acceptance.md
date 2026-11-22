@@ -2160,3 +2160,13 @@ cases, current types and private archive review pass. The complete factory
 remains inactive. Final observer image mapping, observer/audit joins, complete
 factory execution and full inventory throughput remain open alongside every
 original installed/live/cleanup/CI/review/delivery gate.
+
+## Final observer image source mapping
+
+The [final observer image receipt](gcp-final-observer-image-source-20261121.md)
+records actual callback-bound image readers and original VM/disk recapture after
+operation expiry. Before expiry remains refused and integrity restoration cannot
+clear failure. All 52 affected source cases and current types pass; private
+archives are independently hash reviewed. Complete factory execution, observer/
+audit joins, shared-source concurrency, full inventory throughput and every
+original installed/live/cleanup/CI/review/delivery gate remain open.

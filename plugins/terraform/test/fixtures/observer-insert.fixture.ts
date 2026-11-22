@@ -3,12 +3,19 @@ import { join } from 'node:path';
 import { translateGcpTerraformObserverSiteCompute } from '../../../gcloud/src/ce/observer-plan';
 import { gcpTerraformObserverIdentity } from '../../../gcloud/src/ce/observer-scope';
 import { createGcpTerraformRequestReason } from '../../../gcloud/src/ce/request-reason';
-import { GCP_XCSH15176_OBSERVER_ARTIFACTS } from '../../../gcloud/src/ce/terraform-public-artifacts';
+import {
+  GCP_XCSH15176_OBSERVER_ARTIFACTS,
+  GCP_XCSH15178_OBSERVER_ARTIFACTS,
+} from '../../../gcloud/src/ce/terraform-public-artifacts';
 import type { GcpCeIntent } from '../../../gcloud/src/ce/types';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { openInstalledGcpCloudSerialReader } from '../../src/gcp-cloud-serial-reader';
 import { GoogleHttpRpcTraceParser, type OriginalGoogleHttpResponseObservation } from '../../src/gcp-http-rpc-trace';
-import { type OriginalGcpObserverImageEvidence, openGcpObserverImageReader } from '../../src/gcp-observer-image';
+import {
+  type OriginalGcpObserverImageEvidence,
+  openGcpObserverImageReader,
+  openInstalledGcpObserverImageReader,
+} from '../../src/gcp-observer-image';
 import { GCP_OBSERVER_IMAGE_PIN } from '../../src/gcp-observer-image-pin';
 import {
   acknowledgeOriginalApplyGroupClosure,
@@ -29,6 +36,8 @@ export interface ObserverInsertFixtureInput {
   binding: { terraformVersion: string; providerLockSha256: string };
   imageReader: Awaited<ReturnType<typeof openGcpObserverImageReader>>;
   image: OriginalGcpObserverImageEvidence;
+  imageFetcher: typeof fetch;
+  cloudFetcher: typeof fetch;
   request: Json;
   operation: Json;
   cloudReader: Awaited<ReturnType<typeof openInstalledGcpCloudSerialReader>>;
@@ -43,8 +52,18 @@ export async function withObserverInsert(
   finalRun?: (callback: OriginalApplyCallbackContext) => Promise<void>,
   prepareIntent?: (intent: GcpCeIntent, store: CeDeploymentStore) => Promise<void>,
   latest = false,
+  options: {
+    current?: boolean;
+    factoryImageGuard?: boolean;
+    operationRemainingMs?: number;
+    completeTraceBeforeExit?: boolean;
+  } = {},
 ) {
-  const versions = latest ? { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.6' } : legacyVersions;
+  const versions = options.current
+    ? { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.8' }
+    : latest
+      ? { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.6' }
+      : legacyVersions;
   let intent: GcpCeIntent | undefined;
   let reason = '',
     request: Json | undefined,
@@ -52,9 +71,11 @@ export async function withObserverInsert(
   let parser: GoogleHttpRpcTraceParser | undefined;
   const binding = {
     terraformVersion: '1.17.2',
-    providerLockSha256: latest
-      ? 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5'
-      : 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+    providerLockSha256: options.current
+      ? '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b'
+      : latest
+        ? 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5'
+        : 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
   };
   await withApplyInventory(
     async ({ packet, before }) => {
@@ -80,32 +101,38 @@ export async function withObserverInsert(
         response = parser.takeOriginalResponses()[0];
       }
       const adc = await readOwnedInstalledInput(before.original.inputs.adc.path);
-      const imageReader = await openGcpObserverImageReader(
-        {
-          root: join(before.original.executionDirectory, 'observer-image-fixture'),
-          authentication: {
-            credentialBytes: adc.bytes,
-            project: intent.project,
-            accountSha256: before.original.authentication.accountSha256,
-            audienceSha256: before.original.authentication.audienceSha256,
-            assertOriginal: before.original.assertInputs,
-          },
-        },
-        undefined,
-        (async (url: string | URL | Request) => {
-          const path = new URL(String(url)).pathname;
-          if (path === '/token')
-            return Response.json({ access_token: 'synthetic', token_type: 'Bearer', expires_in: 3599 });
-          if (path === '/oauth2/v2/tokeninfo') return Response.json(authInfo);
-          if (path === `/v1/projects/${intent?.project}`)
-            return Response.json({ projectId: intent?.project, lifecycleState: 'ACTIVE' });
-          return Response.json({
-            ...GCP_OBSERVER_IMAGE_PIN,
-            kind: 'compute#image',
-            creationTimestamp: '2026-10-21T00:00:00Z',
-          });
-        }) as typeof fetch,
-      );
+      const imageFetcher = (async (url: string | URL | Request) => {
+        const path = new URL(String(url)).pathname;
+        if (path === '/token')
+          return Response.json({ access_token: 'synthetic', token_type: 'Bearer', expires_in: 3599 });
+        if (path === '/oauth2/v2/tokeninfo') return Response.json(authInfo);
+        if (path === `/v1/projects/${intent?.project}`)
+          return Response.json({ projectId: intent?.project, lifecycleState: 'ACTIVE' });
+        return Response.json({
+          ...GCP_OBSERVER_IMAGE_PIN,
+          kind: 'compute#image',
+          creationTimestamp: '2026-10-21T00:00:00Z',
+        });
+      }) as typeof fetch;
+      const imageReader = options.factoryImageGuard
+        ? await openInstalledGcpObserverImageReader(before.original, before, imageFetcher)
+        : await openGcpObserverImageReader(
+            {
+              root: join(before.original.executionDirectory, 'observer-image-fixture'),
+              authentication: {
+                credentialBytes: adc.bytes,
+                project: intent.project,
+                accountSha256: before.original.authentication.accountSha256,
+                audienceSha256: before.original.authentication.audienceSha256,
+                assertOriginal: async () => {
+                  await before.original.assertInputs();
+                  if (options.factoryImageGuard) await before.original.assertWithinDeadline();
+                },
+              },
+            },
+            undefined,
+            imageFetcher,
+          );
       const image = await imageReader.read();
       const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
       const vm: Json = {
@@ -148,9 +175,7 @@ export async function withObserverInsert(
       };
       const serialHook: { run?: () => void; contents?: string } = {};
       const cloudHook: { run?: (path: string) => void | Promise<void> } = {};
-      const cloudReader = await openInstalledGcpCloudSerialReader(before.original, undefined, (async (
-        url: string | URL | Request,
-      ) => {
+      const cloudFetcher = (async (url: string | URL | Request) => {
         const parsed = new URL(String(url)),
           path = parsed.pathname;
         await cloudHook.run?.(path);
@@ -173,7 +198,8 @@ export async function withObserverInsert(
         }
         if (path.endsWith(`/instances/${observer.name}`)) return Response.json(vm);
         throw new Error('Unexpected original observer cloud fixture request');
-      }) as typeof fetch);
+      }) as typeof fetch;
+      const cloudReader = await openInstalledGcpCloudSerialReader(before.original, undefined, cloudFetcher);
       try {
         await run({
           callback: before,
@@ -182,6 +208,8 @@ export async function withObserverInsert(
           binding,
           imageReader,
           image,
+          imageFetcher,
+          cloudFetcher,
           request,
           operation,
           cloudReader,
@@ -260,9 +288,11 @@ export async function withObserverInsert(
         });
       const tail = lines.pop();
       if (!tail) throw new Error('Original observer trace tail required');
-      return { prefix: `${lines.join('\n')}\n`, tail: `${tail}\n` };
+      return options.completeTraceBeforeExit
+        ? { prefix: `${[...lines, tail].join('\n')}\n`, tail: '' }
+        : { prefix: `${lines.join('\n')}\n`, tail: `${tail}\n` };
     },
-    undefined,
+    options.operationRemainingMs ? 'deadline' : undefined,
     (value) => {
       intent = value;
       if (!value.observer) throw new Error('Original observer scope required');
@@ -273,6 +303,14 @@ export async function withObserverInsert(
       );
     },
     prepareIntent,
-    latest ? GCP_XCSH15176_OBSERVER_ARTIFACTS.providerLock : undefined,
+    options.current
+      ? GCP_XCSH15178_OBSERVER_ARTIFACTS.providerLock
+      : latest
+        ? GCP_XCSH15176_OBSERVER_ARTIFACTS.providerLock
+        : undefined,
+    false,
+    undefined,
+    false,
+    options.operationRemainingMs ?? 7200000,
   );
 }
