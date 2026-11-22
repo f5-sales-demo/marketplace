@@ -30,7 +30,7 @@ for (const mode of ['complete', 'missing', 'wrong-principal', 'wrong-vm', 'copie
             methodName: 'v1.compute.instances.insert',
             resourceName: `projects/${input.identity.project}/zones/${input.identity.zone}/instances/${input.identity.nodeName}`,
             authenticationInfo: {
-              principalEmail: mode === 'wrong-principal' ? 'foreign@example.test' : 'principal@example.com',
+              principalEmail: mode === 'wrong-principal' ? 'foreign@example.com' : 'principal@example.com',
             },
             status: {},
           },

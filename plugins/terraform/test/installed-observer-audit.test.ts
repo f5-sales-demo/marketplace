@@ -43,7 +43,7 @@ for (const mode of ['complete', 'missing', 'wrong-principal', 'wrong-id', 'wrong
             methodName: 'v1.compute.instances.insert',
             resourceName: `projects/${input.callback.original.owner.account}/zones/${String(input.vm.zone).split('/').pop()}/instances/${input.vm.name}`,
             authenticationInfo: {
-              principalEmail: mode === 'wrong-principal' ? 'foreign@example.test' : 'principal@example.com',
+              principalEmail: mode === 'wrong-principal' ? 'foreign@example.com' : 'principal@example.com',
             },
             status: {},
           },
