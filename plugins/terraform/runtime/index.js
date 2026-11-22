@@ -21780,6 +21780,12 @@ async function openInstalledVmCapture(input) {
       await guard(callback, packetReader);
       return packet;
     },
+    async assertFinalAdmission(callback, selected) {
+      if (phase !== 'before') throw new Error('Original VM final capture already started or operation unresolved');
+      if (callback.phase !== 'after' || !callback.reserve) throw new Error('Original reserved after callback required');
+      await guard(callback, selected);
+      inspectFinalReaderReserve(callback.reserve);
+    },
     async finalCapture(callback, selected) {
       if (phase !== 'before') throw new Error('Original VM final capture already started or operation unresolved');
       if (callback.phase !== 'after' || !callback.reserve) throw new Error('Original reserved after callback required');

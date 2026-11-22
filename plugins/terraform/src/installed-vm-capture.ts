@@ -396,6 +396,14 @@ export async function openInstalledVmCapture(input: InstalledVmCaptureInput) {
       await guard(callback, packetReader);
       return packet;
     },
+    /** Verify the actual source admission before a factory queue retires before work.
+     * This read-only check does not claim final capture or renew any lifetime. */
+    async assertFinalAdmission(callback: OriginalApplyCallbackContext, selected: Reader) {
+      if (phase !== 'before') throw new Error('Original VM final capture already started or operation unresolved');
+      if (callback.phase !== 'after' || !callback.reserve) throw new Error('Original reserved after callback required');
+      await guard(callback, selected);
+      inspectFinalReaderReserve(callback.reserve);
+    },
     async finalCapture(callback: OriginalApplyCallbackContext, selected: Reader) {
       if (phase !== 'before') throw new Error('Original VM final capture already started or operation unresolved');
       if (callback.phase !== 'after' || !callback.reserve) throw new Error('Original reserved after callback required');

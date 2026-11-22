@@ -2130,3 +2130,13 @@ copied/replaced evidence and restoration remain refused. Native source tests
 and independent archive hashes pass. Factory integration, complete guest
 coverage and every original installed/live/cleanup/CI/review/delivery gate
 remain open.
+
+## Original VM operation queue source
+
+The [VM queue source receipt](gcp-vm-queue-source-20261121.md) records source-verified
+final admission, serial operation ordering, bounded final draining and preserved
+identity refusal. All 21 focused cases, current types and source lint pass;
+independent archive review verifies the retained original events. The complete
+factory remains inactive and lacks positive before/final, guest-round and full
+witness qualification. Every original installed/live/cleanup/CI/review/delivery
+gate remains open.
