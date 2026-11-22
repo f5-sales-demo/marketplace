@@ -12,6 +12,7 @@ import {
 import { assertOriginalGcpObserverVmCaptureCallback } from './gcp-observer-insert-evidence';
 import { assertOriginalQualifiedGcpObserverClientsContext } from './gcp-observer-qualified-clients';
 import { readOriginalGcpObserverSshCommand } from './gcp-observer-ssh-command';
+import { createOriginalGuestFailureRetention } from './guest-failure-retention';
 import {
   assertOriginalApplyCallback,
   assertOriginalApplyLifetime,
@@ -136,20 +137,21 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
     identity = core(binding);
   const context = original.context;
   const monitor = await monitorOriginalInputs(original.inputs);
-  let failure: unknown,
-    closed = false,
+  const failures = createOriginalGuestFailureRetention();
+  let closed = false,
     busy = false,
     transferred = false,
     transferClaimed = false;
-  const lease = async (full = true) => {
+  const lease = async (full = true, finalTransfer = false) => {
     if (closed) throw new Error('Original guest binding lease closed');
-    if (failure) throw new Error('Original guest binding source refused; failure retained');
+    if (transferred || finalTransfer) failures.assertUsableForTransfer();
+    else failures.assertUsable();
     try {
       await context.assertInputs();
       if (full) await monitor.assertOriginal();
       else await monitor.assertOriginalIdentity();
     } catch (error) {
-      failure ??= error;
+      failures.record(error, sources.callback);
       throw error;
     }
   };
@@ -168,7 +170,7 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
       sameInputs(current);
       await lease(full);
     } catch (error) {
-      failure ??= error;
+      failures.record(error, sources.callback);
       throw error;
     } finally {
       busy = false;
@@ -204,7 +206,7 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
             throw new Error('Original guest host trust changed');
           await lease(false);
         } catch (error) {
-          failure ??= error;
+          failures.record(error, sources.callback);
           throw error;
         } finally {
           busy = false;
@@ -213,7 +215,7 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
     }),
     assertOriginal: () => verify(),
     async handoff(next: InstalledGcpGuestBindingSources) {
-      if (transferred || transferClaimed || busy || closed || failure)
+      if (transferred || transferClaimed || busy || closed || failures.evidence().permanentFailure)
         throw new Error('Original guest binding transfer already claimed, busy or refused');
       const after = next.callback,
         before = initial.callback;
@@ -229,13 +231,13 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
       )
         throw new Error('Original guest binding actual final callback and same actor required');
       await assertOriginalApplyCallback(after);
-      if (transferred || transferClaimed || busy || closed || failure)
+      if (transferred || transferClaimed || busy || closed || failures.evidence().permanentFailure)
         throw new Error('Original guest binding transfer already claimed, busy or refused');
       transferClaimed = true;
       busy = true;
       try {
         // Old file leases remain valid independently of retired before commands.
-        await lease();
+        await lease(true, true);
         const replacement = Object.freeze({ ...next });
         sameInputs(await readSources(replacement));
         await assertOriginalApplyCallback(after);
@@ -243,7 +245,9 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
         transferred = true;
         await lease();
       } catch (error) {
-        failure ??= error;
+        // Failed replacement validation is permanent, even if a prior before
+        // round ended at the original lifetime boundary.
+        failures.record(error, after);
         throw error;
       } finally {
         busy = false;
@@ -258,7 +262,7 @@ export async function openInstalledGcpGuestBinding(initial: InstalledGcpGuestBin
         transferred,
         transferClaimed,
         closed,
-        failed: !!failure,
+        ...failures.evidence(),
         originalBindingSha256: anchor.slice(7),
         guestAcceptanceComplete: false,
         executionAuthorized: false,

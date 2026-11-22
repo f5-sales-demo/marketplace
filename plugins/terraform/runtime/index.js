@@ -1896,6 +1896,7 @@ async function assertFinalReaderReserve(reserve) {
 var callbacks = new WeakMap();
 var lifetimes = new WeakMap();
 var operationExpiries = new WeakMap();
+var operationRetirements = new WeakMap();
 function isOriginalApplyLifetimeExpiry(error, callback) {
   const source = error && typeof error === 'object' ? operationExpiries.get(error) : undefined;
   return (
@@ -1904,6 +1905,12 @@ function isOriginalApplyLifetimeExpiry(error, callback) {
     callback.phase === 'before' &&
     source.original === callback.original &&
     source.nonce === callback.nonce
+  );
+}
+function isOriginalApplyLifetimeEnd(error, callback) {
+  return (
+    isOriginalApplyLifetimeExpiry(error, callback) ||
+    (!!error && typeof error === 'object' && operationRetirements.get(error) === callback)
   );
 }
 var groupClosures = new WeakMap();
@@ -1985,11 +1992,21 @@ function createInstalledApplyController(original, worker, hooks) {
     throw error;
   };
   const callback = (phase, execution, reserve) => {
+    const refuseRetiredBefore = async () => {
+      if (!finalStarted) return;
+      await original.assertInputs();
+      if (closed || !started || !sameIdentity(execution.identity, started.identity))
+        throw new Error('Original operation lifetime retired or identity changed');
+      const error = new Error('Original before callback retired');
+      error.name = 'OriginalApplyBeforeRetiredError';
+      operationRetirements.set(error, value);
+      throw error;
+    };
     const verify = async () => {
       if (closed || !started || !sameIdentity(execution.identity, started.identity))
         throw new Error('Original apply callback identity or lifecycle changed');
       if (phase === 'before') {
-        if (finalStarted) throw new Error('Original before callback retired');
+        await refuseRetiredBefore();
         await within();
         if (now() >= execution.startupDeadlineMs) throw new Error('Original apply startup deadline elapsed');
       } else {
@@ -2104,14 +2121,15 @@ function createInstalledApplyController(original, worker, hooks) {
       });
     }
     if (phase === 'before') {
-      const identity = () => {
-        if (closed || finalStarted || !started || !sameIdentity(execution.identity, started.identity))
+      const identity = async () => {
+        if (closed || !started || !sameIdentity(execution.identity, started.identity))
           throw new Error('Original operation lifetime retired or identity changed');
+        await refuseRetiredBefore();
       };
       lifetimes.set(value, async () => {
-        identity();
+        await identity();
         await within();
-        identity();
+        await identity();
       });
     }
     return value;
@@ -19747,6 +19765,34 @@ function projectGcpGuestBinding(input, nowMs) {
   return Object.freeze({ binding, commandsAuthorized: false, guestAcceptanceComplete: false });
 }
 
+// plugins/terraform/src/guest-failure-retention.ts
+function createOriginalGuestFailureRetention() {
+  let failed = false,
+    permanentFailure = false,
+    lifetimeFailures = 0;
+  const refusals = new WeakSet();
+  const refuse = () => {
+    const error = new Error('Original guest binding source refused; failure retained');
+    refusals.add(error);
+    throw error;
+  };
+  return Object.freeze({
+    record(error, callback) {
+      if (error && typeof error === 'object' && refusals.has(error)) return;
+      failed = true;
+      if (isOriginalApplyLifetimeEnd(error, callback)) lifetimeFailures++;
+      else permanentFailure = true;
+    },
+    assertUsable() {
+      if (failed) refuse();
+    },
+    assertUsableForTransfer() {
+      if (permanentFailure) refuse();
+    },
+    evidence: () => Object.freeze({ failed, permanentFailure, lifetimeFailures }),
+  });
+}
+
 // plugins/terraform/src/installed-ce-access.ts
 var accessViews = new WeakMap();
 async function readOriginalInstalledGcpCeAccess(value, callback) {
@@ -19856,20 +19902,21 @@ async function openInstalledGcpGuestBinding(initial) {
     identity = core(binding);
   const context = original.context;
   const monitor = await monitorOriginalInputs(original.inputs);
-  let failure,
-    closed = false,
+  const failures = createOriginalGuestFailureRetention();
+  let closed = false,
     busy = false,
     transferred = false,
     transferClaimed = false;
-  const lease = async (full = true) => {
+  const lease = async (full = true, finalTransfer = false) => {
     if (closed) throw new Error('Original guest binding lease closed');
-    if (failure) throw new Error('Original guest binding source refused; failure retained');
+    if (transferred || finalTransfer) failures.assertUsableForTransfer();
+    else failures.assertUsable();
     try {
       await context.assertInputs();
       if (full) await monitor.assertOriginal();
       else await monitor.assertOriginalIdentity();
     } catch (error) {
-      failure ??= error;
+      failures.record(error, sources.callback);
       throw error;
     }
   };
@@ -19888,7 +19935,7 @@ async function openInstalledGcpGuestBinding(initial) {
       sameInputs(current);
       await lease(full);
     } catch (error) {
-      failure ??= error;
+      failures.record(error, sources.callback);
       throw error;
     } finally {
       busy = false;
@@ -19922,7 +19969,7 @@ async function openInstalledGcpGuestBinding(initial) {
             throw new Error('Original guest host trust changed');
           await lease(false);
         } catch (error) {
-          failure ??= error;
+          failures.record(error, sources.callback);
           throw error;
         } finally {
           busy = false;
@@ -19931,7 +19978,7 @@ async function openInstalledGcpGuestBinding(initial) {
     }),
     assertOriginal: () => verify(),
     async handoff(next) {
-      if (transferred || transferClaimed || busy || closed || failure)
+      if (transferred || transferClaimed || busy || closed || failures.evidence().permanentFailure)
         throw new Error('Original guest binding transfer already claimed, busy or refused');
       const after = next.callback,
         before = initial.callback;
@@ -19947,12 +19994,12 @@ async function openInstalledGcpGuestBinding(initial) {
       )
         throw new Error('Original guest binding actual final callback and same actor required');
       await assertOriginalApplyCallback(after);
-      if (transferred || transferClaimed || busy || closed || failure)
+      if (transferred || transferClaimed || busy || closed || failures.evidence().permanentFailure)
         throw new Error('Original guest binding transfer already claimed, busy or refused');
       transferClaimed = true;
       busy = true;
       try {
-        await lease();
+        await lease(true, true);
         const replacement = Object.freeze({ ...next });
         sameInputs(await readSources(replacement));
         await assertOriginalApplyCallback(after);
@@ -19960,7 +20007,7 @@ async function openInstalledGcpGuestBinding(initial) {
         transferred = true;
         await lease();
       } catch (error) {
-        failure ??= error;
+        failures.record(error, after);
         throw error;
       } finally {
         busy = false;
@@ -19975,7 +20022,7 @@ async function openInstalledGcpGuestBinding(initial) {
         transferred,
         transferClaimed,
         closed,
-        failed: !!failure,
+        ...failures.evidence(),
         originalBindingSha256: anchor.slice(7),
         guestAcceptanceComplete: false,
         executionAuthorized: false,

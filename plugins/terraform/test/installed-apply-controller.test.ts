@@ -12,6 +12,7 @@ import type { ExecutionCaptureAdmission, FinalExecutionCapture } from '../src/si
 let fixturePid = 1234;
 function fixture(start = 1000, failPrepare = false) {
   let now = start,
+    inputFailure: unknown,
     prepareCalls = 0,
     starts = 0,
     finals = 0,
@@ -46,7 +47,9 @@ function fixture(start = 1000, failPrepare = false) {
         expectedParentIdentity: parent,
       },
     },
-    assertInputs: async () => {},
+    assertInputs: async () => {
+      if (inputFailure) throw inputFailure;
+    },
     assertWithinDeadline: async () => {
       if (now >= start + 7200000) throw new Error('original deadline');
     },
@@ -119,6 +122,9 @@ function fixture(start = 1000, failPrepare = false) {
     now: () => now,
     counts: () => ({ prepareCalls, starts, finals, closes }),
     callbacks: () => ({ before, after }),
+    failInputs: (error: unknown) => {
+      inputFailure = error;
+    },
   };
 }
 
@@ -417,4 +423,67 @@ test('concurrent original startup calls cannot issue two admitted callbacks', as
   expect(outcomes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
   expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(1);
   expect(run.counts().starts).toBe(1);
+});
+
+test('only exact input-verified original lifetime endings permit transfer bookkeeping', async () => {
+  const { assertOriginalApplyLifetime, isOriginalApplyLifetimeEnd } = await import('../src/installed-apply-controller');
+  const run = fixture();
+  await run.control.prepare?.(run.context);
+  const admission = run.admission();
+  await run.control.start(admission);
+  const before = run.callbacks().before;
+  if (!before) throw new Error('Original callback required');
+  run.setNow(run.context.budget.deadline);
+  let expiry: unknown;
+  try {
+    await assertOriginalApplyLifetime(before);
+  } catch (error) {
+    expiry = error;
+  }
+  expect(isOriginalApplyLifetimeEnd(expiry, before)).toBe(true);
+  expect(isOriginalApplyLifetimeEnd(expiry, { ...before })).toBe(false);
+  expect(
+    isOriginalApplyLifetimeEnd(Object.assign(new Error('expired'), { name: (expiry as Error).name }), before),
+  ).toBe(false);
+  const changed = new Error('Original executable replaced');
+  run.failInputs(changed);
+  await expect(assertOriginalApplyLifetime(before)).rejects.toThrow('replaced');
+  expect(isOriginalApplyLifetimeEnd(changed, before)).toBe(false);
+  run.failInputs(undefined);
+  run.setNow(admission.startupDeadlineMs + 1);
+  const finished = run.final(admission);
+  const reserve = admitFinalReaderReserve(
+    {
+      identity: run.identity,
+      originalStartMs: run.context.budget.start,
+      originalDeadlineMs: run.context.budget.deadline,
+      finalStartedMs: finished.finalStartedMs,
+      finalDeadlineMs: finished.finalDeadlineMs,
+      assertOriginal: async () => {},
+    },
+    { clock: run.now },
+  );
+  await run.control.finalCapture(finished, reserve);
+  run.failInputs(changed);
+  await expect(assertOriginalApplyLifetime(before)).rejects.toThrow('replaced');
+  expect(isOriginalApplyLifetimeEnd(changed, before)).toBe(false);
+  run.failInputs(undefined);
+  let retirement: unknown;
+  try {
+    await assertOriginalApplyLifetime(before);
+  } catch (error) {
+    retirement = error;
+  }
+  expect(isOriginalApplyLifetimeEnd(retirement, before)).toBe(true);
+  const after = run.callbacks().after;
+  if (!after) throw new Error('Original final callback required');
+  expect(isOriginalApplyLifetimeEnd(retirement, after)).toBe(false);
+  await run.control.closeAfterExecutorExit();
+  let closure: unknown;
+  try {
+    await assertOriginalApplyLifetime(before);
+  } catch (error) {
+    closure = error;
+  }
+  expect(isOriginalApplyLifetimeEnd(closure, before)).toBe(false);
 });

@@ -25,6 +25,7 @@ export interface OriginalApplyCallbackContext {
 const callbacks = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
 const lifetimes = new WeakMap<OriginalApplyCallbackContext, () => Promise<void>>();
 const operationExpiries = new WeakMap<object, { original: InstalledCaptureContext; nonce: string }>();
+const operationRetirements = new WeakMap<object, OriginalApplyCallbackContext>();
 /** Classify only an actual original controller's input-verified deadline failure.
  * Copies, error names and caller-provided messages carry no temporal authority. */
 export function isOriginalApplyLifetimeExpiry(error: unknown, callback: OriginalApplyCallbackContext): boolean {
@@ -35,6 +36,15 @@ export function isOriginalApplyLifetimeExpiry(error: unknown, callback: Original
     callback.phase === 'before' &&
     source.original === callback.original &&
     source.nonce === callback.nonce
+  );
+}
+
+/** Consistency classification only. A controller-issued, input-verified lifetime
+ * end permits fresh final-source validation; it never authorizes more before work. */
+export function isOriginalApplyLifetimeEnd(error: unknown, callback: OriginalApplyCallbackContext): boolean {
+  return (
+    isOriginalApplyLifetimeExpiry(error, callback) ||
+    (!!error && typeof error === 'object' && operationRetirements.get(error) === callback)
   );
 }
 
@@ -138,11 +148,23 @@ export function createInstalledApplyController(
     throw error;
   };
   const callback = (phase: 'before' | 'after', execution: ExecutionCaptureAdmission, reserve?: FinalReaderReserve) => {
+    const refuseRetiredBefore = async () => {
+      if (!finalStarted) return;
+      // Check inputs even after operation expiry. Ownership/identity failures
+      // must not acquire a temporal classification from the lifecycle transition.
+      await original.assertInputs();
+      if (closed || !started || !sameIdentity(execution.identity, started.identity))
+        throw new Error('Original operation lifetime retired or identity changed');
+      const error = new Error('Original before callback retired');
+      error.name = 'OriginalApplyBeforeRetiredError';
+      operationRetirements.set(error, value);
+      throw error;
+    };
     const verify = async () => {
       if (closed || !started || !sameIdentity(execution.identity, started.identity))
         throw new Error('Original apply callback identity or lifecycle changed');
       if (phase === 'before') {
-        if (finalStarted) throw new Error('Original before callback retired');
+        await refuseRetiredBefore();
         await within();
         if (now() >= execution.startupDeadlineMs) throw new Error('Original apply startup deadline elapsed');
       } else {
@@ -259,14 +281,15 @@ export function createInstalledApplyController(
     }
 
     if (phase === 'before') {
-      const identity = () => {
-        if (closed || finalStarted || !started || !sameIdentity(execution.identity, started.identity))
+      const identity = async () => {
+        if (closed || !started || !sameIdentity(execution.identity, started.identity))
           throw new Error('Original operation lifetime retired or identity changed');
+        await refuseRetiredBefore();
       };
       lifetimes.set(value, async () => {
-        identity();
+        await identity();
         await within();
-        identity();
+        await identity();
       });
     }
     return value;

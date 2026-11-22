@@ -2189,3 +2189,13 @@ current source types/lint pass; original descriptor/window archives are retained
 and independently hash reviewed. Complete factory execution, before-worker
 handoff, full inventory throughput and every original installed/runtime/live/
 cleanup/CI/review/delivery gate remain open.
+
+## Original guest lifetime failure retention
+
+The [guest lifetime receipt](gcp-guest-lifetime-retention-source-20261121.md)
+records genuine native callback retirement, source-bound classification and
+sticky temporal/permanent failure bookkeeping used by the installed binder.
+All 46 affected cases, current types/lint and independent retained-archive
+hash checks pass. Positive full factory/binder handoff and full-inventory
+throughput remain unqualified. Every original installed/runtime/live/cleanup/
+CI/review/merge/publication/installation gate remains open.
