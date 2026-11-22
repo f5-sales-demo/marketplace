@@ -740,3 +740,28 @@ export async function collectOriginalGcpObserverVmEvidence(input: OriginalGcpObs
   });
   return result;
 }
+
+/** Private original request projection for the owning audit correlator. */
+export async function readOriginalGcpObserverAuditSource(
+  identity: unknown,
+  callback: OriginalApplyCallbackContext,
+  baseline: OriginalApplyGcpInventory,
+) {
+  const value = await assertOriginalGcpObserverInsertContext(identity, callback, baseline);
+  const original =
+    identity && typeof identity === 'object' ? origins.get(identity as OriginalGcpObserverInsertIdentity) : undefined;
+  if (!original) throw new Error('Original observer audit insertion source required');
+  const binding = callback.original.inputs['workspace:main.tf.json'];
+  if (!binding) throw new Error('Original observer audit configuration required');
+  const configuration = await readOwnedInstalledInput(binding.path);
+  assertSameOriginalInput(binding, configuration.binding);
+  const decoded = decodeEvidenceObject(configuration.bytes);
+  const providers = object(decoded.provider).google;
+  const provider = object(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
+  if (typeof provider.request_reason !== 'string') throw new Error('Original observer request reason required');
+  return Object.freeze({
+    value,
+    requestBody: original.requestBody,
+    requestReasonSha256: hash(provider.request_reason),
+  });
+}

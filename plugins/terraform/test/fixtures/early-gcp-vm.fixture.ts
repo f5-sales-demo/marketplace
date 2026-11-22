@@ -24,6 +24,7 @@ export interface EarlyVmFixtureState {
   operation: Json;
   vm: Json;
   serialReads: number;
+  auditEntries?: Json[];
   vmUnavailable?: boolean;
   beforeVmRead?: () => Promise<void>;
   mutateDuringSerial?: () => void;
@@ -100,6 +101,7 @@ export async function withEarlyVmFixture(
           if (path === `/v1/projects/${project}`)
             return Response.json({ projectId: project, lifecycleState: 'ACTIVE' });
           if (!state) throw new Error('Original fixture state missing');
+          if (path === '/v2/entries:list') return Response.json({ entries: state.auditEntries ?? [] });
           if (path === `/compute/v1/projects/${project}/zones/${zone}/operations/${state.operation.name}`)
             return Response.json(state.operation);
           if (path === `/compute/v1/projects/${project}/zones/${zone}/instances/${node}/serialPort`) {

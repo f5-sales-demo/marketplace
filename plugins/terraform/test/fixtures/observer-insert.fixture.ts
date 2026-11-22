@@ -44,7 +44,7 @@ export interface ObserverInsertFixtureInput {
   vm: Json;
   disk: Json;
   serialHook: { run?: () => void; contents?: string };
-  cloudHook: { run?: (path: string) => void | Promise<void> };
+  cloudHook: { run?: (path: string) => void | Promise<void>; auditEntries?: Json[] };
 }
 export async function withObserverInsert(
   run: (value: ObserverInsertFixtureInput) => Promise<void>,
@@ -174,7 +174,7 @@ export async function withObserverInsert(
         users: [`${prefix}/zones/${observer.zone}/instances/${observer.name}`],
       };
       const serialHook: { run?: () => void; contents?: string } = {};
-      const cloudHook: { run?: (path: string) => void | Promise<void> } = {};
+      const cloudHook: { run?: (path: string) => void | Promise<void>; auditEntries?: Json[] } = {};
       const cloudFetcher = (async (url: string | URL | Request) => {
         const parsed = new URL(String(url)),
           path = parsed.pathname;
@@ -184,6 +184,7 @@ export async function withObserverInsert(
         if (path === '/oauth2/v2/tokeninfo') return Response.json(authInfo);
         if (path === `/v1/projects/${intent?.project}`)
           return Response.json({ projectId: intent?.project, lifecycleState: 'ACTIVE' });
+        if (path === '/v2/entries:list') return Response.json({ entries: cloudHook.auditEntries ?? [] });
         if (path.endsWith(`/operations/${operation?.name}`)) return Response.json(operation);
         if (path.endsWith(`/disks/${observer.name}`)) return Response.json(disk);
         if (path.endsWith(`/instances/${observer.name}/serialPort`)) {

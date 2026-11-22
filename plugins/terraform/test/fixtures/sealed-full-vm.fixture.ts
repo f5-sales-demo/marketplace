@@ -10,28 +10,35 @@ const binding = {
   terraformVersion: '1.17.2',
   providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
 };
-export async function fullVmFixture(input: EarlyVmFixtureInput) {
+export async function fullVmFixture(input: EarlyVmFixtureInput, latest = false) {
+  const selectedBinding = latest
+    ? {
+        terraformVersion: '1.17.2',
+        providerLockSha256: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+      }
+    : binding;
+  const googleVersion = latest ? '8.12.0' : '8.11.0';
   const { identity, callback, reader } = input;
-  const template = sourceJoinFixture(binding, '8.11.0');
+  const template = sourceJoinFixture(selectedBinding, googleVersion);
   const parser = new GoogleHttpRpcTraceParser(
     {
       ...scope,
       planSha256: identity.planSha256,
       url: `https://compute.googleapis.com/compute/v1/projects/${identity.project}/zones/${identity.zone}/instances?alt=json`,
     },
-    binding,
+    selectedBinding,
   );
   const [response] = parser.push(
     Buffer.from(
       traceFixture(
         input.state.request as unknown as Parameters<typeof traceFixture>[0],
         input.state.operation as unknown as Parameters<typeof traceFixture>[1],
-        '8.11.0',
+        googleVersion,
       ).replaceAll('us-central1-a', identity.zone),
     ),
   );
   parser.finish();
-  const insert = inspectOriginalGcpInsertBodies(parser.consumeBodies(response), binding);
+  const insert = inspectOriginalGcpInsertBodies(parser.consumeBodies(response), selectedBinding);
   const configuration = JSON.stringify({
     provider: {
       google: [
