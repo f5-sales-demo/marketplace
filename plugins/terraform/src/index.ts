@@ -203,6 +203,7 @@ export {
   openInstalledInitialInventory,
   readOriginalApplyGcpInventory,
 } from './installed-initial-inventory';
+export { collectInstalledObserverInsertWitnesses } from './installed-observer-insert-witnesses';
 export {
   openInstalledProviderReader,
   readOriginalInstalledProviderWindow,

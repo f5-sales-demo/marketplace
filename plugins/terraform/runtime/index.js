@@ -21880,6 +21880,103 @@ async function collectInstalledCeInsertWitnesses(input) {
   return Object.freeze(results);
 }
 
+// plugins/terraform/src/installed-observer-insert-witnesses.ts
+import { createHash as createHash39 } from 'node:crypto';
+
+async function collectInstalledObserverInsertWitnesses(input) {
+  const { callback, originalPlan: plan, body, started, completed, rpc } = input;
+  await assertOriginalApplyCallback(callback);
+  if (callback.phase !== 'after' || !callback.reserve)
+    throw new Error('Original final observer witness callback required');
+  await assertOriginalTerraformPlanProjection(plan);
+  const original = await readOriginalGcpObserverAuditSource(input.identity, callback, input.baseline);
+  const hash = (text) => createHash39('sha256').update(text).digest('hex');
+  const expected = original.value;
+  if (
+    plan.directory !== callback.original.executionDirectory ||
+    plan.scope.cloud !== 'gcp' ||
+    plan.scope.account !== expected.project ||
+    plan.terraformVersion !== input.binding.terraformVersion ||
+    plan.receipt.providerLockSha256 !== input.binding.providerLockSha256 ||
+    plan.receipt.planSha256 !== expected.planSha256 ||
+    hash(input.configuration) !== plan.receipt.configurationSha256
+  )
+    throw new Error('Original observer witness plan and configuration differ');
+  const uiStart = await readOriginalTerraformApplyHookSource(started);
+  const uiEnd = await readOriginalTerraformApplyHookSource(completed);
+  const http = await readOriginalGoogleHttpRpcSource(body);
+  const lifecycle = readOriginalGoogleProviderRpcSource(rpc);
+  const executor = callback.execution.identity;
+  for (const value of [uiStart, uiEnd, http, lifecycle]) {
+    if (
+      value.directory !== plan.directory ||
+      value.planSha256 !== plan.receipt.planSha256 ||
+      ['pid', 'group', 'start', 'boot'].some((key) => value.executor[key] !== executor[key]) ||
+      value.stderrSha256 !== uiStart.stderrSha256 ||
+      value.stderrBytes !== uiStart.stderrBytes
+    )
+      throw new Error('Original observer witness descriptor or executor differs');
+  }
+  if (
+    uiEnd.stdoutSha256 !== uiStart.stdoutSha256 ||
+    uiEnd.stdoutBytes !== uiStart.stdoutBytes ||
+    http.stdoutSha256 !== uiStart.stdoutSha256 ||
+    http.stdoutBytes !== uiStart.stdoutBytes ||
+    started.address !== expected.address ||
+    completed.address !== expected.address ||
+    started.phase !== 'apply_start' ||
+    completed.phase !== 'apply_complete' ||
+    started.action !== 'create' ||
+    completed.action !== 'create' ||
+    started.resourceType !== 'google_compute_instance' ||
+    completed.resourceType !== started.resourceType ||
+    started.actionIndex !== completed.actionIndex ||
+    completed.idKey !== 'id' ||
+    completed.idValue !== `projects/${expected.project}/zones/${expected.zone}/instances/${expected.name}` ||
+    body.requestBodySha256 !== expected.requestBodySha256 ||
+    body.responseBodySha256 !== expected.responseBodySha256 ||
+    body.requestReasonSha256 !== original.requestReasonSha256 ||
+    body.planSha256 !== expected.planSha256 ||
+    body.rpcRequestId !== rpc.rpcRequestId ||
+    rpc.rpc !== 'ApplyResourceChange' ||
+    rpc.resourceType !== 'google_compute_instance' ||
+    rpc.providerPathSha256 !== hash(input.providerPath) ||
+    body.receivedRecordSha256 !== rpc.receivedRecordSha256 ||
+    body.servedRecordSha256 !== rpc.servedRecordSha256 ||
+    uiStart.eventEpochMs > lifecycle.receivedEpochMs ||
+    uiEnd.eventEpochMs < lifecycle.servedEpochMs
+  )
+    throw new Error('Original observer UI HTTP and RPC witness mapping differs');
+  const correspondence = await corroborateOriginalGoogleRpcProvider({
+    rpc,
+    windows: input.windows,
+    binding: input.binding,
+  });
+  await readOriginalGcpObserverAuditSource(input.identity, callback, input.baseline);
+  await readOriginalTerraformApplyHookSource(started);
+  await readOriginalTerraformApplyHookSource(completed);
+  await readOriginalGoogleHttpRpcSource(body);
+  readOriginalGoogleProviderRpcSource(rpc);
+  await assertOriginalApplyCallback(callback);
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-installed-observer-insert-witnesses',
+    role: 'observer',
+    resourceAddress: expected.address,
+    planSha256: expected.planSha256,
+    executor,
+    uiSourceCorroborated: true,
+    httpSourceCorroborated: true,
+    rpcWindowTimeCorroborated: true,
+    requestBodySha256: body.requestBodySha256,
+    responseBodySha256: body.responseBodySha256,
+    rpcRequestId: rpc.rpcRequestId,
+    correspondence,
+    originalInsertQualified: false,
+    executionAuthorized: false,
+  });
+}
+
 // plugins/terraform/src/installed-vm-capture.ts
 import { randomUUID as randomUUID19 } from 'node:crypto';
 import { constants as constants11 } from 'node:fs';
@@ -22339,6 +22436,7 @@ export {
   closeOriginalGcpObserverClientAbiRenewalCommand,
   closeOriginalGcpObserverClientInstallation,
   collectInstalledCeInsertWitnesses,
+  collectInstalledObserverInsertWitnesses,
   collectInstalledOriginalCeAudit,
   collectInstalledOriginalGuestRound,
   collectInstalledOriginalObserverAudit,

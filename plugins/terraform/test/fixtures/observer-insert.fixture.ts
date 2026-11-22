@@ -57,6 +57,15 @@ export async function withObserverInsert(
     factoryImageGuard?: boolean;
     operationRemainingMs?: number;
     completeTraceBeforeExit?: boolean;
+    observeChunk?: (
+      channel: 'stdout' | 'stderr',
+      chunk: Parameters<GoogleHttpRpcTraceParser['pushOriginal']>[1],
+      callback: OriginalApplyCallbackContext,
+    ) => void;
+    prepareTrace?: (
+      context: OriginalApplyCallbackContext['original'],
+      trace: { prefix: string; tail: string },
+    ) => Promise<{ prefix: string; tail: string; stdoutPrefix?: string; stdoutTail?: string }>;
   } = {},
 ) {
   const versions = options.current
@@ -97,6 +106,7 @@ export async function withObserverInsert(
       while (!response) {
         const chunk = await before.execution.output.read('stderr');
         if (!chunk) throw new Error('Original observer trace missing');
+        options.observeChunk?.('stderr', chunk, before);
         parser.pushOriginal(before.execution.output, chunk);
         response = parser.takeOriginalResponses()[0];
       }
@@ -230,6 +240,7 @@ export async function withObserverInsert(
         for (;;) {
           const chunk = await final.execution.output.read(channel);
           if (!chunk) break;
+          options.observeChunk?.(channel, chunk, final);
           if (channel === 'stderr') parser.pushOriginal(final.execution.output, chunk);
         }
       const complete = await final.execution.output.finish();
@@ -289,9 +300,10 @@ export async function withObserverInsert(
         });
       const tail = lines.pop();
       if (!tail) throw new Error('Original observer trace tail required');
-      return options.completeTraceBeforeExit
+      const trace = options.completeTraceBeforeExit
         ? { prefix: `${[...lines, tail].join('\n')}\n`, tail: '' }
         : { prefix: `${lines.join('\n')}\n`, tail: `${tail}\n` };
+      return options.prepareTrace ? options.prepareTrace(_context, trace) : trace;
     },
     options.operationRemainingMs ? 'deadline' : undefined,
     (value) => {

@@ -2179,3 +2179,13 @@ CE/observer audit roles. All 54 dependent cases, current types and source lint
 pass; private source archives are independently hash reviewed. Observer UI/RPC
 joins, positive complete factory execution, full inventory throughput and every
 original installed/live/cleanup/CI/review/delivery gate remain open.
+
+## Original observer insertion source witnesses
+
+The [observer witness receipt](gcp-observer-insert-witness-source-20261121.md)
+records actual plan, complete UI stream, HTTP/lifecycle and conservative provider
+window correlation for the distinct observer role. All 35 dependent cases and
+current source types/lint pass; original descriptor/window archives are retained
+and independently hash reviewed. Complete factory execution, before-worker
+handoff, full inventory throughput and every original installed/runtime/live/
+cleanup/CI/review/delivery gate remain open.
