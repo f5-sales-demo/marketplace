@@ -25,6 +25,7 @@ import {
 } from './installed-xcsh-creation-reader';
 import { linuxMonotonicMs } from './linux-clock';
 import {
+  assertPreparedCreationScopeClosureInputs,
   assertPreparedCreationScopeContext,
   assertPreparedCreationScopeInputs,
   inspectPreparedCreationScope,
@@ -149,9 +150,10 @@ export async function openInstalledBootstrapCapture(
     closed = false;
   const grants = new Map<string, Grant>();
   const candidates = new Map<string, OriginalGcpPreapplyBootstrapEvidence>();
-  const inputs = async () => {
+  const inputs = async (closing = false) => {
     assertPreparedCreationScopeContext(packet, context);
-    await assertPreparedCreationScopeInputs(packet);
+    if (closing) await assertPreparedCreationScopeClosureInputs(packet);
+    else await assertPreparedCreationScopeInputs(packet);
     await context.assertInputs();
     await store.verify();
     if (
@@ -464,9 +466,9 @@ export async function openInstalledBootstrapCapture(
     },
     async closeAfterExecutorExit() {
       if (closed) return;
-      if (!finalStarted) throw new Error('Original bootstrap stage executor closure required');
-      if (!originalGroupClosed) await assertOriginalApplyGroupClosed(finalClosureCallback);
-      await inputs();
+      if (started && !finalStarted) throw new Error('Original bootstrap stage executor closure required');
+      if (started && !originalGroupClosed) await assertOriginalApplyGroupClosed(finalClosureCallback);
+      await inputs(true);
       try {
         await reader?.closeAfterExecutorExit();
       } catch (error) {

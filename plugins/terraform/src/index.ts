@@ -196,8 +196,10 @@ export {
   readOriginalFinalGcpVmEvidence,
 } from './gcp-vm-evidence';
 export { acknowledgeOriginalApplyGroupClosure, assertOriginalApplyGroupClosed } from './installed-apply-controller';
+export { openInstalledApplyTraceStage } from './installed-apply-trace-stage';
 export { scheduleInstalledBeforeGuestRound } from './installed-before-guest-round';
 export { collectInstalledCeInsertWitnesses } from './installed-ce-insert-witnesses';
+export { openInstalledDeleteCapture } from './installed-delete-capture';
 export {
   assertOriginalApplyGcpInventoryCallback,
   openInstalledInitialInventory,

@@ -19,8 +19,13 @@ import {
 import type { InstalledCaptureContext } from './installed-capture-context';
 import { type InstalledGcpCapture, readOwnedInstalledInput } from './installed-runtime';
 import { type InstalledGcpVersionBinding, resolveInstalledGcpVersionProfile } from './installed-version-profile';
-import { assertSameOriginalInput } from './original-input-monitor';
-import { type OriginalOutputCompletion, readOriginalExecutionPrefix } from './original-output-stream';
+import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
+import {
+  type OriginalOutputCompletion,
+  readOriginalCompletedOutputInputs,
+  readOriginalExecutionPrefix,
+} from './original-output-stream';
+import { bindOriginalTerraformPlanInputs } from './original-plan-inputs';
 import { assertFinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
 import { assertOriginalTerraformPlanProjection, type OriginalTerraformPlanProjection } from './runner';
 import type { ExecutionCaptureAdmission } from './signal-free-executor';
@@ -191,9 +196,12 @@ export async function openInstalledApplyTraceStage(input: InstalledApplyTraceInp
         executionQualified: false;
       }>
     | undefined;
-  const inputs = async () => {
+  const assertDurablePlanInputs = await bindOriginalTerraformPlanInputs(context, plan);
+  let completedOutputInputs: Readonly<Record<string, OriginalInputBinding>> | undefined;
+  const inputs = async (requireLivePlan = true) => {
     await context.assertInputs();
-    await assertOriginalTerraformPlanProjection(plan);
+    if (requireLivePlan) await assertOriginalTerraformPlanProjection(plan);
+    await assertDurablePlanInputs();
     await store.verify();
     if (
       store.directory !== directory ||
@@ -421,6 +429,7 @@ export async function openInstalledApplyTraceStage(input: InstalledApplyTraceInp
         lifecycle.finishOriginal(actor.output, completion);
         for (const selected of parsers) selected.parser.finishOriginal(actor.output, completion);
         await acknowledgeOriginalApplyGroupClosure(callback, completion);
+        completedOutputInputs = await readOriginalCompletedOutputInputs(actor.output, completion);
         parentClosed = true;
         transcript = Object.freeze({
           originalPlan: plan,
@@ -451,7 +460,7 @@ export async function openInstalledApplyTraceStage(input: InstalledApplyTraceInp
       closure ??= (async () => {
         retired = true;
         if (!started) {
-          await inputs();
+          await inputs(false);
           await retain('preflight-closed', { submitted: false });
           return;
         }
@@ -463,10 +472,12 @@ export async function openInstalledApplyTraceStage(input: InstalledApplyTraceInp
         if (finalUnresolved) throw new Error('Original trace closure unresolved; original reader evidence retained');
         if (!finalStarted || !parentClosed || !transcript) throw new Error('Original trace closure incomplete');
         await pending;
-        await inputs();
-        // Re-read the actual complete original descriptor proof; no receipt flag
-        // alone can close this source lifetime or clear a failed delivery.
-        await actor?.output.finish();
+        await inputs(false);
+        if (!completedOutputInputs) throw new Error('Original complete trace output bindings required');
+        for (const binding of Object.values(completedOutputInputs)) {
+          const file = await readOwnedInstalledInput(binding.path);
+          assertSameOriginalInput(binding, file.binding);
+        }
         await retain('closed', { deliveryComplete: !failure });
         if (failure) throw new Error('Original trace closure incomplete; original failure retained');
       })();

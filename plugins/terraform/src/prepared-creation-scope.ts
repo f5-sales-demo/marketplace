@@ -20,6 +20,7 @@ import type { InstalledCaptureContext } from './installed-capture-context';
 import { type InstalledXcshCreationTarget, readOriginalInstalledXcshTarget } from './installed-xcsh-creation-reader';
 import { linuxMonotonicMs } from './linux-clock';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import { bindOriginalTerraformPlanInputs } from './original-plan-inputs';
 import {
   assertOriginalTerraformPlanProjection,
   assertOriginalTerraformPlanSourceProjection,
@@ -35,6 +36,8 @@ type Target = Readonly<{ type_name: string; name: string; namespace: string }>;
 interface Lease {
   context: InstalledCaptureContext;
   projection: OriginalTerraformPlanProjection;
+  assertPlanInputs(): Promise<void>;
+  closureStarted: boolean;
   resources: readonly Target[];
   provider?: OriginalInputBinding;
   scopeFile?: string;
@@ -183,6 +186,8 @@ export function prepareOriginalCreationScope(context: InstalledCaptureContext): 
     const record: Lease = {
       context,
       projection,
+      assertPlanInputs: await bindOriginalTerraformPlanInputs(context, projection),
+      closureStarted: false,
       resources,
       refused: false,
       closed: false,
@@ -307,12 +312,11 @@ export function prepareOriginalCreationScope(context: InstalledCaptureContext): 
   preparations.set(context, preparation);
   return preparation;
 }
-/** Read-only final-capture corroboration; this cannot authorize execution or renew its budget. */
-export async function assertPreparedCreationScopeInputs(packet: unknown): Promise<void> {
-  const current = lease(packet);
+async function verifyPreparedCreationScopeInputs(current: Lease, requireLivePlan: boolean): Promise<void> {
   try {
     await current.context.assertInputs();
-    await assertOriginalTerraformPlanProjection(current.projection);
+    if (requireLivePlan) await assertOriginalTerraformPlanProjection(current.projection);
+    await current.assertPlanInputs();
     if (current.provider) {
       const providers = await current.context.readProviderInputs();
       const matches = Object.values(providers).filter((p) => p.path === current.provider?.path);
@@ -349,11 +353,28 @@ export async function assertPreparedCreationScopeInputs(packet: unknown): Promis
     throw failure();
   }
 }
+/** Live source corroboration for final capture; closure cannot restore this authority. */
+export async function assertPreparedCreationScopeInputs(packet: unknown): Promise<void> {
+  const current = lease(packet);
+  if (current.closureStarted) throw failure();
+  await verifyPreparedCreationScopeInputs(current, true);
+  if (current.closureStarted) throw failure();
+}
+
+/** Revoke execution before verifying the original durable inputs. This supports
+ * cleanup after runner retirement, never publication, source reads or replay. */
+export async function assertPreparedCreationScopeClosureInputs(packet: unknown): Promise<void> {
+  const current = lease(packet);
+  current.authorized = false;
+  current.closureStarted = true;
+  await verifyPreparedCreationScopeInputs(current, false);
+}
 export async function assertPreparedCreationScope(packet: unknown): Promise<void> {
   const current = lease(packet);
   current.authorized = false;
   await current.context.assertWithinDeadline();
   await assertPreparedCreationScopeInputs(packet);
+  if (current.closureStarted) throw failure();
   current.authorized = true;
 }
 /** Bind an internal capture consumer to this exact original source context. */
@@ -383,6 +404,7 @@ export function consumePreparedCreationScope(
     now = linuxMonotonicMs();
   if (
     !current.authorized ||
+    current.closureStarted ||
     current.consumed ||
     now < current.context.budget.start ||
     now >= current.context.budget.deadline ||

@@ -2210,3 +2210,23 @@ the native inventory case pass; private archives are independently hash reviewed
 Offline inventory completes within the original five-minute reserve. Positive
 full factory/binder execution and real GCP throughput remain unqualified.
 Every original installed/runtime/live/cleanup/CI/review/delivery gate stays open.
+
+## Delete-only capture source continuation, 2026-11-22
+
+The [delete capture receipt](gcp-delete-capture-source-20261122.md) records the
+genuine destroy-dispatch, closed-output and retired-plan failures and their
+source repairs. Original native capture, wrong-source refusals and durable
+closure checks pass. This remains an inactive, unpublished source draft;
+positive full factory execution and every original installed/live/cleanup/
+CI/review/delivery gate remain open. Updated private checkpoints preserve the
+full goal, current drafts, saved create plan, keys and all failed evidence.
+
+## Prepared scope closure after actual runner retirement
+
+The [prepared closure receipt](gcp-prepared-scope-closure-source-20261122.md)
+records the genuine eight-stage cold closure failure and durable input/revocation
+repair. Current source/native tests pass and raw private archives are independently
+hash verified. Complete live before/final factory execution and every original
+installed/live/cleanup/CI/review/delivery gate remain open. A fresh 21-resource
+original source plan and its independent initial absences are retained; no apply
+has been submitted.

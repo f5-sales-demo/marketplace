@@ -69,7 +69,13 @@ type Row = {
   address: string;
   type: string;
   mode: string;
-  change: { actions: string[]; after: Record<string, unknown>; after_unknown: Record<string, unknown> };
+  change: {
+    actions: string[];
+    after: Record<string, unknown>;
+    after_unknown: Record<string, unknown>;
+    before?: Record<string, unknown>;
+    before_sensitive?: Record<string, unknown>;
+  };
 };
 export async function fixture(
   run: (context: InstalledCaptureContext, store: CeDeploymentStore, invocation: Invocation) => Promise<void>,
@@ -81,7 +87,9 @@ export async function fixture(
   providerLock = GCP_PUBLIC_TERRAFORM_ARTIFACTS.providerLock,
   sourceCaptureInputs = false,
   operationRemainingMs = 7200000,
+  afterSourceRetired?: () => Promise<void>,
 ) {
+  const deferredInputClosures: Array<() => void> = [];
   const root = await mkdtemp(join(tmpdir(), 'original-inventory-scope-'));
   roots.push(root);
   const intent = declaredIntent(ha);
@@ -160,6 +168,17 @@ export async function fixture(
   if (!last) throw new Error('Original fixture row required');
   if (mutation === 'namespace') last.change.after.namespace = 'example-foreign-namespace';
   if (mutation === 'platform-name') last.change.after.name = 'foreign-token';
+  if (mutation.startsWith('destroy')) {
+    for (const row of rows) {
+      row.change.before = { ...row.change.after, id: `original-${row.address}` };
+      row.change.before_sensitive = {};
+      row.change.actions = ['delete'];
+      row.change.after = {};
+      row.change.after_unknown = {};
+    }
+    if (mutation === 'destroy-partial') rows.splice(1);
+    if (mutation === 'destroy-empty') rows.splice(0);
+  }
   const deployment: Deployment = {
     schemaVersion: 1,
     deploymentId: owner.deploymentId,
@@ -306,8 +325,12 @@ export async function fixture(
           try {
             await inputChecks.assertInputs();
           } finally {
-            captureMonitor.close();
-            interpreter.close();
+            const close = () => {
+              captureMonitor.close();
+              interpreter.close();
+            };
+            if (afterSourceRetired) deferredInputClosures.push(close);
+            else close();
           }
         }
       }
@@ -332,7 +355,12 @@ export async function fixture(
     undefined,
     'gcp-resource-plan-v1',
   );
-  await runner.prepare(deployment);
-  const plan = await runner.plan({});
-  await runner.apply(plan, {});
+  try {
+    await runner.prepare(deployment);
+    const plan = mutation.startsWith('destroy') ? await runner.planDestroy({}) : await runner.plan({});
+    await runner.apply(plan, {});
+    await afterSourceRetired?.();
+  } finally {
+    for (const close of deferredInputClosures) close();
+  }
 }
