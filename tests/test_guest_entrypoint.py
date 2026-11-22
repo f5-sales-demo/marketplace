@@ -251,3 +251,99 @@ def test_wrong_fifo_identity_refuses_before_descriptor_binding(tmp_path):
     binding = {"path": str(path), "identity": identity}
     with pytest.raises(ValueError, match="identity"):
         entry.open_port(binding, path, os.O_RDONLY)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["none", "restore", "replace", "symlink", "during-open", "copy"]
+)
+def test_native_control_frame_preserves_identity_without_rereading_admitted_inputs(
+    tmp_path, mutation
+):
+    _, path, _ = configuration(tmp_path)
+    expected = hashlib.sha256(path.read_bytes()).hexdigest()
+    code = """
+import importlib.util,json,os,sys
+from pathlib import Path
+path=Path(sys.argv[2])
+spec=importlib.util.spec_from_file_location('original_entry_probe',path.parent/'scripts'/'guest_entrypoint.py')
+entry=importlib.util.module_from_spec(spec)
+sys.modules[spec.name]=entry
+spec.loader.exec_module(entry)
+original=entry.prepare_entry(path,sys.argv[3])
+fds=tuple(os.open(original.request['ports'][role]['path'],os.O_RDWR|os.O_NONBLOCK) for role in ('read','write'))
+reads=[]
+read_owned=entry.read_owned
+def observe(path,*args,**kwargs):
+    reads.append(str(path))
+    return read_owned(path,*args,**kwargs)
+entry.read_owned=observe
+try:
+    target=Path(original.request['inputs']['ce_key']['path'])
+    raw=target.read_bytes()
+    if sys.argv[4]=='restore':
+        target.chmod(0o600)
+        target.write_bytes(b'CHANGED_EXAMPLE_KEY')
+        target.write_bytes(raw)
+        target.chmod(0o400)
+    if sys.argv[4]=='replace':
+        target.unlink()
+        target.write_bytes(raw)
+        target.chmod(0o400)
+    if sys.argv[4]=='symlink':
+        replacement=target.with_name('foreign-key')
+        replacement.write_bytes(raw)
+        replacement.chmod(0o400)
+        target.unlink()
+        target.symlink_to(replacement)
+    if sys.argv[4]=='during-open':
+        os_open=os.open
+        changed=False
+        def replace_during_open(path,*args,**kwargs):
+            global changed
+            fd=os_open(path,*args,**kwargs)
+            if Path(path)==target and not changed:
+                changed=True
+                target.unlink()
+                target.write_bytes(raw)
+                target.chmod(0o400)
+            return fd
+        os.open=replace_during_open
+    if sys.argv[4]=='copy':
+        from dataclasses import replace
+        original=replace(original)
+    outcomes=[]
+    for _ in range(2):
+        try:
+            original.verify(fds)
+            outcomes.append('verified')
+        except ValueError:
+            outcomes.append('refused')
+    print(json.dumps({'outcomes':outcomes,'inputReads':sum(value!=str(path) for value in reads),'requestReads':reads.count(str(path))}))
+finally:
+    for fd in fds:os.close(fd)
+"""
+    result = subprocess.run(  # noqa: S603 - current owned interpreter; fixed isolated probe and source/request paths.
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            code,
+            str(Path.cwd()),
+            str(path),
+            expected,
+            mutation,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        start_new_session=True,
+    )
+    assert result.returncode == 0, result.stderr
+    observed = json.loads(result.stdout)
+    assert observed["outcomes"] == (
+        ["verified"] * 2 if mutation == "none" else ["refused"] * 2
+    )
+    if mutation == "none":
+        assert observed["inputReads"] == 0
+        assert observed["requestReads"] == 2

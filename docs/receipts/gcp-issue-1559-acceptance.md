@@ -2199,3 +2199,14 @@ All 46 affected cases, current types/lint and independent retained-archive
 hash checks pass. Positive full factory/binder handoff and full-inventory
 throughput remain unqualified. Every original installed/runtime/live/cleanup/
 CI/review/merge/publication/installation gate remains open.
+
+## Original input identity and native inventory throughput
+
+The [input identity receipt](gcp-guest-input-identity-source-20261121.md) records
+source-admitted continuous identity checks, preserved full verification
+boundaries and genuine native capture of 90 inspections and 90 full logs.
+All 99 Python cases, current types/configured lint, 13 affected source cases and
+the native inventory case pass; private archives are independently hash reviewed.
+Offline inventory completes within the original five-minute reserve. Positive
+full factory/binder execution and real GCP throughput remain unqualified.
+Every original installed/runtime/live/cleanup/CI/review/delivery gate stays open.

@@ -14,9 +14,10 @@ from dataclasses import dataclass
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypeGuard
+from weakref import WeakValueDictionary
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from types import CodeType, ModuleType
 
     from .gcp_guest_session import GuestBinding
@@ -200,9 +201,8 @@ def validate_budget(request: dict, now: int) -> tuple[int, int, int]:
     return operation, closure, startup
 
 
-def verify_inputs(inputs: dict) -> dict[str, bytes]:
-    """Recheck admitted file and parent identities and exact source bytes."""
-    output = {}
+def input_paths(inputs: dict) -> Iterator[tuple[str, dict, Path, dict[str, str]]]:
+    """Validate exact admitted paths and file/parent identities."""
     paths = set()
     for name, binding in inputs.items():
         if not isinstance(binding, dict) or set(binding) != {
@@ -228,6 +228,13 @@ def verify_inputs(inputs: dict) -> dict[str, bytes]:
             != {key: file_identity(parent)[key] for key in PARENT_FIELDS}
         ):
             refuse("Original guest input parent changed")
+        yield name, binding, path, before
+
+
+def verify_inputs(inputs: dict) -> dict[str, bytes]:
+    """Fully hash source admission and preserve original module bytes."""
+    output = {}
+    for name, binding, path, before in input_paths(inputs):
         raw = read_owned(path, 256 * LIMIT, private=name in KEY_ROLES)
         if (
             hashlib.sha256(raw).hexdigest() != binding["sha256"]
@@ -236,6 +243,40 @@ def verify_inputs(inputs: dict) -> dict[str, bytes]:
             refuse("Original guest input bytes changed")
         output[name] = raw
     return output
+
+
+def verify_input_identities(inputs: dict) -> None:
+    """Check current identities only after full source admission.
+
+    The installed parent fully hashes inputs before/after commands and final capture.
+    No cached metadata, replacement descriptor or new source is admitted here.
+    """
+    for name, binding, path, before in input_paths(inputs):
+        info = path.lstat()
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.getuid()
+            or info.st_nlink != 1
+            or info.st_mode & (0o077 if name in KEY_ROLES else 0o022)
+            or not 0 < info.st_size <= 256 * LIMIT
+        ):
+            refuse("Original owned private guest input required")
+        if file_identity(info) != before:
+            refuse("Original guest input identity changed during inspection")
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            if (
+                file_identity(os.fstat(descriptor)) != before
+                or file_identity(path.lstat()) != before
+                or {
+                    key: file_identity(path.parent.lstat())[key]
+                    for key in PARENT_FIELDS
+                }
+                != binding["expectedParentIdentity"]
+            ):
+                refuse("Original guest input identity changed during inspection")
+        finally:
+            os.close(descriptor)
 
 
 class CapturedGuestSource(SourceFileLoader):
@@ -348,6 +389,8 @@ class OriginalGuestEntry:
 
     def verify(self, descriptors: tuple[int, int]) -> None:
         """Recheck original inputs and actor around every control frame."""
+        if admitted_entries.get(id(self)) is not self:
+            refuse("Original admitted guest entry required")
         if (
             read_request(self.path, self.expected) != self.request
             or file_identity(self.path.lstat()) != self.identities[0]
@@ -358,7 +401,7 @@ class OriginalGuestEntry:
             != self.identities[1]
         ):
             refuse("Original guest request or directory changed")
-        verify_inputs(self.request["inputs"])
+        verify_input_identities(self.request["inputs"])
         if self.modules["guest_pty"].process_identity(os.getpid()) != self.actor:
             refuse("Original guest worker actor changed")
         for descriptor, role in zip(descriptors, ("read", "write"), strict=True):
@@ -370,6 +413,9 @@ class OriginalGuestEntry:
                 for key in PORT_FIELDS
             } != binding["identity"]:
                 refuse("Original guest control FIFO changed")
+
+
+admitted_entries: WeakValueDictionary[int, OriginalGuestEntry] = WeakValueDictionary()
 
 
 def validate_guest_request_schema(request: dict) -> bool:
@@ -448,9 +494,11 @@ def prepare_entry(path: Path, expected: str) -> OriginalGuestEntry:
         or ports["root"] != str(path.parent)
     ):
         refuse("Original guest control root required")
-    return OriginalGuestEntry(
+    original = OriginalGuestEntry(
         path, expected, request, identities, modules, binding, budget, actor
     )
+    admitted_entries[id(original)] = original
+    return original
 
 
 def serve_entry(entry: OriginalGuestEntry) -> None:

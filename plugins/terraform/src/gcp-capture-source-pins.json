@@ -9,7 +9,7 @@
     "guest_control.py": "6fee424ef312d2c42b5b5c594993d8ab3db9f75d1268a6173ff348fa5220de7d",
     "guest_worker.py": "b333a4288e3ce0522864099e5956b4647a3b11e7002eae3cb6bac842eb2dce3f",
     "guest_final_budget.py": "cdc8265b79abf561cae68b345557733a72f7b7d10c5527c22800daf93be066c9",
-    "guest_entrypoint.py": "30890a7033fae2fd5261987736c25279331f3978a1172eeba8fb41a6edcde0a5",
+    "guest_entrypoint.py": "2f87c6ca08ffd3709d7facd891c05c6747fb87e7ca6ceb4f301bc305468b5a5a",
     "gcp_provider_process.py": "2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00",
     "gcp_provider_reader.py": "7c74ad218ac485164e767c86c7cb3f46ea091729b21d14f08ed4a596a0b48ffb",
     "xcsh_creation_observer.py": "6ebd1f53ef6e1ae69c41533a6930351fca4e3a0d928d46fb6d3f0ea0fb918b5b",
