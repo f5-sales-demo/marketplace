@@ -591,13 +591,18 @@ export function joinOriginalGcpInsertSource(input: OriginalGcpInsertSourceJoinIn
   return joined;
 }
 
-export type OriginalGcpInsertWitnessInput = Omit<OriginalGcpInsertSourceJoinInput, 'plan' | 'parent'> & {
+export type OriginalGcpInsertWitnessInput = Omit<OriginalGcpInsertSourceJoinInput, 'plan' | 'parent' | 'window'> & {
   readonly originalPlan: OriginalTerraformPlanProjection;
-};
+} & (
+    | { readonly window: InstalledProviderWindow; readonly windows?: never }
+    | { readonly windows: readonly InstalledProviderWindow[]; readonly window?: never }
+  );
 export interface OriginalGcpInsertWitnesses {
   readonly directory: string;
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 1 | 2;
   readonly kind: 'original-gcp-insert-source-witnesses';
+  readonly windowSha256s?: readonly string[];
+  readonly rpcTemporalCoverage?: readonly Readonly<{ lowerEpochMs: number; upperEpochMs: number }>[];
   readonly executor: Readonly<{ pid: number; group: number; start: string; boot: string }>;
   readonly planSha256: string;
   readonly stdoutSha256: string;
@@ -630,8 +635,15 @@ export async function collectOriginalGcpInsertWitnesses(input: OriginalGcpInsert
   const insert = input.insert,
     started = input.started,
     completed = input.completed,
-    rpc = input.rpc,
-    window = input.window;
+    rpc = input.rpc;
+  const multiple = Object.hasOwn(input, 'windows');
+  if (multiple === Object.hasOwn(input, 'window') || (multiple && !Array.isArray(input.windows)))
+    throw new Error('Exactly one original window or window collection required');
+  const selectedWindows = input.windows;
+  const selectedWindow = input.window;
+  const windows = Object.freeze(selectedWindows ? [...selectedWindows] : selectedWindow ? [selectedWindow] : []);
+  if (!windows.length) throw new Error('Original insertion witness windows required');
+  const window = windows[0];
   await assertOriginalTerraformPlanProjection(originalPlan);
   const bodies = insertOrigins.get(insert);
   if (!bodies) throw new Error('Original insert projection required');
@@ -681,24 +693,25 @@ export async function collectOriginalGcpInsertWitnesses(input: OriginalGcpInsert
         completeSource.eventEpochMs < lifecycle.servedEpochMs
       )
         throw new Error('Original insert UI temporal interval does not contain its RPC');
-      const correspondence = await corroborateOriginalGoogleRpcProvider({ rpc, windows: [window], binding });
+      const correspondence = await corroborateOriginalGoogleRpcProvider({ rpc, windows, binding });
       if (
         correspondence.planSha256 !== originalPlan.receipt.planSha256 ||
         correspondence.sourceStderrSha256 !== startSource.stderrSha256
       )
         throw new Error('Original insert provider window source differs');
-      joinOriginalGcpInsertSource({
-        insert,
-        binding,
-        plan: originalPlan.receipt,
-        configuration,
-        started,
-        completed,
-        rpc,
-        window,
-        parent: executor,
-        providerPath,
-      });
+      for (const originalWindow of windows)
+        joinOriginalGcpInsertSource({
+          insert,
+          binding,
+          plan: originalPlan.receipt,
+          configuration,
+          started,
+          completed,
+          rpc,
+          window: originalWindow,
+          parent: executor,
+          providerPath,
+        });
       // Recheck all sources after the independent temporal and identity joins.
       await readOriginalTerraformApplyHookSource(started);
       await readOriginalTerraformApplyHookSource(completed);
@@ -706,7 +719,15 @@ export async function collectOriginalGcpInsertWitnesses(input: OriginalGcpInsert
       readOriginalGoogleProviderRpcSource(rpc);
       await assertOriginalTerraformPlanProjection(originalPlan);
       return Object.freeze({
-        schemaVersion: 1,
+        ...(multiple
+          ? {
+              schemaVersion: 2 as const,
+              windowSha256s: Object.freeze(windows.map((item) => item.evidenceSha256)),
+              ...(correspondence.schemaVersion === 3
+                ? { rpcTemporalCoverage: correspondence.rpcTemporalCoverage }
+                : {}),
+            }
+          : { schemaVersion: 1 as const }),
         kind: 'original-gcp-insert-source-witnesses',
         directory: originalPlan.directory,
         executor,

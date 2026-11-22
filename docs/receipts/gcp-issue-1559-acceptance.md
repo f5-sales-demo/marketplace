@@ -2140,3 +2140,13 @@ independent archive review verifies the retained original events. The complete
 factory remains inactive and lacks positive before/final, guest-round and full
 witness qualification. Every original installed/live/cleanup/CI/review/delivery
 gate remains open.
+
+## Current CE insertion source witnesses
+
+The [CE insertion witness receipt](gcp-ce-insert-witness-source-20261121.md)
+records versioned multiple-window source consumption and target-specific
+UI/HTTP/RPC dispatch. All 43 dependent cases, current types and source lint
+pass; private source archives are independently hash reviewed. The factory
+consumer remains inactive. Before guest rounds, observer/audit correlation,
+full factory execution/throughput and every original installed/live/cleanup/
+CI/review/delivery gate remain open.

@@ -18577,7 +18577,15 @@ async function collectOriginalGcpInsertWitnesses(input) {
   const originalPlan = input.originalPlan;
   const binding = Object.freeze({ ...input.binding });
   const { configuration, providerPath } = input;
-  const { insert, started, completed, rpc, window } = input;
+  const { insert, started, completed, rpc } = input;
+  const multiple = Object.hasOwn(input, 'windows');
+  if (multiple === Object.hasOwn(input, 'window') || (multiple && !Array.isArray(input.windows)))
+    throw new Error('Exactly one original window or window collection required');
+  const selectedWindows = input.windows;
+  const selectedWindow = input.window;
+  const windows = Object.freeze(selectedWindows ? [...selectedWindows] : selectedWindow ? [selectedWindow] : []);
+  if (!windows.length) throw new Error('Original insertion witness windows required');
+  const window = windows[0];
   await assertOriginalTerraformPlanProjection(originalPlan);
   const bodies = insertOrigins.get(insert);
   if (!bodies) throw new Error('Original insert projection required');
@@ -18627,31 +18635,40 @@ async function collectOriginalGcpInsertWitnesses(input) {
         completeSource.eventEpochMs < lifecycle.servedEpochMs
       )
         throw new Error('Original insert UI temporal interval does not contain its RPC');
-      const correspondence = await corroborateOriginalGoogleRpcProvider({ rpc, windows: [window], binding });
+      const correspondence = await corroborateOriginalGoogleRpcProvider({ rpc, windows, binding });
       if (
         correspondence.planSha256 !== originalPlan.receipt.planSha256 ||
         correspondence.sourceStderrSha256 !== startSource.stderrSha256
       )
         throw new Error('Original insert provider window source differs');
-      joinOriginalGcpInsertSource({
-        insert,
-        binding,
-        plan: originalPlan.receipt,
-        configuration,
-        started,
-        completed,
-        rpc,
-        window,
-        parent: executor,
-        providerPath,
-      });
+      for (const originalWindow of windows)
+        joinOriginalGcpInsertSource({
+          insert,
+          binding,
+          plan: originalPlan.receipt,
+          configuration,
+          started,
+          completed,
+          rpc,
+          window: originalWindow,
+          parent: executor,
+          providerPath,
+        });
       await readOriginalTerraformApplyHookSource(started);
       await readOriginalTerraformApplyHookSource(completed);
       await readOriginalGoogleHttpRpcSource(bodies);
       readOriginalGoogleProviderRpcSource(rpc);
       await assertOriginalTerraformPlanProjection(originalPlan);
       return Object.freeze({
-        schemaVersion: 1,
+        ...(multiple
+          ? {
+              schemaVersion: 2,
+              windowSha256s: Object.freeze(windows.map((item) => item.evidenceSha256)),
+              ...(correspondence.schemaVersion === 3
+                ? { rpcTemporalCoverage: correspondence.rpcTemporalCoverage }
+                : {}),
+            }
+          : { schemaVersion: 1 }),
         kind: 'original-gcp-insert-source-witnesses',
         directory: originalPlan.directory,
         executor,
@@ -21477,6 +21494,72 @@ function requestPlatform(bus) {
     }
   });
 }
+// plugins/terraform/src/installed-ce-insert-witnesses.ts
+async function collectInstalledCeInsertWitnesses(input) {
+  const targets = Object.freeze(input.targets.map((target) => Object.freeze({ ...target })));
+  const bodies = Object.freeze([...input.bodies]);
+  const hooks = Object.freeze([...input.hooks]);
+  const rpcs = Object.freeze([...input.rpcs]);
+  const windows = Object.freeze([...input.windows]);
+  if (
+    !targets.length ||
+    new Set(targets.map((target) => target.address)).size !== targets.length ||
+    new Set(targets.map((target) => `${target.project}/${target.zone}/${target.name}`)).size !== targets.length
+  )
+    throw new Error('Unique original CE witness targets required');
+  const originalBodies = [];
+  for (const body of bodies) {
+    await readOriginalGoogleHttpRpcSource(body);
+    originalBodies.push({ body, request: decodeEvidenceObject(Buffer.from(body.requestBody)) });
+  }
+  const results = [];
+  for (const target of targets) {
+    const matching = originalBodies.filter(
+      ({ body, request }) =>
+        request.name === target.name &&
+        body.rpc === 'ApplyResourceChange' &&
+        body.resourceType === 'google_compute_instance' &&
+        body.method === 'POST' &&
+        body.url ===
+          `https://compute.googleapis.com/compute/v1/projects/${target.project}/zones/${target.zone}/instances?alt=json`,
+    );
+    if (matching.length !== 1) throw new Error('Unique original CE insert body required');
+    const body = matching[0].body;
+    const insert = inspectOriginalGcpInsertBodies(body, input.binding);
+    const starts = hooks.filter((hook) => hook.address === target.address && hook.phase === 'apply_start');
+    const completions = hooks.filter((hook) => hook.address === target.address && hook.phase === 'apply_complete');
+    const matchingRpcs = rpcs.filter(
+      (rpc) =>
+        rpc.rpcRequestId === insert.rpcRequestId &&
+        rpc.rpc === 'ApplyResourceChange' &&
+        rpc.resourceType === 'google_compute_instance',
+    );
+    if (starts.length !== 1 || completions.length !== 1 || matchingRpcs.length !== 1)
+      throw new Error('Unique original CE UI and RPC sources required');
+    const rpc = matchingRpcs[0];
+    const candidate = await collectOriginalGcpInsertWitnesses({
+      originalPlan: input.originalPlan,
+      configuration: input.configuration,
+      providerPath: input.providerPath,
+      binding: input.binding,
+      insert,
+      started: starts[0],
+      completed: completions[0],
+      rpc,
+      windows: windows.filter((window) => window.observations.some((row) => row.candidate.pid === rpc.providerPid)),
+    });
+    const witnesses = await readOriginalGcpInsertWitnesses(candidate);
+    if (
+      candidate.resourceAddress !== target.address ||
+      candidate.project !== target.project ||
+      candidate.zone !== target.zone ||
+      candidate.nodeName !== target.name
+    )
+      throw new Error('Original CE target and witnessed insertion differ');
+    results.push(Object.freeze({ target, candidate, witnesses }));
+  }
+  return Object.freeze(results);
+}
 
 // plugins/terraform/src/installed-vm-capture.ts
 import { randomUUID as randomUUID19 } from 'node:crypto';
@@ -21934,6 +22017,7 @@ export {
   closeOriginalGcpObserverClientAbiCommand,
   closeOriginalGcpObserverClientAbiRenewalCommand,
   closeOriginalGcpObserverClientInstallation,
+  collectInstalledCeInsertWitnesses,
   collectInstalledOriginalGuestRound,
   collectOriginalEarlyGcpInsertIdentity,
   collectOriginalEarlyGcpSerialEvidence,

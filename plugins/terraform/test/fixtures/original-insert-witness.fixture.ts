@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import {
   GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15178_TERRAFORM_ARTIFACTS,
 } from '../../../gcloud/src/ce/terraform-public-artifacts';
 import { GoogleHttpRpcTraceParser, type OriginalGoogleHttpResponseObservation } from '../../src/gcp-http-rpc-trace';
 import { inspectOriginalGcpInsertBodies } from '../../src/gcp-insert-evidence';
@@ -45,12 +46,15 @@ export type WitnessInput = {
   completed: ReturnType<TerraformApplyHookParser['pushOriginal']>[number];
   rpc: ReturnType<GoogleProviderLifecycleParser['pushOriginal']>[number];
   window: InstalledProviderWindow;
+  allWindows: readonly InstalledProviderWindow[];
+  bodies: ReturnType<GoogleHttpRpcTraceParser['consumeBodies']>;
 };
 
 export async function withInsertWitnesses(
   check: (value: WitnessInput, output: OriginalExecutionOutput, admission: ExecutionCaptureAdmission) => Promise<void>,
   timestampMode = 'normal',
   googleVersion: '8.11.0' | '8.12.0' = '8.11.0',
+  windowMode: 'single' | 'overlap' | 'gap' | 'one-ms-gap' | 'changed-fifo' = 'single',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'original-insert-witness-'));
   roots.push(root);
@@ -58,7 +62,10 @@ export async function withInsertWitnesses(
     googleVersion === '8.12.0'
       ? {
           terraformVersion: '1.17.2',
-          providerLockSha256: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+          providerLockSha256:
+            windowMode === 'single'
+              ? 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5'
+              : '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
         }
       : currentBinding;
   const original = sourceJoinFixture(versionBinding, googleVersion);
@@ -71,8 +78,12 @@ export async function withInsertWitnesses(
     scope: { cloud: 'gcp', account: 'example-project', region: 'us-central1' },
     terraformVersion: '1.17.2',
     configuration,
-    providerLock: (googleVersion === '8.12.0' ? GCP_XCSH15176_TERRAFORM_ARTIFACTS : GCP_PUBLIC_TERRAFORM_ARTIFACTS)
-      .providerLock,
+    providerLock: (googleVersion === '8.12.0'
+      ? windowMode === 'single'
+        ? GCP_XCSH15176_TERRAFORM_ARTIFACTS
+        : GCP_XCSH15178_TERRAFORM_ARTIFACTS
+      : GCP_PUBLIC_TERRAFORM_ARTIFACTS
+    ).providerLock,
     backendIdentity: 'local:example-deployment',
   };
   let witnessParent: ExecutionCaptureAdmission | undefined;
@@ -124,6 +135,7 @@ export async function withInsertWitnesses(
       const script = join(request.cwd, 'simulated-insert.py');
       await writeFile(script, 'pass\n', { mode: 0o600 });
       let window: WitnessInput['window'] | undefined;
+      const windows: InstalledProviderWindow[] = [];
       let providerReader: Awaited<ReturnType<typeof openInstalledProviderReader>> | undefined;
       const providerPath = `/example/provider/terraform-provider-google_v${googleVersion}_x5`;
       const start = linuxMonotonicMs();
@@ -135,24 +147,35 @@ export async function withInsertWitnesses(
         assertOriginal: async () => {},
         beforeRelease: async (admission) => {
           witnessParent = admission;
-          const run = await windowFixture(googleVersion === '8.12.0' ? '812' : '1172', admission.identity),
-            baseMono = run.clock(),
-            baseEpoch = Date.now();
-          run.mutate((value) => {
-            const observation = (value.observations as Array<Record<string, unknown>>)[0];
-            value.observations = [
-              { ...observation, firstObservedMs: baseMono + 100, lastObservedMs: baseMono + 44999 },
-            ];
-          });
-          providerReader = await openInstalledProviderReader(run.context, run.admission, {
-            executorFactory: run.factory,
-            clock: run.clock,
-            epochClock: () => baseEpoch + run.clock() - baseMono,
-          });
-          const pending = providerReader.startStderrWindow();
-          await pending.ready;
-          run.releaseWindow();
-          window = await pending.complete;
+          const baseEpoch = Date.now();
+          for (const [index, offset] of (windowMode === 'single'
+            ? [0]
+            : [0, windowMode === 'gap' ? 45000 : windowMode === 'one-ms-gap' ? 44900 : 30000]
+          ).entries()) {
+            const run = await windowFixture(googleVersion === '8.12.0' ? '812' : '1172', admission.identity);
+            const baseMono = run.clock();
+            run.mutate((value) => {
+              const observation = (value.observations as Array<Record<string, unknown>>)[0];
+              const current: Record<string, unknown> = {
+                ...observation,
+                firstObservedMs: baseMono + 100,
+                lastObservedMs: baseMono + 44999,
+              };
+              if (index === 1 && windowMode === 'changed-fifo')
+                current.stderr = { ...(current.stderr as Record<string, unknown>), inode: '999' };
+              value.observations = [current];
+            });
+            providerReader = await openInstalledProviderReader(run.context, run.admission, {
+              executorFactory: run.factory,
+              clock: run.clock,
+              epochClock: () => baseEpoch + offset + run.clock() - baseMono,
+            });
+            const pending = providerReader.startStderrWindow();
+            await pending.ready;
+            run.releaseWindow();
+            windows.push(await pending.complete);
+          }
+          window = windows[0];
           const row = (time: number, message: string, fields: object = {}) =>
             `${JSON.stringify({ '@timestamp': new Date(baseEpoch + time).toISOString(), '@module': 'provider', '@level': 'debug', '@message': message, ...fields })}\n`;
           const trace = traceFixture(requestFixture(), operationFixture(), googleVersion)
@@ -161,7 +184,13 @@ export async function withInsertWitnesses(
             .map((raw) => {
               const value = JSON.parse(raw);
               const offset =
-                value['@message'] === 'Received request' ? 1000 : value['@message'] === 'Served request' ? 1100 : 1050;
+                value['@message'] === 'Received request'
+                  ? 1000
+                  : value['@message'] === 'Served request'
+                    ? windowMode === 'single'
+                      ? 1100
+                      : 70000
+                    : 1050;
               value['@timestamp'] = new Date(baseEpoch + offset).toISOString();
               return `${JSON.stringify(value)}\n`;
             })
@@ -170,7 +199,7 @@ export async function withInsertWitnesses(
             row(-1, 'starting plugin', { path: providerPath, args: [providerPath] }) +
             row(0, 'plugin started', { path: providerPath, pid: 3456 }) +
             trace +
-            row(60000, 'plugin process exited', { plugin: providerPath, id: '3456' });
+            row(windowMode === 'single' ? 60000 : 90000, 'plugin process exited', { plugin: providerPath, id: '3456' });
           const resource = {
             addr: 'google_compute_instance.node',
             module: '',
@@ -183,7 +212,7 @@ export async function withInsertWitnesses(
           const ui = (time: number, type: string, fields: object = {}) =>
             row(time, 'simulated original UI', { '@module': 'terraform.ui', '@level': 'info', type, ...fields });
           const begin = timestampMode === 'late-start' ? 1150 : 900,
-            end = timestampMode === 'early-complete' ? 1050 : 1200;
+            end = timestampMode === 'early-complete' ? 1050 : windowMode === 'single' ? 1200 : 70100;
           const stdout =
             ui(0, 'version', { terraform: '1.17.2', ui: '1.3' }) +
             ui(begin, 'apply_start', { hook: { resource, action: 'create' } }) +
@@ -231,7 +260,8 @@ export async function withInsertWitnesses(
           ui.finishOriginal(witnessParent.output, completion);
           lifecycle.finishOriginal(witnessParent.output, completion);
           http.finishOriginal(witnessParent.output, completion);
-          const insert = inspectOriginalGcpInsertBodies(http.consumeBodies(httpCandidates[0]), versionBinding);
+          const bodies = http.consumeBodies(httpCandidates[0]);
+          const insert = inspectOriginalGcpInsertBodies(bodies, versionBinding);
           await check(
             {
               earlyResponse,
@@ -244,6 +274,8 @@ export async function withInsertWitnesses(
               completed: actions[1],
               rpc: rpcs[0],
               window,
+              allWindows: windows,
+              bodies,
             },
             witnessParent.output,
             witnessParent,
