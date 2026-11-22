@@ -24,6 +24,26 @@ type Message = Record<string, unknown>;
 type Identity = ExecutionCaptureAdmission['identity'];
 type GuestRoundReport = Awaited<ReturnType<typeof runOriginalGuestCaptureRound>>;
 const originalRoundSources = new WeakMap<object, () => Promise<GuestRoundReport>>();
+const originalRoundWorkers = new WeakMap<
+  object,
+  {
+    context: InstalledCaptureContext;
+    nodeName: unknown;
+    assertOriginal(): Promise<void>;
+  }
+>();
+/** Source-only worker selection; copied objects and matching public flags carry no authority. */
+export async function assertOriginalInstalledGuestRoundWorker(
+  value: unknown,
+  context: InstalledCaptureContext,
+  nodeName: string,
+) {
+  const source = value && typeof value === 'object' ? originalRoundWorkers.get(value) : undefined;
+  if (!source || source.context !== context || source.nodeName !== nodeName)
+    throw new Error('Original installed guest round worker context differs');
+  await source.assertOriginal();
+}
+
 /** A copied packet, matching actor or user-supplied command port cannot select
  * this source-owned worker. Full guest acceptance remains independently gated. */
 export async function collectInstalledOriginalGuestRound(value: unknown) {
@@ -475,6 +495,16 @@ async function openOriginalGuestWorkerSource(
         ...(finalTiming ? { originalFinalCapture: finalTiming, originalParent: after?.execution.identity } : {}),
         guestAcceptanceComplete: false,
       });
+    },
+  });
+  originalRoundWorkers.set(worker, {
+    context,
+    nodeName: binding.node_name,
+    async assertOriginal() {
+      if (!initialized || disposed || terminal || roundFailure || outcomeError)
+        throw new Error('Original installed guest round worker is retired or refused');
+      await withinContext();
+      await assertActor();
     },
   });
   originalRoundSources.set(worker, async () => {

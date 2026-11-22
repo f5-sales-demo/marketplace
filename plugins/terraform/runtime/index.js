@@ -20694,6 +20694,13 @@ class OriginalGuestControlParent {
 
 // plugins/terraform/src/installed-guest-worker.ts
 var originalRoundSources = new WeakMap();
+var originalRoundWorkers = new WeakMap();
+async function assertOriginalInstalledGuestRoundWorker(value, context, nodeName) {
+  const source = value && typeof value === 'object' ? originalRoundWorkers.get(value) : undefined;
+  if (!source || source.context !== context || source.nodeName !== nodeName)
+    throw new Error('Original installed guest round worker context differs');
+  await source.assertOriginal();
+}
 async function collectInstalledOriginalGuestRound(value) {
   if (!value || typeof value !== 'object') throw new Error('Original installed guest worker required');
   const collect = originalRoundSources.get(value);
@@ -21110,6 +21117,16 @@ async function openOriginalGuestWorkerSource(options, after) {
       });
     },
   });
+  originalRoundWorkers.set(worker, {
+    context,
+    nodeName: binding.node_name,
+    async assertOriginal() {
+      if (!initialized || disposed || terminal || roundFailure || outcomeError)
+        throw new Error('Original installed guest round worker is retired or refused');
+      await withinContext();
+      await assertActor();
+    },
+  });
   originalRoundSources.set(worker, async () => {
     if (!initialized || disposed || terminal || collecting || roundFailure)
       throw new Error('Original installed guest round lifecycle unavailable, active or refused');
@@ -21493,6 +21510,47 @@ function requestPlatform(bus) {
       reject(new Error('Platform CE service is unavailable'));
     }
   });
+}
+// plugins/terraform/src/installed-before-guest-round.ts
+async function scheduleInstalledBeforeGuestRound(slot, callback, persist) {
+  await assertOriginalApplyLifetime(callback);
+  if (
+    slot.failure ||
+    slot.roundActive ||
+    !slot.worker ||
+    (slot.nextRoundAtMs !== undefined && linuxMonotonicMs() < slot.nextRoundAtMs)
+  )
+    return false;
+  const { worker, nodeName } = slot;
+  await assertOriginalInstalledGuestRoundWorker(worker, callback.original, nodeName);
+  if (slot.worker !== worker || slot.nodeName !== nodeName)
+    throw new Error('Original before guest dispatch worker changed');
+  if (slot.failure || slot.roundActive || (slot.nextRoundAtMs !== undefined && linuxMonotonicMs() < slot.nextRoundAtMs))
+    return false;
+  slot.roundActive = true;
+  slot.round = collectInstalledOriginalGuestRound(worker)
+    .then(async (report) => {
+      if (slot.worker !== worker || slot.nodeName !== nodeName)
+        throw new Error('Original before guest dispatch worker changed during capture');
+      slot.nextRoundAtMs = report.finishedMonotonicMs + 45000;
+      await persist({ phase: 'before-guest-round', nodeName, report });
+      return report;
+    })
+    .catch(async (error) => {
+      slot.failure ??= error;
+      await persist({
+        phase: 'before-guest-round-refused',
+        nodeName,
+        errorType: error instanceof Error ? error.name : typeof error,
+      });
+    })
+    .finally(() => {
+      slot.roundActive = false;
+    });
+  slot.round.catch((error) => {
+    slot.failure ??= error;
+  });
+  return true;
 }
 // plugins/terraform/src/installed-ce-insert-witnesses.ts
 async function collectInstalledCeInsertWitnesses(input) {
@@ -22102,5 +22160,6 @@ export {
   readOriginalTerraformApplyHookSource,
   readOriginalXcshCreationBody,
   readOriginalXcshCreationBodyProviderProfile,
+  scheduleInstalledBeforeGuestRound,
   TerraformApplyHookParser,
 };

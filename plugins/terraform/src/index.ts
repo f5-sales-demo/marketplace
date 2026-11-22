@@ -188,6 +188,7 @@ export {
   readOriginalFinalGcpVmEvidence,
 } from './gcp-vm-evidence';
 export { acknowledgeOriginalApplyGroupClosure, assertOriginalApplyGroupClosed } from './installed-apply-controller';
+export { scheduleInstalledBeforeGuestRound } from './installed-before-guest-round';
 export { collectInstalledCeInsertWitnesses } from './installed-ce-insert-witnesses';
 export {
   assertOriginalApplyGcpInventoryCallback,

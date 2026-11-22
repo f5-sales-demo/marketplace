@@ -2150,3 +2150,13 @@ pass; private source archives are independently hash reviewed. The factory
 consumer remains inactive. Before guest rounds, observer/audit correlation,
 full factory execution/throughput and every original installed/live/cleanup/
 CI/review/delivery gate remain open.
+
+## Original before guest-round source dispatch
+
+The [before guest-round receipt](gcp-before-guest-dispatch-source-20261121.md)
+records source-bound worker selection, concurrent scheduling, completion-based
+round spacing and independent native closure/retention. Eight native/source
+cases, current types and private archive review pass. The complete factory
+remains inactive. Final observer image mapping, observer/audit joins, complete
+factory execution and full inventory throughput remain open alongside every
+original installed/live/cleanup/CI/review/delivery gate.
