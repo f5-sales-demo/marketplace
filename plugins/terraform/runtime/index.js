@@ -3256,6 +3256,64 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
   }
 }
 var executeTerraform = terraformExecutor(undefined, true);
+async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
+  const proof = scope.emptyOriginal;
+  const owner = object3(manifest);
+  const prefix = `${join3(directory, 'capture-cleanup-verification')}/`;
+  if (
+    !proof ||
+    scope.resources.length ||
+    scope.verification ||
+    proof.schemaVersion !== 1 ||
+    proof.kind !== 'original-empty-create-state-verification' ||
+    !proof.checkpoint.path.startsWith(prefix) ||
+    !proof.savedPlan.path.startsWith(prefix) ||
+    dirname4(proof.savedPlan.path) !== dirname4(proof.checkpoint.path) ||
+    [proof.checkpoint, proof.savedPlan].some((binding) => (Number(binding.expectedIdentity?.mode) & 511) !== 256)
+  )
+    throw new Error('Original empty capture verification evidence required');
+  const monitor = await monitorOriginalInputs({ checkpoint: proof.checkpoint, savedPlan: proof.savedPlan });
+  try {
+    const row = decode2((await privateRead(proof.checkpoint.path)).toString());
+    const receipt = proof.receipt;
+    const bytes = await privateRead(join3(directory, 'terraform.tfstate'));
+    const state = decode2(bytes.toString());
+    if (
+      !['applying', 'applied'].includes(String(row.state)) ||
+      canonical(row.receipt) !== canonical(receipt) ||
+      receipt.schemaVersion !== 1 ||
+      receipt.engine !== 'terraform' ||
+      receipt.operation !== undefined ||
+      receipt.noChanges !== false ||
+      (receipt.actionInvocations !== undefined &&
+        (!Array.isArray(receipt.actionInvocations) || receipt.actionInvocations.length !== 0)) ||
+      receipt.deploymentId !== scope.deploymentId ||
+      receipt.deploymentId !== owner.deploymentId ||
+      receipt.backendIdentity !== owner.backendIdentity ||
+      receipt.configurationSha256 !== owner.configurationSha256 ||
+      receipt.providerLockSha256 !== owner.providerLockSha256 ||
+      !Array.isArray(receipt.changes) ||
+      !receipt.changes.length ||
+      receipt.changes.some((change) => canonical(change.actions) !== canonical(['create'])) ||
+      digest2(await privateRead(proof.savedPlan.path)) !== receipt.planSha256 ||
+      digest2(bytes) !== scope.state.sha256 ||
+      state.version !== 4 ||
+      state.terraform_version !== owner.terraformVersion ||
+      state.lineage !== scope.state.lineage ||
+      state.serial !== scope.state.serial ||
+      !Array.isArray(state.resources) ||
+      state.resources.length !== 0 ||
+      !state.outputs ||
+      typeof state.outputs !== 'object' ||
+      Array.isArray(state.outputs) ||
+      Object.keys(state.outputs).length !== 0
+    )
+      throw new Error('Original empty state, create checkpoint or binary differs');
+    await monitor.assertOriginal();
+  } finally {
+    monitor.close();
+  }
+}
 
 class TerraformRunner {
   root;
@@ -3284,7 +3342,7 @@ class TerraformRunner {
         !cleanup.state.lineage ||
         !Number.isSafeInteger(cleanup.state.serial) ||
         cleanup.state.serial < 0 ||
-        !cleanup.resources.length ||
+        (!cleanup.resources.length && !cleanup.emptyOriginal) ||
         new Set(cleanup.resources.map((r) => r.address)).size !== cleanup.resources.length ||
         cleanup.resources.some((r) => !r.address || !r.id) ||
         typeof cleanup.assertIndependentClosure !== 'function' ||
@@ -3293,6 +3351,18 @@ class TerraformRunner {
         )
       )
         throw new Error('Reviewed capture-independent cleanup scope and executor required');
+      const empty = cleanup.emptyOriginal;
+      if (
+        empty &&
+        (cleanup.resources.length ||
+          cleanup.verification ||
+          empty.schemaVersion !== 1 ||
+          empty.kind !== 'original-empty-create-state-verification')
+      )
+        throw new Error('Original empty create verification scope required');
+      const emptyInputs = empty
+        ? freezeAdmittedCaptureInputs({ checkpoint: empty.checkpoint, savedPlan: empty.savedPlan })
+        : undefined;
       const verification = cleanup.verification;
       if (
         verification &&
@@ -3319,6 +3389,16 @@ class TerraformRunner {
                 ...verification,
                 checkpoint: verificationInput,
                 state: Object.freeze({ ...verification.state }),
+              }),
+            }
+          : {}),
+        ...(empty && emptyInputs
+          ? {
+              emptyOriginal: Object.freeze({
+                ...empty,
+                checkpoint: emptyInputs.checkpoint,
+                savedPlan: emptyInputs.savedPlan,
+                receipt: freezeOriginalPlan(structuredClone(empty.receipt)),
               }),
             }
           : {}),
@@ -3571,6 +3651,10 @@ class TerraformRunner {
         },
       };
     }
+    if (scope.emptyOriginal) {
+      inputs['empty:checkpoint'] = scope.emptyOriginal.checkpoint;
+      inputs['empty:savedPlan'] = scope.emptyOriginal.savedPlan;
+    }
     const monitor = await monitorOriginalInputs(inputs);
     try {
       await monitor.assertOriginal();
@@ -3585,6 +3669,7 @@ class TerraformRunner {
         state = decode2(raw('terraform.tfstate').toString());
       const checkpoint = decode2(raw('plan-receipt.json').toString()),
         receipt = object3(checkpoint.receipt);
+      if (scope.emptyOriginal) await verifyEmptyOriginalCaptureCleanup(scope, directory, owner);
       if (
         digest2(raw('deployment.json')) !== scope.deploymentManifestSha256 ||
         owner.engine !== 'terraform' ||
@@ -3594,7 +3679,7 @@ class TerraformRunner {
         digest2(raw('deployment.tfrc')) !== digest2(cliConfig) ||
         state.lineage !== scope.state.lineage ||
         !Number.isSafeInteger(state.serial) ||
-        state.serial <= scope.state.serial ||
+        (state.serial <= scope.state.serial && (!scope.emptyOriginal || state.serial !== scope.state.serial)) ||
         !Array.isArray(state.resources) ||
         state.resources.length ||
         checkpoint.state !== 'planned' ||
@@ -3729,6 +3814,10 @@ class TerraformRunner {
     )
       throw new Error('Original reviewed cleanup state identity changed');
     if (!Array.isArray(state.resources)) throw new Error('Original cleanup state resources are malformed');
+    if (scope.emptyOriginal) {
+      await verifyEmptyOriginalCaptureCleanup(scope, directory, this.#manifest);
+      this.#cleanupEmpty = true;
+    }
     const verification = scope.verification;
     if (verification) {
       if (

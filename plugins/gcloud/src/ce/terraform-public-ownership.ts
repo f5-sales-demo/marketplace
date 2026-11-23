@@ -8,6 +8,12 @@ import type { GcpTerraformTeardownRuntime } from './terraform-teardown';
 import type { GcpCeIntent } from './types';
 import { validateIntent } from './validation';
 
+export type GcpTerraformOwnershipObserverRuntime = Pick<GcpTerraformTeardownRuntime, 'api' | 'observePlatform'>;
+export type GcpTerraformOwnershipRuntime = GcpTerraformOwnershipObserverRuntime &
+  Pick<GcpTerraformTeardownRuntime, 'environment'> & {
+    session: Pick<GcpTerraformTeardownRuntime['session'], 'readApplyAttemptResourceFields'>;
+  };
+
 export function publicTerraformPlatformScope(intent: GcpCeIntent) {
   return intent.sites.flatMap((site) => [
     { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
@@ -152,7 +158,7 @@ export type PublicTerraformOwnership = Awaited<ReturnType<typeof inspectPublicTe
 
 /** Every present object must have an original, nonsensitive creation identity in owning state. */
 export async function inspectPublicTerraformOwnership(
-  runtime: GcpTerraformTeardownRuntime,
+  runtime: GcpTerraformOwnershipRuntime,
   intent: GcpCeIntent,
   receipt: PlanReceipt,
   signal?: AbortSignal,
@@ -350,7 +356,7 @@ export async function inspectPublicTerraformOwnership(
 }
 /** Read every node-bound token and reject inconsistent site observations across reads. */
 export async function observePublicTerraformPlatform(
-  runtime: GcpTerraformTeardownRuntime,
+  runtime: GcpTerraformOwnershipObserverRuntime,
   intent: GcpCeIntent,
   signal?: AbortSignal,
 ) {
@@ -417,7 +423,7 @@ export function assertPublicTerraformSnapshot(
 /** Google 8.7.0 has no numeric firewall ID in state. Join the retained creation timestamp to
  * the exact live timestamp and immutable target ID within the original insert operation interval. */
 export async function assertOriginalFirewallInsert(
-  runtime: GcpTerraformTeardownRuntime,
+  runtime: GcpTerraformOwnershipObserverRuntime,
   intent: GcpCeIntent,
   value: Record<string, unknown>,
   originalId: string,
@@ -499,7 +505,7 @@ export async function assertOriginalFirewallInsert(
 
 /** Independently join original numeric identities to the live no-account/NIC and pinned-image mapping. */
 export async function assertOriginalObserverLiveBindings(
-  runtime: GcpTerraformTeardownRuntime,
+  runtime: GcpTerraformOwnershipObserverRuntime,
   intent: GcpCeIntent,
   resources: GcpResourceIdentity[],
   signal?: AbortSignal,

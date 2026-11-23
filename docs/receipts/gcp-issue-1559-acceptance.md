@@ -2240,3 +2240,15 @@ All 137 affected cases, current strict Terraform/GCloud types and the normal
 three-plugin build pass. Concrete signal-free inspection, original reader-group
 closure and real GCP/XC ownership admission remain the next gate. Every original
 installed/runtime/live/cleanup/CI/review/delivery gate remains open.
+
+## GCP capture cleanup admission and original empty verification
+
+The [domain admission receipt](gcp-capture-cleanup-admission-source-20261122.md)
+records original GCP scope/state joins, independent ownership checks, retirement
+and permanent replacement refusal. Shared original-empty verification retains
+its create checkpoint and binary while refusing every apply and permitting two
+non-submitting empty resumes without serial invention. All 153 affected cases,
+strict types and normal generated-runtime build pass; 29 native local captures
+are independently reviewed. Durable interruption recovery and actual GCP/XC
+ownership/guest-reader joins remain open, alongside every original feature,
+runtime, installation, CI/review and delivery gate.

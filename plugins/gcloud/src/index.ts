@@ -207,4 +207,5 @@ const factory: ExtensionFactory = async (pi) => {
 };
 
 export default factory;
+export { openGcpCaptureCleanupAdmission } from './ce/capture-cleanup-admission';
 export { readGcpCaptureCleanupStateCandidate } from './ce/capture-cleanup-state';

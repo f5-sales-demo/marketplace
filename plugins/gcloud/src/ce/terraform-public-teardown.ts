@@ -15,6 +15,7 @@ import { type PublicTerraformJournal, readOptional } from './terraform-public';
 import {
   assertOriginalFirewallInsert,
   assertOriginalObserverLiveBindings,
+  type GcpTerraformOwnershipObserverRuntime,
   observePublicTerraformPlatform,
   type PublicTerraformOwnership,
   publicTerraformAddresses,
@@ -27,7 +28,7 @@ import type { GcpCeIntent } from './types';
 
 /** Observes every configured identity, including objects absent from a partial owning subset. */
 export async function verifyPublicTerraformLiveOwnership(
-  runtime: GcpTerraformTeardownRuntime,
+  runtime: GcpTerraformOwnershipObserverRuntime,
   intent: GcpCeIntent,
   owned: PublicTerraformOwnership,
   signal?: AbortSignal,

@@ -347,6 +347,123 @@ async function completedCleanupFixture() {
   return { ...f, recovery, checkpointPath, receipt };
 }
 
+async function originalEmptyFixture() {
+  const f = await inspectionFixture();
+  const state = {
+    version: 4,
+    terraform_version: '1.16.6',
+    lineage: 'example-lineage',
+    serial: 1,
+    resources: [],
+    outputs: {},
+  };
+  const raw = JSON.stringify(state);
+  await writeFile(join(f.dir, 'terraform.tfstate'), raw, { mode: 0o600 });
+  const folder = join(f.dir, 'capture-cleanup-verification', 'original-empty');
+  await mkdir(folder, { recursive: true, mode: 0o700 });
+  const checkpointPath = join(folder, 'original-empty-create.private.json');
+  const planPath = join(folder, 'saved-create.tfplan');
+  await writeFile(checkpointPath, await readFile(join(f.dir, 'plan-receipt.json')), { mode: 0o400 });
+  await writeFile(planPath, await readFile(join(f.dir, 'saved.tfplan')), { mode: 0o400 });
+  const emptyOriginal = {
+    schemaVersion: 1 as const,
+    kind: 'original-empty-create-state-verification' as const,
+    checkpoint: await f.binding(checkpointPath),
+    savedPlan: await f.binding(planPath),
+    receipt: f.input.receipt,
+  };
+  const recovery = {
+    ...f.recovery,
+    resources: [],
+    state: { sha256: hash(raw), lineage: state.lineage, serial: state.serial },
+    emptyOriginal,
+  };
+  return { ...f, recovery, checkpointPath, planPath };
+}
+
+test('original empty capture cleanup admits only read-only recovery and preserves its failed lock', async () => {
+  const f = await originalEmptyFixture();
+  const runner = new TerraformRunner(f.root, f.execute, f.recovery);
+  await runner.resume('cleanup-fixture');
+  expect(f.calls).toHaveLength(0);
+  await expect(runner.apply(f.input.receipt, {})).rejects.toThrow();
+  await expect(runner.plan({})).rejects.toThrow('cleanup');
+  expect(f.calls).toHaveLength(0);
+  expect(await Bun.file(join(f.lock, 'capture-unresolved.json')).exists()).toBe(true);
+});
+
+for (const mode of ['missing-proof', 'planned', 'foreign-owner', 'replaced-plan', 'unexpected-resources'] as const)
+  test(`original empty capture cleanup refuses invalid review bindings: ${mode}`, async () => {
+    const f = await originalEmptyFixture();
+    if (mode === 'missing-proof') Object.assign(f.recovery, { emptyOriginal: undefined });
+    if (mode === 'planned' || mode === 'foreign-owner') {
+      const row = JSON.parse(await readFile(f.checkpointPath, 'utf8'));
+      if (mode === 'planned') row.state = 'planned';
+      else row.receipt.deploymentId = 'foreign';
+      const wrongPath = join(dirname(f.checkpointPath), `wrong-${mode}.private.json`);
+      await writeFile(wrongPath, JSON.stringify(row), { mode: 0o400, flag: 'wx' });
+      f.recovery.emptyOriginal.checkpoint = await f.binding(wrongPath);
+    }
+    if (mode === 'replaced-plan') {
+      const raw = await readFile(f.planPath);
+      await rename(f.planPath, `${f.planPath}.original`);
+      await writeFile(f.planPath, raw, { mode: 0o400 });
+    }
+    if (mode === 'unexpected-resources') {
+      await writeFile(
+        join(f.dir, 'terraform.tfstate'),
+        JSON.stringify({
+          version: 4,
+          lineage: 'example-lineage',
+          serial: 1,
+          resources: [
+            {
+              mode: 'managed',
+              type: 'terraform_data',
+              name: 'foreign',
+              instances: [{ attributes: { id: 'foreign' } }],
+            },
+          ],
+          outputs: {},
+        }),
+        { mode: 0o600 },
+      );
+    }
+    await expect(
+      (async () => new TerraformRunner(f.root, f.execute, f.recovery).resume('cleanup-fixture'))(),
+    ).rejects.toThrow();
+    expect(f.calls).toHaveLength(0);
+  });
+
+test('original empty cleanup resumes twice behind a stable empty destroy without changing the original serial', async () => {
+  const f = await originalEmptyFixture();
+  const manifest = JSON.parse(await readFile(join(f.dir, 'deployment.json'), 'utf8'));
+  const plan = Buffer.from('stable-empty-destroy-fixture');
+  const receipt = {
+    schemaVersion: 1,
+    deploymentId: 'cleanup-fixture',
+    engine: 'terraform',
+    backendIdentity: manifest.backendIdentity,
+    configurationSha256: manifest.configurationSha256,
+    providerLockSha256: manifest.providerLockSha256,
+    planSha256: hash(plan),
+    operation: 'destroy',
+    noChanges: true,
+    changes: [],
+  };
+  await writeFile(join(f.dir, 'saved.tfplan'), plan, { mode: 0o600 });
+  await writeFile(join(f.dir, 'plan-receipt.json'), JSON.stringify({ state: 'planned', receipt }), { mode: 0o600 });
+  const failed = await readFile(join(f.lock, 'capture-unresolved.json'));
+  const runner = new TerraformRunner(f.root, f.execute, f.recovery);
+  for (let n = 0; n < 2; n++) {
+    const result = await runner.resumeCompletedCleanupReadOnly('cleanup-fixture');
+    expect(result.stateSerial).toBe(1);
+    expect(result.executorSubmissions).toBe(0);
+  }
+  expect(f.calls).toHaveLength(0);
+  expect(await readFile(join(f.lock, 'capture-unresolved.json'))).toEqual(failed);
+});
+
 test('completed cleanup verification resumes twice without submission and preserves the original failed lock', async () => {
   const f = await completedCleanupFixture();
   const before = await readFile(join(f.lock, 'capture-unresolved.json'));

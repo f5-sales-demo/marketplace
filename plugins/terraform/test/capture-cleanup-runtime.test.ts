@@ -5,4 +5,5 @@ test('normal generated runtimes expose the qualified read-only cleanup inspectio
   const gcloud = await import(new URL('../../gcloud/runtime/index.js', import.meta.url).href);
   expect(typeof terraform.readCaptureCleanupAttemptResourceFields).toBe('function');
   expect(typeof gcloud.readGcpCaptureCleanupStateCandidate).toBe('function');
+  expect(typeof gcloud.openGcpCaptureCleanupAdmission).toBe('function');
 });
