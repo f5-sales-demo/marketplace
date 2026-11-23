@@ -2274,3 +2274,14 @@ Five actual native actors and physical absences are independently reviewed,
 including retained incomplete capture evidence. Remaining real SDK/SSH/guest
 source coverage and every original GCP feature/runtime/live/CI/review/delivery
 gate remain open.
+
+## Original source retirement after failed guest rounds
+
+The [retirement receipt](gcp-capture-source-retirement-20261123.md) records an
+exact retained-handler failure and its repair in the original Ubuntu worktree.
+All 72 affected cases, 391 assertions, three full strict typechecks, configured
+Biome checks and the normal runtime build pass; 16 private captures are retained.
+Worker closure failures preserve their original bindings while independent
+sources still receive retirement attempts. Remaining actual reader witnesses,
+full factory cleanup bindings and every original installed/runtime/live/cleanup/
+CI/review/delivery gate remain open. The factory stays inactive and untracked.
