@@ -213,5 +213,11 @@ export {
 } from './installed-provider-reader';
 export { type InstalledVmCaptureInput, openInstalledVmCapture } from './installed-vm-capture';
 export { readOriginalExecutionPrefix } from './original-output-stream';
+export {
+  assertOriginalReaderGroupClosure,
+  assertOriginalReaderGroupInputs,
+  collectOriginalReaderGroupClosure,
+  persistOriginalReaderGroupSet,
+} from './original-reader-group-closure';
 export { readCaptureCleanupAttemptResourceFields } from './runner';
 export { readOriginalTerraformApplyHookSource, TerraformApplyHookParser } from './terraform-apply-hooks';

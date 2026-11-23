@@ -15,6 +15,12 @@ interface Claim {
 interface GroupLifetime extends Claim {
   group: number;
 }
+export interface RecordedProcessGroupIdentity {
+  readonly pid: number;
+  readonly group: number;
+  readonly start: string;
+  readonly boot: string;
+}
 export interface ProcessLockOptions {
   trackProcessGroup?: boolean;
 }
@@ -77,18 +83,12 @@ async function requireGroupClosed(path: string, owner: Claim): Promise<void> {
 async function requirePhysicalGroupClosed(path: string, owner: Claim): Promise<void> {
   const original = await readGroupLifetime(path, owner);
   if (!original) return; // Historical claims retain their original schema and behavior.
-  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
-  if ((await bootId()) === original.row.bootId) {
-    for (const name of await readdir('/proc')) {
-      if (!/^\d+$/.test(name)) continue;
-      try {
-        if ((await processGroup(Number(name))) === original.row.group)
-          throw new Error('Original executor process group remains live');
-      } catch (error) {
-        if (!vanishedProcess(error)) throw error;
-      }
-    }
-  }
+  await assertRecordedProcessGroupAbsent({
+    pid: original.row.pid,
+    group: original.row.group,
+    start: original.row.processStartTicks,
+    boot: original.row.bootId,
+  });
   const current = await readGroupLifetime(path, owner);
   if (
     !current ||
@@ -99,6 +99,35 @@ async function requirePhysicalGroupClosed(path: string, owner: Claim): Promise<v
     current.metadata.mtimeMs !== original.metadata.mtimeMs
   )
     throw new Error('Original executor lifetime changed during closure inspection');
+}
+
+/** Physical check of a verified original reader identity. Does not reclaim a
+ * lock, clear a failure flag or claim that capture/guest acceptance succeeded. */
+export async function assertRecordedProcessGroupAbsent(identity: RecordedProcessGroupIdentity): Promise<void> {
+  if (
+    !identity ||
+    Object.keys(identity).sort().join(',') !== 'boot,group,pid,start' ||
+    !Number.isSafeInteger(identity.pid) ||
+    identity.pid < 1 ||
+    identity.group !== identity.pid ||
+    typeof identity.start !== 'string' ||
+    !/^[0-9]+$/.test(identity.start) ||
+    typeof identity.boot !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(identity.boot)
+  )
+    throw new Error('Original recorded process group identity required');
+  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
+  if ((await bootId()) === identity.boot) {
+    for (const name of await readdir('/proc')) {
+      if (!/^\d+$/.test(name)) continue;
+      try {
+        if ((await processGroup(Number(name))) === identity.group)
+          throw new Error('Original executor process group remains live');
+      } catch (error) {
+        if (!vanishedProcess(error)) throw error;
+      }
+    }
+  }
 }
 
 /** Physical closure only. Does not resolve capture, reclaim the claim or change failed flags. */

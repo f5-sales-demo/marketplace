@@ -2263,3 +2263,14 @@ strict typechecks and normal generated runtime build/export checks pass. A fresh
 Bun process reconstructs the original persisted scope. Source observations remain
 synthetic; original factory reader groups and real GCP/XC ownership, followed by
 every original feature/runtime/live/CI/review/delivery gate, remain unfinished.
+
+## Original native reader group closure
+
+The [reader closure receipt](gcp-original-reader-closure-source-20261122.md)
+records direct physical group checks, original native bootstrap/completion/gate
+joins, owning provider attempt/capture coverage and immutable required-source
+sets. All 98 affected cases and current source/build/type/lint checks pass.
+Five actual native actors and physical absences are independently reviewed,
+including retained incomplete capture evidence. Remaining real SDK/SSH/guest
+source coverage and every original GCP feature/runtime/live/CI/review/delivery
+gate remain open.

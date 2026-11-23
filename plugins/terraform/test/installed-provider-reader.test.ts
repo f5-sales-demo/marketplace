@@ -15,6 +15,24 @@ import { signalFreeTerraformExecutor } from '../src/signal-free-executor';
 
 import { fixture, hash, parent, roots, sdk } from './installed-provider-reader-fixture';
 
+test('provider closure witnesses refuse synthetic group flags without original native execution records', async () => {
+  const run = await fixture('812');
+  const reader = await openInstalledProviderReader(run.context, run.admission, { executorFactory: run.factory });
+  await reader.read();
+  expect(typeof reader.readerClosureWitnesses).toBe('function');
+  await expect(reader.readerClosureWitnesses()).rejects.toThrow();
+  await expect(reader.read()).rejects.toThrow('retired');
+  expect(run.executions()).toBe(1);
+});
+
+test('an original provider reader with no admitted children records an empty closure set and retires sampling', async () => {
+  const run = await fixture('812');
+  const reader = await openInstalledProviderReader(run.context, run.admission, { executorFactory: run.factory });
+  expect(await reader.readerClosureWitnesses()).toEqual([]);
+  await expect(reader.read()).rejects.toThrow('retired');
+  expect(run.executions()).toBe(0);
+});
+
 test('installed provider bridge preserves all original candidates without qualifying cloud apply', async () => {
   const run = await fixture();
   const reader = await openInstalledProviderReader(run.context, run.admission, { executorFactory: run.factory });

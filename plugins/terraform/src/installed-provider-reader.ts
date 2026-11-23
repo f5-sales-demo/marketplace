@@ -9,6 +9,11 @@ import pins from './installed-runtime-pins.json';
 import { resolveInstalledGcpExecutableProfile } from './installed-version-profile';
 import { linuxMonotonicMs } from './linux-clock';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import {
+  assertOriginalReaderGroupClosure,
+  collectOriginalReaderGroupClosure,
+  type OriginalReaderGroupClosure,
+} from './original-reader-group-closure';
 import { assertFinalReaderReserve, type FinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
 import type { Executor } from './runner';
 import { withFinalCheck } from './session-lifetime';
@@ -16,6 +21,7 @@ import {
   type ExecutionCaptureAdmission,
   type FinalExecutionCapture,
   type SignalFreeExecutionPolicy,
+  signalFreeBootstrapSource,
   signalFreeFinalReaderExecutor,
   signalFreeTerraformExecutor,
 } from './signal-free-executor';
@@ -217,12 +223,14 @@ export async function openInstalledProviderReader(
   let parentClosed = false;
   const captures: FinalExecutionCapture[] = [];
   const attempts: Array<{
+    directory?: string;
     identity?: Identity;
     capture?: FinalExecutionCapture;
     binding?: OriginalInputBinding;
   }> = [];
   const pendingReads = new Set<Promise<unknown>>();
   let closure: Promise<void> | undefined;
+  let physicalClosures: Promise<readonly OriginalReaderGroupClosure[]> | undefined;
   const freeze = <T>(value: T): T => {
     if (value && typeof value === 'object') {
       for (const child of Object.values(value)) freeze(child);
@@ -366,7 +374,7 @@ export async function openInstalledProviderReader(
           let readerIdentity: Identity | undefined;
           let readerStartupDeadline: number | undefined;
           let complete = false;
-          const attempt: (typeof attempts)[number] = {};
+          const attempt: (typeof attempts)[number] = { directory };
           const policy: SignalFreeExecutionPolicy = {
             python: { path: inputs.python.path, sha256: pins.pythonSha256 },
             executable: { path: inputs.python.path, sha256: pins.pythonSha256 },
@@ -734,6 +742,55 @@ export async function openInstalledProviderReader(
     root,
     assertOriginal: () => run(assertOriginal),
     captures: () => Object.freeze([...captures]),
+    readerClosureWitnesses() {
+      retired = true;
+      physicalClosures ??= (async () => {
+        while (pendingReads.size) await Promise.allSettled([...pendingReads]);
+        const actual = await lstat(root, { bigint: true });
+        if (
+          !actual.isDirectory() ||
+          actual.isSymbolicLink() ||
+          actual.dev !== originalRoot.dev ||
+          actual.ino !== originalRoot.ino ||
+          actual.uid !== originalRoot.uid ||
+          actual.mode !== originalRoot.mode
+        )
+          throw new Error('Original provider reader root changed during physical closure');
+        if (captures.length !== attempts.length)
+          throw new Error('Original provider reader attempt coverage unavailable');
+        const witnesses: OriginalReaderGroupClosure[] = [];
+        for (const attempt of attempts) {
+          if (
+            !attempt.identity ||
+            !attempt.capture ||
+            !attempt.binding ||
+            !attempt.directory?.startsWith(`${root}/`) ||
+            !equalIdentity(attempt.capture.identity, attempt.identity)
+          )
+            throw new Error('Original provider reader actor or capture source unavailable');
+          assertSameOriginalInput(
+            attempt.binding,
+            (await readOwnedInstalledInput(attempt.binding.path, 65536)).binding,
+          );
+          witnesses.push(
+            await collectOriginalReaderGroupClosure({
+              directory: attempt.directory,
+              capture: attempt.capture,
+              captureBinding: attempt.binding,
+              originalBudget: { ...context.budget },
+              pythonSha256: pins.pythonSha256,
+              executableSha256: pins.pythonSha256,
+              gateSha256: hash(Buffer.from(signalFreeBootstrapSource)),
+            }),
+          );
+        }
+        return Object.freeze(witnesses);
+      })();
+      return physicalClosures.then(async (witnesses) => {
+        for (const witness of witnesses) await assertOriginalReaderGroupClosure(witness);
+        return witnesses;
+      });
+    },
     async read(reserve?: FinalReaderReserve) {
       const result = await run(() => readInternal(reserve));
       if (result.kind !== 'original-provider-cohort') throw new Error('Original legacy provider cohort required');
