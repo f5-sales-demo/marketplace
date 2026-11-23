@@ -172,11 +172,14 @@ async function fixture() {
     inspection,
     commands,
     apiCalls,
+    api,
     refreshState,
     open,
     closureChecks: () => closureChecks,
   };
 }
+
+export { fixture as gcpCleanupAdmissionFixture };
 
 test('GCP cleanup admission joins all21 original state identities with independent cloud and XC observations', async () => {
   const f = await fixture(),

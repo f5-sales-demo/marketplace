@@ -107,6 +107,33 @@ async function preserveEmptyOriginalProof(
   });
 }
 
+export const gcpCleanupSignal = (milliseconds: number, parent?: AbortSignal) =>
+  parent ? AbortSignal.any([parent, AbortSignal.timeout(milliseconds)]) : AbortSignal.timeout(milliseconds);
+
+export function boundedGcpCleanupObservers(
+  api: GcloudExecApi,
+  observePlatform: GcpTerraformOwnershipObserverRuntime['observePlatform'],
+): GcpTerraformOwnershipObserverRuntime {
+  const exec = api.exec.bind(api);
+  const observation: GcpTerraformOwnershipObserverRuntime = {
+    api: {
+      exec: async (command, args, options = {}) => {
+        const bounded = gcpCleanupSignal(60000, options.signal);
+        const result = await exec(command, args, { ...options, signal: bounded });
+        bounded.throwIfAborted();
+        return result;
+      },
+    },
+    observePlatform: async (site, token, parent) => {
+      const bounded = gcpCleanupSignal(60000, parent);
+      const result = await observePlatform(site, token, bounded);
+      bounded.throwIfAborted();
+      return result;
+    },
+  };
+  return observation;
+}
+
 /** Compiled domain admission only. Tool arguments cannot supply an executor,
  * closure callback or an ownership verdict. Reviewed destroy authorization
  * remains mandatory in the shared runner and public teardown workflow. */
@@ -131,27 +158,9 @@ export async function openGcpCaptureCleanupAdmission(
     assertIndependentClosure: original.assertIndependentClosure.bind(original),
   };
   const closure = inspection.assertIndependentClosure;
-  const observePlatform = input.observePlatform;
-  const exec = input.api.exec.bind(input.api);
-  const signalFor = (milliseconds: number, parent?: AbortSignal) =>
-    parent ? AbortSignal.any([parent, AbortSignal.timeout(milliseconds)]) : AbortSignal.timeout(milliseconds);
+  const signalFor = gcpCleanupSignal;
   const openingSignal = signalFor(300000, signal);
-  const observation: GcpTerraformOwnershipObserverRuntime = {
-    api: {
-      exec: async (command, args, options = {}) => {
-        const bounded = signalFor(60000, options.signal);
-        const result = await exec(command, args, { ...options, signal: bounded });
-        bounded.throwIfAborted();
-        return result;
-      },
-    },
-    observePlatform: async (site, token, parent) => {
-      const bounded = signalFor(60000, parent);
-      const result = await observePlatform(site, token, bounded);
-      bounded.throwIfAborted();
-      return result;
-    },
-  };
+  const observation = boundedGcpCleanupObservers(input.api, input.observePlatform);
   const monitor = await monitorOriginalInputs(inspection.inputs);
   let scopeMonitor: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
   let stateMonitor: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;

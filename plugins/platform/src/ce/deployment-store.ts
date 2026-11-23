@@ -1,7 +1,30 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import type { CeOwner } from './runtime';
+
+const immutableIdentityKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'] as const;
+export interface CeImmutableRecord {
+  readonly schemaVersion: 1;
+  readonly kind: 'ce-immutable-file';
+  readonly name: string;
+  readonly binding: Readonly<{
+    path: string;
+    sha256: string;
+    expectedIdentity: Readonly<Record<(typeof immutableIdentityKeys)[number], string>>;
+    expectedParentIdentity: Readonly<Record<'dev' | 'ino' | 'uid' | 'mode', string>>;
+  }>;
+}
+const immutableHash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const immutableIdentity = (metadata: Awaited<ReturnType<typeof immutableMetadata>>) =>
+  Object.fromEntries(immutableIdentityKeys.map((key) => [key, String(metadata[key])])) as Record<
+    (typeof immutableIdentityKeys)[number],
+    string
+  >;
+async function immutableMetadata(path: string) {
+  return lstat(path, { bigint: true });
+}
 
 function key(owner: CeOwner): string {
   return createHash('sha256')
@@ -100,7 +123,8 @@ export class CeDeploymentStore {
       throw new Error('CE deployment belongs to another execution engine or scope');
   }
   async write(name: string, value: unknown): Promise<void> {
-    if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
+    if (name === 'owner.json' || name.startsWith('immutable-'))
+      throw new Error('CE deployment storage item is immutable');
     await this.verify();
     const temporary = this.#path(`tmp-${randomUUID()}`);
     try {
@@ -122,8 +146,114 @@ export class CeDeploymentStore {
     await this.verify();
     return JSON.parse((await this.#read(name)).toString());
   }
+  /** One immutable source publication. A collision, even with identical bytes,
+   * cannot replace evidence or turn an unchanged retry into success. */
+  async writeImmutableBytes(name: string, input: Uint8Array): Promise<CeImmutableRecord> {
+    if (!name.startsWith('immutable-')) throw new Error('Reserved immutable CE record name required');
+    const path = this.#path(name);
+    const bytes = Buffer.from(input);
+    if (bytes.byteLength > 256 * 1024 * 1024) throw new Error('Immutable CE record exceeds byte limit');
+    await this.verify();
+    const parent = await immutableMetadata(this.directory);
+    const handle = await open(
+      path,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+      0o400,
+    );
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await syncDirectory(this.directory);
+    const file = await immutableMetadata(path);
+    const currentParent = await immutableMetadata(this.directory);
+    if (
+      file.uid !== BigInt(process.getuid?.() ?? -1) ||
+      !file.isFile() ||
+      file.isSymbolicLink() ||
+      file.nlink !== 1n ||
+      (file.mode & 0o777n) !== 0o400n ||
+      !parent.isDirectory() ||
+      currentParent.isSymbolicLink() ||
+      ['dev', 'ino', 'uid', 'mode'].some(
+        (key) =>
+          String(parent[key as keyof typeof parent]) !== String(currentParent[key as keyof typeof currentParent]),
+      ) ||
+      (await realpath(path)) !== path ||
+      immutableHash(await readFile(path)) !== immutableHash(bytes)
+    )
+      throw new Error('Original immutable CE publication identity changed');
+    return Object.freeze({
+      schemaVersion: 1,
+      kind: 'ce-immutable-file',
+      name,
+      binding: Object.freeze({
+        path,
+        sha256: immutableHash(bytes),
+        expectedIdentity: Object.freeze(immutableIdentity(file)),
+        expectedParentIdentity: Object.freeze({
+          dev: String(parent.dev),
+          ino: String(parent.ino),
+          uid: String(parent.uid),
+          mode: String(parent.mode),
+        }),
+      }),
+    });
+  }
+  /** Read original bytes through their preserved file and parent identity. */
+  async readImmutableBytes(input: CeImmutableRecord): Promise<Buffer> {
+    const record = structuredClone(input);
+    await this.verify();
+    const binding = record.binding;
+    if (
+      record.schemaVersion !== 1 ||
+      record.kind !== 'ce-immutable-file' ||
+      !record.name.startsWith('immutable-') ||
+      binding.path !== this.#path(record.name) ||
+      !/^[a-f0-9]{64}$/.test(binding.sha256) ||
+      !binding.expectedIdentity ||
+      !binding.expectedParentIdentity
+    )
+      throw new Error('Original immutable CE record binding required');
+    const inspect = async () => {
+      const file = await immutableMetadata(binding.path),
+        parent = await immutableMetadata(this.directory);
+      if (
+        !file.isFile() ||
+        file.isSymbolicLink() ||
+        file.nlink !== 1n ||
+        file.uid !== BigInt(process.getuid?.() ?? -1) ||
+        (file.mode & 0o777n) !== 0o400n ||
+        !parent.isDirectory() ||
+        parent.isSymbolicLink() ||
+        immutableIdentityKeys.some((key) => String(file[key]) !== binding.expectedIdentity[key]) ||
+        (['dev', 'ino', 'uid', 'mode'] as const).some(
+          (key) => String(parent[key]) !== binding.expectedParentIdentity[key],
+        ) ||
+        (await realpath(binding.path)) !== binding.path
+      )
+        throw new Error('Original immutable CE record identity changed');
+      return file;
+    };
+    await inspect();
+    const handle = await open(binding.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const opened = await handle.stat({ bigint: true });
+      if (immutableIdentityKeys.some((key) => String(opened[key]) !== binding.expectedIdentity[key]))
+        throw new Error('Original immutable CE open identity changed');
+      const bytes = await handle.readFile();
+      if (immutableHash(bytes) !== binding.sha256) throw new Error('Original immutable CE bytes changed');
+      await inspect();
+      return bytes;
+    } finally {
+      await handle.close();
+    }
+  }
   async remove(name: string): Promise<void> {
-    if (name === 'owner.json') throw new Error('CE deployment ownership is immutable');
+    if (name === 'owner.json' || name.startsWith('immutable-'))
+      throw new Error('CE deployment storage item is immutable');
     await this.verify();
     await rm(this.#path(name), { force: true });
   }

@@ -2252,3 +2252,14 @@ strict types and normal generated-runtime build pass; 29 native local captures
 are independently reviewed. Durable interruption recovery and actual GCP/XC
 ownership/guest-reader joins remain open, alongside every original feature,
 runtime, installation, CI/review and delivery gate.
+
+## Durable original cleanup admission and reviewed resume
+
+The [durable source receipt](gcp-capture-cleanup-durable-source-20261122.md)
+records shared immutable snapshots, original source/ownership and reviewed
+destroy preservation, partial replan without applying-receipt replay, verified
+cleanup effects and exact original-empty resumes. All 182 affected cases, three
+strict typechecks and normal generated runtime build/export checks pass. A fresh
+Bun process reconstructs the original persisted scope. Source observations remain
+synthetic; original factory reader groups and real GCP/XC ownership, followed by
+every original feature/runtime/live/CI/review/delivery gate, remain unfinished.
