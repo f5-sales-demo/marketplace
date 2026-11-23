@@ -1794,6 +1794,13 @@ for (const stageVariant of [
           },
           publication: { executorFactory: publisherFactory },
         });
+        if (stageCase === 'published' || stageCase === 'reader-startup') {
+          const { collectInstalledOriginalBootstrapReaderSources } = await import('../src/installed-bootstrap-capture');
+          const rows = await collectInstalledOriginalBootstrapReaderSources(worker);
+          expect(rows.map((row) => row.name).sort()).toEqual(['bootstrap-publisher', 'xcsh']);
+          expect(rows.every((row) => row.attemptCount === 0 && row.witnesses.length === 0)).toBe(true);
+          await expect(collectInstalledOriginalBootstrapReaderSources({ ...worker })).rejects.toThrow('source-issued');
+        }
         const events: Record<string, unknown>[] = [];
         let finalCallback: import('../src/installed-apply-controller').OriginalApplyCallbackContext | undefined;
         const stageWorker = {

@@ -36,6 +36,21 @@ import {
 import type { Executor } from './runner';
 
 type Reason = 'startup' | 'deadline' | 'cancelled' | 'input-changed' | 'output-limit';
+const unspawnedExecutors = new WeakMap<object, OriginalInputBinding[]>();
+/** Only the actual native executor can issue evidence that its initial guard failed before any spawn. */
+export async function collectOriginalSignalFreeUnspawnedExecutions(value: unknown) {
+  const inputs = typeof value === 'function' ? unspawnedExecutors.get(value) : undefined;
+  if (!inputs) throw new Error('Original source-issued signal-free executor required');
+  const monitor = await monitorOriginalInputs(
+    Object.fromEntries(inputs.map((binding, index) => [String(index), binding])),
+  );
+  try {
+    await monitor.assertOriginal();
+    return Object.freeze([...inputs]);
+  } finally {
+    monitor.close();
+  }
+}
 export interface OriginalExecutionStdinSnapshot {
   readonly schemaVersion: 1;
   readonly kind: 'sealed-original-file-stdin';
@@ -605,7 +620,8 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
   const maximum = policy.maxOutputBytes ?? 64 * 1024 * 1024;
   if (![timeout, startup, maximum].every((value) => Number.isSafeInteger(value) && value > 0) || startup > 15_000)
     throw new Error('Bounded original execution limits required');
-  return async ({ cwd, args: inputArgs, env: inputEnvironment, signal }) => {
+  const unspawned: OriginalInputBinding[] = [];
+  const execute: Executor = async ({ cwd, args: inputArgs, env: inputEnvironment, signal }) => {
     let generatedInputs: Awaited<ReturnType<typeof monitorOriginalInputs>> | undefined;
     const assertOriginal = async () => {
       await generatedInputs?.assertOriginal();
@@ -624,7 +640,76 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     if (began < policy.originalStartMs || began >= executionDeadline)
       throw new Error('Original operation deadline exhausted');
     signal?.throwIfAborted();
-    await assertOriginal();
+    try {
+      await assertOriginal();
+    } catch (error) {
+      // This point precedes every native spawn and executable invocation in this source.
+      // A failed write remains unresolved; never infer zero children from missing files.
+      try {
+        const current = await lstat(cwd);
+        if (
+          !current.isDirectory() ||
+          current.isSymbolicLink() ||
+          current.uid !== process.getuid?.() ||
+          (current.mode & 0o077) !== 0 ||
+          (await realpath(cwd)) !== cwd
+        )
+          throw new Error('Original unspawned execution directory required');
+        const directory = join(cwd, 'executor-unspawned', randomUUID());
+        await mkdir(directory, { recursive: true, mode: 0o700 });
+        const path = join(directory, 'source.private.json');
+        const file = await open(path, 'wx', 0o400);
+        try {
+          await file.writeFile(
+            JSON.stringify({
+              schemaVersion: 1,
+              kind: 'original-executor-unspawned',
+              phase: 'initial-input-guard',
+              directory: cwd,
+              args,
+              python: { path: policy.python.path, sha256: policy.python.sha256 },
+              executable: { path: policy.executable.path, sha256: policy.executable.sha256 },
+              originalStartMs: policy.originalStartMs,
+              originalDeadlineMs: policy.originalDeadlineMs,
+              invocationStartedMs: began,
+              nativeSpawnInvoked: false,
+              commandSubmitted: false,
+              signalsSent: false,
+              errorType: error instanceof Error ? error.name : typeof error,
+              gateSha256: hash(Buffer.from(signalFreeBootstrapSource)),
+            }),
+          );
+          await file.sync();
+        } finally {
+          await file.close();
+        }
+        // Flush each directory entry, including both newly created parent links.
+        for (const path of [directory, dirname(directory), cwd]) {
+          const before = await lstat(path, { bigint: true });
+          if (
+            !before.isDirectory() ||
+            before.isSymbolicLink() ||
+            before.uid !== BigInt(process.getuid?.() ?? -1) ||
+            (before.mode & 0o077n) !== 0n ||
+            (await realpath(path)) !== path
+          )
+            throw new Error('Original no-spawn evidence parent directory required');
+          const parent = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+          try {
+            const current = await parent.stat({ bigint: true });
+            if (current.dev !== before.dev || current.ino !== before.ino)
+              throw new Error('Original no-spawn evidence parent changed during flush');
+            await parent.sync();
+          } finally {
+            await parent.close();
+          }
+        }
+        unspawned.push((await readOwnedInstalledInput(path)).binding);
+      } catch (retention) {
+        throw new AggregateError([error, retention], 'Original initial guard refusal and unspawned retention failed');
+      }
+      throw error;
+    }
     const directory = await lstat(cwd);
     if (
       !directory.isDirectory() ||
@@ -1183,6 +1268,8 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
       executable.close();
     }
   };
+  unspawnedExecutors.set(execute, unspawned);
+  return execute;
 }
 
 import {

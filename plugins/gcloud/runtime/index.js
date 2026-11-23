@@ -13774,6 +13774,13 @@ init_google_adc_session();
 
 // plugins/terraform/src/prepared-creation-scope.ts
 init_process_lock();
+// plugins/terraform/src/bootstrap-grant-publication.ts
+init_original_input_monitor();
+
+// plugins/terraform/src/original-reader-group-closure.ts
+init_process_lock();
+init_original_input_monitor();
+
 // plugins/terraform/src/signal-free-executor.ts
 init_process_lock();
 init_failure();
@@ -13971,12 +13978,6 @@ init_discovery();
 init_observer_scope();
 // plugins/terraform/src/original-access-reader-source.ts
 init_original_input_monitor();
-
-// plugins/terraform/src/original-reader-group-closure.ts
-init_process_lock();
-init_original_input_monitor();
-
-// plugins/terraform/src/original-access-reader-source.ts
 var _issued2 = new WeakMap();
 var _ports = new WeakMap();
 var _collections = new WeakMap();
@@ -14085,6 +14086,10 @@ var _origins19 = new WeakMap();
 // plugins/terraform/src/signal-free-executor.ts
 init_installed_capture_context();
 init_original_input_monitor();
+var _unspawnedExecutors = new WeakMap();
+
+// plugins/terraform/src/bootstrap-grant-publication.ts
+var _directories = new WeakMap();
 
 // plugins/terraform/src/gcp-preapply-bootstrap.ts
 init_discovery();

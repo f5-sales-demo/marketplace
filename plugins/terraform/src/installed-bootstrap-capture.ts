@@ -17,6 +17,7 @@ import {
 import type { InstalledCaptureContext } from './installed-capture-context';
 import type { InstalledGcpCapture } from './installed-runtime';
 import {
+  collectInstalledOriginalXcshReaderClosures,
   type InstalledXcshCreationResult,
   type InstalledXcshCreationTarget,
   type InstalledXcshReaderOptions,
@@ -24,10 +25,12 @@ import {
   readOriginalInstalledXcshCreation,
 } from './installed-xcsh-creation-reader';
 import { linuxMonotonicMs } from './linux-clock';
+import type { OriginalReaderSourceClosure } from './original-reader-group-closure';
 import {
   assertPreparedCreationScopeClosureInputs,
   assertPreparedCreationScopeContext,
   assertPreparedCreationScopeInputs,
+  collectOriginalPreparedBootstrapPublisherSource,
   inspectPreparedCreationScope,
   publishOriginalGcpBootstrapGrant,
 } from './prepared-creation-scope';
@@ -57,6 +60,13 @@ type Grant = Awaited<ReturnType<typeof publishOriginalGcpBootstrapGrant>>;
 const sameActor = (a: ExecutionCaptureAdmission['identity'], b: ExecutionCaptureAdmission['identity']) =>
   (['pid', 'group', 'start', 'boot'] as const).every((key) => a[key] === b[key]);
 const name = (value: string) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
+const sourceReaders = new WeakMap<object, () => Promise<readonly OriginalReaderSourceClosure[]>>();
+/** Inspect original child closure without reviving failed bootstrap or plan authority. */
+export async function collectInstalledOriginalBootstrapReaderSources(value: unknown) {
+  const collect = value && typeof value === 'object' ? sourceReaders.get(value) : undefined;
+  if (!collect) throw new Error('Original source-issued bootstrap capture required');
+  return collect();
+}
 
 /** Original initial-deployment bootstrap stage. Publication is distinct from
  * provider consumption, original VM/NIC ownership, guest and traffic acceptance.
@@ -480,7 +490,7 @@ export async function openInstalledBootstrapCapture(
       closed = true;
     },
   };
-  return Object.freeze({
+  const port = Object.freeze({
     ...worker,
     waitForGrants() {
       if (!pending) throw new Error('Original bootstrap stage has not started');
@@ -505,4 +515,21 @@ export async function openInstalledBootstrapCapture(
       }
     },
   });
+  sourceReaders.set(port, async () => {
+    const outcomes = await Promise.allSettled([
+      collectOriginalPreparedBootstrapPublisherSource(packet),
+      (async (): Promise<OriginalReaderSourceClosure> => {
+        if (!reader) return Object.freeze({ name: 'xcsh', attemptCount: 0, witnesses: Object.freeze([]) });
+        return Object.freeze({
+          name: 'xcsh',
+          attemptCount: 1,
+          witnesses: await collectInstalledOriginalXcshReaderClosures(reader),
+        });
+      })(),
+    ]);
+    const failures = outcomes.flatMap((outcome) => (outcome.status === 'rejected' ? [outcome.reason] : []));
+    if (failures.length) throw new AggregateError(failures, 'Original bootstrap reader source coverage incomplete');
+    return Object.freeze(outcomes.flatMap((outcome) => (outcome.status === 'fulfilled' ? [outcome.value] : [])));
+  });
+  return port;
 }

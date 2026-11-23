@@ -67,6 +67,8 @@ export interface InstalledGcpCapture {
     callback?: OriginalApplyCallbackContext,
   ): Promise<void>;
   closeAfterExecutorExit(): Promise<void>;
+  /** Durable original source inputs after closure; legacy/custom captures may omit this. */
+  readClosedReaderGroupInputs?(): Promise<Readonly<Record<string, OriginalInputBinding>>>;
 }
 export class InstalledCaptureSourcesUnavailable extends Error {
   constructor() {

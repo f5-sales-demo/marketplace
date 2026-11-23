@@ -5,6 +5,10 @@ test('normal generated Terraform runtime retains original reader closure and dur
   for (const name of [
     'collectInstalledOriginalGuestReaderClosures',
     'collectInstalledOriginalXcshReaderClosures',
+    'collectInstalledOriginalBootstrapReaderSources',
+    'collectOriginalPreparedBootstrapPublisherSource',
+    'collectOriginalBootstrapPublisherSource',
+    'collectOriginalSignalFreeUnspawnedExecutions',
     'collectInstalledOriginalAccessReaderSource',
     'collectInstalledOriginalAccessReaderSources',
     'collectOriginalReaderGroupClosure',

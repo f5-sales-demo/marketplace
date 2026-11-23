@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
 import type { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import {
@@ -9,7 +9,7 @@ import type { CeOwner } from '../../platform/src/ce/runtime';
 import { decodeEvidenceObject } from './evidence-json';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
-import type { FinalExecutionCapture } from './signal-free-executor';
+import { type FinalExecutionCapture, signalFreeBootstrapSource } from './signal-free-executor';
 
 export interface OriginalGuestReaderOrigin {
   readonly schemaVersion: 1;
@@ -95,7 +95,23 @@ export function assertOriginalAccessReaderStdin(expected: unknown, snapshot: unk
   )
     throw new Error('Original access sealed stdin source differs');
 }
-type OriginalReaderOrigin = OriginalGuestReaderOrigin | OriginalXcshReaderOrigin | OriginalAccessReaderOrigin;
+export interface OriginalBootstrapPublisherOrigin {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-bootstrap-publisher-origin';
+  readonly owner: CeOwner;
+  readonly executionDirectory: string;
+  readonly planSha256: string;
+  readonly nonce: string;
+  readonly request: OriginalInputBinding;
+  readonly claim: OriginalInputBinding;
+  readonly admissionRecorded: boolean;
+  readonly admission?: OriginalInputBinding;
+}
+type OriginalReaderOrigin =
+  | OriginalGuestReaderOrigin
+  | OriginalXcshReaderOrigin
+  | OriginalAccessReaderOrigin
+  | OriginalBootstrapPublisherOrigin;
 
 export interface OriginalReaderGroupClosure {
   readonly schemaVersion: 1;
@@ -439,6 +455,126 @@ async function inspectAccessOrigin(witness: OriginalReaderGroupClosure) {
   }
 }
 
+async function inspectBootstrapPublisherOrigin(witness: OriginalReaderGroupClosure) {
+  const origin = witness.origin;
+  if (origin?.kind !== 'original-bootstrap-publisher-origin') return;
+  if (
+    origin.schemaVersion !== 1 ||
+    origin.owner?.provider !== 'gcp' ||
+    origin.owner.engine !== 'terraform' ||
+    !/^[a-f0-9]{64}$/.test(origin.planSha256) ||
+    !/^[a-f0-9]{32}$/.test(origin.nonce) ||
+    witness.directory !== join(origin.executionDirectory, '.xcsh-original-bootstrap', origin.planSha256) ||
+    origin.request?.path !== join(witness.directory, `publisher-${origin.nonce}-request.json`) ||
+    origin.claim?.path !== join(witness.directory, `claim-${origin.nonce}.json`) ||
+    witness.inputs.capture?.path !== join(witness.directory, `publication-${origin.nonce}.json`) ||
+    typeof origin.admissionRecorded !== 'boolean' ||
+    origin.admissionRecorded !== !!origin.admission ||
+    (origin.admission &&
+      origin.admission.path !== join(witness.directory, `publisher-${origin.nonce}-admission.json`)) ||
+    [origin.request, origin.claim, ...(origin.admission ? [origin.admission] : [])].some(
+      (row) =>
+        !row.expectedIdentity || !row.expectedParentIdentity || (Number(row.expectedIdentity.mode) & 0o777) !== 0o400,
+    )
+  )
+    throw new Error('Original bootstrap publisher source origin required');
+  const monitor = await monitorOriginalInputs({
+    request: origin.request,
+    claim: origin.claim,
+    ...(origin.admission ? { admission: origin.admission } : {}),
+    ...witness.inputs,
+  });
+  try {
+    const read = async (binding: OriginalInputBinding) => {
+      const file = await readOwnedInstalledInput(binding.path, 1024 * 1024);
+      assertSameOriginalInput(binding, file.binding);
+      return decodeEvidenceObject(file.bytes);
+    };
+    const request = await read(origin.request),
+      claim = await read(origin.claim),
+      capture = await read(witness.inputs.capture);
+    const python = request.python as Record<string, unknown> | undefined,
+      script = request.script as Record<string, unknown> | undefined;
+    const args = request.args,
+      actor = claim.executor as RecordedProcessGroupIdentity | undefined;
+    if (
+      request.schemaVersion !== 1 ||
+      request.kind !== 'original-bootstrap-publisher-request' ||
+      !sameOwner(request.owner as CeOwner, origin.owner) ||
+      request.planSha256 !== origin.planSha256 ||
+      request.nonce !== origin.nonce ||
+      JSON.stringify(request.budget) !== JSON.stringify(witness.originalBudget) ||
+      typeof request.grantSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(request.grantSha256) ||
+      python?.sha256 !== witness.pythonSha256 ||
+      typeof python?.path !== 'string' ||
+      typeof script?.path !== 'string' ||
+      !Array.isArray(args) ||
+      args.length !== 11 ||
+      args[0] !== '-I' ||
+      args[1] !== '-B' ||
+      args[2] !== script.path ||
+      args[3] !== witness.directory ||
+      typeof args[4] !== 'string' ||
+      !new RegExp(`^\\.grant-${origin.nonce}-[a-f0-9]{32}\\.partial$`).test(args[4]) ||
+      args[5] !== origin.nonce ||
+      args[6] !== request.grantSha256 ||
+      args
+        .slice(7)
+        .some(
+          (value, index) =>
+            value !== origin.request.expectedParentIdentity?.[(['dev', 'ino', 'uid', 'mode'] as const)[index]],
+        ) ||
+      claim.schemaVersion !== 1 ||
+      claim.kind !== 'original-gcp-bootstrap-grant-claim' ||
+      !sameOwner(claim.owner as CeOwner, origin.owner) ||
+      claim.planSha256 !== origin.planSha256 ||
+      claim.nonce !== origin.nonce ||
+      claim.originalStartMs !== witness.originalBudget.start ||
+      claim.originalDeadlineMs !== witness.originalBudget.deadline ||
+      typeof claim.nodeName !== 'string' ||
+      !/^[a-z][a-z0-9-]{0,62}$/.test(claim.nodeName) ||
+      typeof claim.tokenName !== 'string' ||
+      !/^[a-z][a-z0-9-]{0,62}$/.test(claim.tokenName) ||
+      typeof claim.jwtSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(claim.jwtSha256) ||
+      !actor ||
+      !Number.isSafeInteger(actor.pid) ||
+      actor.pid <= 0 ||
+      actor.group !== actor.pid ||
+      actor.boot !== witness.identity.boot ||
+      !/^[1-9][0-9]*$/.test(actor.start)
+    )
+      throw new Error('Original bootstrap publisher request, claim or actor differs');
+    assertSameOriginalInput(origin.claim, request.claim as OriginalInputBinding);
+    if (origin.admission) {
+      const admission = await read(origin.admission);
+      if (
+        admission.schemaVersion !== 1 ||
+        admission.kind !== 'original-bootstrap-publisher-admission' ||
+        admission.requestSha256 !== origin.request.sha256 ||
+        !sameIdentity(admission.identity, witness.identity) ||
+        JSON.stringify(admission.args) !== JSON.stringify(args) ||
+        JSON.stringify(admission.budget) !== JSON.stringify(witness.originalBudget)
+      )
+        throw new Error('Original bootstrap publisher admission differs');
+    } else if (capture.submitted !== false) throw new Error('Unadmitted bootstrap publisher cannot submit');
+    if (witness.inputs.submission) {
+      const submitted = await read(witness.inputs.submission),
+        executable = submitted.executable as Record<string, unknown> | undefined;
+      if (
+        JSON.stringify(submitted.args) !== JSON.stringify(args) ||
+        executable?.path !== python.path ||
+        submitted.stdin !== undefined
+      )
+        throw new Error('Original bootstrap publisher submitted command differs');
+    }
+    await monitor.assertOriginal();
+  } finally {
+    monitor.close();
+  }
+}
+
 async function inspect(witness: OriginalReaderGroupClosure) {
   const expected = [
     'bootstrap',
@@ -467,6 +603,7 @@ async function inspect(witness: OriginalReaderGroupClosure) {
       'original-installed-guest-reader-origin',
       'original-installed-xcsh-reader-origin',
       'original-installed-gcp-access-reader-origin',
+      'original-bootstrap-publisher-origin',
     ].includes(witness.origin.kind)
   )
     throw new Error('Unknown original reader source origin');
@@ -548,6 +685,7 @@ async function inspect(witness: OriginalReaderGroupClosure) {
     await inspectGuestOrigin(witness);
     await inspectXcshOrigin(witness);
     await inspectAccessOrigin(witness);
+    await inspectBootstrapPublisherOrigin(witness);
     await assertRecordedProcessGroupAbsent(witness.identity);
     await monitor.assertOriginal();
   } finally {
@@ -616,6 +754,69 @@ export interface OriginalReaderSourceClosure {
   readonly name: string;
   readonly attemptCount: number;
   readonly witnesses: readonly OriginalReaderGroupClosure[];
+  readonly invocationCount?: number;
+  readonly unspawned?: readonly Readonly<{ request: OriginalInputBinding; evidence: OriginalInputBinding }>[];
+}
+async function assertUnspawnedSource(
+  input: NonNullable<OriginalReaderSourceClosure['unspawned']>[number],
+  owner: CeOwner,
+) {
+  const monitor = await monitorOriginalInputs(input);
+  try {
+    const read = async (binding: OriginalInputBinding) => {
+      const file = await readOwnedInstalledInput(binding.path, 1024 * 1024);
+      assertSameOriginalInput(binding, file.binding);
+      return decodeEvidenceObject(file.bytes);
+    };
+    const request = await read(input.request),
+      evidence = await read(input.evidence);
+    const budget = request.budget as { start?: unknown; deadline?: unknown } | undefined;
+    const python = request.python as { path?: unknown; sha256?: unknown } | undefined;
+    const expectedExecutable = request.executable ?? request.python;
+    if (
+      request.schemaVersion !== 1 ||
+      !['original-bootstrap-publisher-request', 'original-installed-gcp-access-reader-request'].includes(
+        request.kind as string,
+      ) ||
+      !sameOwner(request.owner as CeOwner, owner) ||
+      !Number.isSafeInteger(budget?.start) ||
+      !Number.isSafeInteger(budget?.deadline) ||
+      (budget?.deadline as number) - (budget?.start as number) !== 7200000 ||
+      evidence.schemaVersion !== 1 ||
+      evidence.kind !== 'original-executor-unspawned' ||
+      evidence.phase !== 'initial-input-guard' ||
+      evidence.nativeSpawnInvoked !== false ||
+      evidence.commandSubmitted !== false ||
+      evidence.signalsSent !== false ||
+      evidence.directory !== dirname(input.request.path) ||
+      dirname(dirname(dirname(input.evidence.path))) !== evidence.directory ||
+      basename(dirname(dirname(input.evidence.path))) !== 'executor-unspawned' ||
+      basename(input.evidence.path) !== 'source.private.json' ||
+      JSON.stringify(evidence.args) !== JSON.stringify(request.args) ||
+      evidence.originalStartMs !== budget?.start ||
+      evidence.originalDeadlineMs !== budget?.deadline ||
+      JSON.stringify(evidence.python) !== JSON.stringify({ path: python?.path, sha256: python?.sha256 }) ||
+      JSON.stringify(evidence.executable) !==
+        JSON.stringify({
+          path: (expectedExecutable as typeof python)?.path,
+          sha256: (expectedExecutable as typeof python)?.sha256,
+        }) ||
+      evidence.gateSha256 !== createHash('sha256').update(signalFreeBootstrapSource).digest('hex') ||
+      !Number.isSafeInteger(evidence.invocationStartedMs) ||
+      (evidence.invocationStartedMs as number) < (budget?.start as number) ||
+      (evidence.invocationStartedMs as number) >= (budget?.deadline as number) ||
+      ![input.request, input.evidence].every(
+        (binding) =>
+          binding.expectedIdentity &&
+          binding.expectedParentIdentity &&
+          (Number(binding.expectedIdentity.mode) & 0o777) === 0o400,
+      )
+    )
+      throw new Error('Original unspawned source request, execution or owner differs');
+    await monitor.assertOriginal();
+  } finally {
+    monitor.close();
+  }
 }
 function sameOwner(a: CeOwner, b: CeOwner) {
   return (['provider', 'engine', 'account', 'region', 'deploymentId'] as const).every((key) => a?.[key] === b[key]);
@@ -636,7 +837,24 @@ async function assertSourceCoverage(
   )
     throw new Error('Original reader source coverage differs');
   const original = new Map<string, string>();
+  const unspawnedInputs = new Set<string>();
   for (const source of sources) {
+    if (source.unspawned !== undefined) {
+      if (
+        !Array.isArray(source.unspawned) ||
+        !Number.isSafeInteger(source.invocationCount) ||
+        source.invocationCount !== source.attemptCount + source.unspawned.length ||
+        new Set(source.unspawned.map((row) => row.evidence.path)).size !== source.unspawned.length
+      )
+        throw new Error('Original unspawned invocation coverage incomplete');
+      for (const input of source.unspawned) {
+        if (unspawnedInputs.has(input.evidence.path))
+          throw new Error('Original unspawned invocation attributed to multiple sources');
+        unspawnedInputs.add(input.evidence.path);
+        await assertUnspawnedSource(input, owner);
+      }
+    } else if (source.invocationCount !== undefined && source.invocationCount !== source.attemptCount)
+      throw new Error('Original invocation coverage differs');
     if (
       !Number.isSafeInteger(source.attemptCount) ||
       source.attemptCount < 0 ||

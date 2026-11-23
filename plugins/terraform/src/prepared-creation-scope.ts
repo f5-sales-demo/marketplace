@@ -6,7 +6,10 @@ import type { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { decodeEvidenceObject } from '../../platform/src/ce/evidence-json';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import {
+  type BootstrapGrantDirectory,
   type BootstrapGrantPublicationOptions,
+  collectOriginalBootstrapPublisherSource,
+  ownOriginalBootstrapPublisherDirectory,
   publishSignedBootstrapGrant,
   retainBootstrapGrantFile,
 } from './bootstrap-grant-publication';
@@ -53,6 +56,7 @@ interface Lease {
     }>;
     directoryIdentity: Readonly<{ dev: bigint; ino: bigint; uid: bigint; mode: bigint }>;
     privateKey: KeyObject;
+    publisher: BootstrapGrantDirectory;
   };
   monitor?: Awaited<ReturnType<typeof monitorOriginalInputs>>;
   refused: boolean;
@@ -261,6 +265,15 @@ export function prepareOriginalCreationScope(context: InstalledCaptureContext): 
           mode: bootstrapIdentity.mode,
         }),
         privateKey: keyPair.privateKey,
+        publisher: await ownOriginalBootstrapPublisherDirectory(context, {
+          directory: bootstrapDirectory,
+          identity: {
+            dev: bootstrapIdentity.dev,
+            ino: bootstrapIdentity.ino,
+            uid: bootstrapIdentity.uid,
+            mode: bootstrapIdentity.mode,
+          },
+        }),
       };
       const scopeFile = join(directory, 'scope.json');
       const raw = Buffer.from(
@@ -430,6 +443,15 @@ export function closePreparedCreationScope(packet: unknown): void {
  * failed or uncertain issuance cannot be retried with the same original nonce.
  * The provider independently verifies and consumes the grant before releasing JWT content.
  */
+/** Closure inspection keeps the original issuer after plan revocation; it restores no plan authority. */
+export async function collectOriginalPreparedBootstrapPublisherSource(value: unknown) {
+  const current = value && typeof value === 'object' ? leases.get(value) : undefined;
+  if (!current) throw new Error('Original source-issued prepared bootstrap scope required');
+  if (!current.bootstrap)
+    return Object.freeze({ name: 'bootstrap-publisher', attemptCount: 0, witnesses: Object.freeze([]) });
+  return collectOriginalBootstrapPublisherSource(current.bootstrap.publisher);
+}
+
 export async function publishOriginalGcpBootstrapGrant(
   input: {
     packet: unknown;
@@ -522,6 +544,9 @@ export async function publishOriginalGcpBootstrapGrant(
       schemaVersion: 1,
       kind: 'original-gcp-bootstrap-grant-claim',
       owner: current.context.owner,
+      executor: evidence.executor,
+      nodeName: evidence.bootstrap.nodeName,
+      tokenName: evidence.bootstrap.tokenName,
       planSha256: evidence.planSha256,
       scopeFileSha256: current.binding.sha256,
       readerRequestSha256: evidence.readerRequestSha256,
@@ -567,10 +592,7 @@ export async function publishOriginalGcpBootstrapGrant(
     };
     const published = await publishSignedBootstrapGrant(
       current.context,
-      {
-        directory: bootstrap.specification.directory,
-        identity: bootstrap.directoryIdentity,
-      },
+      bootstrap.publisher,
       nonce,
       envelope,
       freshGuard,

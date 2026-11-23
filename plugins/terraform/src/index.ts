@@ -1,3 +1,4 @@
+export { collectOriginalBootstrapPublisherSource } from './bootstrap-grant-publication';
 export {
   collectOriginalGcpTerraformBootstrap,
   collectOriginalGcpTerraformBootstrapV2,
@@ -14,7 +15,10 @@ export {
   readOriginalGcpPreapplyBootstrapJwt,
 } from './gcp-preapply-bootstrap';
 export { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
-export { openInstalledBootstrapCapture } from './installed-bootstrap-capture';
+export {
+  collectInstalledOriginalBootstrapReaderSources,
+  openInstalledBootstrapCapture,
+} from './installed-bootstrap-capture';
 export { openInstalledGcpGuestBinding } from './installed-guest-binding';
 export {
   collectInstalledOriginalGuestReaderClosures,
@@ -30,7 +34,11 @@ export {
   inspectOriginalGcpInventoryScope,
   prepareOriginalGcpInventoryScope,
 } from './original-gcp-inventory-scope';
-export { publishOriginalGcpBootstrapGrant } from './prepared-creation-scope';
+export {
+  collectOriginalPreparedBootstrapPublisherSource,
+  publishOriginalGcpBootstrapGrant,
+} from './prepared-creation-scope';
+export { collectOriginalSignalFreeUnspawnedExecutions } from './signal-free-executor';
 export {
   joinOriginalXcshCreationBody,
   readOriginalXcshCreationBody,
