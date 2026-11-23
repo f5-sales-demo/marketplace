@@ -10,6 +10,7 @@ import { inspectGcpWireHostKey } from './gcp-wire-key';
 import type { OriginalApplyCallbackContext } from './installed-apply-controller';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
+import { bindOriginalAccessReaderCapture, openOriginalAccessReaderCapture } from './original-access-reader-source';
 import { monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import {
   type OriginalOutputCompletion,
@@ -197,6 +198,16 @@ export async function openGcpCeWireKeyReader(command: unknown) {
   const root = join(original.callback.original.executionDirectory, `gcp-ce-keyscan-captures-${randomUUID()}`);
   await mkdir(root, { mode: 0o700 });
   const directory = await lstat(root, { bigint: true });
+  const recorder = await openOriginalAccessReaderCapture({
+    callback: original.callback,
+    family: 'ce',
+    role: 'wire',
+    instanceId: String(original.request.targetInstanceId),
+    directory: root,
+    python: original.python,
+    executable: original.executable,
+    args: original.args,
+  });
   let closed = false,
     used = false,
     producerSeen = false,
@@ -272,8 +283,10 @@ export async function openGcpCeWireKeyReader(command: unknown) {
           throw new Error('Original empty CE keyscan executor output required');
         admission = value;
         producerSeen = true;
+        await recorder.admit(value);
       },
       finalCapture: async (value) => {
+        await recorder.capture(value);
         capture = value;
         producerSeen ||= !!value.identity;
         let failure: unknown;
@@ -343,7 +356,13 @@ export async function openGcpCeWireKeyReader(command: unknown) {
     };
     try {
       const execute = await signalFreeGcpCeKeyScanExecutor(policy, command);
-      const result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      await recorder.begin();
+      let result: Awaited<ReturnType<typeof execute>>;
+      try {
+        result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      } finally {
+        recorder.finished();
+      }
       await assertOriginalGcpCeKeyScanInputs(command);
       if (
         result.code !== 0 ||
@@ -415,7 +434,7 @@ export async function openGcpCeWireKeyReader(command: unknown) {
       throw error;
     }
   };
-  return Object.freeze({
+  const port = Object.freeze({
     scan(): Promise<OriginalGcpCeWireKeys> {
       if (closed || used) return Promise.reject(new Error('Original CE keyscan is closed or single-use'));
       used = true;
@@ -441,4 +460,6 @@ export async function openGcpCeWireKeyReader(command: unknown) {
       return closing;
     },
   });
+  bindOriginalAccessReaderCapture(port, recorder);
+  return port;
 }

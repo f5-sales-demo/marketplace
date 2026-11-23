@@ -5,6 +5,7 @@ import { type GcpObserverClockCandidate, inspectGcpObserverPeerClock } from './g
 import { readOriginalGcpObserverSshCommand } from './gcp-observer-ssh-command';
 import { readOwnedInstalledInput } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
+import { bindOriginalAccessReaderCapture, openOriginalAccessReaderCapture } from './original-access-reader-source';
 import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
 import {
   type OriginalOutputCompletion,
@@ -65,6 +66,16 @@ export async function openGcpObserverSshPeer(command: unknown) {
   const root = join(original.callback.original.executionDirectory, `gcp-observer-peers-${randomUUID()}`);
   await mkdir(root, { mode: 0o700 });
   const directory = await lstat(root, { bigint: true });
+  const recorder = await openOriginalAccessReaderCapture({
+    callback: original.callback,
+    family: 'observer',
+    role: 'peer',
+    instanceId: original.instanceId,
+    directory: root,
+    python: original.python,
+    executable: original.executable,
+    args: original.args,
+  });
   let retired = false,
     used = false,
     producerSeen = false,
@@ -129,8 +140,10 @@ export async function openGcpObserverSshPeer(command: unknown) {
           throw new Error('Original observer SSH admission differs');
         admission = value;
         producerSeen = true;
+        await recorder.admit(value);
       },
       finalCapture: async (value) => {
+        await recorder.capture(value);
         capture = value;
         producerSeen ||= !!value.identity;
         let failure: unknown;
@@ -197,7 +210,13 @@ export async function openGcpObserverSshPeer(command: unknown) {
     };
     try {
       const execute = await signalFreeGcpObserverSshExecutor(policy, command);
-      const result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      await recorder.begin();
+      let result: Awaited<ReturnType<typeof execute>>;
+      try {
+        result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      } finally {
+        recorder.finished();
+      }
       await readOriginalGcpObserverSshCommand(command);
       if (
         result.code !== 0 ||
@@ -269,7 +288,7 @@ export async function openGcpObserverSshPeer(command: unknown) {
       throw error;
     }
   };
-  return Object.freeze({
+  const port = Object.freeze({
     probe(): Promise<OriginalVerifiedGcpObserverPeer> {
       if (retired) return Promise.reject(new Error('Original observer SSH peer retired'));
       if (used) return Promise.reject(new Error('Original observer SSH probe is single-use'));
@@ -294,4 +313,6 @@ export async function openGcpObserverSshPeer(command: unknown) {
       return closure;
     },
   });
+  bindOriginalAccessReaderCapture(port, recorder);
+  return port;
 }

@@ -14,6 +14,7 @@ import {
   type OriginalApplyCallbackContext,
 } from './installed-apply-controller';
 import { readOwnedInstalledInput } from './installed-runtime';
+import { bindOriginalAccessReaderCapture, openOriginalAccessReaderCapture } from './original-access-reader-source';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import {
   type OriginalOutputCompletion,
@@ -111,6 +112,15 @@ async function openOriginalHostTrustReader<K extends TrustFamily>(
   const root = join(callback.original.executionDirectory, `gcp-host-trust-readers-${randomUUID()}`);
   await mkdir(root, { mode: 0o700 });
   const directory = await lstat(root, { bigint: true });
+  const recorder = await openOriginalAccessReaderCapture({
+    callback: callback,
+    family: family,
+    role: 'trust',
+    instanceId: original.expected.instanceId,
+    directory: root,
+    python: python,
+    executable: python,
+  });
   let retired = false,
     used = false,
     producerSeen = false,
@@ -225,8 +235,10 @@ async function openOriginalHostTrustReader<K extends TrustFamily>(
           throw new Error('Original host-trust execution admission differs');
         admission = value;
         producerSeen = true;
+        await recorder.admit(value);
       },
       finalCapture: async (capture) => {
+        await recorder.capture(capture);
         final = capture;
         producerSeen ||= !!capture.identity;
         let failure: unknown;
@@ -299,7 +311,13 @@ async function openOriginalHostTrustReader<K extends TrustFamily>(
     try {
       await assertMaterial();
       const execute = reserve ? signalFreeFinalReaderExecutor(policy, reserve) : signalFreeTerraformExecutor(policy);
-      const result = await execute({ cwd: root, args, env: { LC_ALL: 'C' } });
+      await recorder.begin(args);
+      let result: Awaited<ReturnType<typeof execute>>;
+      try {
+        result = await execute({ cwd: root, args, env: { LC_ALL: 'C' } });
+      } finally {
+        recorder.finished();
+      }
       await assertMaterial();
       if (
         !admission ||
@@ -381,7 +399,7 @@ async function openOriginalHostTrustReader<K extends TrustFamily>(
       throw error;
     }
   };
-  return Object.freeze({
+  const port = Object.freeze({
     verify(): Promise<TrustReference<K>> {
       if (retired) return Promise.reject(new Error('Original host-trust reader retired'));
       if (used) return Promise.reject(new Error('Original host-trust verification is single-use'));
@@ -411,4 +429,6 @@ async function openOriginalHostTrustReader<K extends TrustFamily>(
       return closure;
     },
   });
+  bindOriginalAccessReaderCapture(port, recorder);
+  return port;
 }

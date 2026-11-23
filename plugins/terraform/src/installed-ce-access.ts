@@ -23,6 +23,7 @@ import {
   type OriginalApplyCallbackContext,
 } from './installed-apply-controller';
 import { linuxMonotonicMs } from './linux-clock';
+import { bindOriginalAccessReaderCollection } from './original-access-reader-source';
 import { inspectFinalReaderReserve } from './reader-final-reserve';
 
 type OriginalInstalledGcpCeAccessView = Awaited<
@@ -122,7 +123,9 @@ export async function openInstalledGcpCeAccess(input: InstalledGcpCeAccessInput)
     await guard();
     active();
   };
+  const nativeSources: Record<string, unknown> = {};
   const own = <T extends { close(): void | Promise<void> }>(name: string, source: T): T => {
+    if (['wire', 'trust', 'peer', 'delivery', 'abi', 'renewal'].includes(name)) nativeSources[name] = source;
     sources.push({ name, close: source.close.bind(source) });
     return source;
   };
@@ -149,7 +152,7 @@ export async function openInstalledGcpCeAccess(input: InstalledGcpCeAccessInput)
     closeOriginalGcpCeCampaignKey(key);
     throw error;
   }
-  return Object.freeze({
+  const port = Object.freeze({
     initialize(supplied: unknown): Promise<void> {
       try {
         if (claimed) throw new Error('Original CE access initialization already claimed');
@@ -272,4 +275,11 @@ export async function openInstalledGcpCeAccess(input: InstalledGcpCeAccessInput)
         executionAuthorized: false,
       }),
   });
+  await bindOriginalAccessReaderCollection(port, {
+    callback,
+    family: 'ce',
+    instanceId: originalVm.instanceId,
+    sources: () => ({ ...nativeSources }),
+  });
+  return port;
 }

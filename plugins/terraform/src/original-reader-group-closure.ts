@@ -37,7 +37,65 @@ export interface OriginalXcshReaderOrigin {
   readonly request: OriginalInputBinding;
   readonly admission: OriginalInputBinding;
 }
-type OriginalReaderOrigin = OriginalGuestReaderOrigin | OriginalXcshReaderOrigin;
+export interface OriginalAccessReaderOrigin {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-installed-gcp-access-reader-origin';
+  readonly owner: CeOwner;
+  readonly family: 'observer' | 'ce';
+  readonly role: 'wire' | 'trust' | 'peer' | 'delivery' | 'abi' | 'renewal';
+  readonly phase: 'before' | 'after';
+  readonly instanceId: string;
+  readonly parent: RecordedProcessGroupIdentity;
+  readonly executionDirectory: string;
+  readonly request: OriginalInputBinding;
+  readonly admissionRecorded: boolean;
+  readonly admission?: OriginalInputBinding;
+}
+export function originalAccessReaderPrefix(
+  family: OriginalAccessReaderOrigin['family'],
+  role: OriginalAccessReaderOrigin['role'],
+) {
+  if (family === 'ce') {
+    if (role === 'wire') return 'gcp-ce-keyscan-captures-';
+    if (role === 'trust') return 'gcp-host-trust-readers-';
+  } else if (family === 'observer') {
+    const prefixes = {
+      wire: 'gcp-wire-key-readers-',
+      trust: 'gcp-host-trust-readers-',
+      peer: 'gcp-observer-peers-',
+      delivery: 'gcp-observer-client-captures-',
+      abi: 'gcp-observer-abi-captures-',
+      renewal: 'gcp-observer-abi-renewal-captures-',
+    };
+    if (Object.hasOwn(prefixes, role)) return prefixes[role];
+  }
+  throw new Error('Original access reader family and role required');
+}
+/** Bind original file bytes to the native executor's sealed copy, keeping their identities distinct. */
+export function assertOriginalAccessReaderStdin(expected: unknown, snapshot: unknown) {
+  if (expected === undefined && snapshot === undefined) return;
+  const input = expected as OriginalInputBinding | undefined;
+  const value = snapshot as Record<string, unknown> | undefined;
+  if (
+    !input?.expectedIdentity ||
+    !value ||
+    value.schemaVersion !== 1 ||
+    value.kind !== 'sealed-original-file-stdin' ||
+    value.sealed !== true ||
+    value.path !== input.path ||
+    value.sha256 !== input.sha256 ||
+    !Number.isSafeInteger(value.bytes) ||
+    value.bytes !== Number(input.expectedIdentity.size) ||
+    !Number.isSafeInteger(value.snapshotFd) ||
+    (value.snapshotFd as number) < 0 ||
+    typeof value.dev !== 'string' ||
+    !/^[0-9]+$/.test(value.dev) ||
+    typeof value.ino !== 'string' ||
+    !/^[1-9][0-9]*$/.test(value.ino)
+  )
+    throw new Error('Original access sealed stdin source differs');
+}
+type OriginalReaderOrigin = OriginalGuestReaderOrigin | OriginalXcshReaderOrigin | OriginalAccessReaderOrigin;
 
 export interface OriginalReaderGroupClosure {
   readonly schemaVersion: 1;
@@ -279,6 +337,108 @@ async function inspectXcshOrigin(witness: OriginalReaderGroupClosure) {
   }
 }
 
+async function inspectAccessOrigin(witness: OriginalReaderGroupClosure) {
+  const origin = witness.origin;
+  if (origin?.kind !== 'original-installed-gcp-access-reader-origin') return;
+  const prefix = originalAccessReaderPrefix(origin.family, origin.role);
+  if (
+    origin.schemaVersion !== 1 ||
+    origin.owner?.provider !== 'gcp' ||
+    origin.owner.engine !== 'terraform' ||
+    Object.keys(origin.owner).sort().join(',') !== 'account,deploymentId,engine,provider,region' ||
+    ['account', 'region', 'deploymentId'].some(
+      (key) => typeof origin.owner[key as keyof CeOwner] !== 'string' || !origin.owner[key as keyof CeOwner],
+    ) ||
+    !['before', 'after'].includes(origin.phase) ||
+    !/^[1-9][0-9]{0,19}$/.test(origin.instanceId) ||
+    !Number.isSafeInteger(origin.parent?.pid) ||
+    origin.parent.pid <= 0 ||
+    origin.parent.group !== origin.parent.pid ||
+    !/^[1-9][0-9]*$/.test(origin.parent.start) ||
+    origin.parent.boot !== witness.identity.boot ||
+    dirname(witness.directory) !== origin.executionDirectory ||
+    !basename(witness.directory).startsWith(prefix) ||
+    origin.request?.path !== join(witness.directory, 'reader-source.private.json') ||
+    witness.inputs.capture?.path !== join(witness.directory, 'reader-final.private.json') ||
+    typeof origin.admissionRecorded !== 'boolean' ||
+    origin.admissionRecorded !== !!origin.admission ||
+    (origin.admission && origin.admission.path !== join(witness.directory, 'reader-admission.private.json')) ||
+    [origin.request, ...(origin.admission ? [origin.admission] : [])].some(
+      (row) =>
+        !row.expectedIdentity || !row.expectedParentIdentity || (Number(row.expectedIdentity.mode) & 0o777) !== 0o400,
+    )
+  )
+    throw new Error('Original access reader source origin required');
+  const monitor = await monitorOriginalInputs({
+    request: origin.request,
+    ...(origin.admission ? { admission: origin.admission } : {}),
+    ...witness.inputs,
+  });
+  try {
+    const read = async (binding: OriginalInputBinding) => {
+      const file = await readOwnedInstalledInput(binding.path, 1024 * 1024);
+      assertSameOriginalInput(binding, file.binding);
+      return decodeEvidenceObject(file.bytes);
+    };
+    const request = await read(origin.request),
+      capture = await read(witness.inputs.capture);
+    const python = request.python as Record<string, unknown> | undefined;
+    const executable = request.executable as Record<string, unknown> | undefined;
+    if (
+      request.schemaVersion !== 1 ||
+      request.kind !== 'original-installed-gcp-access-reader-request' ||
+      !sameOwner(request.owner as CeOwner, origin.owner) ||
+      !sameIdentity(request.parent, origin.parent) ||
+      request.family !== origin.family ||
+      request.role !== origin.role ||
+      request.phase !== origin.phase ||
+      request.instanceId !== origin.instanceId ||
+      request.executionDirectory !== origin.executionDirectory ||
+      JSON.stringify(request.budget) !== JSON.stringify(witness.originalBudget) ||
+      !Array.isArray(request.args) ||
+      !request.args.length ||
+      request.args.some((arg) => typeof arg !== 'string' || arg.includes('\0')) ||
+      !python ||
+      python.sha256 !== witness.pythonSha256 ||
+      typeof python.path !== 'string' ||
+      !executable ||
+      executable.sha256 !== witness.executableSha256 ||
+      typeof executable.path !== 'string'
+    )
+      throw new Error('Original access request ownership, parent or command differs');
+    if (origin.admission) {
+      const admission = await read(origin.admission);
+      if (
+        admission.schemaVersion !== 1 ||
+        admission.kind !== 'original-installed-gcp-access-reader-admission' ||
+        admission.requestSha256 !== origin.request.sha256 ||
+        !sameIdentity(admission.identity, witness.identity) ||
+        JSON.stringify(admission.args) !== JSON.stringify(request.args) ||
+        JSON.stringify(admission.budget) !== JSON.stringify(witness.originalBudget)
+      )
+        throw new Error('Original access reader admission differs');
+      assertOriginalAccessReaderStdin(request.stdin, admission.stdin);
+      if (JSON.stringify(capture.stdin) !== JSON.stringify(admission.stdin))
+        throw new Error('Original access capture stdin snapshot differs');
+    } else if (capture.submitted !== false)
+      throw new Error('Unadmitted original access reader cannot have a submission');
+    if (witness.inputs.submission) {
+      const submission = await read(witness.inputs.submission),
+        submitted = submission.executable as Record<string, unknown> | undefined;
+      if (
+        JSON.stringify(submission.args) !== JSON.stringify(request.args) ||
+        submitted?.path !== executable.path ||
+        JSON.stringify(submission.stdin) !== JSON.stringify(capture.stdin)
+      )
+        throw new Error('Original access submitted command or stdin differs');
+      assertOriginalAccessReaderStdin(request.stdin, submission.stdin);
+    }
+    await monitor.assertOriginal();
+  } finally {
+    monitor.close();
+  }
+}
+
 async function inspect(witness: OriginalReaderGroupClosure) {
   const expected = [
     'bootstrap',
@@ -303,7 +463,11 @@ async function inspect(witness: OriginalReaderGroupClosure) {
     throw new Error('Original reader group closure source required');
   if (
     witness.origin &&
-    !['original-installed-guest-reader-origin', 'original-installed-xcsh-reader-origin'].includes(witness.origin.kind)
+    ![
+      'original-installed-guest-reader-origin',
+      'original-installed-xcsh-reader-origin',
+      'original-installed-gcp-access-reader-origin',
+    ].includes(witness.origin.kind)
   )
     throw new Error('Unknown original reader source origin');
   const root = dirname(witness.inputs.completion.path);
@@ -383,6 +547,7 @@ async function inspect(witness: OriginalReaderGroupClosure) {
     }
     await inspectGuestOrigin(witness);
     await inspectXcshOrigin(witness);
+    await inspectAccessOrigin(witness);
     await assertRecordedProcessGroupAbsent(witness.identity);
     await monitor.assertOriginal();
   } finally {

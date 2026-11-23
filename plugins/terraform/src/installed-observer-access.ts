@@ -45,6 +45,7 @@ import {
   type OriginalApplyCallbackContext,
 } from './installed-apply-controller';
 import { linuxMonotonicMs } from './linux-clock';
+import { bindOriginalAccessReaderCollection } from './original-access-reader-source';
 import { inspectFinalReaderReserve } from './reader-final-reserve';
 
 type OriginalInstalledGcpObserverAccessView = Awaited<
@@ -157,7 +158,9 @@ export async function openInstalledGcpObserverAccess(input: InstalledGcpObserver
     if (closing || closed) throw new Error('Original observer access retired');
     if (failure) throw new Error('Original observer access refused; failure retained');
   };
+  const nativeSources: Record<string, unknown> = {};
   const own = <T extends { close(): void | Promise<void> }>(name: string, source: T): T => {
+    if (['wire', 'trust', 'peer', 'delivery', 'abi', 'renewal'].includes(name)) nativeSources[name] = source;
     sources.push({ name, close: source.close.bind(source) });
     return source;
   };
@@ -258,7 +261,7 @@ export async function openInstalledGcpObserverAccess(input: InstalledGcpObserver
     initialized = true;
   };
   await guard();
-  return Object.freeze({
+  const port = Object.freeze({
     initialize(): Promise<void> {
       try {
         if (claimed) throw new Error('Original observer access initialization already claimed');
@@ -359,4 +362,11 @@ export async function openInstalledGcpObserverAccess(input: InstalledGcpObserver
         executionAuthorized: false,
       }),
   });
+  await bindOriginalAccessReaderCollection(port, {
+    callback,
+    family: 'observer',
+    instanceId: original.instanceId,
+    sources: () => ({ ...nativeSources }),
+  });
+  return port;
 }

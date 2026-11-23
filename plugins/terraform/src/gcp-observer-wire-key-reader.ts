@@ -13,6 +13,7 @@ import {
 import type { OriginalGcpSshClientProfile } from './gcp-ssh-client-profile';
 import { inspectGcpWireHostKey } from './gcp-wire-key';
 import type { OriginalApplyCallbackContext } from './installed-apply-controller';
+import { bindOriginalAccessReaderCapture, openOriginalAccessReaderCapture } from './original-access-reader-source';
 import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
 import {
   type OriginalOutputCompletion,
@@ -108,6 +109,17 @@ export async function openGcpObserverWireKeyReader(
       throw error;
     }
   })();
+  const recorder = await openOriginalAccessReaderCapture({
+    callback: callback,
+    family: 'observer',
+    role: 'wire',
+    instanceId: original.vm.instanceId,
+    directory: root,
+    python: callback.original.inputs.python,
+    executable: original.executable,
+    args: original.args,
+    offline: !!executorFactory,
+  });
   let retired = false;
   let once = false;
   let pending: Promise<OriginalGcpObserverWireKeys> | undefined;
@@ -261,8 +273,10 @@ export async function openGcpObserverWireKeyReader(
           throw new Error('Original empty executor-issued wire-key output required');
         admission = value;
         originalProducerSeen = true;
+        if (!executorFactory) await recorder.admit(value);
       },
       finalCapture: async (capture) => {
+        await recorder.capture(capture);
         final = capture;
         originalProducerSeen ||= !!capture.identity;
         let failure: unknown;
@@ -346,7 +360,13 @@ export async function openGcpObserverWireKeyReader(
       const execute = await (executorFactory
         ? executorFactory(policy, command)
         : signalFreeGcpKeyScanExecutor(policy, command));
-      const result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      await recorder.begin();
+      let result: Awaited<ReturnType<typeof execute>>;
+      try {
+        result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      } finally {
+        recorder.finished();
+      }
       await guard();
       const finishedAt = Date.now();
       if (
@@ -423,7 +443,7 @@ export async function openGcpObserverWireKeyReader(
       throw error;
     }
   };
-  return Object.freeze({
+  const port = Object.freeze({
     scan(): Promise<OriginalGcpObserverWireKeys> {
       if (retired) return Promise.reject(new Error('Original observer wire-key reader retired'));
       if (once) return Promise.reject(new Error('Original wire-key scan is single-use'));
@@ -450,4 +470,6 @@ export async function openGcpObserverWireKeyReader(
       return closure;
     },
   });
+  bindOriginalAccessReaderCapture(port, recorder);
+  return port;
 }

@@ -10767,11 +10767,11 @@ async function inspectOriginalGcpBootstrap(site, token, input) {
     metadataCorroborated: true,
     bootstrapOwnershipQualified: false,
   });
-  issued4.set(value, { site, token, jwt: material.jwt });
+  issued5.set(value, { site, token, jwt: material.jwt });
   return value;
 }
 async function readOriginalGcpBootstrapJwt(value) {
-  const source = issued4.get(value);
+  const source = issued5.get(value);
   if (!source) throw new Error('Original bootstrap candidate required');
   await assertOriginalGcpPlatformHttpBody(source.site);
   await assertOriginalGcpPlatformHttpBody(source.token);
@@ -10779,13 +10779,13 @@ async function readOriginalGcpBootstrapJwt(value) {
 }
 var hash6 = (value) => createHash15('sha256').update(value).digest('hex'),
   name2,
-  issued4,
+  issued5,
   _originalGcpBootstrapSource;
 var init_gcp_bootstrap_evidence = __esm(() => {
   init_gcp_http_capture();
   init_security();
   name2 = /^[a-z][a-z0-9-]{0,62}$/;
-  issued4 = new WeakMap();
+  issued5 = new WeakMap();
   _originalGcpBootstrapSource = Object.freeze({
     assertBody: assertOriginalGcpPlatformHttpBody,
     inspect: inspectOriginalGcpBootstrap,
@@ -13969,6 +13969,19 @@ var _origins5 = new WeakMap();
 // plugins/terraform/src/gcp-ce-sli-target.ts
 init_discovery();
 init_observer_scope();
+// plugins/terraform/src/original-access-reader-source.ts
+init_original_input_monitor();
+
+// plugins/terraform/src/original-reader-group-closure.ts
+init_process_lock();
+init_original_input_monitor();
+
+// plugins/terraform/src/original-access-reader-source.ts
+var _issued2 = new WeakMap();
+var _ports = new WeakMap();
+var _collections = new WeakMap();
+var _collectionOpenings = new WeakSet();
+
 // plugins/terraform/src/gcp-observer-ssh-peer.ts
 init_original_input_monitor();
 var _origins6 = new WeakMap();
@@ -14005,11 +14018,6 @@ var _maximumStream2 = 64 * 1024 * 1024;
 // plugins/terraform/src/installed-provider-reader.ts
 init_installed_capture_context();
 init_original_input_monitor();
-
-// plugins/terraform/src/original-reader-group-closure.ts
-init_process_lock();
-init_original_input_monitor();
-// plugins/terraform/src/installed-provider-reader.ts
 var _windowOrigins = new WeakMap();
 var _windowClockOrigins = new WeakMap();
 
@@ -14095,13 +14103,13 @@ var _targetOrigins = new WeakMap();
 var _readerClosures = new WeakMap();
 
 // plugins/terraform/src/xcsh-creation-body.ts
-var _issued2 = new WeakMap();
+var _issued3 = new WeakMap();
 var _contexts = new WeakMap();
 var _providerProfiles = new WeakMap();
 var _callbacks2 = new WeakMap();
 
 // plugins/terraform/src/gcp-preapply-bootstrap.ts
-var _issued3 = new WeakMap();
+var _issued4 = new WeakMap();
 var _contextChecks = new WeakMap();
 var _callbackChecks = new WeakMap();
 var _siteAccessReads = new WeakMap();

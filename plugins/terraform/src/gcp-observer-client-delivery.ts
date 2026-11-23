@@ -14,6 +14,7 @@ import {
 } from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import { readOwnedInstalledInput } from './installed-runtime';
+import { bindOriginalAccessReaderCapture, openOriginalAccessReaderCapture } from './original-access-reader-source';
 import { monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import {
   type OriginalOutputCompletion,
@@ -207,6 +208,17 @@ export async function openGcpObserverClientDelivery(command: unknown) {
   const root = join(original.callback.original.executionDirectory, `gcp-observer-client-captures-${randomUUID()}`);
   await mkdir(root, { mode: 0o700 });
   const directory = await lstat(root, { bigint: true });
+  const recorder = await openOriginalAccessReaderCapture({
+    callback: original.callback,
+    family: 'observer',
+    role: 'delivery',
+    instanceId: String(original.request.instanceId),
+    directory: root,
+    python: original.python,
+    executable: original.executable,
+    args: original.args,
+    stdin: original.stdin,
+  });
   let closed = false,
     used = false,
     producerSeen = false,
@@ -276,8 +288,10 @@ export async function openGcpObserverClientDelivery(command: unknown) {
           throw new Error('Original observer delivery admission differs');
         admission = value;
         producerSeen = true;
+        await recorder.admit(value);
       },
       finalCapture: async (value) => {
+        await recorder.capture(value);
         capture = value;
         producerSeen ||= !!value.identity;
         let failure: unknown;
@@ -345,7 +359,13 @@ export async function openGcpObserverClientDelivery(command: unknown) {
     };
     try {
       const execute = await signalFreeGcpObserverClientDeliveryExecutor(policy, command);
-      const result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      await recorder.begin();
+      let result: Awaited<ReturnType<typeof execute>>;
+      try {
+        result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
+      } finally {
+        recorder.finished();
+      }
       await assertOriginalGcpObserverClientDeliveryInputs(command);
       if (
         result.code !== 0 ||
@@ -463,7 +483,7 @@ export async function openGcpObserverClientDelivery(command: unknown) {
       throw error;
     }
   };
-  return Object.freeze({
+  const port = Object.freeze({
     deliver(): Promise<OriginalGcpObserverClientDelivery> {
       if (closed || used) return Promise.reject(new Error('Original observer delivery is closed or single-use'));
       used = true;
@@ -490,4 +510,6 @@ export async function openGcpObserverClientDelivery(command: unknown) {
       return closing;
     },
   });
+  bindOriginalAccessReaderCapture(port, recorder);
+  return port;
 }

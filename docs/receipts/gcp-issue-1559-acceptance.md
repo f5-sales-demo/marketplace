@@ -2310,3 +2310,16 @@ xcsh admissions. Failed capture and lock evidence remain failed. Remaining
 SSH/access/client closures, early startup paths, complete durable factory
 coverage and every original feature/runtime/live/CI/review/delivery gate stay
 open. No GCP apply was submitted.
+
+## Original native access reader source coverage
+
+The [access source receipt](gcp-access-reader-source-closure-20261123.md) records
+seven actual access adapters, exact original child source collections and
+immutable admission, stdin and final-capture provenance. Native source cases
+include admission failure and capture after real operation expiry. Final
+67-case source/runtime verification, corrected 13-case observer/source checks,
+three strict typechecks, normal build and configured lint pass. Independent
+review verifies 350 retained files and 30 native physical group absences.
+Bootstrap handoff, complete durable factory coverage and every original
+feature/runtime/live/cleanup/CI/review/delivery gate remain open. No GCP apply
+was submitted.

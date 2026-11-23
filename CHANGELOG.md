@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.163 binds original GCP inventory, bootstrap, VM,
+- **`terraform`** v2.4.164 binds original GCP inventory, bootstrap, VM,
   serial and guest inputs. Adds a separate final guest evidence window after
   operation expiry and qualifies current signed provider identities. Live GCP
   campaign qualification remains held.
@@ -34,7 +34,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.70 preserves typed authentication, expiry, permission
+- **`gcloud`** v1.7.71 preserves typed authentication, expiry, permission
   and setup refusals, and qualifies the current provider tuple and Site SSH
   schema. Live GCP qualification remains held.
 

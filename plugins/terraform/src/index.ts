@@ -214,6 +214,10 @@ export {
 } from './installed-provider-reader';
 export { type InstalledVmCaptureInput, openInstalledVmCapture } from './installed-vm-capture';
 export { collectInstalledOriginalXcshReaderClosures } from './installed-xcsh-creation-reader';
+export {
+  collectInstalledOriginalAccessReaderSource,
+  collectInstalledOriginalAccessReaderSources,
+} from './original-access-reader-source';
 export { readOriginalExecutionPrefix } from './original-output-stream';
 export {
   assertOriginalReaderGroupClosure,
