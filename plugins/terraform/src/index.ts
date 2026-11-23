@@ -213,6 +213,7 @@ export {
   readOriginalInstalledProviderWindowClock,
 } from './installed-provider-reader';
 export { type InstalledVmCaptureInput, openInstalledVmCapture } from './installed-vm-capture';
+export { collectInstalledOriginalXcshReaderClosures } from './installed-xcsh-creation-reader';
 export { readOriginalExecutionPrefix } from './original-output-stream';
 export {
   assertOriginalReaderGroupClosure,

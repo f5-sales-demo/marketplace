@@ -14092,6 +14092,7 @@ init_original_input_monitor();
 var _origins20 = new WeakMap();
 var _openings = new WeakSet();
 var _targetOrigins = new WeakMap();
+var _readerClosures = new WeakMap();
 
 // plugins/terraform/src/xcsh-creation-body.ts
 var _issued2 = new WeakMap();

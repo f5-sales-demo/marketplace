@@ -10541,7 +10541,7 @@ function sameIdentity2(a, b) {
 }
 async function inspectGuestOrigin(witness) {
   const origin = witness.origin;
-  if (!origin) return;
+  if (origin?.kind !== 'original-installed-guest-reader-origin') return;
   if (
     origin.schemaVersion !== 1 ||
     origin.kind !== 'original-installed-guest-reader-origin' ||
@@ -10634,6 +10634,121 @@ async function inspectGuestOrigin(witness) {
     monitor.close();
   }
 }
+async function inspectXcshOrigin(witness) {
+  const origin = witness.origin;
+  if (origin?.kind !== 'original-installed-xcsh-reader-origin') return;
+  if (
+    origin.schemaVersion !== 1 ||
+    origin.owner?.provider !== 'gcp' ||
+    origin.owner.engine !== 'terraform' ||
+    Object.keys(origin.owner).sort().join(',') !== 'account,deploymentId,engine,provider,region' ||
+    ['account', 'region', 'deploymentId'].some((key) => typeof origin.owner[key] !== 'string' || !origin.owner[key]) ||
+    !Number.isSafeInteger(origin.parent?.pid) ||
+    origin.parent.pid <= 0 ||
+    origin.parent.group !== origin.parent.pid ||
+    !/^[1-9][0-9]*$/.test(origin.parent.start) ||
+    !/^[a-f0-9-]{36}$/.test(origin.parent.boot) ||
+    ![origin.planSha256, origin.providerSha256].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
+    dirname7(witness.directory) !== origin.executionDirectory ||
+    !basename4(witness.directory).startsWith('xcsh-creation-readers-') ||
+    origin.preparedScope?.path !==
+      join14(origin.executionDirectory, '.xcsh-original-creation', origin.planSha256, 'scope.json') ||
+    origin.request?.path !== join14(witness.directory, 'request.private.json') ||
+    origin.admission?.path !== join14(witness.directory, 'original-execution.private.json') ||
+    witness.inputs.capture?.path !== join14(witness.directory, 'reader-capture.private.json') ||
+    [origin.request, origin.admission, origin.preparedScope].some(
+      (row) =>
+        !row.expectedIdentity || !row.expectedParentIdentity || (Number(row.expectedIdentity.mode) & 511) !== 256,
+    )
+  )
+    throw new Error('Original xcsh reader source origin required');
+  const bindings = {
+    request: origin.request,
+    admission: origin.admission,
+    scope: origin.preparedScope,
+    ...witness.inputs,
+  };
+  const monitor = await monitorOriginalInputs(bindings);
+  try {
+    const read = async (binding) => {
+      const current = await owned(binding.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(binding, current.binding);
+      return decodeEvidenceObject(current.bytes);
+    };
+    const request = await read(origin.request),
+      admission = await read(origin.admission),
+      prepared = await read(origin.preparedScope);
+    const scope = request.scope;
+    const inputs = request.inputs;
+    if (!inputs) throw new Error('Original xcsh request inputs required');
+    const executables = request.executables;
+    const script = inputs?.['script:xcsh_creation_reader.py'],
+      python = inputs?.python;
+    const expectedArgs = [
+      '-I',
+      '-B',
+      script?.path,
+      '--request',
+      origin.request.path,
+      '--sha256',
+      origin.request.sha256,
+    ];
+    if (
+      request.schemaVersion !== 1 ||
+      request.kind !== 'original-xcsh-creation-window' ||
+      request.originalStartMs !== witness.originalBudget.start ||
+      request.deadlineMs !== witness.originalBudget.deadline ||
+      request.windowMs !== 45000 ||
+      !sameIdentity2(request.executor, origin.parent) ||
+      !Number.isSafeInteger(request.startupDeadlineMs) ||
+      request.startupDeadlineMs <= witness.originalBudget.start ||
+      request.startupDeadlineMs > witness.originalBudget.deadline ||
+      scope?.path !== origin.preparedScope.path ||
+      scope?.sha256 !== origin.preparedScope.sha256 ||
+      scope?.planSha256 !== origin.planSha256 ||
+      !Array.isArray(scope?.targets) ||
+      !scope.targets.length ||
+      scope.targets.length > 128 ||
+      prepared.schema_version !== 2 ||
+      prepared.scope_sha256 !== origin.planSha256 ||
+      prepared.directory !== dirname7(origin.preparedScope.path) ||
+      prepared.provider_executable_sha256 !== origin.providerSha256 ||
+      JSON.stringify(prepared.resources) !== JSON.stringify(scope.targets) ||
+      !script ||
+      !/^[a-f0-9]{64}$/.test(script.sha256) ||
+      !python ||
+      python.sha256 !== witness.pythonSha256 ||
+      executables?.bootstrap?.path !== python.path ||
+      executables.bootstrap.sha256 !== witness.pythonSha256 ||
+      executables?.xcsh?.sha256 !== origin.providerSha256 ||
+      !Object.entries(inputs).some(
+        ([name, row]) =>
+          /^registry\.terraform\.io\/f5-sales-demo\/xcsh:terraform-provider-xcsh_v[0-9]+\.[0-9]+\.[0-9]+$/.test(name) &&
+          row.path === executables?.xcsh?.path &&
+          row.sha256 === origin.providerSha256,
+      ) ||
+      admission.schemaVersion !== 1 ||
+      admission.kind !== 'original-installed-xcsh-reader-admission' ||
+      !sameOwner2(admission.owner, origin.owner) ||
+      !sameIdentity2(admission.parent, origin.parent) ||
+      admission.requestSha256 !== origin.request.sha256 ||
+      !sameIdentity2(admission.identity, witness.identity) ||
+      JSON.stringify(admission.args) !== JSON.stringify(expectedArgs) ||
+      JSON.stringify(admission.budget) !== JSON.stringify(witness.originalBudget)
+    )
+      throw new Error('Original xcsh request, parent, scope or actor source differs');
+    assertSameOriginalInput(origin.preparedScope, inputs['prepared:scope']);
+    if (witness.inputs.submission) {
+      const submission = await read(witness.inputs.submission);
+      const executable = submission.executable;
+      if (JSON.stringify(submission.args) !== JSON.stringify(expectedArgs) || executable?.path !== python.path)
+        throw new Error('Original xcsh submitted command source differs');
+    }
+    await monitor.assertOriginal();
+  } finally {
+    monitor.close();
+  }
+}
 async function inspect(witness) {
   const expected = [
     'bootstrap',
@@ -10656,6 +10771,11 @@ async function inspect(witness) {
     witness.originalBudget.deadline <= witness.originalBudget.start
   )
     throw new Error('Original reader group closure source required');
+  if (
+    witness.origin &&
+    !['original-installed-guest-reader-origin', 'original-installed-xcsh-reader-origin'].includes(witness.origin.kind)
+  )
+    throw new Error('Unknown original reader source origin');
   const root = dirname7(witness.inputs.completion.path);
   if (
     dirname7(dirname7(root)) !== witness.directory ||
@@ -10732,6 +10852,7 @@ async function inspect(witness) {
         throw new Error('Original owning reader capture binding differs');
     }
     await inspectGuestOrigin(witness);
+    await inspectXcshOrigin(witness);
     await assertRecordedProcessGroupAbsent(witness.identity);
     await monitor.assertOriginal();
   } finally {
@@ -10807,7 +10928,7 @@ async function assertSourceCoverage(sources, required, owner) {
       throw new Error('Original reader attempt coverage incomplete');
     for (const witness of source.witnesses) {
       if (witness.origin && !sameOwner2(witness.origin.owner, owner))
-        throw new Error('Original guest reader set owner differs');
+        throw new Error('Original reader set owner differs');
       const id = JSON.stringify(witness.identity),
         value = JSON.stringify(witness);
       const prior = original.get(id);
@@ -16368,6 +16489,12 @@ var terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b394795
 var origins20 = new WeakMap();
 var openings = new WeakSet();
 var targetOrigins = new WeakMap();
+var readerClosures = new WeakMap();
+async function collectInstalledOriginalXcshReaderClosures(value) {
+  const collect = value && typeof value === 'object' ? readerClosures.get(value) : undefined;
+  if (!collect) throw new Error('Original source-issued installed xcsh reader required');
+  return collect();
+}
 var object10 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original xcsh evidence');
   return value;
@@ -16460,6 +16587,9 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
   let retired = false;
   let readerActor;
   let closure;
+  let finalCapture;
+  let captureBinding;
+  let admissionBinding;
   const assertDirectory = async () => {
     const actual = await lstat16(root, { bigint: true });
     if (
@@ -16639,6 +16769,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     }
     return { joined, remainingTargets: targets.size };
   };
+  const readerArgs = ['-I', '-B', entry.path, '--request', requestPath, '--sha256', requestHash];
   const policy = {
     python: { path: inputs.python.path, sha256: installed_runtime_pins_default.pythonSha256 },
     executable: { path: inputs.python.path, sha256: installed_runtime_pins_default.pythonSha256 },
@@ -16647,10 +16778,35 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     timeoutMs: 60000,
     assertOriginal: guard,
     beforeRelease: async (admitted) => {
+      if (
+        !options.executorFactory &&
+        (readerActor ||
+          admitted.directory !== root ||
+          JSON.stringify(admitted.args) !== JSON.stringify(readerArgs) ||
+          admitted.originalStartMs !== context.budget.start ||
+          admitted.originalDeadlineMs !== context.budget.deadline)
+      )
+        throw new Error('Original installed xcsh execution admission differs');
       readerActor = Object.freeze({ ...admitted.identity });
+      admissionBinding = await persist(
+        join23(root, 'original-execution.private.json'),
+        Buffer.from(
+          JSON.stringify({
+            schemaVersion: 1,
+            kind: 'original-installed-xcsh-reader-admission',
+            owner: context.owner,
+            parent: admission.identity,
+            requestSha256: requestHash,
+            identity: readerActor,
+            args: readerArgs,
+            budget: context.budget,
+          }),
+        ),
+      );
     },
     finalCapture: async (capture) => {
-      await persist(join23(root, 'reader-capture.private.json'), Buffer.from(JSON.stringify(capture)));
+      captureBinding = await persist(join23(root, 'reader-capture.private.json'), Buffer.from(JSON.stringify(capture)));
+      finalCapture = Object.freeze(structuredClone(capture));
       if (
         !sameActor(capture.identity, readerActor) ||
         capture.pid !== readerActor?.pid ||
@@ -16670,7 +16826,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     const execute = options.executorFactory ? options.executorFactory(policy) : signalFreeTerraformExecutor(policy);
     return execute({
       cwd: root,
-      args: ['-I', '-B', entry.path, '--request', requestPath, '--sha256', requestHash],
+      args: readerArgs,
       env: { PATH: '/usr/bin:/bin' },
     });
   });
@@ -16930,7 +17086,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     );
     return pendingRead;
   };
-  return Object.freeze({
+  const reader = Object.freeze({
     ready: readyState.promise,
     completed,
     availableTargets,
@@ -16942,6 +17098,47 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
       for (const monitor of monitors.splice(0)) monitor.close();
     },
   });
+  readerClosures.set(reader, async () => {
+    if (options.executorFactory)
+      throw new Error('Original native xcsh reader required; offline executor has no closure authority');
+    if (!terminal || !finalCapture || !readerActor || !admissionBinding || !captureBinding)
+      throw new Error('Original xcsh terminal execution and immutable source bindings required');
+    await assertDirectory();
+    const monitor = await monitorOriginalInputs({
+      request: requestBinding,
+      admission: admissionBinding,
+      capture: captureBinding,
+      scope: scopeBinding,
+    });
+    try {
+      const witness = await collectOriginalReaderGroupClosure({
+        directory: root,
+        capture: finalCapture,
+        originalBudget: context.budget,
+        pythonSha256: inputs.python.sha256,
+        executableSha256: inputs.python.sha256,
+        gateSha256: hash22(Buffer.from(signalFreeBootstrapSource)),
+        captureBinding,
+        origin: {
+          schemaVersion: 1,
+          kind: 'original-installed-xcsh-reader-origin',
+          owner: context.owner,
+          parent: admission.identity,
+          executionDirectory: context.executionDirectory,
+          planSha256: scope.planSha256,
+          providerSha256: providerHash,
+          preparedScope: scopeBinding,
+          request: requestBinding,
+          admission: admissionBinding,
+        },
+      });
+      await monitor.assertOriginal();
+      return Object.freeze([witness]);
+    } finally {
+      monitor.close();
+    }
+  });
+  return reader;
 }
 
 // plugins/terraform/src/xcsh-creation-body.ts
@@ -24233,6 +24430,7 @@ export {
   collectInstalledOriginalGuestReaderClosures,
   collectInstalledOriginalGuestRound,
   collectInstalledOriginalObserverAudit,
+  collectInstalledOriginalXcshReaderClosures,
   collectOriginalEarlyGcpInsertIdentity,
   collectOriginalEarlyGcpSerialEvidence,
   collectOriginalEarlyGcpVmEvidence,

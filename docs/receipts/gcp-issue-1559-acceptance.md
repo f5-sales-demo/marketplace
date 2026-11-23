@@ -2297,3 +2297,16 @@ factory retains original guest attempt coverage while preserving failures.
 Remaining actual xcsh/SSH/access/client source coverage, full durable factory
 cleanup binding and every original feature/runtime/live/CI/review/delivery gate
 remain open. No GCP apply was submitted.
+
+## Original native xcsh reader source closure
+
+The [xcsh source receipt](gcp-original-xcsh-reader-closure-20261123.md) records
+independent native closure after failure, immutable parent/plan/provider/source
+joins and refusal of synthetic or replaced source claims. All 72 affected
+cases, final 59 source/runtime cases, three full strict typechecks, normal
+build, configured lint and catalog checks pass. Independent archives verify
+113 retained files and four native physical absences, including three immutable
+xcsh admissions. Failed capture and lock evidence remain failed. Remaining
+SSH/access/client closures, early startup paths, complete durable factory
+coverage and every original feature/runtime/live/CI/review/delivery gate stay
+open. No GCP apply was submitted.

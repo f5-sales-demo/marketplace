@@ -9,7 +9,8 @@ import { readOwnedInstalledInput } from './installed-runtime';
 import pins from './installed-runtime-pins.json';
 import { resolveInstalledXcshCreationExecutableProfile } from './installed-version-profile';
 import { linuxMonotonicMs } from './linux-clock';
-import { assertSameOriginalInput, monitorOriginalInputs } from './original-input-monitor';
+import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import { collectOriginalReaderGroupClosure, type OriginalReaderGroupClosure } from './original-reader-group-closure';
 import {
   assertPreparedCreationScopeContext,
   assertPreparedCreationScopeInputs,
@@ -20,6 +21,7 @@ import {
   type ExecutionCaptureAdmission,
   type FinalExecutionCapture,
   type SignalFreeExecutionPolicy,
+  signalFreeBootstrapSource,
   signalFreeTerraformExecutor,
 } from './signal-free-executor';
 
@@ -30,6 +32,13 @@ const terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947
 const origins = new WeakMap<object, () => Promise<Buffer>>();
 const openings = new WeakSet<object>();
 const targetOrigins = new WeakMap<object, () => Promise<Buffer>>();
+const readerClosures = new WeakMap<object, () => Promise<readonly OriginalReaderGroupClosure[]>>();
+/** Physical closure is inspectable independently of capture success, only through the original native source. */
+export async function collectInstalledOriginalXcshReaderClosures(value: unknown) {
+  const collect = value && typeof value === 'object' ? readerClosures.get(value) : undefined;
+  if (!collect) throw new Error('Original source-issued installed xcsh reader required');
+  return collect();
+}
 const object = (value: unknown): Json => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original xcsh evidence');
   return value as Json;
@@ -178,6 +187,9 @@ export async function openInstalledXcshCreationReader(
   let retired = false;
   let readerActor: Identity | undefined;
   let closure: FinalExecutionCapture | undefined;
+  let finalCapture: FinalExecutionCapture | undefined;
+  let captureBinding: OriginalInputBinding | undefined;
+  let admissionBinding: OriginalInputBinding | undefined;
   const assertDirectory = async () => {
     const actual = await lstat(root, { bigint: true });
     if (
@@ -361,6 +373,7 @@ export async function openInstalledXcshCreationReader(
     }
     return { joined, remainingTargets: targets.size };
   };
+  const readerArgs = ['-I', '-B', entry.path, '--request', requestPath, '--sha256', requestHash];
   const policy: SignalFreeExecutionPolicy = {
     python: { path: inputs.python.path, sha256: pins.pythonSha256 },
     executable: { path: inputs.python.path, sha256: pins.pythonSha256 },
@@ -369,10 +382,36 @@ export async function openInstalledXcshCreationReader(
     timeoutMs: 60000,
     assertOriginal: guard,
     beforeRelease: async (admitted) => {
+      if (
+        !options.executorFactory &&
+        (readerActor ||
+          admitted.directory !== root ||
+          JSON.stringify(admitted.args) !== JSON.stringify(readerArgs) ||
+          admitted.originalStartMs !== context.budget.start ||
+          admitted.originalDeadlineMs !== context.budget.deadline)
+      )
+        throw new Error('Original installed xcsh execution admission differs');
       readerActor = Object.freeze({ ...admitted.identity });
+      admissionBinding = await persist(
+        join(root, 'original-execution.private.json'),
+        Buffer.from(
+          JSON.stringify({
+            schemaVersion: 1,
+            kind: 'original-installed-xcsh-reader-admission',
+            owner: context.owner,
+            parent: admission.identity,
+            requestSha256: requestHash,
+            identity: readerActor,
+            args: readerArgs,
+            budget: context.budget,
+          }),
+        ),
+      );
     },
     finalCapture: async (capture) => {
-      await persist(join(root, 'reader-capture.private.json'), Buffer.from(JSON.stringify(capture)));
+      // Retain original capture before acceptance checks, including failure outcomes.
+      captureBinding = await persist(join(root, 'reader-capture.private.json'), Buffer.from(JSON.stringify(capture)));
+      finalCapture = Object.freeze(structuredClone(capture));
       if (
         !sameActor(capture.identity, readerActor) ||
         capture.pid !== readerActor?.pid ||
@@ -393,7 +432,7 @@ export async function openInstalledXcshCreationReader(
     const execute = options.executorFactory ? options.executorFactory(policy) : signalFreeTerraformExecutor(policy);
     return execute({
       cwd: root,
-      args: ['-I', '-B', entry.path, '--request', requestPath, '--sha256', requestHash],
+      args: readerArgs,
       env: { PATH: '/usr/bin:/bin' },
     });
   });
@@ -657,7 +696,7 @@ export async function openInstalledXcshCreationReader(
     );
     return pendingRead;
   };
-  return Object.freeze({
+  const reader = Object.freeze({
     ready: readyState.promise,
     completed,
     availableTargets,
@@ -669,4 +708,45 @@ export async function openInstalledXcshCreationReader(
       for (const monitor of monitors.splice(0)) monitor.close();
     },
   });
+  readerClosures.set(reader, async () => {
+    if (options.executorFactory)
+      throw new Error('Original native xcsh reader required; offline executor has no closure authority');
+    if (!terminal || !finalCapture || !readerActor || !admissionBinding || !captureBinding)
+      throw new Error('Original xcsh terminal execution and immutable source bindings required');
+    await assertDirectory();
+    const monitor = await monitorOriginalInputs({
+      request: requestBinding,
+      admission: admissionBinding,
+      capture: captureBinding,
+      scope: scopeBinding,
+    });
+    try {
+      const witness = await collectOriginalReaderGroupClosure({
+        directory: root,
+        capture: finalCapture,
+        originalBudget: context.budget,
+        pythonSha256: inputs.python.sha256,
+        executableSha256: inputs.python.sha256,
+        gateSha256: hash(Buffer.from(signalFreeBootstrapSource)),
+        captureBinding,
+        origin: {
+          schemaVersion: 1,
+          kind: 'original-installed-xcsh-reader-origin',
+          owner: context.owner,
+          parent: admission.identity,
+          executionDirectory: context.executionDirectory,
+          planSha256: scope.planSha256,
+          providerSha256: providerHash,
+          preparedScope: scopeBinding,
+          request: requestBinding,
+          admission: admissionBinding,
+        },
+      });
+      await monitor.assertOriginal();
+      return Object.freeze([witness]);
+    } finally {
+      monitor.close();
+    }
+  });
+  return reader;
 }

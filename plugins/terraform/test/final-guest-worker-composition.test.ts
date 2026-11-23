@@ -150,6 +150,8 @@ for (const inputChanged of [false, true] as const)
           const closures = await collectInstalledOriginalGuestReaderClosures(worker);
           expect(closures).toHaveLength(1);
           const closure = closures[0];
+          if (closure.origin?.kind !== 'original-installed-guest-reader-origin')
+            throw new Error('Original guest reader origin required');
           expect(closure.physicalGroupAbsent).toBe(true);
           expect(closure.executionAccepted).toBe(false);
           expect(closure.identity).toEqual(evidence.identity);
@@ -316,7 +318,9 @@ test('original before guest reader closes within its original active budget and 
       }
       const closures = await collectInstalledOriginalGuestReaderClosures(worker);
       expect(closures).toHaveLength(1);
-      expect(closures[0].origin?.phase).toBe('before');
+      if (closures[0].origin?.kind !== 'original-installed-guest-reader-origin')
+        throw new Error('Original guest reader origin required');
+      expect(closures[0].origin.phase).toBe('before');
       expect(closures[0].origin?.owner).toEqual(before.original.owner);
       expect(closures[0].physicalGroupAbsent).toBe(true);
       expect(closures[0].executionAccepted).toBe(false);

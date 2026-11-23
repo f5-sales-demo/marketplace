@@ -74,7 +74,7 @@ test('xcsh bridge production cannot substitute an offline clock', async () => {
 });
 
 import { createHash, createPublicKey, verify } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInstalledCaptureContext } from '../src/installed-capture-context';
@@ -92,6 +92,7 @@ async function scoped(
   pendingTokens = 0,
   consume = false,
   providerVersion: '15.17.3' | '15.17.6' = '15.17.3',
+  nativeReader = false,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'xcsh-bridge-fixture-'));
   const deployment: Deployment = {
@@ -131,10 +132,12 @@ async function scoped(
         };
         const inputs = {
           ...(await inspectInstalledCaptureScripts()),
-          python: await fakeBinding(
-            join(request.cwd, 'python.fixture'),
-            'aac3ade3f7d90fbf63e3ea0c46120a0cfbd159e1e503dde04721979507a1548b',
-          ),
+          python: nativeReader
+            ? (await readOwnedInstalledInput(process.env.CE_TEST_PYTHON ?? Bun.which('python3') ?? '')).binding
+            : await fakeBinding(
+                join(request.cwd, 'python.fixture'),
+                'aac3ade3f7d90fbf63e3ea0c46120a0cfbd159e1e503dde04721979507a1548b',
+              ),
           terraform: await fakeBinding(
             join(request.cwd, 'terraform.fixture'),
             'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
@@ -387,6 +390,118 @@ const fakeExecutor =
     });
     return { code: 0, stdout: '' };
   };
+
+test('xcsh closure collector refuses deserialized and synthetic reader authority', async () => {
+  const { collectInstalledOriginalXcshReaderClosures } = await bridge();
+  for (const value of [null, {}, { kind: 'original-xcsh-creation-result', complete: true }])
+    await expect(collectInstalledOriginalXcshReaderClosures(value)).rejects.toThrow('source-issued');
+  await scoped(async (context, admission, packet) => {
+    const reader = await (await bridge()).openInstalledXcshCreationReader(context, admission, packet, {
+      executorFactory: fakeExecutor(),
+    });
+    await reader.completed;
+    await expect(collectInstalledOriginalXcshReaderClosures(reader)).rejects.toThrow('native');
+    await reader.closeAfterExecutorExit();
+  });
+});
+
+test('original native xcsh failure retains physical closure independently of failed capture and lock', async () => {
+  const { CeDeploymentStore } = await import('../../platform/src/ce/deployment-store');
+  const { assertOriginalReaderGroupClosure, persistOriginalReaderGroupSet, assertOriginalReaderGroupInputs } =
+    await import('../src/original-reader-group-closure');
+  const { retainOwnedTestCapture } = await import('./retained-test-capture');
+  await scoped(
+    async (context, admission, packet) => {
+      const module = await bridge();
+      // Real shipped Python/native gate; deliberately invalid offline Terraform input must fail.
+      // No provider or cloud operation is executed; this is a process-closure regression.
+      const reader = await module.openInstalledXcshCreationReader(context, admission, packet);
+      try {
+        await expect(module.collectInstalledOriginalXcshReaderClosures({ ...reader })).rejects.toThrow('source-issued');
+        await expect(module.collectInstalledOriginalXcshReaderClosures(reader)).rejects.toThrow('terminal');
+        await expect(reader.completed).rejects.toThrow();
+        await expect(reader.closeAfterExecutorExit()).rejects.toThrow();
+        const witnesses = await module.collectInstalledOriginalXcshReaderClosures(reader);
+        expect(witnesses).toHaveLength(1);
+        const witness = witnesses[0];
+        expect(witness.physicalGroupAbsent).toBe(true);
+        expect(witness.captureComplete).toBe(false);
+        expect(witness.executionAccepted).toBe(false);
+        expect(witness.origin?.kind).toBe('original-installed-xcsh-reader-origin');
+        if (witness.origin?.kind !== 'original-installed-xcsh-reader-origin')
+          throw new Error('Original xcsh reader origin required');
+        expect(witness.origin?.owner).toEqual(context.owner);
+        const failedPath = join(witness.directory, '.terraform-executor-lock/capture-unresolved.json');
+        const failedBytes = await readFile(failedPath);
+        await assertOriginalReaderGroupClosure(witness);
+        for (const change of [
+          { owner: { ...context.owner, deploymentId: 'foreign' } },
+          { parent: { ...admission.identity, start: '1' } },
+          { planSha256: 'f'.repeat(64) },
+          { providerSha256: 'f'.repeat(64) },
+          { request: { ...witness.origin.request, sha256: 'f'.repeat(64) } },
+          { admission: { ...witness.origin.admission, sha256: 'f'.repeat(64) } },
+          { preparedScope: { ...witness.origin.preparedScope, sha256: 'f'.repeat(64) } },
+        ])
+          await expect(
+            assertOriginalReaderGroupClosure({ ...witness, origin: { ...witness.origin, ...change } }),
+          ).rejects.toThrow();
+        const store = await CeDeploymentStore.open(
+          join(context.executionDirectory, 'xcsh-closure-proof'),
+          context.owner,
+        );
+        const source = { name: 'xcsh', attemptCount: 1, witnesses };
+        const inputs = await persistOriginalReaderGroupSet({
+          store,
+          owner: context.owner,
+          requiredSources: ['xcsh'],
+          sources: [source],
+        });
+        await assertOriginalReaderGroupInputs({ inputs, owner: context.owner, requiredSources: ['xcsh'] });
+        const foreign = { ...context.owner, deploymentId: 'foreign' };
+        const foreignStore = await CeDeploymentStore.open(
+          join(context.executionDirectory, 'foreign-closure-proof'),
+          foreign,
+        );
+        await expect(
+          persistOriginalReaderGroupSet({
+            store: foreignStore,
+            owner: foreign,
+            requiredSources: ['xcsh'],
+            sources: [source],
+          }),
+        ).rejects.toThrow('owner');
+        expect(await readFile(failedPath)).toEqual(failedBytes);
+        await expect(
+          persistOriginalReaderGroupSet({
+            store,
+            owner: context.owner,
+            requiredSources: ['xcsh'],
+            sources: [{ ...source, attemptCount: 2 }],
+          }),
+        ).rejects.toThrow('coverage');
+        const capturePath = witness.inputs.capture.path;
+        const captureBytes = await readFile(capturePath);
+        await rename(capturePath, `${capturePath}.original`);
+        await writeFile(capturePath, captureBytes, { mode: 0o400, flag: 'wx' });
+        await expect(module.collectInstalledOriginalXcshReaderClosures(reader)).rejects.toThrow();
+        await expect(
+          assertOriginalReaderGroupInputs({ inputs, owner: context.owner, requiredSources: ['xcsh'] }),
+        ).rejects.toThrow();
+        expect(await readFile(failedPath)).toEqual(failedBytes);
+      } finally {
+        await reader.completed.catch(() => {});
+        const retained = await retainOwnedTestCapture(context.executionDirectory, 'xcsh-native-failure', 'failure');
+        console.info(JSON.stringify({ kind: 'private-native-capture-retained', ...retained }));
+      }
+    },
+    false,
+    0,
+    false,
+    '15.17.3',
+    true,
+  );
+}, 120_000);
 
 test('source-issued scope produces an opaque reader result and preserves private raw evidence', async () => {
   await scoped(async (context, admission, packet) => {

@@ -4,6 +4,7 @@ test('normal generated Terraform runtime retains original reader closure and dur
   const runtime = await import(new URL('../runtime/index.js', import.meta.url).href);
   for (const name of [
     'collectInstalledOriginalGuestReaderClosures',
+    'collectInstalledOriginalXcshReaderClosures',
     'collectOriginalReaderGroupClosure',
     'assertOriginalReaderGroupClosure',
     'persistOriginalReaderGroupSet',
