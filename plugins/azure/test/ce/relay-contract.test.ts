@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { chmod, mkdtemp, readdir, readFile, rm, stat, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
@@ -1722,7 +1722,7 @@ function relayWorkflowFixture(engine: 'native' | 'terraform' = 'native', ha = fa
   let mutations = 0;
   let probes = 0;
   let lose = false;
-  let siteUid = 'owned-site-uid';
+  let siteUid = '00000000-0000-4000-8000-000000000099';
   let interfaceStatus: 'observed' | 'down' | 'unknown' = 'observed';
   let routing = 0;
   const runtime = {
@@ -3851,7 +3851,7 @@ test('Terraform parent retirement accepts an owned partial relay workflow withou
   const f = relayWorkflowFixture('terraform');
   f.lose = true;
   await expect(ensureAzureRelayRoutingWorkflow(f.source, f.expected, f.runtime, f.storage, f.api)).rejects.toThrow();
-  const fixture = await prepareRelayParentRetirement(f.source, 'owned-site-uid', f.saved);
+  const fixture = await prepareRelayParentRetirement(f.source, '00000000-0000-4000-8000-000000000099', f.saved);
   try {
     const receipt = await retireAzureTerraformParentArtifacts(
       f.source,
@@ -3964,7 +3964,7 @@ for (const mode of [
     // Rehash the snapshot to exercise structural joins, not only its digest.
     if (['foreign-cloud', 'duplicate-mac', 'partial-cloud'].includes(mode))
       journal.bindingSha256 = canonicalSha256(present(journal.identity).stable);
-    const fixture = await prepareRelayParentRetirement(f.source, 'owned-site-uid', records);
+    const fixture = await prepareRelayParentRetirement(f.source, '00000000-0000-4000-8000-000000000099', records);
     const run = (signal?: AbortSignal) =>
       retireAzureTerraformParentArtifacts(f.source, fixture.teardown, fixture.evidence, fixture.store, signal);
     try {
@@ -4334,8 +4334,13 @@ for (const mode of [
       if (mode === 'foreign-site') (workflow as unknown as { siteUid: string }).siteUid = 'foreign';
       if (mode === 'malformed-identity') (workflow as unknown as { identity: unknown }).identity = {};
       if (mode === 'missing-platform') records.delete('platform-relay-routing.json');
-      expect(() => verifyAzureRelayHistoricalArtifacts(f.source, 'owned-site-uid', records)).toThrow();
-    } else expect(() => verifyAzureRelayHistoricalArtifacts(f.source, 'owned-site-uid', records)).not.toThrow();
+      expect(() =>
+        verifyAzureRelayHistoricalArtifacts(f.source, '00000000-0000-4000-8000-000000000099', records),
+      ).toThrow();
+    } else
+      expect(() =>
+        verifyAzureRelayHistoricalArtifacts(f.source, '00000000-0000-4000-8000-000000000099', records),
+      ).not.toThrow();
   });
 }
 
@@ -4622,7 +4627,7 @@ for (const mode of ['configuration', 'observation', 'foreign-record', 'interrupt
     const f = await nativeRelayRetirementFixture(routing.source);
     try {
       expect(f.source.planSha256).toBe(routing.source.planSha256);
-      const siteUid = 'owned-site-uid';
+      const siteUid = '00000000-0000-4000-8000-000000000099';
       const drain = { ...f.teardown.drain, sites: [{ ...f.teardown.drain.sites[0], siteUid }] };
       const teardown = compileAzureNativeTeardown(f.source, f.cloudPlan, drain, [
         { ...f.teardown.retirement[0], siteUid },
@@ -5536,7 +5541,7 @@ function relayFailoverScopeFixture(f: Awaited<ReturnType<typeof relayOutageIdent
       schemaVersion: 1 as const,
       tenantOrigin: 'https://owned.example',
       contractFingerprint: fingerprint,
-      siteUid: 'owned-site-uid',
+      siteUid: '00000000-0000-4000-8000-000000000099',
       binding: azureUpgradeBinding(f.source),
       expectedInterfaces: structuredClone(f.expected),
     },
@@ -5549,7 +5554,7 @@ test('relay failover scope requires complete context-bound six-interface and his
     const s = relayFailoverScopeFixture(f);
     const scope = requireAzureRelayFailoverScope(f.source, s.stored, s.capabilities, s.records);
     expect(scope.expectedInterfaces).toHaveLength(6);
-    expect(scope.siteUid).toBe('owned-site-uid');
+    expect(scope.siteUid).toBe('00000000-0000-4000-8000-000000000099');
     expect(scope.topology).toBe('ce-relay-route-server');
     expect(scope.ceSessionSequence).toEqual([6, 4, 6]);
     expect(scope.cloudSessionSequence).toEqual([4, 4, 4]);
@@ -7070,6 +7075,13 @@ async function nativeRelayReplacementRunnerFixture(
   const peerHash = canonicalSha256({ server: f.server, peers: f.peers });
   const root = await mkdtemp(join(tmpdir(), 'azure-native-relay-replacement-runner-'));
   const storage = await CeDeploymentStore.open(join(root, 'private'), azureUpgradeBinding(plan).owner);
+  // The runner starts from an existing native deployment and its original site reservation.
+  f.saved.set('native-site.json', {
+    siteName: f.source.siteName,
+    uid: '00000000-0000-4000-8000-000000000099',
+    owner: storage.owner,
+    contractFingerprint: `sha256:${'a'.repeat(64)}`,
+  });
   for (const [name, value] of f.saved) await storage.write(name, value);
   const state = { mutations: [] as string[], failed: false, bootstrap: 0 };
   const observe = async () => {
@@ -7174,7 +7186,7 @@ async function nativeRelayReplacementRunnerFixture(
     },
     async observeRegisteredConfiguration(_binding: unknown, _instances: unknown, interfaces: unknown[]) {
       expect(interfaces).toEqual(f.expected);
-      return { status: 'configured' as const, siteUid: 'owned-site-uid', interfaces: f.observed };
+      return { status: 'configured' as const, siteUid: '00000000-0000-4000-8000-000000000099', interfaces: f.observed };
     },
   } as unknown as CeRuntime;
   const platform = {
@@ -7219,10 +7231,25 @@ async function nativeRelayReplacementRunnerFixture(
         } else {
           const file = args[args.indexOf('--custom-data') + 1];
           expect(await Bun.file(file).text()).toContain('/etc/vpm/user_data');
+          const publicKey = args[args.indexOf('--ssh-key-values') + 1];
+          expect(args[args.indexOf('--admin-username') + 1]).toBe('azureuser');
+          expect(args[args.indexOf('--authentication-type') + 1]).toBe('ssh');
+          expect(publicKey).toMatch(/^ssh-rsa [A-Za-z0-9+/]+=*$/);
           f.objects[f.selectedVmResourceId] = {
             ...structuredClone(selected),
             vmId: newVmId,
             tags: { ...selected.tags, 'xcsh-plan-sha256': plan.planSha256 },
+            osProfile: {
+              adminUsername: 'azureuser',
+              linuxConfiguration: {
+                disablePasswordAuthentication: true,
+                ssh: {
+                  publicKeys: [
+                    { path: posix.join('/home', 'azureuser', '.ssh', 'authorized_keys'), keyData: publicKey },
+                  ],
+                },
+              },
+            },
           };
           for (const action of selectedNics)
             f.objects[mustReplacementFixture(action.resourceId)].virtualMachine = { id: f.selectedVmResourceId };
@@ -7320,7 +7347,9 @@ for (const engine of ['native', 'terraform'] as const)
       const records = new Map<string, unknown>();
       for (const name of azureRelayHistoricalArtifacts)
         records.set(name, await f.storage.read(`${f.plan.planId}-replacement-${name}`));
-      expect(() => verifyAzureRelayHistoricalArtifacts(f.plan, 'owned-site-uid', records)).not.toThrow();
+      expect(() =>
+        verifyAzureRelayHistoricalArtifacts(f.plan, '00000000-0000-4000-8000-000000000099', records),
+      ).not.toThrow();
       for (const kind of ['source', 'survivor', 'nic', 'device', 'site'] as const) {
         const forged = structuredClone(records);
         const journal = forged.get('relay-routing-workflow.json') as {
@@ -7334,7 +7363,9 @@ for (const engine of ['native', 'terraform'] as const)
         if (kind === 'survivor') survivor.vmId = f.f.selectedVmResourceId;
         if (kind === 'nic') survivor.nicId += '-foreign';
         if (kind === 'device') survivor.device = '';
-        expect(() => verifyAzureRelayHistoricalArtifacts(f.plan, 'owned-site-uid', forged)).toThrow();
+        expect(() =>
+          verifyAzureRelayHistoricalArtifacts(f.plan, '00000000-0000-4000-8000-000000000099', forged),
+        ).toThrow();
       }
       await f.verifyRetained();
     } finally {
@@ -7424,7 +7455,7 @@ for (const mode of [
       await expect(runner.run()).rejects.toThrow('publication freshness remain unqualified');
       retirement = await nativeRelayRetirementFixture(runner.f.source);
       const f = retirement;
-      const siteUid = 'owned-site-uid';
+      const siteUid = '00000000-0000-4000-8000-000000000099';
       const drain = { ...f.teardown.drain, sites: [{ ...f.teardown.drain.sites[0], siteUid }] };
       const teardown = compileAzureNativeTeardown(f.source, f.cloudPlan, drain, [
         { ...f.teardown.retirement[0], siteUid },
@@ -7548,11 +7579,18 @@ for (const mode of [
           runner.tokens.some((token) => `${token.name}.json` === name)
         )
           records.set(name, await runner.storage.read(name));
-      const sites = [{ siteName: runner.plan.siteName, siteUid: 'owned-site-uid', tokens: runner.tokens }];
+      const sites = [
+        { siteName: runner.plan.siteName, siteUid: '00000000-0000-4000-8000-000000000099', tokens: runner.tokens },
+      ];
       expect(() =>
         verifyAzureTerraformReplacementHistoricalArtifacts(runner.f.source, sites, records, runner.providerLockSha256),
       ).not.toThrow();
-      retirement = await prepareRelayParentRetirement(runner.f.source, 'owned-site-uid', records, runner.tokens);
+      retirement = await prepareRelayParentRetirement(
+        runner.f.source,
+        '00000000-0000-4000-8000-000000000099',
+        records,
+        runner.tokens,
+      );
       const f = retirement;
       const marker = 'azure-terraform-parent-artifact-retirement.json';
       const planName = `${runner.plan.planId}-terraform-replacement-plan.json`;
@@ -7654,9 +7692,16 @@ for (const mode of [
         node: `${runner.plan.deploymentName}-2`,
         name: `${runner.plan.deploymentName.slice(0, 40)}-2-${runner.plan.planSha256.slice(0, 12)}`,
       };
-      const drain = { ...f.teardown.drain, sites: [{ ...f.teardown.drain.sites[0], siteUid: 'owned-site-uid' }] };
+      const drain = {
+        ...f.teardown.drain,
+        sites: [{ ...f.teardown.drain.sites[0], siteUid: '00000000-0000-4000-8000-000000000099' }],
+      };
       const teardown = compileAzureNativeTeardown(f.source, f.cloudPlan, drain, [
-        { ...f.teardown.retirement[0], siteUid: 'owned-site-uid', tokens: [...f.teardown.retirement[0].tokens, token] },
+        {
+          ...f.teardown.retirement[0],
+          siteUid: '00000000-0000-4000-8000-000000000099',
+          tokens: [...f.teardown.retirement[0].tokens, token],
+        },
       ]);
       await f.storage.write(`${teardown.planId}.json`, teardown);
       const copied: string[] = [];
@@ -7810,7 +7855,12 @@ for (const mode of [
           runner.tokens.some((token) => `${token.name}.json` === name)
         )
           records.set(name, await runner.storage.read(name));
-      retirement = await prepareRelayParentRetirement(runner.f.source, 'owned-site-uid', records, runner.tokens);
+      retirement = await prepareRelayParentRetirement(
+        runner.f.source,
+        '00000000-0000-4000-8000-000000000099',
+        records,
+        runner.tokens,
+      );
       const f = retirement;
       if (mode === 'missing-checkpoint-after-stage') {
         await f.store.remove(`${runner.plan.planId}-terraform-replacement.json`);
@@ -7928,7 +7978,9 @@ test('relay current generated UID survives the signed cloud identity projection'
 test('relay historical generated UID requires complete distinct identity and SLO continuity', async () => {
   const f = relayWorkflowFixture('native', true, true);
   await ensureAzureRelayRoutingWorkflow(f.source, f.expected, f.runtime, f.storage, f.api);
-  expect(() => verifyAzureRelayHistoricalArtifacts(f.source, 'owned-site-uid', f.saved)).not.toThrow();
+  expect(() =>
+    verifyAzureRelayHistoricalArtifacts(f.source, '00000000-0000-4000-8000-000000000099', f.saved),
+  ).not.toThrow();
   for (const mode of ['missing', 'malformed', 'duplicate', 'slo-change']) {
     const records = structuredClone(f.saved);
     const journal = records.get('relay-routing-workflow.json') as {
@@ -7939,6 +7991,97 @@ test('relay historical generated UID requires complete distinct identity and SLO
     if (mode === 'malformed') rows[0].interfaceUid = 'not-a-uuid';
     if (mode === 'duplicate') rows[1].interfaceUid = rows[0].interfaceUid;
     if (mode === 'slo-change') rows[0].interfaceUid = '00000000-0000-4000-8000-000000000099';
-    expect(() => verifyAzureRelayHistoricalArtifacts(f.source, 'owned-site-uid', records)).toThrow();
+    expect(() =>
+      verifyAzureRelayHistoricalArtifacts(f.source, '00000000-0000-4000-8000-000000000099', records),
+    ).toThrow();
   }
 });
+
+for (const mode of [
+  'complete',
+  'partial-issuance',
+  'partial-private',
+  'foreign-unissued',
+  'foreign-key',
+  'foreign-issued',
+  'unavailable-absence',
+  'interrupted',
+] as const) {
+  test(`native CE VM key parent disposition ${mode}`, async () => {
+    const f = await nativeRelayRetirementFixture();
+    const { prepareAzureNativeVmAuthentication } = await import('../../src/ce/native-vm-auth');
+    try {
+      await f.storage.remove(`${f.teardown.planId}.json`);
+      const uid = '00000000-0000-0000-0000-000000000099';
+      f.teardown = compileAzureNativeTeardown(
+        f.source,
+        f.cloudPlan,
+        { ...f.teardown.drain, sites: f.teardown.drain.sites.map((site) => ({ ...site, siteUid: uid })) },
+        f.teardown.retirement.map((site) => ({ ...site, siteUid: uid })),
+      );
+      await f.storage.write(`${f.teardown.planId}.json`, f.teardown);
+      await persistAzureNativeSource(f.source, f.storage);
+      await f.storage.write('native-site.json', {
+        siteName: f.source.siteName,
+        uid,
+        owner: f.binding.owner,
+        contractFingerprint: f.teardown.drain.siteContractFingerprint,
+      });
+      const action = present(f.source.actions.find((row) => row.kind === 'vm-create'));
+      const auth = await prepareAzureNativeVmAuthentication(f.source, action, f.storage);
+      const issuedName = auth.recordName.replace('.json', '-issued.json');
+      if (mode === 'partial-issuance') await f.storage.remove(auth.recordName);
+      if (mode === 'partial-private' || mode === 'foreign-unissued') await f.storage.remove(issuedName);
+      if (mode === 'foreign-unissued') {
+        const record = (await f.storage.read(auth.recordName)) as Record<string, unknown>;
+        await f.storage.write(auth.recordName, { ...record, publicKey: 'synthetic-foreign-key' });
+      }
+      if (mode === 'foreign-key') {
+        const key = (await f.storage.read(auth.recordName)) as Record<string, unknown>;
+        await f.storage.write(auth.recordName, { ...key, publicKey: 'foreign-public-key' });
+      }
+      if (mode === 'foreign-issued') {
+        const issued = (await f.storage.read(issuedName)) as Record<string, unknown>;
+        await f.storage.write(issuedName, { ...issued, profileId: 'f'.repeat(64) });
+      }
+      if (mode === 'unavailable-absence') f.state.platform = 'unknown';
+      const controller = new AbortController();
+      const originalWrite = f.storage.write.bind(f.storage);
+      if (mode === 'interrupted')
+        f.storage.write = async (name, value, signal) => {
+          await originalWrite(name, value, signal);
+          if (name === 'azure-native-parent-artifact-retirement.json') controller.abort();
+        };
+      const run = (signal?: AbortSignal) =>
+        runAzureNativeTeardown(
+          f.source,
+          f.cloudPlan,
+          f.teardown,
+          f.teardown.planSha256,
+          f.runtime,
+          f.contract,
+          f.storage,
+          async () => ({ status: 'retired', absence: 'absent' }),
+          signal,
+          f.cloud.api,
+        );
+      if (['foreign-key', 'foreign-issued', 'foreign-unissued', 'unavailable-absence'].includes(mode)) {
+        await expect(run()).rejects.toThrow();
+        expect(await f.storage.read(auth.recordName)).toBeDefined();
+        await expect(f.storage.read('azure-native-parent-artifact-retirement.json')).rejects.toThrow();
+      } else {
+        if (mode === 'interrupted') {
+          await expect(run(controller.signal)).rejects.toThrow();
+          expect(await f.storage.read(auth.recordName)).toBeDefined();
+          f.storage.write = originalWrite;
+        }
+        expect(await run()).toMatchObject({ completeCleanup: true });
+        await expect(f.storage.read(auth.recordName)).rejects.toThrow();
+        await expect(f.storage.read(issuedName)).rejects.toThrow();
+        expect(await run()).toMatchObject({ completeCleanup: true });
+      }
+    } finally {
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
+}

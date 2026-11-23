@@ -49,6 +49,16 @@ export function verifyAwsCePlan(plan: AwsCePlan): void {
   const { planId, planSha256, ...draft } = plan;
   if (!safeHexEqual(canonicalSha256(draft), planSha256) || planId !== `aws-ce-${planSha256.slice(0, 24)}`)
     throw new Error('Persisted AWS CE plan failed integrity validation');
+  for (const action of plan.actions ?? []) {
+    if (
+      action.kind === 'nlb-cross-zone-enable' &&
+      (action.command !== 'aws' ||
+        action.args?.[0] !== 'elbv2' ||
+        action.args?.[1] !== 'modify-load-balancer-attributes')
+    ) {
+      throw new Error('AWS CE NLB cross-zone actions require an explicit ELBv2 command prefix');
+    }
+  }
 }
 
 export function verifyAwsCePlanForInspection(plan: AwsCePlan): void {
@@ -107,15 +117,20 @@ export async function loadAwsPlan(
     // The exact persisted plan remains mandatory.
   }
   for (const file of files) {
+    let envelope: AwsCePlanEnvelope;
     try {
-      const envelope = JSON.parse(await Bun.file(join(directory, file)).text()) as AwsCePlanEnvelope;
-      if (envelope.kind !== 'aws-ce-plan' || envelope.plan.planId !== planId || envelope.plan.planSha256 !== planSha256)
-        continue;
-      verify(envelope.plan);
-      return envelope;
+      envelope = JSON.parse(await Bun.file(join(directory, file)).text()) as AwsCePlanEnvelope;
     } catch {
-      // Continue to the next exact candidate.
+      continue;
     }
+    if (
+      envelope?.kind !== 'aws-ce-plan' ||
+      envelope.plan?.planId !== planId ||
+      envelope.plan?.planSha256 !== planSha256
+    )
+      continue;
+    verify(envelope.plan);
+    return envelope;
   }
   throw new Error('No exact, integrity-valid AWS CE plan was found in this session');
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Type } from '@sinclair/typebox';
+import type { PluginInterface } from '../../src/aws/types';
 import {
   assertAwsActionOwnership,
   assertAwsApplyAllowed,
@@ -7,11 +12,10 @@ import {
   assertAwsResumeObservationFresh,
   awsNativePrebootSiteRequired,
   buildAwsNativePrebootSiteIntent,
-  executableAwsActionArgs,
   isAwsBrownfieldRestoreConverged,
   observedInstanceTypeNames,
 } from '../../src/ce/apply';
-import { verifyAwsCePlan } from '../../src/ce/artifacts';
+import { loadAwsPlan, verifyAwsCePlan } from '../../src/ce/artifacts';
 import { awsCeObservationRegion, canonicalSha256, fingerprintObservation } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import type { AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
@@ -22,6 +26,7 @@ import {
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
 } from '../../src/ce/types';
+import { createAwsCeApplyTool } from '../../src/tools/aws-ce-apply';
 
 const intent: AwsCeIntent = {
   schemaVersion: 2,
@@ -177,22 +182,6 @@ describe('AWS CE apply protections', () => {
       assertAwsApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: false, env: {} }),
     ).toThrow(/XCSH_CE_HEADLESS/);
   });
-});
-
-it('repairs the missing ELBv2 prefix in an already-persisted cross-zone action', () => {
-  const plan = compileAwsCePlan(intent, observation);
-  const action = plan.actions.find((candidate) => candidate.kind === 'instance-run') as (typeof plan.actions)[number];
-  const legacy = { ...action, kind: 'nlb-cross-zone-enable' as const };
-  expect(executableAwsActionArgs(legacy, ['modify-load-balancer-attributes', '--load-balancer-arn', 'arn'])).toEqual([
-    'elbv2',
-    'modify-load-balancer-attributes',
-    '--load-balancer-arn',
-    'arn',
-  ]);
-  expect(executableAwsActionArgs(legacy, ['elbv2', 'modify-load-balancer-attributes'])).toEqual([
-    'elbv2',
-    'modify-load-balancer-attributes',
-  ]);
 });
 
 it('preserves the complete reviewed instance-type set for live revalidation', () => {
@@ -740,3 +729,117 @@ it('re-reads resume authorization inside the native operation lease before any c
     await rm(root, { recursive: true });
   }
 });
+
+function explicitCommandPlan(engine: 'native' | 'terraform', args: string[]) {
+  const plan = compileAwsCePlan({ ...intent, engine }, observation);
+  const index = plan.actions.findIndex((action) => action.kind === 'instance-run');
+  if (index < 0) throw new Error('Compiled CE instance action missing');
+  plan.actions[index] = { ...plan.actions[index], kind: 'nlb-cross-zone-enable', command: 'aws', args: [...args] };
+  const { planId: _id, planSha256: _sha, ...draft } = plan;
+  plan.planSha256 = canonicalSha256(draft);
+  plan.planId = `aws-ce-${plan.planSha256.slice(0, 24)}`;
+  return plan;
+}
+for (const engine of ['native', 'terraform'] as const) {
+  it(`AWS CE explicit command contract: ${engine} preserves persisted current arguments`, async () => {
+    const args = [
+      'elbv2',
+      'modify-load-balancer-attributes',
+      '--load-balancer-arn',
+      '__NLB_ARN__',
+      '--attributes',
+      'Key=load_balancing.cross_zone.enabled,Value=true',
+    ];
+    const plan = explicitCommandPlan(engine, args);
+    const directory = await mkdtemp(join(tmpdir(), 'ce-command-contract-'));
+    try {
+      const text = JSON.stringify({ kind: 'aws-ce-plan', plan, observation });
+      await writeFile(join(directory, '0-malformed.aws-ce-plan.log'), '{', { mode: 0o600 });
+      await writeFile(join(directory, '0-null.aws-ce-plan.log'), 'null', { mode: 0o600 });
+      const file = join(directory, '1.aws-ce-plan.log');
+      await writeFile(file, text, { mode: 0o600 });
+      const sessionId = randomUUID();
+      const session = {
+        getSessionId: () => sessionId,
+        getArtifactsDir: () => directory,
+        getArtifactPath: async () => null,
+        saveArtifact: async () => {
+          throw new Error('Unexpected artifact write');
+        },
+      };
+      verifyAwsCePlan(plan);
+      const loaded = await loadAwsPlan(session, plan.planId, plan.planSha256);
+      expect(loaded.plan.actions.find((action) => action.kind === 'nlb-cross-zone-enable')?.args).toEqual(args);
+      expect(await readFile(file, 'utf8')).toBe(text);
+    } finally {
+      await rm(directory, { recursive: true });
+    }
+  });
+  for (const [name, args] of [
+    ['missing service', ['modify-load-balancer-attributes', '--load-balancer-arn', '__NLB_ARN__']],
+    ['wrong service', ['ec2', 'modify-load-balancer-attributes']],
+    ['wrong operation', ['elbv2', 'create-load-balancer']],
+  ] as const) {
+    it(`AWS CE explicit command contract: ${engine} rejects ${name} before public execution`, async () => {
+      const plan = explicitCommandPlan(engine, [...args]);
+      const directory = await mkdtemp(join(tmpdir(), 'ce-command-contract-'));
+      const sessionId = randomUUID();
+      let factories = 0,
+        services = 0;
+      try {
+        const text = JSON.stringify({ kind: 'aws-ce-plan', plan, observation });
+        const file = join(directory, '1.aws-ce-plan.log');
+        await writeFile(file, text, { mode: 0o600 });
+        const session = {
+          getSessionId: () => sessionId,
+          getArtifactsDir: () => directory,
+          getArtifactPath: async () => null,
+          saveArtifact: async () => {
+            throw new Error('Unexpected artifact write');
+          },
+        };
+        const tool = createAwsCeApplyTool(
+          {
+            typebox: { Type },
+            events: {
+              emit() {
+                services++;
+                throw new Error('Unexpected provider service request');
+              },
+            },
+          } as unknown as PluginInterface,
+          () => {
+            factories++;
+            throw new Error('Unexpected AWS execution API');
+          },
+        );
+        const result = await tool.execute(
+          'invalid-explicit-command',
+          {
+            planId: plan.planId,
+            planSha256: plan.planSha256,
+          },
+          undefined,
+          undefined,
+          {
+            cwd: directory,
+            hasUI: true,
+            ui: {
+              confirm: async () => {
+                throw new Error('Unexpected approval');
+              },
+            },
+            sessionManager: session,
+          },
+        );
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('explicit ELBv2 command prefix');
+        expect(factories).toBe(0);
+        expect(services).toBe(0);
+        expect(await readFile(file, 'utf8')).toBe(text);
+      } finally {
+        await rm(directory, { recursive: true });
+      }
+    });
+  }
+}

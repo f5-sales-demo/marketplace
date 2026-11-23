@@ -150,13 +150,6 @@ export function assertAwsApplyAllowed(
     throw new Error('Headless AWS CE teardown requires XCSH_CE_ALLOW_DESTROY=1');
 }
 
-/** Preserve resumability for plans persisted before the ELBv2 service prefix fix. */
-export function executableAwsActionArgs(action: AwsCeAction, args: string[]): string[] {
-  return action.kind === 'nlb-cross-zone-enable' && args[0] === 'modify-load-balancer-attributes'
-    ? ['elbv2', ...args]
-    : args;
-}
-
 function valueAtPath(raw: unknown, path: string): string | undefined {
   let value: unknown = raw;
   for (const segment of path.split('.')) {
@@ -815,13 +808,10 @@ export async function executeAwsCeApply(
           current,
           existing,
           pendingAction
-            ? executableAwsActionArgs(
-                pendingAction,
-                resolveAwsCeActionArgs(
-                  pendingAction.args ?? [],
-                  { ...existing.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
-                  plan.bootstrapKeyPair?.name,
-                ),
+            ? resolveAwsCeActionArgs(
+                pendingAction.args ?? [],
+                { ...existing.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
+                plan.bootstrapKeyPair?.name,
               )
             : [],
           ownershipPlanSha256s,
@@ -1010,13 +1000,10 @@ export async function executeAwsCeApply(
             await writeFile(path, renderAwsCeCloudInit({ nodeName: hostname, material }), { mode: 0o600 });
             checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
           }
-          const args = executableAwsActionArgs(
-            action,
-            resolveAwsCeActionArgs(
-              action.args,
-              { ...checkpoint.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
-              plan.bootstrapKeyPair?.name,
-            ),
+          const args = resolveAwsCeActionArgs(
+            action.args,
+            { ...checkpoint.resolvedValues, __PLAN_SHA256__: plan.planSha256 },
+            plan.bootstrapKeyPair?.name,
           );
           if (action.kind === 'instance-run') await revalidateAwsBootstrapKeyPair(plan, api);
           const result =

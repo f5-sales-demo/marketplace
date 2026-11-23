@@ -35,6 +35,16 @@ platform, routing, and traffic-health states independent.
 
 ## Deployment workflow
 
+Native CE VM creation and replacement use explicit `azureuser` SSH authentication with a
+distinct RSA4096 credential bound to the owned source plan, node, VM resource, and reserved
+site. Execution never consumes the CLI user's default key. The executor resolves the owned
+public key, verifies the provider's VM UUID, ownership tags, administrator and installed public
+key, then completes the VM checkpoint. A lost response resumes through that observation
+without recreating the VM or credential. Interrupted credential preparation resumes from
+verified stored material. Missing issued private material blocks reuse.
+Native parent teardown verifies credential provenance and retires private material only after
+independent exact cloud and platform absence, retaining interruption and resume checkpoints.
+
 1. Use `web_search` to read the dedicated `f5xc-ce-automation-policy/v2` document, the current
    official F5 Azure SMSv2 guide, and relevant Microsoft Marketplace, VM SKU, and networking
    documentation. Cite the sources used.

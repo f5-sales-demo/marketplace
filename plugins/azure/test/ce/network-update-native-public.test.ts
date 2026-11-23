@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
@@ -146,7 +146,22 @@ async function publicFixture(ha: boolean) {
           const vm = structuredClone(template);
           vm.vmId = `00000000-0000-4000-8000-${String(++vmGeneration).padStart(12, '0')}`;
           vm.tags['xcsh-plan-sha256'] = f.plan.planSha256;
+          const publicKey = args[args.indexOf('--ssh-key-values') + 1];
+          expect(args[args.indexOf('--admin-username') + 1]).toBe('azureuser');
+          expect(args[args.indexOf('--authentication-type') + 1]).toBe('ssh');
+          expect(publicKey).toMatch(/^ssh-rsa [A-Za-z0-9+/]+=*$/);
           Object.assign(vm, {
+            osProfile: {
+              adminUsername: 'azureuser',
+              linuxConfiguration: {
+                disablePasswordAuthentication: true,
+                ssh: {
+                  publicKeys: [
+                    { path: posix.join('/home', 'azureuser', '.ssh', 'authorized_keys'), keyData: publicKey },
+                  ],
+                },
+              },
+            },
             storageProfile: {
               imageReference: {
                 publisher: f.plan.image.publisher,
@@ -210,7 +225,7 @@ async function publicFixture(ha: boolean) {
   const binding = azureUpgradeBinding(f.original),
     fingerprint = `sha256:${'b'.repeat(64)}`;
   const logicalSite = {
-    system_metadata: { uid: 'site-uid' },
+    system_metadata: { uid: '00000000-0000-4000-8000-000000000099' },
     metadata: { name: f.original.siteName, namespace: 'system' },
     spec: { synthetic: 'owned-original-configuration' },
   };
@@ -922,7 +937,7 @@ async function retireNetworkFixture(
     ingressContractFingerprint: contract.fingerprint,
     listeners: [],
     origins: [],
-    sites: [{ binding, siteUid: 'site-uid', routing: [] }],
+    sites: [{ binding, siteUid: '00000000-0000-4000-8000-000000000099', routing: [] }],
   };
   const tokens =
     networkRetirementTokens.get(f) ??
@@ -938,7 +953,12 @@ async function retireNetworkFixture(
   }
   networkRetirementTokens.set(f, tokens);
   const teardown = compileAzureNativeTeardown(f.original, cloud, drain, [
-    { siteName: f.original.siteName, siteUid: 'site-uid', physicalSiteUid: 'physical-uid', tokens },
+    {
+      siteName: f.original.siteName,
+      siteUid: '00000000-0000-4000-8000-000000000099',
+      physicalSiteUid: 'physical-uid',
+      tokens,
+    },
   ]);
   if (!networkRetirementPrepared.has(f)) {
     await f.store.write(`${teardown.planId}.json`, teardown);

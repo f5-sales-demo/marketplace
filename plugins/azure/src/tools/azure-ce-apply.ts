@@ -27,6 +27,7 @@ import { persistAzureNativeNetworkGenerationCompletion } from '../ce/native-netw
 import { persistAzureNativeNetworkHistory } from '../ce/native-network-history';
 import { verifyAzureNativeNetworkReplacementExecution } from '../ce/native-network-replacement-execution';
 import { requireAzureNativePriorGenerationExecution } from '../ce/native-replacement-source';
+import { observeAzureNativeVmAuthentication, prepareAzureNativeVmAuthentication } from '../ce/native-vm-auth';
 import {
   azureNativeBootstrapForAction,
   collectAzureNativeAdmissionHealth,
@@ -164,7 +165,6 @@ export async function executeAzureCeNativeApply(
   if (Object.keys(params).some((key) => !['planId', 'planSha256'].includes(key)))
     throw new Error('Azure apply accepts only the persisted plan identity; caller evidence is unsupported');
   let existing = await loadCheckpoint(ctx.sessionManager, plan);
-  let recoveredNativeLaunchNode: number | undefined;
   assertApplyAllowed(plan, {
     planId: params.planId,
     planSha256: params.planSha256,
@@ -378,7 +378,16 @@ export async function executeAzureCeNativeApply(
       args: resolveActionArgs(action.args ?? [], plan.planSha256, replacements),
     };
     if (await azureNativePendingActionConverged(plan, resolvedAction, api, signal)) {
-      if (action.kind === 'vm-create') recoveredNativeLaunchNode = action.node;
+      if (action.kind === 'vm-create' && action.node) {
+        relayRecoveryPlatform ??= await platformFactory();
+        const recoveryStorage = await relayRecoveryPlatform.storage(azureUpgradeBinding(plan).owner);
+        await observeAzureNativeVmAuthentication(plan, action, recoveryStorage, api, signal);
+        const admission = (await recoveryStorage.read(
+          `native-admission-${plan.planSha256}.json`,
+        )) as NativeWorkflowCheckpoint;
+        validateAzureNativeAdmissionCheckpoint(plan, admission);
+        await recordAzureNativeLaunch(plan, action.node, admission, recoveryStorage);
+      }
       current = await observe();
       currentFingerprint = fingerprintCheckpointObservation(current);
       existing = {
@@ -480,7 +489,6 @@ export async function executeAzureCeNativeApply(
       : undefined;
   await persistAzureNativeSource(plan, storage);
   const native = await prepareAzureNativeAdmission(plan, runtime, storage, signal);
-  if (recoveredNativeLaunchNode) await recordAzureNativeLaunch(plan, recoveredNativeLaunchNode, native, storage);
   if (plan.intent.operation === 'replace-node') {
     await prepareAzureNativeReplacement(plan, native, api, runtime, storage, signal, qualifiedNetworkReplacement);
     if (!plan.relayProfile && !plan.networkReplacementProfile)
@@ -678,14 +686,18 @@ export async function executeAzureCeNativeApply(
           networkUpdate,
           signal,
         );
-        const execute = (bootstrapFile?: string) =>
-          api.exec(
-            action.command as 'az',
-            resolveActionArgs(action.args ?? [], plan.planSha256, {
-              ...replacements,
-              ...(bootstrapFile ? { __BOOTSTRAP_FILE__: bootstrapFile } : {}),
-            }),
-          );
+        const vmAuthentication =
+          action.kind === 'vm-create' ? await prepareAzureNativeVmAuthentication(plan, action, storage) : undefined;
+        if (vmAuthentication) replacements[`__NODE_${action.node}_SSH_PUBLIC_KEY__`] = vmAuthentication.publicKey;
+        const execute = (bootstrapFile?: string) => {
+          const args = resolveActionArgs(action.args ?? [], plan.planSha256, {
+            ...replacements,
+            ...(bootstrapFile ? { __BOOTSTRAP_FILE__: bootstrapFile } : {}),
+          });
+          if (args.some((arg) => /__[A-Z][A-Z0-9_]*__/.test(arg)))
+            throw Error('Unresolved execution reference in the immutable Azure action');
+          return api.exec(action.command as 'az', args);
+        };
         const bootstrap = action.requiresBootstrap
           ? await azureNativeBootstrapForAction(plan, action, native, runtime, storage, signal)
           : undefined;
@@ -745,8 +757,10 @@ export async function executeAzureCeNativeApply(
             });
           }
         }
-        if (action.kind === 'vm-create' && action.node)
+        if (action.kind === 'vm-create' && action.node) {
+          await observeAzureNativeVmAuthentication(plan, action, storage, api, signal);
           await recordAzureNativeLaunch(plan, action.node, native, storage);
+        }
       }
       if (networkUpdate && action.mutates) {
         const observed = await captureAzureNetworkUpdateInventory(plan, api, signal);
@@ -914,7 +928,11 @@ export function createAzureCeApplyTool(
         };
       } catch (error) {
         const commandFailure =
-          error instanceof Error && error.cause instanceof AzureNativeCommandFailure ? error.cause : undefined;
+          error instanceof AzureNativeCommandFailure
+            ? error
+            : error instanceof Error && error.cause instanceof AzureNativeCommandFailure
+              ? error.cause
+              : undefined;
         return {
           content: [
             {

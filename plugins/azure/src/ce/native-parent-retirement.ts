@@ -30,6 +30,7 @@ import {
   isAzureNativeUpgradeHistoricalArtifact,
   verifyAzureNativeUpgradeHistoricalArtifacts,
 } from './native-upgrade-artifact-provenance';
+import { isAzureNativeVmAuthenticationArtifact, verifyAzureNativeVmAuthenticationArtifacts } from './native-vm-auth';
 import type { NativeWorkflowCheckpoint } from './native-workflow';
 import {
   azureRelayHistoricalArtifacts,
@@ -229,6 +230,7 @@ export async function retireAzureNativeParentArtifacts(
     const allowed = (name: string) =>
       preserve.has(name) ||
       core.has(name) ||
+      isAzureNativeVmAuthenticationArtifact(name) ||
       (Boolean(relay) &&
         (azureRelayHistoricalArtifacts.has(name) || isAzureRelayReplacementHistoricalArtifact(name))) ||
       (!relay &&
@@ -282,6 +284,13 @@ export async function retireAzureNativeParentArtifacts(
             name === `native-source-${source.planSha256}.json`, 'native source registry differs');
           sources.set(source.planSha256, source);
         }
+      verifyAzureNativeVmAuthenticationArtifacts(
+        base,
+        sources,
+        teardown.retirement[0].siteUid,
+        teardown.drain.siteContractFingerprint,
+        records,
+      );
       if (relay) verifyAzureRelayReplacementHistories(base, teardown.retirement[0].siteUid, records, sources);
       else {
         await verifyAzureNativeReplacementHistories(base, teardown.retirement[0].siteUid, records);
