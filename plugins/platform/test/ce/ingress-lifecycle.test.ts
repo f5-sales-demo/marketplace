@@ -119,6 +119,7 @@ async function setup(storeOwner: CeOwner = owner) {
           mac: `02:00:00:00:00:0${i}`,
           device: 'ens6',
           interfaceName: `interface-${i}`,
+          interfaceUid: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
           mtu: 1500,
           linkUp: true,
           ipv4: { address: i === 1 ? state.address : `10.20.${i}.10`, prefixLength: 24 },

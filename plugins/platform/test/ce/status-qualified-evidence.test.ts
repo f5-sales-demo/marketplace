@@ -27,6 +27,7 @@ function observation(status: 'observed' | 'down' | 'unknown' = 'observed'): CeIn
             ...iface,
             device: iface.device,
             interfaceName: `generated-${index}`,
+            interfaceUid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
             mtu: 1500,
             linkUp: status !== 'down' || index !== 3,
             ipv4: null,

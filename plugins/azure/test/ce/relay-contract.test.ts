@@ -1630,6 +1630,7 @@ function relayWorkflowFixture(engine: 'native' | 'terraform' = 'native', ha = fa
     mac: string;
     device: string;
     interfaceName: string;
+    interfaceUid: string;
     mtu: number;
     linkUp: boolean;
     ipv4: { address: string; prefixLength: number } | null;
@@ -1693,6 +1694,7 @@ function relayWorkflowFixture(engine: 'native' | 'terraform' = 'native', ha = fa
         mac,
         device: `eth${item.nic.index}`,
         interfaceName: `ce-${node}-${item.nic.role}`,
+        interfaceUid: `33333333-3333-4333-8333-${String(observed.length + 1).padStart(12, '0')}`,
         mtu: 1500,
         linkUp: true,
         ipv4: item.nic.role === 'slo' ? { address, prefixLength: 24 } : null,
@@ -7906,4 +7908,37 @@ test('changed relay SKU generations reject before native resource submission', a
     'current catalog differs',
   );
   expect(f.puts).toBe(0);
+});
+
+test('relay current generated UID survives the signed cloud identity projection', async () => {
+  for (const engine of ['native', 'terraform'] as const) {
+    const f = relayWorkflowFixture(engine, true, true);
+    const context = await azureRelayCurrentIdentityContext(f.source, f.expected, f.runtime, f.storage, f.api);
+    const current = await context.observe();
+    expect(current.identity.stable.cloud.map((row) => row.interfaceUid)).toEqual(
+      f.observed.map((row) => row.interfaceUid),
+    );
+    expect(new Set(current.identity.stable.cloud.map((row) => row.interfaceUid)).size).toBe(6);
+    expect(current.slo.map((row) => row.interfaceUid)).toEqual(
+      f.observed.filter((row) => row.role === 'slo').map((row) => row.interfaceUid),
+    );
+  }
+});
+
+test('relay historical generated UID requires complete distinct identity and SLO continuity', async () => {
+  const f = relayWorkflowFixture('native', true, true);
+  await ensureAzureRelayRoutingWorkflow(f.source, f.expected, f.runtime, f.storage, f.api);
+  expect(() => verifyAzureRelayHistoricalArtifacts(f.source, 'owned-site-uid', f.saved)).not.toThrow();
+  for (const mode of ['missing', 'malformed', 'duplicate', 'slo-change']) {
+    const records = structuredClone(f.saved);
+    const journal = records.get('relay-routing-workflow.json') as {
+      identity: { stable: { cloud: Array<Record<string, unknown>> } };
+    };
+    const rows = journal.identity.stable.cloud;
+    if (mode === 'missing') delete rows[0].interfaceUid;
+    if (mode === 'malformed') rows[0].interfaceUid = 'not-a-uuid';
+    if (mode === 'duplicate') rows[1].interfaceUid = rows[0].interfaceUid;
+    if (mode === 'slo-change') rows[0].interfaceUid = '00000000-0000-4000-8000-000000000099';
+    expect(() => verifyAzureRelayHistoricalArtifacts(f.source, 'owned-site-uid', records)).toThrow();
+  }
 });

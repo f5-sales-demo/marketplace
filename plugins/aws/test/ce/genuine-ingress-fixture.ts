@@ -344,6 +344,7 @@ export async function genuineIngressFixture(engine: 'native' | 'terraform', ha: 
           mac: state.fault === 'foreign-mac' && node === 2 ? '02:00:00:ff:00:02' : `02:00:00:00:00:0${node}`,
           device: state.fault === 'wrong-device' && node === 2 ? 'ens9' : 'ens6',
           interfaceName: `interface-${node}`,
+          interfaceUid: `00000000-0000-4000-8000-${String(node).padStart(12, '0')}`,
           mtu: 1500,
           linkUp: !(state.fault === 'down' && node === 2),
           ipv4: {

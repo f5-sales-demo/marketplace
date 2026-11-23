@@ -1,4 +1,8 @@
-import type { CeInterfaceObservation, ExpectedCeInterface } from './interface-evidence';
+import {
+  type CeInterfaceObservation,
+  type ExpectedCeInterface,
+  parseGeneratedInterfaceUid,
+} from './interface-evidence';
 
 const name = (v: unknown): v is string => typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(v);
 const mac = (v: unknown): string | undefined =>
@@ -31,7 +35,8 @@ export function requireCompleteInterfaceEvidence(
   const expectedIds = new Set<string>(),
     physicalMacs = new Set<string>(),
     devices = new Set<string>(),
-    objects = new Set<string>();
+    objects = new Set<string>(),
+    generatedUids = new Set<string>();
   for (const wanted of expected) {
     const address = mac(wanted.mac),
       key = `${wanted.node}/${wanted.role}`;
@@ -62,6 +67,18 @@ export function requireCompleteInterfaceEvidence(
       objects.has(row.interfaceName)
     )
       fail();
+    try {
+      parseGeneratedInterfaceUid(row.interfaceUid);
+      if (
+        (wanted.interfaceUid !== undefined && parseGeneratedInterfaceUid(wanted.interfaceUid) !== row.interfaceUid) ||
+        (wanted.interfaceName !== undefined && wanted.interfaceName !== row.interfaceName) ||
+        generatedUids.has(row.interfaceUid.toLowerCase())
+      )
+        fail();
+      generatedUids.add(row.interfaceUid.toLowerCase());
+    } catch {
+      fail();
+    }
     devices.add(deviceKey);
     objects.add(row.interfaceName);
   }

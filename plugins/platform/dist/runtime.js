@@ -4,7 +4,7 @@ import {
   createCePlatformService,
   registerCePlatformService,
   requestTerraformResourceMutation,
-} from './runtime-vzfrz4g3.js';
+} from './runtime-nfbzkfn9.js';
 
 // plugins/platform/src/presentation.ts
 var record = (v) => (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {});
@@ -330,10 +330,10 @@ var factory = async (pi) => {
     return service;
   };
   if (typeof pi.registerTool !== 'function') return;
-  const { createF5xcCeV2SiteTool } = await import('./runtime-cy0t31k7.js');
-  const { createF5xcCeV2BootstrapTool } = await import('./runtime-g7g74epx.js');
-  const { createF5xcCeV2StatusTool } = await import('./runtime-wz64p0ex.js');
-  const { createF5xcCeV2CapabilitiesTool } = await import('./runtime-e6qnks6s.js');
+  const { createF5xcCeV2SiteTool } = await import('./runtime-sf6ndwb2.js');
+  const { createF5xcCeV2BootstrapTool } = await import('./runtime-m39rbawr.js');
+  const { createF5xcCeV2StatusTool } = await import('./runtime-779qkb9w.js');
+  const { createF5xcCeV2CapabilitiesTool } = await import('./runtime-az6p8kdr.js');
   pi.registerTool(presentTool2(createF5xcCeV2CapabilitiesTool(pi, makeService)));
   pi.registerTool(presentTool2(createF5xcCeV2SiteTool(pi, makeService)));
   pi.registerTool(presentTool2(createF5xcCeV2BootstrapTool(pi, makeService)));

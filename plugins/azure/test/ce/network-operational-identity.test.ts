@@ -86,10 +86,11 @@ async function fixture(ha = false, threeNics = false) {
         observedAt: '2020-01-01T00:00:00Z',
         interfaces: state.unknownLinks
           ? []
-          : expected.map((row) => ({
+          : expected.map((row, index) => ({
               ...row,
               device: row.role === 'slo' ? 'eth0' : row.role === 'data' ? 'eth1' : threeNics ? 'eth2' : 'eth1',
               interfaceName: `${row.node}-${row.role}`,
+              interfaceUid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
               mtu: 1500,
               linkUp: !(state.down && row.role === 'sli' && row.node === binding.nodes[0]),
               ipv4: null,

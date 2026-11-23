@@ -1,5 +1,6 @@
 import { parseBgpSessions } from '../../../platform/src/ce/bgp-evidence';
 import { parseBgpRoutes } from '../../../platform/src/ce/bgp-route-evidence';
+import { parseGeneratedInterfaceUid } from '../../../platform/src/ce/interface-evidence';
 import { buildAzureRelayRouting } from '../../../platform/src/ce/wire-routing';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalEqual, canonicalSha256 } from './canonical';
@@ -229,7 +230,8 @@ export function verifyAzureRelayHistoricalArtifacts(
     Array.isArray(identity.endpoints) &&
     identity.endpoints.length === binding.nodes.length, 'partial CE identity snapshot');
   const uuids = new Set<string>(),
-    interfaces = new Set<string>();
+    interfaces = new Set<string>(),
+    interfaceUids = new Set<string>();
   for (let node = 1; node <= source.topology.nodeCount; node++) {
     const nodeName = `${source.deploymentName}-${node}`;
     const vm = resourceSource.actions.find((row) => row.kind === 'vm-create' && row.node === node);
@@ -258,6 +260,7 @@ export function verifyAzureRelayHistoricalArtifacts(
         'subnetId',
         'device',
         'interfaceName',
+        'interfaceUid',
         'ipv4',
       ]);
       require(vm?.resourceId &&
@@ -272,6 +275,9 @@ export function verifyAzureRelayHistoricalArtifacts(
         text(row.interfaceName) &&
         !interfaces.has(row.interfaceName as string), 'CE VM/NIC/device/interface join differs');
       interfaces.add(row.interfaceName as string);
+      const interfaceUid = parseGeneratedInterfaceUid(row.interfaceUid);
+      require(!interfaceUids.has(interfaceUid.toLowerCase()), 'distinct generated interface UID required');
+      interfaceUids.add(interfaceUid.toLowerCase());
       validMac(row.mac);
       if (nic.role === 'slo') {
         const slo = array(identity.slo).filter((item) => item.node === nodeName);
@@ -283,6 +289,7 @@ export function verifyAzureRelayHistoricalArtifacts(
           slo[0].mac === row.mac &&
           slo[0].device === row.device &&
           slo[0].interfaceName === row.interfaceName &&
+          slo[0].interfaceUid === row.interfaceUid &&
           slo[0].linkUp === true &&
           same(slo[0].ipv4, row.ipv4) &&
           endpoints[0].address === object(row.ipv4).address &&

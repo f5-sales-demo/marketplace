@@ -98,10 +98,11 @@ test('discovers SLO objects and Route Server addresses before durable BGP creati
         freshness: 'verified',
         canSatisfyInterfaceMutationGate: true,
         observedAt: '2026-09-10T12:00:00Z',
-        interfaces: expected.map((item) => ({
+        interfaces: expected.map((item, index) => ({
           ...item,
           device: item.role === 'slo' ? 'eth0' : 'eth1',
           interfaceName: item.role === 'slo' ? 'authoritative-slo' : 'authoritative-sli',
+          interfaceUid: `c2000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
           mtu: 1500,
           linkUp: true,
           ipv4: null,

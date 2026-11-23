@@ -158,10 +158,11 @@ function fixture(observationOverride: Partial<CeInterfaceObservation> = {}) {
         observedAt: '2026-01-01T00:00:00.000Z',
         freshness: 'verified',
         canSatisfyInterfaceMutationGate: true,
-        interfaces: expected.map((item) => ({
+        interfaces: expected.map((item, index) => ({
           ...item,
           device: item.role === 'slo' ? 'ens5' : 'ens6',
           interfaceName: item.role === 'slo' ? 'ens5' : 'ens6',
+          interfaceUid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
           mtu: 1500,
           linkUp: true,
           ipv4: null,

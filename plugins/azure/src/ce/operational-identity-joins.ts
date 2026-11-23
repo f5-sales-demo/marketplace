@@ -1,5 +1,8 @@
 import { isIP } from 'node:net';
-import { requireQualifiedUpInterfaceEvidence } from '../../../platform/src/ce/interface-admission';
+import {
+  requireCompleteInterfaceEvidence,
+  requireQualifiedUpInterfaceEvidence,
+} from '../../../platform/src/ce/interface-admission';
 import type { ExpectedCeInterface, ObservedCeInterface } from '../../../platform/src/ce/interface-evidence';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { canonicalEqual, canonicalSha256 } from './canonical';
@@ -62,7 +65,9 @@ export async function collectAzureOperationalIdentityJoins<Base extends { freshn
       };
     };
     const links = async () => {
-      const value = await bounded(() => runtime.observeAzureInterfaces(binding, structuredClone(interfaces), deadline));
+      const value = await bounded(() =>
+        runtime.observeAzureInterfaces(binding, structuredClone(interfaces), deadline, identity.siteUid),
+      );
       require(['observed', 'down', 'unknown'].includes(value.status) &&
         Array.isArray(value.interfaces), 'malformed interface observation');
       if (value.status === 'unknown')
@@ -73,6 +78,7 @@ export async function collectAzureOperationalIdentityJoins<Base extends { freshn
           canSatisfyInterfaceMutationGate: false,
         };
       require(value.interfaces.length === interfaces.length, 'partial interface observation');
+      requireCompleteInterfaceEvidence(value, interfaces);
       const devices = new Set<string>(),
         objects = new Set<string>();
       for (const wanted of interfaces) {
@@ -122,6 +128,7 @@ export async function collectAzureOperationalIdentityJoins<Base extends { freshn
             ...wanted,
             device: row.device,
             interfaceName: row.interfaceName,
+            interfaceUid: row.interfaceUid,
             mtu: row.mtu,
             linkUp: row.linkUp,
             ipv4: row.ipv4 === null ? null : { address: row.ipv4.address, prefixLength: row.ipv4.prefixLength },

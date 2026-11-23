@@ -49,8 +49,8 @@ export function createF5xcCeV2StatusTool(
 
         const evidence =
           known.binding.owner.provider === 'aws'
-            ? await runtime.observeAwsInterfaces(known.binding, known.expectedInterfaces, signal)
-            : await runtime.observeAzureInterfaces(known.binding, known.expectedInterfaces, signal);
+            ? await runtime.observeAwsInterfaces(known.binding, known.expectedInterfaces, signal, known.siteUid)
+            : await runtime.observeAzureInterfaces(known.binding, known.expectedInterfaces, signal, known.siteUid);
         if (!Array.isArray(evidence.interfaces)) throw new Error('malformed interface collection');
         if (evidence.status !== 'unknown') requireCompleteInterfaceEvidence(evidence, known.expectedInterfaces);
         // Qualification comes from the trusted observer, never public arguments or fetch time.

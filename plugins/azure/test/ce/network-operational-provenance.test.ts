@@ -84,10 +84,11 @@ async function fixture(ha = false, forwarding = false) {
         status: state.down ? 'down' : 'observed',
         freshness: 'unqualified',
         canSatisfyInterfaceMutationGate: false,
-        interfaces: expected.map((row) => ({
+        interfaces: expected.map((row, index) => ({
           ...row,
           device: row.role === 'slo' ? 'eth0' : 'eth1',
           interfaceName: `${row.node}-${row.role}`,
+          interfaceUid: `c4000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
           linkUp: !(state.down && row.role === 'sli'),
           mtu: 1500,
           ipv4: null,

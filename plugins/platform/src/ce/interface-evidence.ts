@@ -6,12 +6,16 @@ export interface ExpectedCeInterface {
   mac: string;
   /** Optional planned or previously bound device; the observed MAC must resolve to it. */
   device?: string;
+  /** Generated object identity observed at discovery; never construct planning values. */
+  interfaceUid?: string;
+  interfaceName?: string;
   /** Desired configuration only; this does not establish operational link or freshness. */
   staticIp?: { ip_address: string; default_gw?: string; dns_server?: string };
 }
 export interface ObservedCeInterface extends ExpectedCeInterface {
   device: string;
   interfaceName: string;
+  interfaceUid: string;
   mtu: number;
   linkUp: boolean;
   ipv4: { address: string; prefixLength: number } | null;
@@ -45,6 +49,15 @@ const identity = (value: unknown) => {
     throw new Error('Missing interface identity');
   return value;
 };
+export function parseGeneratedInterfaceUid(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value) ||
+    value === '00000000-0000-0000-0000-000000000000'
+  )
+    throw Error('Missing or malformed generated interface UID');
+  return value;
+}
 const matchesNode = (expected: string, actual: unknown) =>
   actual === expected || (typeof actual === 'string' && actual.startsWith(`${expected}.`));
 
@@ -116,8 +129,11 @@ export function correlateCeInterfaces(
   );
   const statuses = array(physical.status).map(object);
   const seen = new Set<string>();
+  const generatedUids = new Set<string>();
+  const generatedNames = new Set<string>();
   if (!expected.length) throw new Error('Expected interface bindings required');
   return expected.map((binding) => {
+    if (!['slo', 'data', 'sli'].includes(binding.role)) throw Error('Missing interface role');
     const normalized = mac(binding.mac);
     const key = `${binding.node}/${normalized}`;
     if (seen.has(key)) throw new Error('Duplicate expected interface identity');
@@ -147,6 +163,22 @@ export function correlateCeInterfaces(
       return true;
     });
     if (matches.length !== 1) throw new Error('Ambiguous realized interface identity');
+    const interfaceName = identity(matches[0].name);
+    const interfaceUid = parseGeneratedInterfaceUid(matches[0].uid);
+    if (matches[0].system_metadata !== undefined) {
+      const system = object(matches[0].system_metadata);
+      if (Object.hasOwn(system, 'uid') && parseGeneratedInterfaceUid(system.uid) !== interfaceUid)
+        throw Error('Generated interface List metadata UID differs');
+    }
+    if (
+      (binding.interfaceUid !== undefined && parseGeneratedInterfaceUid(binding.interfaceUid) !== interfaceUid) ||
+      (binding.interfaceName !== undefined && identity(binding.interfaceName) !== interfaceName) ||
+      generatedUids.has(interfaceUid.toLowerCase()) ||
+      generatedNames.has(interfaceName)
+    )
+      throw Error('Generated interface identity changed or is duplicated');
+    generatedUids.add(interfaceUid.toLowerCase());
+    generatedNames.add(interfaceName);
     const publications = statuses.filter((item) => {
       if (item.ver_status === undefined || item.ver_status === null) return false;
       const publisher = object(item.metadata);
@@ -180,9 +212,36 @@ export function correlateCeInterfaces(
       throw new Error('Physical interface link state is not explicit or identity verified');
     return {
       ...iface,
-      interfaceName: identity(matches[0].name),
+      interfaceName,
+      interfaceUid,
       linkUp: links[0].link_state as boolean,
       ipv4: observedIpv4(links[0]),
     };
   });
+}
+
+/** Verify the final exact Get against discovery, after reading physical publication. */
+export function verifyCeInterfaceGet(configuration: Json, response: Json, observed: ObservedCeInterface): void {
+  const metadata = object(response.metadata);
+  const system = object(response.system_metadata);
+  const owner = object(system.owner_view);
+  const logicalMetadata = object(configuration.metadata);
+  const ethernet = object(object(response.spec).ethernet_interface);
+  const slo = Object.hasOwn(ethernet, 'site_local_network');
+  const sli = Object.hasOwn(ethernet, 'site_local_inside_network');
+  if (
+    metadata.name !== observed.interfaceName ||
+    metadata.namespace !== 'system' ||
+    parseGeneratedInterfaceUid(system.uid) !== parseGeneratedInterfaceUid(observed.interfaceUid) ||
+    owner.kind !== 'securemesh_site_v2' ||
+    owner.name !== logicalMetadata.name ||
+    owner.namespace !== 'system' ||
+    owner.uid !== object(configuration.system_metadata).uid ||
+    ethernet.node !== observed.node ||
+    ethernet.device !== observed.device ||
+    ethernet.mtu !== observed.mtu ||
+    slo === sli ||
+    slo !== (observed.role === 'slo')
+  )
+    throw Error('Generated interface exact Get differs from discovered identity');
 }

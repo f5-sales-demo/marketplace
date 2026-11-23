@@ -1,6 +1,10 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import { requireQualifiedUpInterfaceEvidence } from '../../../platform/src/ce/interface-admission';
-import type { ExpectedCeInterface, ObservedCeInterface } from '../../../platform/src/ce/interface-evidence';
+import {
+  type ExpectedCeInterface,
+  type ObservedCeInterface,
+  parseGeneratedInterfaceUid,
+} from '../../../platform/src/ce/interface-evidence';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
@@ -215,12 +219,12 @@ export async function azureRelayCurrentIdentityContext(
         usedMacs.add(normalized);
         const requested = expected.filter((row) => row.node === nodeName && row.role === selected.role);
         const observed: Array<
-          Pick<ObservedCeInterface, 'node' | 'role' | 'mac' | 'device' | 'interfaceName' | 'ipv4'>
+          Pick<ObservedCeInterface, 'node' | 'role' | 'mac' | 'device' | 'interfaceName' | 'interfaceUid' | 'ipv4'>
         > = stopped
           ? ((baseline?.identity.stable.cloud ?? []).filter(
               (row) => row.node === nodeName && row.role === selected.role,
             ) as unknown as Array<
-              Pick<ObservedCeInterface, 'node' | 'role' | 'mac' | 'device' | 'interfaceName' | 'ipv4'>
+              Pick<ObservedCeInterface, 'node' | 'role' | 'mac' | 'device' | 'interfaceName' | 'interfaceUid' | 'ipv4'>
             >)
           : platform.interfaces.filter((row) => row.node === nodeName && row.role === selected.role);
         require(requested.length === 1 &&
@@ -231,6 +235,7 @@ export async function azureRelayCurrentIdentityContext(
           /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(
             observed[0].interfaceName,
           ), 'authoritative CE/cloud MAC/device join differs');
+        parseGeneratedInterfaceUid(observed[0].interfaceUid);
         const configs = nic.ipConfigurations;
         require(Array.isArray(configs) && configs.length === 1, 'one complete CE NIC IP configuration required');
         const config = object((configs as unknown[])[0]);
@@ -266,6 +271,7 @@ export async function azureRelayCurrentIdentityContext(
           subnetId: subnets[0].resourceId,
           device: observed[0].device,
           interfaceName: observed[0].interfaceName,
+          interfaceUid: observed[0].interfaceUid,
           ipv4: observed[0].ipv4,
         });
       }

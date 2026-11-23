@@ -89,6 +89,7 @@ test('configures XC from observed AWS endpoints and authoritative XC interface o
           role: 'slo',
           device: 'ens5',
           interfaceName: 'realized-eth-interface',
+          interfaceUid: '00000000-0000-4000-8000-000000000001',
           mtu: 1500,
           linkUp: true,
           ipv4: null,

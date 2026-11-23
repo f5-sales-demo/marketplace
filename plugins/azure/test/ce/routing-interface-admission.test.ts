@@ -16,6 +16,7 @@ type MutableObservation = {
     mac: string;
     device: string;
     interfaceName: string;
+    interfaceUid: string;
     mtu: number;
     linkUp?: boolean;
     ipv4: null;
@@ -115,6 +116,7 @@ function fixture(change: (value: MutableObservation) => void = () => {}) {
       ...v,
       device: 'eth0',
       interfaceName: 'authoritative-slo',
+      interfaceUid: 'c1000000-0000-4000-8000-000000000001',
       mtu: 1500,
       linkUp: true,
       ipv4: null,

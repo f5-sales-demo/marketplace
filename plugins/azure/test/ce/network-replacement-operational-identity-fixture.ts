@@ -96,10 +96,11 @@ export async function replacementOperationalIdentityFixture(
         state.links++;
         if (state.fault === 'service') throw Error('SECRET_SENTINEL');
         if (state.fault === 'cancel') return new Promise(() => {});
-        const rows = expected.map((row) => ({
+        const rows = expected.map((row, index) => ({
           ...row,
           device: row.role === 'slo' ? 'eth0' : 'eth1',
           interfaceName: `${row.node}-${row.role}`,
+          interfaceUid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
           mtu: 1500,
           linkUp: true,
           ipv4: null,

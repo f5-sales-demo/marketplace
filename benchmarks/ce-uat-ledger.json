@@ -15,12 +15,12 @@
     },
     "runtimePeer": "23.10.19",
     "testedRuntimeVersions": [],
-    "revision": 289,
+    "revision": 294,
     "versions": {
-      "platform": "7.0.0-uat.289",
-      "aws": "3.0.0-uat.289",
-      "azure": "5.0.0-uat.289",
-      "terraform": "3.0.0-uat.289"
+      "platform": "7.0.0-uat.294",
+      "aws": "3.0.0-uat.294",
+      "azure": "5.0.0-uat.294",
+      "terraform": "3.0.0-uat.294"
     },
     "sourceCommit": null,
     "deliverable": false,
@@ -1474,10 +1474,10 @@
       }
     },
     "previousCurrentCohortSnapshot": {
-      "revision": 277,
-      "sourceCommit": "ca1b56146e388586a54bcbc7df54042ea143d3c8",
+      "revision": 289,
+      "sourceCommit": "9969fc78a78d1c8557e099af36c2cec979c200f9",
       "path": "benchmarks/ce-uat-ledger.json",
-      "gitBlob": "e3dbebfc5b9e625f5c93d7b311252004b52b33a7"
+      "gitBlob": "fedf656ce00347b3b032ca9b9fe401c697531b6d"
     },
     "sourceTestedRuntimeVersions": ["23.10.19"]
   },

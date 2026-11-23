@@ -24,7 +24,12 @@ import {
   validateInitialRegistrationRetirement,
 } from './initial-registration-retirement';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
-import { type CeInterfaceObservation, correlateCeInterfaces, type ExpectedCeInterface } from './interface-evidence';
+import {
+  type CeInterfaceObservation,
+  correlateCeInterfaces,
+  type ExpectedCeInterface,
+  verifyCeInterfaceGet,
+} from './interface-evidence';
 import {
   type ExpectedCeNodeHealth,
   type ExpectedCeNodeHealthIdentity,
@@ -1074,17 +1079,19 @@ export class CeRuntime {
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
+    expectedSiteUid?: string,
   ): Promise<CeInterfaceObservation> {
     if (binding.owner.provider !== 'aws') throw new Error('AWS interface observation requires AWS ownership');
-    return this.observeInterfaces(binding, expected, signal);
+    return this.observeInterfaces(binding, expected, signal, true, expectedSiteUid);
   }
   async observeAzureInterfaces(
     binding: SiteBinding,
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
+    expectedSiteUid?: string,
   ): Promise<CeInterfaceObservation> {
     if (binding.owner.provider !== 'azure') throw new Error('Azure interface observation requires Azure ownership');
-    return this.observeInterfaces(binding, expected, signal);
+    return this.observeInterfaces(binding, expected, signal, true, expectedSiteUid);
   }
   /** Read-only surviving-node scope; never replaces the complete persisted deployment interface binding. */
   async observeAzureInterfacesForNodes(
@@ -1202,6 +1209,7 @@ export class CeRuntime {
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
     persistBinding = true,
+    expectedSiteUid?: string,
   ): Promise<CeInterfaceObservation> {
     this.#binding(binding);
     const observedAt = new Date().toISOString();
@@ -1214,6 +1222,8 @@ export class CeRuntime {
         signal,
       );
       this.#owned(configuration, binding);
+      if (expectedSiteUid !== undefined && object(configuration.system_metadata).uid !== expectedSiteUid)
+        throw new CeApiError('conflict');
       const objects = await this.#request(
         '/api/config/namespaces/system/network_interfaces?report_fields=get_spec&report_fields=system_metadata',
         {},
@@ -1221,6 +1231,14 @@ export class CeRuntime {
       );
       const physical = await this.#request(`/api/config/namespaces/system/sites/${binding.siteName}`, {}, signal);
       const interfaces = correlateCeInterfaces(configuration, objects, physical, expected, binding.owner.provider);
+      for (const observed of interfaces) {
+        const exact = await this.#request(
+          `/api/config/namespaces/system/network_interfaces/${encodeURIComponent(observed.interfaceName)}`,
+          {},
+          signal,
+        );
+        verifyCeInterfaceGet(configuration, exact, observed);
+      }
       const finalConfiguration = await this.#request(
         this.contract.configurationPath(binding.owner.provider, binding.siteName),
         {},
@@ -1233,7 +1251,19 @@ export class CeRuntime {
       )
         throw new CeApiError('conflict');
       if (persistBinding)
-        await this.recordBinding?.(binding, String(object(configuration.system_metadata).uid), expected);
+        await this.recordBinding?.(
+          binding,
+          String(object(configuration.system_metadata).uid),
+          interfaces.map((observed, index) => ({
+            ...expected[index],
+            node: observed.node,
+            role: observed.role,
+            mac: observed.mac,
+            device: observed.device,
+            interfaceName: observed.interfaceName,
+            interfaceUid: observed.interfaceUid,
+          })),
+        );
       return {
         status: interfaces.every((row) => row.linkUp) ? 'observed' : 'down',
         interfaces,

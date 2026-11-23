@@ -92,7 +92,7 @@ function fixture(provider: 'aws' | 'azure', engine: 'native' | 'terraform') {
   };
   const artifact = makeContract();
   let known: CeStoredSiteBinding = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     binding,
     siteUid: 'logical-site-one',
     contractFingerprint: artifact.fingerprint,

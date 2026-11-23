@@ -3,7 +3,7 @@ import { isIP } from 'node:net';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from './deployment-store';
 import type { VerifiedIngressContract } from './ingress-contract';
-import type { ExpectedCeInterface, ObservedCeInterface } from './interface-evidence';
+import { type ExpectedCeInterface, type ObservedCeInterface, parseGeneratedInterfaceUid } from './interface-evidence';
 import { acquireProcessLock } from './process-lock';
 import { CeApiError, type SiteBinding } from './runtime';
 import type { InsideHttpListener } from './wire-ingress';
@@ -278,7 +278,7 @@ export function validateCeIngressHistoricalPlan(
     text(selected.node);
     text(placement.siteUid);
     const iface = placement.interface;
-    fields(object(iface), ['node', 'role', 'mac', 'device', 'interfaceName', 'mtu', 'linkUp', 'ipv4']);
+    fields(object(iface), ['node', 'role', 'mac', 'device', 'interfaceName', 'interfaceUid', 'mtu', 'linkUp', 'ipv4']);
     if (
       iface.node !== selected.node ||
       iface.role !== 'sli' ||
@@ -291,6 +291,7 @@ export function validateCeIngressHistoricalPlan(
       throw new Error('Ingress historical SLI identity differs');
     text(iface.device);
     text(iface.interfaceName);
+    parseGeneratedInterfaceUid(iface.interfaceUid);
     fields(object(iface.ipv4), ['address', 'prefixLength']);
     if (
       isIP(iface.ipv4.address) !== 4 ||

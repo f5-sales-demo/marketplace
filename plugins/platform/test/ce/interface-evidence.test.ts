@@ -28,6 +28,7 @@ function fixture() {
     items: [
       {
         name: 'authoritative-interface-object',
+        uid: '00000000-0000-4000-8000-000000000001',
         namespace: 'system',
         owner_view: { ...metadata, kind: 'securemesh_site_v2', uid: 'site-uid' },
         get_spec: { ethernet_interface: { node: 'node-a', device: 'eth0', site_local_network: {}, mtu: 1500 } },
@@ -75,6 +76,7 @@ test('resolves the authoritative object only through configured MAC, site UID, d
       mac: 'aa:bb:cc:dd:ee:ff',
       device: 'eth0',
       interfaceName: 'authoritative-interface-object',
+      interfaceUid: '00000000-0000-4000-8000-000000000001',
       mtu: 1500,
       linkUp: true,
       ipv4: null,
@@ -222,12 +224,11 @@ test('rejects conflicting site-publisher node identities, stale links, reference
   }
 });
 
-test('replays sanitized current AWS site-publisher interface evidence', () => {
+test('historical publisher-only evidence cannot satisfy current generated-UID identity', () => {
   const expected = recorded.expected.map((item) => ({ ...item, role: item.role as 'slo' | 'sli' }));
-  const interfaces = correlateCeInterfaces(recorded.configuration, recorded.objects, recorded.physical, expected);
-  expect(interfaces).toHaveLength(2);
-  expect(interfaces.map((item) => item.role)).toEqual(['slo', 'sli']);
-  expect(interfaces.every((item) => item.linkUp && item.mtu === 1500)).toBe(true);
+  expect(() => correlateCeInterfaces(recorded.configuration, recorded.objects, recorded.physical, expected)).toThrow(
+    'generated interface UID',
+  );
 });
 
 test('keeps complete six-interface explicit down and restored up observations with the same identities', () => {

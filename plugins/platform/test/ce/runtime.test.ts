@@ -1982,6 +1982,13 @@ for (const mode of ['stable', 'replaced', 'configuration-changed'] as const)
         nodes: data.expected.map((row) => row.node).filter((node, i, all) => all.indexOf(node) === i),
       };
     Object.assign(data.configuration.metadata, { labels });
+    // Synthetic current Get identities supplement the unchanged historical publisher fixture.
+    const objects = {
+      items: data.objects.items.map((item, index) => ({
+        ...item,
+        uid: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      })),
+    };
     let reads = 0;
     const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url) => {
       const path = new URL(url).pathname;
@@ -1993,7 +2000,17 @@ for (const mode of ['stable', 'replaced', 'configuration-changed'] as const)
           configuration.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 1400;
         return json(configuration);
       }
-      return json(path.includes('network_interfaces') ? data.objects : data.physical);
+      if (path.includes('/network_interfaces/')) {
+        const item = objects.items.find((item) => item.name === decodeURIComponent(path.split('/').at(-1) ?? ''));
+        return item
+          ? json({
+              metadata: { name: item.name, namespace: item.namespace },
+              system_metadata: { uid: item.uid, owner_view: item.owner_view },
+              spec: item.get_spec,
+            })
+          : json({}, 404);
+      }
+      return json(path.includes('network_interfaces') ? objects : data.physical);
     });
     const expected = data.expected.map((row) => ({ ...row, role: row.role as 'slo' | 'sli' }));
     const result = await runtime.observeAwsInterfaces(selected, expected);
@@ -2132,7 +2149,7 @@ for (const identity of ['same', 'foreign-site', 'foreign-contract', 'foreign-ten
       );
       const storage = await service.storage(binding.owner);
       await storage.write('site-binding-ce-one.json', {
-        schemaVersion: 1,
+        schemaVersion: 2,
         tenantOrigin: identity === 'foreign-tenant' ? 'https://foreign.example.test' : 'https://tenant.example.test',
         contractFingerprint: identity === 'foreign-contract' ? 'sha256:foreign' : published.fingerprint,
         siteUid: identity === 'foreign-site' ? 'foreign-site-uid' : 'public-site-uid',
@@ -2186,6 +2203,16 @@ for (const mode of ['stable', 'unknown', 'down', 'duplicate', 'partial', 'foreig
         const path = new URL(url).pathname;
         if (path.includes('securemesh_site_v2s')) return json(configuration);
         if (mode === 'unknown' && path.includes('network_interfaces')) return json({}, 503);
+        if (path.includes('/network_interfaces/')) {
+          const item = raw.objects.items.find((item) => item.name === decodeURIComponent(path.split('/').at(-1) ?? ''));
+          return item
+            ? json({
+                metadata: { name: item.name, namespace: item.namespace },
+                system_metadata: { uid: item.uid, owner_view: item.owner_view },
+                spec: item.get_spec,
+              })
+            : json({}, 404);
+        }
         const physical = structuredClone(raw.physical);
         if (mode === 'down') physical.status[0].ver_status.intf_status[0].link_state = false;
         return json(path.includes('network_interfaces') ? raw.objects : physical);

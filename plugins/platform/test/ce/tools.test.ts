@@ -44,7 +44,7 @@ const config: WireSiteIntent = {
   ],
 };
 const known: CeStoredSiteBinding = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   binding,
   siteUid: 'owned-site-uid',
   contractFingerprint: 'fingerprint',
@@ -303,6 +303,7 @@ test('preserves reported down while keeping unqualified freshness unknown and he
                 ...known.expectedInterfaces[0],
                 device: 'ens5',
                 interfaceName: 'generated-a',
+                interfaceUid: '00000000-0000-4000-8000-000000000001',
                 mtu: 1500,
                 linkUp: status === 'observed',
                 ipv4: null,

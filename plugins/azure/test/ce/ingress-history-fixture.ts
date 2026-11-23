@@ -114,6 +114,7 @@ export async function createIngressHistoryFixture(engine: 'native' | 'terraform'
             mac: '02:00:00:00:00:02',
             device: 'ens6',
             interfaceName: 'owned-generated-sli',
+            interfaceUid: '00000000-0000-4000-8000-000000000001',
             mtu: 1500,
             linkUp: true,
             ipv4: { address: '10.20.1.10', prefixLength: 24 },

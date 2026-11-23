@@ -3,7 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore, type CeStorageOptions } from './deployment-store';
-import type { ExpectedCeInterface } from './interface-evidence';
+import { type ExpectedCeInterface, parseGeneratedInterfaceUid } from './interface-evidence';
 import { retireRegistrationApprovalReservations } from './registration-approval-retirement';
 import type { Smsv2KvmImageResolution } from './release-contract';
 import { type CeOwner, type CeResourceMutation, CeRuntime, type SiteBinding } from './runtime';
@@ -33,7 +33,7 @@ export interface CeCapabilityEvidence {
   liveAcceptance: 'not-established';
 }
 export interface CeStoredSiteBinding {
-  schemaVersion: 1;
+  schemaVersion: 2;
   tenantOrigin: string;
   contractFingerprint: string;
   siteUid: string;
@@ -84,6 +84,44 @@ async function context(
   if (!url || !credential) throw new CeContextFailure('Select an F5 context or provide its scoped API environment');
   return credentials(url, credential);
 }
+function mergeInterfaceBindings(
+  incoming: ExpectedCeInterface[],
+  previous: ExpectedCeInterface[],
+): ExpectedCeInterface[] {
+  const uids = new Set<string>();
+  const names = new Set<string>();
+  return incoming.map((row) => {
+    const matches = previous.filter(
+      (old) => old.node === row.node && old.role === row.role && old.mac.toLowerCase() === row.mac.toLowerCase(),
+    );
+    if (matches.length > 1) throw Error('Ambiguous stored interface identity');
+    const old = matches[0];
+    const interfaceUid = row.interfaceUid === undefined ? old?.interfaceUid : row.interfaceUid;
+    const interfaceName = row.interfaceName === undefined ? old?.interfaceName : row.interfaceName;
+    if (interfaceUid !== undefined) {
+      parseGeneratedInterfaceUid(interfaceUid);
+      if (old?.interfaceUid !== undefined && interfaceUid !== old.interfaceUid)
+        throw Error('Stored generated interface UID changed');
+      if (uids.has(interfaceUid.toLowerCase())) throw Error('Duplicate stored generated interface UID');
+      uids.add(interfaceUid.toLowerCase());
+    }
+    if (interfaceName !== undefined) {
+      if (
+        !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(interfaceName) ||
+        (old?.interfaceName !== undefined && interfaceName !== old.interfaceName) ||
+        names.has(interfaceName)
+      )
+        throw Error('Stored generated interface name changed or is duplicated');
+      names.add(interfaceName);
+    }
+    return {
+      ...row,
+      ...(interfaceUid !== undefined ? { interfaceUid } : {}),
+      ...(interfaceName !== undefined ? { interfaceName } : {}),
+    };
+  });
+}
+
 export function createCePlatformService(
   env: Record<string, string | undefined> | (() => Record<string, string | undefined>) = process.env,
   loadPublishedContract: PublishedCeContractLoader = () => VerifiedCeContract.published(),
@@ -126,7 +164,7 @@ export function createCePlatformService(
           throw error;
         }
         if (
-          record.schemaVersion !== 1 ||
+          record.schemaVersion !== 2 ||
           record.binding.siteName !== siteName ||
           JSON.stringify(record.binding.owner) !== JSON.stringify(store.owner) ||
           !record.siteUid ||
@@ -190,18 +228,19 @@ export function createCePlatformService(
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
           }
           const retained =
-            prior?.siteUid === siteUid &&
-            prior.contractFingerprint === artifact.fingerprint &&
+            prior?.schemaVersion === 2 &&
+            prior.siteUid === siteUid &&
+            /^sha256:[a-f0-9]{64}$/.test(prior.contractFingerprint) &&
             prior.tenantOrigin === new URL(credentials.url).origin
               ? prior.expectedInterfaces
               : [];
           await store.write(name, {
-            schemaVersion: 1,
+            schemaVersion: 2,
             tenantOrigin: new URL(credentials.url).origin,
             contractFingerprint: artifact.fingerprint,
             siteUid,
             binding: structuredClone(binding),
-            expectedInterfaces: structuredClone(expected ?? retained),
+            expectedInterfaces: mergeInterfaceBindings(expected ?? retained, retained),
           } satisfies CeStoredSiteBinding);
         },
         async (binding, identity) => {
