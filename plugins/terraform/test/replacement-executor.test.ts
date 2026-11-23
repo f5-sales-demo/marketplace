@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { executeF5TerraformResource } from '../src/f5-resources';
+import schema from './fixtures/replacement-provider-schema';
 import retained from './fixtures/securemesh-replacement.json';
-import schema from './fixtures/securemesh-replacement-provider-schema.json';
 
 const originalFetch = globalThis.fetch,
   directories: string[] = [];

@@ -3,7 +3,7 @@ import { buildWireSite, type WireSiteIntent } from '../../platform/src/ce/wire-s
 import { resolveCeSchemaFixture } from '../../platform/test/fixtures/resolve-schema-fixture';
 import createSchemaCompact from '../../platform/test/fixtures/smsv2-create-schema.json';
 import { renderObservedProviderResource, renderProviderResource } from '../src/resource-renderer';
-import replacementSchema from './fixtures/securemesh-replacement-provider-schema.json';
+import replacementSchema from './fixtures/replacement-provider-schema';
 import prebootSchema from './resource-renderer-preboot.fixture.json';
 
 const schema = {

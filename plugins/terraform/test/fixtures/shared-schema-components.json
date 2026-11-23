@@ -1,0 +1,1409 @@
+{
+  "00453093a6b8d8112f624fa26853db582c1f595ccad692ed7f2ee3dcacbcd2a4": {
+    "cluster_static_ip": {
+      "$ref": "./shared-schema-components.json#/2e8653a52a8c79607d7e98bce3bf0aec43d941fb4824c669eed7ff51b7321c08"
+    },
+    "node_static_ip": {
+      "$ref": "./shared-schema-components.json#/b1deb9530e49f010cc3addaf350bdfd486df4d60804062cc932fa33163cb3cb4"
+    }
+  },
+  "0083832c8d01723fd2bcb122bd85bca575ec5dc3e5ccddc8215e80745a224153": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/a9a70b79d8bd1c0efd4eb91f8f2ca73f7c1a633c6fdcd7130cb91bc644bf7f0a"
+    }
+  },
+  "00ac8a40458a3ca89609406daf895d70d7bf25a4cd47ce2882255a90fbd44f1d": {
+    "configured_list": {
+      "$ref": "./shared-schema-components.json#/11f9a781cca15e99b92a4622e79bbb809d592932cab904f9fb0a9df58d7972f4"
+    },
+    "local_dns": {
+      "$ref": "./shared-schema-components.json#/93eeca8476aeb36290632ba8911cedc42ba12bcdf75f537da2cfea96e4a4cc0f"
+    }
+  },
+  "025fff7c9d32964aba8ccdd91c54938f5f66d2a126dd05fd5c74356aafe6fe9e": {
+    "type": ["map", "string"],
+    "description": "Fixed MAC address to IPv6 assignments, Key: MAC address, Value: IPv6 Address Assign fixed IPv6 addresses based on the MAC Address of the DHCP Client.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "02f9f2a3159a7779e3a75d3426c6fb280d128399c7f764d631f8585be78e53a0": {
+    "device": {
+      "$ref": "./shared-schema-components.json#/9309310551a11f7570d7f9b5ef4906062c07cd4fdb5e12ff74558468d5f55d1a"
+    },
+    "vlan_id": {
+      "$ref": "./shared-schema-components.json#/c9aff8cebd7b6a7af63bcba783acc269cd83a1bfa7b7a3dfcf121fb6bc04ee61"
+    }
+  },
+  "04635bbe3cb4f728b7348753863b79457975197a627cb1982b63ec3ac02bca52": {
+    "type": "string",
+    "description": "Starting IPv6 address of the pool range. In case of address allocator, offset is derived based on network prefix. 2001::1 with prefix length of 64, start offset is 5.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "04686cad6ab63509908237e5c5499c317ba50ad505230eb9c27c1d6a51df56c3": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/9d2267b5361e7a0a01550d59ad6b54bdcbcac7c22e1345bb1d31d80072f41e44"
+    }
+  },
+  "04f490af01d051d49acecd2743efaceb11257795f479d8b58e2b19c11b507680": {
+    "type": ["map", "string"],
+    "description": "Site:Node to IPv6 Mapping. Map of Site:Node to IPv6 address.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "062e7ecd566d08a6fcf7bdb518907c1e9e8309067b54be11622a043a43cba5b3": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/63519c2d782ed954c3cd455f9b8916b74c216ecb358828d493dc34b7f02bc81c"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/cc3216b4fff9266330c6ec9ae2d5a577fd2a428c7536b74a7a3c6fdaaea88d66"
+    },
+    "description": "IPV6AutoConfigRouterType.",
+    "description_kind": "markdown"
+  },
+  "07ee447118af1a3c4f5978ec841c42c6166ad08a75a2168b9fd431a017089b2e": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/469abe11c639dec4eb247dfd4e20ef73d8484389e82a791906462f152ce78c7a"
+    }
+  },
+  "08127b331861a66e2f1629860b90aab0aa57bbf3be0e2edaa09ac176561042da": {
+    "type": "string",
+    "description": "[Enum: INCLUDE_IP_ADDRESSES_FROM_DHCP_POOLS|EXCLUDE_IP_ADDRESSES_FROM_DHCP_POOLS] Identifies the how to pick the network for Interface. Address ranges in DHCP pool list are used for IP Address allocation Address ranges in DHCP pool list are excluded from IP Address allocation. Possible values are `INCLUDE_IP_ADDRESSES_FROM_DHCP_POOLS`, `EXCLUDE_IP_ADDRESSES_FROM_DHCP_POOLS`. Defaults to `INCLUDE_IP_ADDRESSES_FROM_DHCP_POOLS`.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "0a37a08661fd2bf2fd23558561289d8c5e403e398d18ba344bf413578af566ef": {
+    "pools": {
+      "$ref": "./shared-schema-components.json#/499b896320c4e5ab86e74b07b70fa5473a3bba3285ecd25b92bfe5c4ea08be5d"
+    }
+  },
+  "0ac6a2b3958245d19ff798c75ca5350ae06bfdb545d86d47ac63464f3e689ec2": {
+    "type": "string",
+    "description": "Bond Device Name. Name for the Bond. Ex 'bond0'",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "0afb92d8ce154788163f6e34171f3c17eede5b67c6eecf8f4d99836ca1ea47fc": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/22c3f7645aefcc0d854fae62598372b93f7de20800eae5b4422a3d0dc8e6ecdf"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/dcf99a173aeb72741e6797bb1d1974ab27668febd4b1eaf6d6aee40e4f669b3f"
+    },
+    "description": "Site Local Network Configuration. Site local network configuration.",
+    "description_kind": "markdown"
+  },
+  "0b4f12064f72a1bdbf74806940059752a37ff6b3dec703d9956c4d76badb57ed": {
+    "type": "number",
+    "description": "Interval in seconds to transmit LACP packets.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "0c1f4798c4c1bc0008442055bbf0051c8d4a8d1d55613aa3630411c70c5f9fbb": {
+    "type": "string",
+    "description": "Optional Secondary IPv4 DNS server to be used for name resolution.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "0da8650ad83c0a4f54e5a052c1c77c4c0e13f28f5cc45a074fcc0498debd4167": {
+    "type": ["object", {}],
+    "description": "Configuration parameter for no static routes.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "0de742061aca6e163141cbb151bd44bf8c2a2aa18b1521f1c16bc4201de68dce": {
+    "type": "string",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g. Route's) uid.",
+    "description_kind": "markdown",
+    "computed": true
+  },
+  "11f9a781cca15e99b92a4622e79bbb809d592932cab904f9fb0a9df58d7972f4": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/54979dc5eed40a2f8c5e3403142de0835ff37c3d9049a9bfa41a3d2b316bf91a"
+    }
+  },
+  "14a6d2b1104a771b7cdd464b172d07431defef42014c37fac738223c9d8ee2c5": {
+    "type": "string",
+    "description": "Default Gateway. IP address of the default gateway.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "152d3cfb266d2b87289c7138ce480a883456ad9180a173f10485f028de8f5a56": {
+    "end_ip": {
+      "$ref": "./shared-schema-components.json#/1c9c1338e4265f0c7d0d35e645aae7ad7b8e75200b0923ffefcf69d0ba781e4c"
+    },
+    "exclude": {
+      "$ref": "./shared-schema-components.json#/5c8cd23820c7fa1eeda22e8d0dfe1c8c6891e822ce6b3576bbd03d08f59563ec"
+    },
+    "start_ip": {
+      "$ref": "./shared-schema-components.json#/70c9a7c677eaa1d8c8a542ba114b8dbb6efa3b2a0e318c3d0d7e5c7ce97f995f"
+    }
+  },
+  "169f239e8afed86aab5761ec270e4c8fc1d95fa869cc5793ff84793df1100d2e": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/2f6679e01b6068696c525b486856ef060ddcdfaa8975fb72ea4d3e977b51b128"
+    }
+  },
+  "16a5f0a5ee1ea10aad98314352d4bb0056b958588517143c1e065d1e7f7e70c4": {
+    "configured_address": {
+      "$ref": "./shared-schema-components.json#/aa97e74572561c9fe33d638c2d8c623eb246ec55189dc8dd00a872c16905e042"
+    },
+    "first_address": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "last_address": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    }
+  },
+  "1c9c1338e4265f0c7d0d35e645aae7ad7b8e75200b0923ffefcf69d0ba781e4c": {
+    "type": "string",
+    "description": "Ending IP of the pool range. In case of address allocator, offset is derived based on network prefix. 192.0.2.39 with prefix length of 24, end offset is 192.0.2.186.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "1de90ac9f31e3dd41210ad4294682192a5ea86dc1f9b099a1e336afa03c488b8": {
+    "type": ["map", "string"],
+    "description": "Map of Node to Static IP configuration value, Key:Node, Value:IP Address.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "210134af1da4f869fddecd3aa5b86781f43681acb070a913f1fdd78a52d1ee35": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/73cc7133617b7a9fa564badbdcf82d819271f98fb2b9009ca20a567688b74407"
+    },
+    "description": "Select virtual network (VRF) for this interface. There are 2 kinds of VRFs, local VRFs which are local to the site and global VRFs which extend into multiple sites. A site can have 2 Local VRFs, Site Local Outside (SLO), which is required for every site and Site Local Inside (SLI) which is optional.",
+    "description_kind": "markdown"
+  },
+  "214856fa7db5c40fe1c4f369fbe7379e43093f548d63c3b311544901a396520b": {
+    "type": ["list", "string"],
+    "description": "[Enum: ROUTE_ATTR_NO_OP|ROUTE_ATTR_ADVERTISE|ROUTE_ATTR_INSTALL_HOST|ROUTE_ATTR_INSTALL_FORWARDING|ROUTE_ATTR_MERGE_ONLY] List of attributes that control forwarding, dynamic routing and control plane (host) reachability. Possible values are `ROUTE_ATTR_NO_OP`, `ROUTE_ATTR_ADVERTISE`, `ROUTE_ATTR_INSTALL_HOST`, `ROUTE_ATTR_INSTALL_FORWARDING`, `ROUTE_ATTR_MERGE_ONLY`. Defaults to `ROUTE_ATTR_NO_OP`.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "219611aa2357bed5ed26fa950dce2806a94e763886f4fc65a4292f68e4353d08": {
+    "interface_list": {
+      "$ref": "./shared-schema-components.json#/e3ea6869a3fed480f73b7903138da55f07954372238509afbbf9eef18f16dded"
+    }
+  },
+  "22c3f7645aefcc0d854fae62598372b93f7de20800eae5b4422a3d0dc8e6ecdf": {
+    "labels": {
+      "$ref": "./shared-schema-components.json#/ca0c0ce7a75d8a9d6a013174ae62a55673536f8453fb533d10b4536b77189666"
+    },
+    "nameserver": {
+      "$ref": "./shared-schema-components.json#/342324a374372141895a209f1837c2e30e4e2c43ad0b6e5e54837affc37227d8"
+    },
+    "no_static_routes": {
+      "$ref": "./shared-schema-components.json#/0da8650ad83c0a4f54e5a052c1c77c4c0e13f28f5cc45a074fcc0498debd4167"
+    },
+    "no_v6_static_routes": {
+      "$ref": "./shared-schema-components.json#/4b9c3385632972f8ace11eb2f23ee67dcdb5136bfcd4995f9389ccfefebfc19e"
+    },
+    "secondary_nameserver": {
+      "$ref": "./shared-schema-components.json#/0c1f4798c4c1bc0008442055bbf0051c8d4a8d1d55613aa3630411c70c5f9fbb"
+    },
+    "vip": {
+      "$ref": "./shared-schema-components.json#/ad1e09ed653dc02eaec85a0835542ddd841d732f598b1310dfac7ac7d21c518d"
+    }
+  },
+  "23683d726d6de09d887274afb81149348bcdedf7b52679b9ed819f5c5ce8e98b": {
+    "node_interface": {
+      "$ref": "./shared-schema-components.json#/822fd12739b79d95d7da740266d8f3b21b91509785e6af0fab809f441ead2e69"
+    }
+  },
+  "246f61cacc457673ea0766b452d0e175ed2db54b0b5f6b2d3abb942385f9e762": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/cd51541ea1633be4749bb46f84da26222ae34ebb04c3649118afd2783f4b5825"
+    },
+    "description": "Interface IPv4 Assignments. Specify static IPv4 addresses per node.",
+    "description_kind": "markdown"
+  },
+  "26a3e89579d068f48ef0536ce1dfdd1c06fbcfecbe1bae810e0d2724567fc899": {
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/00453093a6b8d8112f624fa26853db582c1f595ccad692ed7f2ee3dcacbcd2a4"
+    },
+    "description": "Static IP Parameters. Configure Static IP parameters.",
+    "description_kind": "markdown"
+  },
+  "2ba5fcaec2a2c286bc8a4ea64e2192b54532d5c504776835d5320d3d6172c08b": {
+    "type": "string",
+    "description": "Exclusive with [same_as_dgw] Enter a IPv4 address from the network prefix to be used as the DNS server.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "2e8653a52a8c79607d7e98bce3bf0aec43d941fb4824c669eed7ff51b7321c08": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/3fda5f97ae08ac08e01f5909d19f9c2e5dc882174959e391ade301b1b668e3a1"
+    }
+  },
+  "2f3435f417cd1aac0de65aa8ad1d4d73e2ebcc7fbf54c177ae671ee45e30414a": {
+    "description_spec": {
+      "$ref": "./shared-schema-components.json#/3218aa37896b0b56c02aac6943d1323bc1692031ae2737e3fe0a8db002a03e40"
+    },
+    "dhcp_client": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "is_management": {
+      "$ref": "./shared-schema-components.json#/a87f3fb108f0045779b07bfb15559c3dc797d8a7be1870b0bda471a300841331"
+    },
+    "is_primary": {
+      "$ref": "./shared-schema-components.json#/366dd9ccdf9856510b7f9a779919225ca748106370cf04bfec0638b304edf7e8"
+    },
+    "labels": {
+      "$ref": "./shared-schema-components.json#/ccd70c414592a347d88bd41d38f6bdf538906dc13d7bd5fd85eb34837bee4468"
+    },
+    "monitor": {
+      "$ref": "./shared-schema-components.json#/3180cacab9df76b57dac67284177413c48ab4dc010dec389d3106af7805fc216"
+    },
+    "monitor_disabled": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "mtu": {
+      "$ref": "./shared-schema-components.json#/60bebd1431688e54ad46a3da157cf7d15500dea2c230817878d9b2f28c09baf0"
+    },
+    "name": {
+      "$ref": "./shared-schema-components.json#/5a7fd9de9ee946663816595530c55ad502afd4be287f1e2b7fe3c96637624f44"
+    },
+    "no_ipv4_address": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "no_ipv6_address": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "priority": {
+      "$ref": "./shared-schema-components.json#/d067e1b826ecbdf5b1290e141bb2e472b3c3f04a49f2e1cd12c0fd3349764520"
+    },
+    "site_to_site_connectivity_interface_disabled": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "site_to_site_connectivity_interface_enabled": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    }
+  },
+  "2f6679e01b6068696c525b486856ef060ddcdfaa8975fb72ea4d3e977b51b128": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/02f9f2a3159a7779e3a75d3426c6fb280d128399c7f764d631f8585be78e53a0"
+    },
+    "description": "Configuration parameter for vlan interface.",
+    "description_kind": "markdown"
+  },
+  "3180cacab9df76b57dac67284177413c48ab4dc010dec389d3106af7805fc216": {
+    "type": ["object", {}],
+    "description": "Link Quality Monitoring configuration for a network interface.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "31c8094d90dee73784d90a0716c01a29389ac2afeaa7d7f332e253cf5890c784": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/e88e152d697059b2848fe06bc37f1af0b18f93c71b4d18ff5de3105eef419ce4"
+    }
+  },
+  "3218aa37896b0b56c02aac6943d1323bc1692031ae2737e3fe0a8db002a03e40": {
+    "type": "string",
+    "description": "Interface Description. Description for this Interface.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "342324a374372141895a209f1837c2e30e4e2c43ad0b6e5e54837affc37227d8": {
+    "type": "string",
+    "description": "Optional IPv4 DNS server to be used for name resolution.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "34f3a83d1a69ab452fed8286f6b0119e4b4c12dcae977ce9ef424b3bfda93cbd": {
+    "type": "string",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. 'route').",
+    "description_kind": "markdown",
+    "computed": true
+  },
+  "35177744d64eb0aa12008b78267712a3e6f898540081912901eea56741730a1f": {
+    "type": "string",
+    "description": "Exclusive with [] Network Prefix to be used for IPv6 address auto configuration.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "366dd9ccdf9856510b7f9a779919225ca748106370cf04bfec0638b304edf7e8": {
+    "type": "bool",
+    "description": "Configuration for is_primary.",
+    "description_kind": "markdown",
+    "computed": true
+  },
+  "37a02c009e48e99d868560c5509a17afe8e5b0f402d377021f2bf25cb4a8e780": {
+    "attrs": {
+      "$ref": "./shared-schema-components.json#/214856fa7db5c40fe1c4f369fbe7379e43093f548d63c3b311544901a396520b"
+    },
+    "default_gateway": {
+      "$ref": "./shared-schema-components.json#/d76dcb8dca78c989a04b43a4d1c557ef3729089bc6e4b787a3a73a2c9200505b"
+    },
+    "ip_address": {
+      "$ref": "./shared-schema-components.json#/f6ec1dcea9cfee017e5104f5a5bb7c40e1027008d7359313c040342d36407ff4"
+    },
+    "ip_prefixes": {
+      "$ref": "./shared-schema-components.json#/5a9e216c01e63bfc2ecf75610d79d2d2bc41c6a5c84fa746fd6203d2a8268967"
+    }
+  },
+  "3b0ffe248d5a1bc50fc600571f4266effb010648906b9613c940b133a66bbf57": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/841636d3523fac885091bd1003769ee656ed607787d3319704a809430aa71ecb"
+    }
+  },
+  "3c36eaec11e174fe9660322e1d1a34b4f13cd8e00cc39cabb0f75c33fd3c0d98": {
+    "end_ip": {
+      "$ref": "./shared-schema-components.json#/ed8492efc12f0dc3e1f7cf0f6ec45d13d6c25476019a7804983c12eea7426824"
+    },
+    "start_ip": {
+      "$ref": "./shared-schema-components.json#/04635bbe3cb4f728b7348753863b79457975197a627cb1982b63ec3ac02bca52"
+    }
+  },
+  "3ea13d674e152394985e2aea50f1caf518dc44bdf628ac55ef3ae9b835d84133": {
+    "type": "string",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "3ed6a4166dcc41d13ceafd3c9e4dd5fff62c7374e735a9e5bf90c33e0a25e208": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/37a02c009e48e99d868560c5509a17afe8e5b0f402d377021f2bf25cb4a8e780"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/23683d726d6de09d887274afb81149348bcdedf7b52679b9ed819f5c5ce8e98b"
+    },
+    "description": "Static IPv6 Routes. List of IPv6 static routes.",
+    "description_kind": "markdown"
+  },
+  "3fda5f97ae08ac08e01f5909d19f9c2e5dc882174959e391ade301b1b668e3a1": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/b1148b30e64b1d3274ac2fe9fc2e3b4fab5d1216223e69e7d51c290793c96c10"
+    },
+    "description": "Configure Static IP parameters for cluster.",
+    "description_kind": "markdown"
+  },
+  "4023223b6fc02c4ce030543e04ef865d8aa07b54d9088e6f163f0fcd8463ae5b": {
+    "type": "string",
+    "description": "Exclusive with [stateful] Network prefix that is used as Prefix information Allowed only /64 prefix length as per RFC 4862.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "418d84a8bdfa2203a3e787a2c41d687627be9eafad538442cc2c685d8585d541": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/062e7ecd566d08a6fcf7bdb518907c1e9e8309067b54be11622a043a43cba5b3"
+    }
+  },
+  "42aaaeb8222d8a26ba2e7844b97dd4503f39e9d0d8f8800cd500ceaa3394caaa": {
+    "type": "number",
+    "description": "Milliseconds wait before link is declared up.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "469abe11c639dec4eb247dfd4e20ef73d8484389e82a791906462f152ce78c7a": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/6697915d5948bfe89b7b84212955c73c75f1ad34fd28c6e102ada0cb92e21bba"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/62aef20d5fcb6afeae8e9d2e5bda906fc5f238242230ba27274b904486a1bd09"
+    },
+    "description": "IPV6AutoConfigType.",
+    "description_kind": "markdown"
+  },
+  "4941e315181dda3570c203b39df76162632eed1185deb5d6ca078ab669fa21d1": {
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/00ac8a40458a3ca89609406daf895d70d7bf25a4cd47ce2882255a90fbd44f1d"
+    },
+    "description": "IPV6DnsConfig.",
+    "description_kind": "markdown"
+  },
+  "499b896320c4e5ab86e74b07b70fa5473a3bba3285ecd25b92bfe5c4ea08be5d": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/9d06ff8b2ee637f7792fc2b56ac14c45bbc7696e7234033e34851bc7ed9e6f02"
+    }
+  },
+  "4a369c3c31a029f4843163297399753d7bc14aa7c2b109d4e016abbf31ed8889": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/4941e315181dda3570c203b39df76162632eed1185deb5d6ca078ab669fa21d1"
+    }
+  },
+  "4b9c3385632972f8ace11eb2f23ee67dcdb5136bfcd4995f9389ccfefebfc19e": {
+    "type": ["object", {}],
+    "description": "Configuration parameter for no v6 static routes.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "4c152e50d0e45d3ff6531b87258875e97230979a6ff2fee4d71817884faac814": {
+    "device": {
+      "$ref": "./shared-schema-components.json#/aead028f67ddc52397f1b2bb5f27659e879a24e76d94993a9a2ccbf77c7fbe85"
+    },
+    "mac": {
+      "$ref": "./shared-schema-components.json#/4ff2335d6ddb57b86afa3cd94c642e9192c16f3695288a7df1c619ceca5006fb"
+    }
+  },
+  "4cf755f33a036b490c63276848f3bcdb257d7926b8b18f0e2f8b2b8463409874": {
+    "type": ["object", {}],
+    "description": "Enable this option",
+    "description_kind": "markdown",
+    "optional": true,
+    "sensitive": true
+  },
+  "4f4dd414014a4c2f056528c9f984963ce2635471c842031008551c1c85631c3c": {
+    "type": ["map", "string"],
+    "description": "Assign fixed IPv4 addresses based on the MAC Address of the DHCP Client.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "4ff2335d6ddb57b86afa3cd94c642e9192c16f3695288a7df1c619ceca5006fb": {
+    "type": "string",
+    "description": "MAC Address. Configuration parameter for mac",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "51ec3228df27331de9ad6335361e4c13a78c79c767cad10650b60b1da2ff549f": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/8183ce84e5ad5263110b2bf783265553b031d3437c75dd73846f12c386d4cb0e"
+    }
+  },
+  "5261a0bff9a3dba54e181705a1b8fb19a75094813674f832ccb3bd77036de397": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/f25a87c7fb3287b833348bf627e5b4a56d6ca23d46a64178e70e5a38562988c2"
+    }
+  },
+  "52bcc8bb733477081e11d32cf857bcc3cf66c2ebb59febf6f3cf59d4f472efc8": {
+    "kind": {
+      "$ref": "./shared-schema-components.json#/34f3a83d1a69ab452fed8286f6b0119e4b4c12dcae977ce9ef424b3bfda93cbd"
+    },
+    "name": {
+      "$ref": "./shared-schema-components.json#/3ea13d674e152394985e2aea50f1caf518dc44bdf628ac55ef3ae9b835d84133"
+    },
+    "namespace": {
+      "$ref": "./shared-schema-components.json#/b4f8efc7a9789861b8a6a5648168bdccffb16bff17faeb8b9215e90a1ccb2b1e"
+    },
+    "tenant": {
+      "$ref": "./shared-schema-components.json#/c32b79b00ff1adb6d73c52f89ab697d3042470e0d608ee4d753ba0d40915e5bb"
+    },
+    "uid": {
+      "$ref": "./shared-schema-components.json#/0de742061aca6e163141cbb151bd44bf8c2a2aa18b1521f1c16bc4201de68dce"
+    }
+  },
+  "548789dca7e42450e59c07933d4167ebbf9f7c7991b98b3500666673f146d246": {
+    "type": "string",
+    "description": "URL of the secret. Currently supported URL schemes is string:///. For string:/// scheme, Secret needs to be encoded Base64 format. When asked for this secret, caller will GET Secret bytes after Base64 decoding.",
+    "description_kind": "markdown",
+    "optional": true,
+    "sensitive": true
+  },
+  "54979dc5eed40a2f8c5e3403142de0835ff37c3d9049a9bfa41a3d2b316bf91a": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/f60b7a1b5c8f50ba1fcfb926c9aa753a8cfca021b35755d83ec0584017322c2f"
+    },
+    "description": "IPV6DnsList.",
+    "description_kind": "markdown"
+  },
+  "54b5edfc0c9dd5e619f99e56f7bbd02da57045b82e900f864c422d56a008cc51": {
+    "type": ["object", {}],
+    "description": "Configuration parameter for same as dgw.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "54bae21f233a83718bb0ac463b4db112340083df0bc0834a7c21481abd308c62": {
+    "node_list": {
+      "$ref": "./shared-schema-components.json#/9379be787445752d413a4c4db07772a269f7c69d2411ba59fa486b5373361dc0"
+    }
+  },
+  "54c4bdf9bb4397556cd82a375424f97490630af1e64274906ba5435c3f8ba34d": {
+    "type": "string",
+    "description": "Hostname. Hostname for this Node.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "54e2dc6f1c4030a24226f9ac3e2f9bc598e2511545dc892b3b5aaad64f2b8516": {
+    "type": "string",
+    "description": "Location is the uri_ref. It could be in URL format for string:/// Or it could be a path if the store provider is an HTTP/HTTPS location.",
+    "description_kind": "markdown",
+    "optional": true,
+    "sensitive": true
+  },
+  "55717cb2b6e04c688faa8287f5cdda70a893266dc5e1478470f1c975188d214a": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/2f3435f417cd1aac0de65aa8ad1d4d73e2ebcc7fbf54c177ae671ee45e30414a"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/96ee7c18057306cda11091de64a2bfe5d31d3f89f3bf511f45adb9913116f0f0"
+    },
+    "description": "Manage interfaces belonging to this node.",
+    "description_kind": "markdown"
+  },
+  "5852e1c76eb9cc135eaa530454891aff40c2c9d9020e868f72ec616a97c4201b": {
+    "attrs": {
+      "$ref": "./shared-schema-components.json#/214856fa7db5c40fe1c4f369fbe7379e43093f548d63c3b311544901a396520b"
+    },
+    "default_gateway": {
+      "$ref": "./shared-schema-components.json#/d76dcb8dca78c989a04b43a4d1c557ef3729089bc6e4b787a3a73a2c9200505b"
+    },
+    "ip_address": {
+      "$ref": "./shared-schema-components.json#/f6ec1dcea9cfee017e5104f5a5bb7c40e1027008d7359313c040342d36407ff4"
+    },
+    "ip_prefixes": {
+      "$ref": "./shared-schema-components.json#/d22ae24932bdec1fa49e4e4d113b5dd43e7a3fe2d8110387d323ad215ecf5c97"
+    }
+  },
+  "588ab5f3f0812ed2682e79f8e82cd936cb80bed3112fbee8409fa83d71374562": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/ecc1971aca72e7cc9e0b917e09f8e19d93c6a74d69109017a539727f98897997"
+    }
+  },
+  "58dc87ca98c01256ee0c4231728017375ccdd9cb83cea5501387e3606f715f05": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/c9535b154a5ef0c034c362ac2251590574c94252e8181aa45b411d3b8acedd29"
+    }
+  },
+  "594843f71e3608fd5e35ede610e4b784ab4f99ae60ed59ce4fcb4530b85eaba7": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/beacd11e2738346c7c8d53fd2dc701f32bf8c3dafff75ba06dca3bb5d78beba9"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/0a37a08661fd2bf2fd23558561289d8c5e403e398d18ba344bf413578af566ef"
+    },
+    "description": "List of networks from which DHCP Server can allocate IPv4 Addresses.",
+    "description_kind": "markdown"
+  },
+  "59b0aa80495edf27ee9f31c6bf8e3e3dec226de07ac7d853246341105c678f2e": {
+    "blindfold_secret_info": {
+      "$ref": "./shared-schema-components.json#/588ab5f3f0812ed2682e79f8e82cd936cb80bed3112fbee8409fa83d71374562"
+    },
+    "clear_secret_info": {
+      "$ref": "./shared-schema-components.json#/31c8094d90dee73784d90a0716c01a29389ac2afeaa7d7f332e253cf5890c784"
+    }
+  },
+  "5a7fd9de9ee946663816595530c55ad502afd4be287f1e2b7fe3c96637624f44": {
+    "type": "string",
+    "description": "Interface Name. Name of this Interface.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "5a9e216c01e63bfc2ecf75610d79d2d2bc41c6a5c84fa746fd6203d2a8268967": {
+    "type": ["list", "string"],
+    "description": "List of IPv6 route prefixes that have common next hop and attributes.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "5c8cd23820c7fa1eeda22e8d0dfe1c8c6891e822ce6b3576bbd03d08f59563ec": {
+    "type": "bool",
+    "description": "Exclude this address range from DHCP allocation.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "5d21d722e1e53d0fb9e42f38aefbbbb228d3bf7cbf32ea9d11c0178ebd3491b6": {
+    "network_prefix": {
+      "$ref": "./shared-schema-components.json#/35177744d64eb0aa12008b78267712a3e6f898540081912901eea56741730a1f"
+    },
+    "pool_settings": {
+      "$ref": "./shared-schema-components.json#/08127b331861a66e2f1629860b90aab0aa57bbf3be0e2edaa09ac176561042da"
+    }
+  },
+  "60bebd1431688e54ad46a3da157cf7d15500dea2c230817878d9b2f28c09baf0": {
+    "type": "number",
+    "description": "Maximum packet size (Maximum Transfer Unit) of the interface When configured, MTU must be between 512 and 8000.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "60ecfe5a102a23d75f491c0a5c7dfdd5ee7eebce7089df7690de95809bf195cf": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/8cd7bcc280726448d34a2df3a5c619df0d2a4cac3479dc86840899fb78fad668"
+    },
+    "description": "Configure Static IP parameters for a node.",
+    "description_kind": "markdown"
+  },
+  "62aef20d5fcb6afeae8e9d2e5bda906fc5f238242230ba27274b904486a1bd09": {
+    "router": {
+      "$ref": "./shared-schema-components.json#/418d84a8bdfa2203a3e787a2c41d687627be9eafad538442cc2c685d8585d541"
+    }
+  },
+  "62be368bbfa3e9a1ca7351871d5e5927a8051b6f822f33d3f0936b7806d25f30": {
+    "type": ["object", {}],
+    "description": "Configuration parameter for automatic from start.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "63519c2d782ed954c3cd455f9b8916b74c216ecb358828d493dc34b7f02bc81c": {
+    "network_prefix": {
+      "$ref": "./shared-schema-components.json#/4023223b6fc02c4ce030543e04ef865d8aa07b54d9088e6f163f0fcd8463ae5b"
+    }
+  },
+  "63d80f398c3b3e5ab6cf0382a7aa09eb8940f5ad70c3c960dc4f52fbbb9c25db": {
+    "static_routes": {
+      "$ref": "./shared-schema-components.json#/a86cee0f02e34fb8ec20726706ccc4f0f6d611e7b6f0cafe7f7aa1383a139e71"
+    }
+  },
+  "666f9141645c0b9ed26f6492e720d23a7c762931f27b23d814868841b81b2831": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/26a3e89579d068f48ef0536ce1dfdd1c06fbcfecbe1bae810e0d2724567fc899"
+    }
+  },
+  "6697915d5948bfe89b7b84212955c73c75f1ad34fd28c6e102ada0cb92e21bba": {
+    "host": {
+      "$ref": "./shared-schema-components.json#/87706a94f2cccf356fb44aa4ec3e668385bc2460a3d6c985dd54dba8e6d0d5ca"
+    }
+  },
+  "70a1e32bcedc4f02b6c742e2a88058208f42203f4079767f0d40d213443515dd": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/987a51ce174075ac795c6ffcc29e174376d8eae955a9e7cdf28c30eea4e66a62"
+    }
+  },
+  "70c9a7c677eaa1d8c8a542ba114b8dbb6efa3b2a0e318c3d0d7e5c7ce97f995f": {
+    "type": "string",
+    "description": "Starting IP of the pool range. In case of address allocator, offset is derived based on network prefix. 192.0.2.173 with prefix length of 24, start offset is 192.0.2.96.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "733a78ce6b9cd930f9835a634871ecf6f59428e86f1113ddf5258887412a727c": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/7821255d319e9f658572704c0a1f9beb306e5c140fe13d9da24c9900d830949d"
+    }
+  },
+  "73cc7133617b7a9fa564badbdcf82d819271f98fb2b9009ca20a567688b74407": {
+    "site_local_inside_network": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "site_local_network": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    }
+  },
+  "77ffdcb30c6577dae247e5a73ae6df814f9a38d18a995cd1dfd6c2dc65a16dcc": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/0afb92d8ce154788163f6e34171f3c17eede5b67c6eecf8f4d99836ca1ea47fc"
+    }
+  },
+  "7821255d319e9f658572704c0a1f9beb306e5c140fe13d9da24c9900d830949d": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/4c152e50d0e45d3ff6531b87258875e97230979a6ff2fee4d71817884faac814"
+    },
+    "description": "Configuration parameter for ethernet interface.",
+    "description_kind": "markdown"
+  },
+  "79e4196984a88b6a2e3c3a2cf8d9fa7a17c8f42a1715ebbde2155ede527dc1c9": {
+    "dhcp_networks": {
+      "$ref": "./shared-schema-components.json#/cb1434dbc6b932512bfd44d02867c598cd35ea334677780157caad36c595d6dc"
+    },
+    "interface_ip_map": {
+      "$ref": "./shared-schema-components.json#/f7e2908e774c9796bd016de789ff1256ef57e398e61de44e803580aa21f4c300"
+    }
+  },
+  "7a41229692cdf2a1b6d50276dec9773da2d414645e674cc0fae0f6daacb87c1f": {
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/54bae21f233a83718bb0ac463b4db112340083df0bc0834a7c21481abd308c62"
+    },
+    "description": "Section will show nodes associated with this site.",
+    "description_kind": "markdown"
+  },
+  "7c218dc3f4f1499dd49ce7a5d1be88f29ef43c9c4204b7e8e4f45e749ac99ffc": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/fb235ccb7a1a8c56a437a0911a5ba0ce4ae6869006afed7338ea0cd4889cde3a"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/9d2f819fd19de52a2354851407070c590506978073321efed40efe8ba3746f11"
+    },
+    "description": "On a multinode site, this list holds the nodes and corresponding networking_interface.",
+    "description_kind": "markdown"
+  },
+  "80860418ac95f200b7182c0ccc81cb978336f290d47c2de3d4c4bad84bca21b7": {
+    "type": "string",
+    "description": "[Enum: Control|Worker] Type for this Node, can be Control or Worker. Possible values are `Control`, `Worker`.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "80acdb902544479f934057178449eda09ccfd714dc117523485219ca074c87cd": {
+    "rate": {
+      "$ref": "./shared-schema-components.json#/0b4f12064f72a1bdbf74806940059752a37ff6b3dec703d9956c4d76badb57ed"
+    }
+  },
+  "8183ce84e5ad5263110b2bf783265553b031d3437c75dd73846f12c386d4cb0e": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/3c36eaec11e174fe9660322e1d1a34b4f13cd8e00cc39cabb0f75c33fd3c0d98"
+    },
+    "description": "List of non overlapping IP address ranges.",
+    "description_kind": "markdown"
+  },
+  "822fd12739b79d95d7da740266d8f3b21b91509785e6af0fab809f441ead2e69": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/cd94e19772fe8cdeda13ce144f571a2984870089e23712d345b1d8b82691efe5"
+    }
+  },
+  "823d568119b68e68d03ffbd8f8d87a8d199469ff3815acfabefee6e03ee68619": {
+    "type": "string",
+    "description": "DNS server address for the static interface configuration.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "841636d3523fac885091bd1003769ee656ed607787d3319704a809430aa71ecb": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/9f3a3c94f4d992b4a59cfa4971c571f969e93d08f5bafa5581cdc06f8678467f"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/79e4196984a88b6a2e3c3a2cf8d9fa7a17c8f42a1715ebbde2155ede527dc1c9"
+    },
+    "description": "DHCPIPV6 Stateful Server.",
+    "description_kind": "markdown"
+  },
+  "85fd04b389d73d95bd137434ed01d7b157739183f9e36f92c5766d3abcdd2b66": {
+    "type": "string",
+    "description": "Exclusive with [] Set the network prefix for the site. Ex: 192.0.2.0/24.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "87706a94f2cccf356fb44aa4ec3e668385bc2460a3d6c985dd54dba8e6d0d5ca": {
+    "type": ["object", {}],
+    "description": "Hostname or IP address of the target server.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "87ec826a036019d5f12e0eacb1f9a5805a4e1042426b87ac086905bd6be165d1": {
+    "type": "string",
+    "description": "IP address of the interface and prefix length.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "8aa1994dd7483c6edc6e99dbd12a3bd4295c08d8a152e927c5147fec2f923bae": {
+    "lacp": {
+      "$ref": "./shared-schema-components.json#/99a590c7c50131191641fb6b7337c6e1a6ebf3547284dcff138f8d61cd5208d6"
+    }
+  },
+  "8ad0a81ccc4032153652963b6446677e756773e5c55f3a3ebefd9c35f2c50bca": {
+    "type": "string",
+    "description": "DHCP option 82 tag.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "8c8dfcb6e0d549c70fb8601b81df291f306c7fffbcc94aa37493433b738e87f3": {
+    "type": "string",
+    "description": "Node. Node name on this site.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "8cd4b79bec900aedf08ae1bfbfd56a6322df8f235a63ffddd1f8abab500e4213": {
+    "type": "string",
+    "description": "Public IP. Public IP for this Node.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "8cd7bcc280726448d34a2df3a5c619df0d2a4cac3479dc86840899fb78fad668": {
+    "default_gw": {
+      "$ref": "./shared-schema-components.json#/14a6d2b1104a771b7cdd464b172d07431defef42014c37fac738223c9d8ee2c5"
+    },
+    "dns_server": {
+      "$ref": "./shared-schema-components.json#/823d568119b68e68d03ffbd8f8d87a8d199469ff3815acfabefee6e03ee68619"
+    },
+    "ip_address": {
+      "$ref": "./shared-schema-components.json#/87ec826a036019d5f12e0eacb1f9a5805a4e1042426b87ac086905bd6be165d1"
+    }
+  },
+  "8ceec06ded57a64fc4d9c8d92d95067496fc41955312c54d5cc0b4bf47ee8c91": {
+    "type": "string",
+    "description": "A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as \"30s\" or \"2h45m\". Valid time units are \"s\" (seconds), \"m\" (minutes), \"h\" (hours).",
+    "description_kind": "plain",
+    "optional": true
+  },
+  "8d6c28c52404d66a907414eb75c45eab6a96c9679bff045a96d2920ca29e1ec6": {
+    "active_backup": {
+      "$ref": "./shared-schema-components.json#/bb1e8a054e71d76c3c659599e5e2d6505671d003ae205b10bff972db877d33c3"
+    },
+    "devices": {
+      "$ref": "./shared-schema-components.json#/d8fdc1f825374f27202ec80f4a4909325b653e28e4e8c969e3454fcbfdd46741"
+    },
+    "link_polling_interval": {
+      "$ref": "./shared-schema-components.json#/992eb8acb45d438939c5332c44dbc6209333a63d2bb45f5a193ae77e1141eac4"
+    },
+    "link_up_delay": {
+      "$ref": "./shared-schema-components.json#/42aaaeb8222d8a26ba2e7844b97dd4503f39e9d0d8f8800cd500ceaa3394caaa"
+    },
+    "name": {
+      "$ref": "./shared-schema-components.json#/0ac6a2b3958245d19ff798c75ca5350ae06bfdb545d86d47ac63464f3e689ec2"
+    }
+  },
+  "909200380f0f13b85f7760db5e03a4bf5c0e00e5df149616691f3dee8968d2fb": {
+    "decryption_provider": {
+      "$ref": "./shared-schema-components.json#/bb7a3f85671882ade206c502cb8caf35762811e0c5964cfb6e691bed0777fc2f"
+    },
+    "location": {
+      "$ref": "./shared-schema-components.json#/54e2dc6f1c4030a24226f9ac3e2f9bc598e2511545dc892b3b5aaad64f2b8516"
+    },
+    "store_provider": {
+      "$ref": "./shared-schema-components.json#/9553fd950307c35cccd04476444ab75d6a3d6f392821c3756bdd102ac2100b6e"
+    }
+  },
+  "9309310551a11f7570d7f9b5ef4906062c07cd4fdb5e12ff74558468d5f55d1a": {
+    "type": "string",
+    "description": "Select a parent interface from the dropdown.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "9379be787445752d413a4c4db07772a269f7c69d2411ba59fa486b5373361dc0": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/b22d33b7580e784597559330e30f3325b147f153c23a5b4416146af2609385e7"
+    }
+  },
+  "93eeca8476aeb36290632ba8911cedc42ba12bcdf75f537da2cfea96e4a4cc0f": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/c5196914f8190843914775d9aa6d0496add837a409e37710ec2aad52593cfe9f"
+    }
+  },
+  "9553fd950307c35cccd04476444ab75d6a3d6f392821c3756bdd102ac2100b6e": {
+    "type": "string",
+    "description": "Name of the Secret Management Access object that contains information about the store to GET encrypted bytes This field needs to be provided only if the URL scheme is not string:///.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b": {
+    "not_managed": {
+      "$ref": "./shared-schema-components.json#/dcf21b0a32ace8ffaa68df53591b699e14c26bac52e5399ece7566a93d68879b"
+    }
+  },
+  "95e263c5afa63fecc9045fb6d4ae2be4fa368ce22219b585a5f5e6a50c47c38d": {
+    "type": ["list", "string"],
+    "description": "List of IPv6 Addresses acting as DNS servers.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "96ee7c18057306cda11091de64a2bfe5d31d3f89f3bf511f45adb9913116f0f0": {
+    "bond_interface": {
+      "$ref": "./shared-schema-components.json#/d8135e69a7ce133007e56699b46ae3822cc3d30509a648171cf58ca2527694ac"
+    },
+    "dhcp_server": {
+      "$ref": "./shared-schema-components.json#/5261a0bff9a3dba54e181705a1b8fb19a75094813674f832ccb3bd77036de397"
+    },
+    "ethernet_interface": {
+      "$ref": "./shared-schema-components.json#/733a78ce6b9cd930f9835a634871ecf6f59428e86f1113ddf5258887412a727c"
+    },
+    "ipv6_auto_config": {
+      "$ref": "./shared-schema-components.json#/07ee447118af1a3c4f5978ec841c42c6166ad08a75a2168b9fd431a017089b2e"
+    },
+    "network_option": {
+      "$ref": "./shared-schema-components.json#/d7b221905db71ff271822531c2919ce75dd3de2f1079b96704c723a1c24387a9"
+    },
+    "static_ip": {
+      "$ref": "./shared-schema-components.json#/b1deb9530e49f010cc3addaf350bdfd486df4d60804062cc932fa33163cb3cb4"
+    },
+    "static_ipv6_address": {
+      "$ref": "./shared-schema-components.json#/666f9141645c0b9ed26f6492e720d23a7c762931f27b23d814868841b81b2831"
+    },
+    "vlan_interface": {
+      "$ref": "./shared-schema-components.json#/169f239e8afed86aab5761ec270e4c8fc1d95fa869cc5793ff84793df1100d2e"
+    }
+  },
+  "97e822a6075cc9bde953a73a14d371387c3a859ed8b980d847f4f96e6fd19466": {
+    "type": "string",
+    "description": "Exclusive with [first_address last_address] Enter a IPv4 address from the network prefix to be used as the default gateway.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "987a51ce174075ac795c6ffcc29e174376d8eae955a9e7cdf28c30eea4e66a62": {
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/63d80f398c3b3e5ab6cf0382a7aa09eb8940f5ad70c3c960dc4f52fbbb9c25db"
+    },
+    "description": "Configuration parameter for static v6 routes.",
+    "description_kind": "markdown"
+  },
+  "992eb8acb45d438939c5332c44dbc6209333a63d2bb45f5a193ae77e1141eac4": {
+    "type": "number",
+    "description": "Link Polling Interval. Link polling interval in milliseconds.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "993b7582ed71500bb949a9b666eda2925c2666402ec6c68cad52112dfb3631d3": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/80acdb902544479f934057178449eda09ccfd714dc117523485219ca074c87cd"
+    },
+    "description": "LACP parameters. LACP parameters for the bond device.",
+    "description_kind": "markdown"
+  },
+  "99a590c7c50131191641fb6b7337c6e1a6ebf3547284dcff138f8d61cd5208d6": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/993b7582ed71500bb949a9b666eda2925c2666402ec6c68cad52112dfb3631d3"
+    }
+  },
+  "9a4f257e33a5d498529aedac96f36d1111512ce0a1143e2fe9fa19e817b41b7d": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/df9988916bd59f2b457538321914ce0205d6d722fc946e184d18fe9c32c3b5b2"
+    },
+    "description": "Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
+    "description_kind": "markdown"
+  },
+  "9b53b4dd0eaa321b38f587ae557a6f09e525ac96d4cea44f6f017fe5b64fc78b": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/c506faf5b3ef8d82a5f161c0ba7f2579e34752859d7621a4a37801017c039790"
+    }
+  },
+  "9d06ff8b2ee637f7792fc2b56ac14c45bbc7696e7234033e34851bc7ed9e6f02": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/152d3cfb266d2b87289c7138ce480a883456ad9180a173f10485f028de8f5a56"
+    },
+    "description": "List of non overlapping IP address ranges.",
+    "description_kind": "markdown"
+  },
+  "9d2267b5361e7a0a01550d59ad6b54bdcbcac7c22e1345bb1d31d80072f41e44": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/52bcc8bb733477081e11d32cf857bcc3cf66c2ebb59febf6f3cf59d4f472efc8"
+    },
+    "description": "Interface. Interface reference on this node.",
+    "description_kind": "markdown"
+  },
+  "9d2f819fd19de52a2354851407070c590506978073321efed40efe8ba3746f11": {
+    "interface": {
+      "$ref": "./shared-schema-components.json#/04686cad6ab63509908237e5c5499c317ba50ad505230eb9c27c1d6a51df56c3"
+    }
+  },
+  "9f3a3c94f4d992b4a59cfa4971c571f969e93d08f5bafa5581cdc06f8678467f": {
+    "automatic_from_end": {
+      "$ref": "./shared-schema-components.json#/d7aa1de81f7067fc37bc835e99456100195635bd951722eaf15c4ed5eb4ec40e"
+    },
+    "automatic_from_start": {
+      "$ref": "./shared-schema-components.json#/62be368bbfa3e9a1ca7351871d5e5927a8051b6f822f33d3f0936b7806d25f30"
+    },
+    "fixed_ip_map": {
+      "$ref": "./shared-schema-components.json#/025fff7c9d32964aba8ccdd91c54938f5f66d2a126dd05fd5c74356aafe6fe9e"
+    }
+  },
+  "a5118155812186d73729bdaccf0e9599f425c9a91aa4eb56cf3067f4c75eb78f": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/9a4f257e33a5d498529aedac96f36d1111512ce0a1143e2fe9fa19e817b41b7d"
+    }
+  },
+  "a86cee0f02e34fb8ec20726706ccc4f0f6d611e7b6f0cafe7f7aa1383a139e71": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/3ed6a4166dcc41d13ceafd3c9e4dd5fff62c7374e735a9e5bf90c33e0a25e208"
+    }
+  },
+  "a87f3fb108f0045779b07bfb15559c3dc797d8a7be1870b0bda471a300841331": {
+    "type": "bool",
+    "description": "Configuration for is_management.",
+    "description_kind": "markdown",
+    "computed": true
+  },
+  "a9a70b79d8bd1c0efd4eb91f8f2ca73f7c1a633c6fdcd7130cb91bc644bf7f0a": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/5852e1c76eb9cc135eaa530454891aff40c2c9d9020e868f72ec616a97c4201b"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/23683d726d6de09d887274afb81149348bcdedf7b52679b9ed819f5c5ce8e98b"
+    },
+    "description": "Configuration parameter for static routes.",
+    "description_kind": "markdown"
+  },
+  "aa97e74572561c9fe33d638c2d8c623eb246ec55189dc8dd00a872c16905e042": {
+    "type": "string",
+    "description": "Exclusive with [first_address last_address] Configured address from the network prefix is chosen as DNS server.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "ad1e09ed653dc02eaec85a0835542ddd841d732f598b1310dfac7ac7d21c518d": {
+    "type": "string",
+    "description": "Optional common virtual V4 IP across all nodes to be used as automatic VIP.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "ad49aef2a2dc3937a1f94adb4ead54199e8034bd2a8f1150eef018ee9c92304c": {
+    "hostname": {
+      "$ref": "./shared-schema-components.json#/54c4bdf9bb4397556cd82a375424f97490630af1e64274906ba5435c3f8ba34d"
+    },
+    "public_ip": {
+      "$ref": "./shared-schema-components.json#/8cd4b79bec900aedf08ae1bfbfd56a6322df8f235a63ffddd1f8abab500e4213"
+    },
+    "type": {
+      "$ref": "./shared-schema-components.json#/80860418ac95f200b7182c0ccc81cb978336f290d47c2de3d4c4bad84bca21b7"
+    }
+  },
+  "aead028f67ddc52397f1b2bb5f27659e879a24e76d94993a9a2ccbf77c7fbe85": {
+    "type": "string",
+    "description": "Select an Ethernet device from the discovered interfaces to configure. Once configured, this interface will be part of this sites dataplane and can participate in the networking services configured on this site.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "b1148b30e64b1d3274ac2fe9fc2e3b4fab5d1216223e69e7d51c290793c96c10": {
+    "interface_ip_map": {
+      "$ref": "./shared-schema-components.json#/1de90ac9f31e3dd41210ad4294682192a5ea86dc1f9b099a1e336afa03c488b8"
+    }
+  },
+  "b1deb9530e49f010cc3addaf350bdfd486df4d60804062cc932fa33163cb3cb4": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/60ecfe5a102a23d75f491c0a5c7dfdd5ee7eebce7089df7690de95809bf195cf"
+    }
+  },
+  "b22d33b7580e784597559330e30f3325b147f153c23a5b4416146af2609385e7": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/ad49aef2a2dc3937a1f94adb4ead54199e8034bd2a8f1150eef018ee9c92304c"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/219611aa2357bed5ed26fa950dce2806a94e763886f4fc65a4292f68e4353d08"
+    },
+    "description": "Section will show nodes associated with this site.",
+    "description_kind": "markdown"
+  },
+  "b4f8efc7a9789861b8a6a5648168bdccffb16bff17faeb8b9215e90a1ccb2b1e": {
+    "type": "string",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+    "description_kind": "markdown",
+    "optional": true,
+    "computed": true
+  },
+  "b573c8a6a37adbc9b351dacbb9d7742e668fb75eef249e2681cf244c8ba0b2ec": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/c40010656237d33e72ce6249e443768d09ec2cd993b5b43e6e9bc8e685cdfb0b"
+    },
+    "description": "Map of Interface IPv6 assignments per node.",
+    "description_kind": "markdown"
+  },
+  "b8b284a6421f8ef6eddf991feb7adc507cf4a8b7f2f296e821ff4f710a0153bb": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/7c218dc3f4f1499dd49ce7a5d1be88f29ef43c9c4204b7e8e4f45e749ac99ffc"
+    }
+  },
+  "bb1e8a054e71d76c3c659599e5e2d6505671d003ae205b10bff972db877d33c3": {
+    "type": ["object", {}],
+    "description": "Configuration parameter for active backup.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "bb7a3f85671882ade206c502cb8caf35762811e0c5964cfb6e691bed0777fc2f": {
+    "type": "string",
+    "description": "Name of the Secret Management Access object that contains information about the backend Secret Management service.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "beacd11e2738346c7c8d53fd2dc701f32bf8c3dafff75ba06dca3bb5d78beba9": {
+    "dgw_address": {
+      "$ref": "./shared-schema-components.json#/97e822a6075cc9bde953a73a14d371387c3a859ed8b980d847f4f96e6fd19466"
+    },
+    "dns_address": {
+      "$ref": "./shared-schema-components.json#/2ba5fcaec2a2c286bc8a4ea64e2192b54532d5c504776835d5320d3d6172c08b"
+    },
+    "first_address": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "last_address": {
+      "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+    },
+    "network_prefix": {
+      "$ref": "./shared-schema-components.json#/85fd04b389d73d95bd137434ed01d7b157739183f9e36f92c5766d3abcdd2b66"
+    },
+    "pool_settings": {
+      "$ref": "./shared-schema-components.json#/08127b331861a66e2f1629860b90aab0aa57bbf3be0e2edaa09ac176561042da"
+    },
+    "same_as_dgw": {
+      "$ref": "./shared-schema-components.json#/54b5edfc0c9dd5e619f99e56f7bbd02da57045b82e900f864c422d56a008cc51"
+    }
+  },
+  "bebb07264ccbe9420e024ce6645c92e4570f5417005186347e5c52d94df61c9e": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/5d21d722e1e53d0fb9e42f38aefbbbb228d3bf7cbf32ea9d11c0178ebd3491b6"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/c135c13b2a0d06c9248a81884e3dcae0a2688449fa2df9c6bb0ebd5b5af0ed41"
+    },
+    "description": "List of networks from which DHCP server can allocate IP addresses.",
+    "description_kind": "markdown"
+  },
+  "c135c13b2a0d06c9248a81884e3dcae0a2688449fa2df9c6bb0ebd5b5af0ed41": {
+    "pools": {
+      "$ref": "./shared-schema-components.json#/51ec3228df27331de9ad6335361e4c13a78c79c767cad10650b60b1da2ff549f"
+    }
+  },
+  "c32b79b00ff1adb6d73c52f89ab697d3042470e0d608ee4d753ba0d40915e5bb": {
+    "type": "string",
+    "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+    "description_kind": "markdown",
+    "computed": true
+  },
+  "c40010656237d33e72ce6249e443768d09ec2cd993b5b43e6e9bc8e685cdfb0b": {
+    "interface_ip_map": {
+      "$ref": "./shared-schema-components.json#/04f490af01d051d49acecd2743efaceb11257795f479d8b58e2b19c11b507680"
+    }
+  },
+  "c506faf5b3ef8d82a5f161c0ba7f2579e34752859d7621a4a37801017c039790": {
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/59b0aa80495edf27ee9f31c6bf8e3e3dec226de07ac7d853246341105c678f2e"
+    },
+    "description": "SecretType is used in an object to indicate a sensitive/confidential field.",
+    "description_kind": "markdown"
+  },
+  "c5196914f8190843914775d9aa6d0496add837a409e37710ec2aad52593cfe9f": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/16a5f0a5ee1ea10aad98314352d4bb0056b958588517143c1e065d1e7f7e70c4"
+    },
+    "description": "IPV6LocalDnsAddress.",
+    "description_kind": "markdown"
+  },
+  "c9535b154a5ef0c034c362ac2251590574c94252e8181aa45b411d3b8acedd29": {
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/d7d13c2ab51b4c40e580864e56dd9c84b2c92895353ac1bae107b6db2f81cba4"
+    },
+    "description": "Configuration parameter for static routes.",
+    "description_kind": "markdown"
+  },
+  "c9aff8cebd7b6a7af63bcba783acc269cd83a1bfa7b7a3dfcf121fb6bc04ee61": {
+    "type": "number",
+    "description": "Configure the VLAN tag for this interface.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "ca0c0ce7a75d8a9d6a013174ae62a55673536f8453fb533d10b4536b77189666": {
+    "type": ["map", "string"],
+    "description": "Add Labels for this network, these labels can be used in firewall policy.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "ca42e8f9c98aee08ea558302fd18edb2dd146c8bac2fd85616190aa8a71d9a95": {
+    "list": {
+      "$ref": "./shared-schema-components.json#/b8b284a6421f8ef6eddf991feb7adc507cf4a8b7f2f296e821ff4f710a0153bb"
+    }
+  },
+  "cb1434dbc6b932512bfd44d02867c598cd35ea334677780157caad36c595d6dc": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/bebb07264ccbe9420e024ce6645c92e4570f5417005186347e5c52d94df61c9e"
+    }
+  },
+  "cc3216b4fff9266330c6ec9ae2d5a577fd2a428c7536b74a7a3c6fdaaea88d66": {
+    "dns_config": {
+      "$ref": "./shared-schema-components.json#/4a369c3c31a029f4843163297399753d7bc14aa7c2b109d4e016abbf31ed8889"
+    },
+    "stateful": {
+      "$ref": "./shared-schema-components.json#/3b0ffe248d5a1bc50fc600571f4266effb010648906b9613c940b133a66bbf57"
+    }
+  },
+  "ccd70c414592a347d88bd41d38f6bdf538906dc13d7bd5fd85eb34837bee4468": {
+    "type": ["map", "string"],
+    "description": "Add Labels for this Interface, these labels can be used in firewall policy.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "cd51541ea1633be4749bb46f84da26222ae34ebb04c3649118afd2783f4b5825": {
+    "interface_ip_map": {
+      "$ref": "./shared-schema-components.json#/eacdf1847b877e61cfa065db8daf9a318b3b53628cfd5b613827211756fb62fd"
+    }
+  },
+  "cd94e19772fe8cdeda13ce144f571a2984870089e23712d345b1d8b82691efe5": {
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/ca42e8f9c98aee08ea558302fd18edb2dd146c8bac2fd85616190aa8a71d9a95"
+    },
+    "description": "On multinode site, this type holds the information about per node interfaces.",
+    "description_kind": "markdown"
+  },
+  "d067e1b826ecbdf5b1290e141bb2e472b3c3f04a49f2e1cd12c0fd3349764520": {
+    "type": "number",
+    "description": "For a node, if multiple interfaces are configured in a VRF, interfaces with highest priority will be used as active and interfaces with lower priority will be used as backup. If multiple interfaces have the same priority, ECMP will be used. Greater the value, higher the priority.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "d22ae24932bdec1fa49e4e4d113b5dd43e7a3fe2d8110387d323ad215ecf5c97": {
+    "type": ["list", "string"],
+    "description": "List of route prefixes that have common next hop and attributes.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "d2ec8e6313f2e8d0033fea010c076c5ac1ed86c324876b86b08bf27890ac99b5": {
+    "automatic_from_end": {
+      "$ref": "./shared-schema-components.json#/d7aa1de81f7067fc37bc835e99456100195635bd951722eaf15c4ed5eb4ec40e"
+    },
+    "automatic_from_start": {
+      "$ref": "./shared-schema-components.json#/62be368bbfa3e9a1ca7351871d5e5927a8051b6f822f33d3f0936b7806d25f30"
+    },
+    "dhcp_option82_tag": {
+      "$ref": "./shared-schema-components.json#/8ad0a81ccc4032153652963b6446677e756773e5c55f3a3ebefd9c35f2c50bca"
+    },
+    "fixed_ip_map": {
+      "$ref": "./shared-schema-components.json#/4f4dd414014a4c2f056528c9f984963ce2635471c842031008551c1c85631c3c"
+    }
+  },
+  "d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c": {
+    "type": ["object", {}],
+    "description": "Enable this option",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "d76dcb8dca78c989a04b43a4d1c557ef3729089bc6e4b787a3a73a2c9200505b": {
+    "type": ["object", {}],
+    "description": "Configuration parameter for default gateway.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "d7aa1de81f7067fc37bc835e99456100195635bd951722eaf15c4ed5eb4ec40e": {
+    "type": ["object", {}],
+    "description": "Configuration parameter for automatic from end.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "d7b221905db71ff271822531c2919ce75dd3de2f1079b96704c723a1c24387a9": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/210134af1da4f869fddecd3aa5b86781f43681acb070a913f1fdd78a52d1ee35"
+    }
+  },
+  "d7d13c2ab51b4c40e580864e56dd9c84b2c92895353ac1bae107b6db2f81cba4": {
+    "static_routes": {
+      "$ref": "./shared-schema-components.json#/0083832c8d01723fd2bcb122bd85bca575ec5dc3e5ccddc8215e80745a224153"
+    }
+  },
+  "d8135e69a7ce133007e56699b46ae3822cc3d30509a648171cf58ca2527694ac": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/f9f070320cd4645755f7bbf1643c6fa9d954486ce8325840e32c17d0d2ef9035"
+    }
+  },
+  "d86f6d8557c32d6065024f9441fcfd95204fb8efd082a796c911cb5cb8027c68": {
+    "dhcp_networks": {
+      "$ref": "./shared-schema-components.json#/fade15bfeb7c855af1d6b69e788be59b2f04cb96983caf4abcaaa90b9a52b6f7"
+    },
+    "interface_ip_map": {
+      "$ref": "./shared-schema-components.json#/f71c3350a2c7ae719b36230596b3a0c9d2c80b7a2914b9c9ac8007d71bc8a5cd"
+    }
+  },
+  "d8fdc1f825374f27202ec80f4a4909325b653e28e4e8c969e3454fcbfdd46741": {
+    "type": ["list", "string"],
+    "description": "Ethernet devices that will make up this bond.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "dcf21b0a32ace8ffaa68df53591b699e14c26bac52e5399ece7566a93d68879b": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/7a41229692cdf2a1b6d50276dec9773da2d414645e674cc0fae0f6daacb87c1f"
+    }
+  },
+  "dcf99a173aeb72741e6797bb1d1974ab27668febd4b1eaf6d6aee40e4f669b3f": {
+    "static_routes": {
+      "$ref": "./shared-schema-components.json#/58dc87ca98c01256ee0c4231728017375ccdd9cb83cea5501387e3606f715f05"
+    },
+    "static_v6_routes": {
+      "$ref": "./shared-schema-components.json#/70a1e32bcedc4f02b6c742e2a88058208f42203f4079767f0d40d213443515dd"
+    }
+  },
+  "deb9e15eb2fd78e861ed25b099738c730154e6acb3cc6842a3eede9f7960c8ce": {
+    "provider_ref": {
+      "$ref": "./shared-schema-components.json#/9553fd950307c35cccd04476444ab75d6a3d6f392821c3756bdd102ac2100b6e"
+    },
+    "url": {
+      "$ref": "./shared-schema-components.json#/548789dca7e42450e59c07933d4167ebbf9f7c7991b98b3500666673f146d246"
+    }
+  },
+  "df9988916bd59f2b457538321914ce0205d6d722fc946e184d18fe9c32c3b5b2": {
+    "name": {
+      "$ref": "./shared-schema-components.json#/3ea13d674e152394985e2aea50f1caf518dc44bdf628ac55ef3ae9b835d84133"
+    },
+    "namespace": {
+      "$ref": "./shared-schema-components.json#/b4f8efc7a9789861b8a6a5648168bdccffb16bff17faeb8b9215e90a1ccb2b1e"
+    },
+    "tenant": {
+      "$ref": "./shared-schema-components.json#/c32b79b00ff1adb6d73c52f89ab697d3042470e0d608ee4d753ba0d40915e5bb"
+    }
+  },
+  "e3ea6869a3fed480f73b7903138da55f07954372238509afbbf9eef18f16dded": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/55717cb2b6e04c688faa8287f5cdda70a893266dc5e1478470f1c975188d214a"
+    }
+  },
+  "e88e152d697059b2848fe06bc37f1af0b18f93c71b4d18ff5de3105eef419ce4": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/deb9e15eb2fd78e861ed25b099738c730154e6acb3cc6842a3eede9f7960c8ce"
+    },
+    "description": "ClearSecretInfoType specifies information about the Secret that is not encrypted.",
+    "description_kind": "markdown"
+  },
+  "eacdf1847b877e61cfa065db8daf9a318b3b53628cfd5b613827211756fb62fd": {
+    "type": ["map", "string"],
+    "description": "Specify static IPv4 addresses per site:node.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "ecc1971aca72e7cc9e0b917e09f8e19d93c6a74d69109017a539727f98897997": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/909200380f0f13b85f7760db5e03a4bf5c0e00e5df149616691f3dee8968d2fb"
+    },
+    "description": "BlindfoldSecretInfoType specifies information about the Secret managed by F5XC Secret Management.",
+    "description_kind": "markdown"
+  },
+  "ed8492efc12f0dc3e1f7cf0f6ec45d13d6c25476019a7804983c12eea7426824": {
+    "type": "string",
+    "description": "Ending IPv6 address of the pool range. In case of address allocator, offset is derived based on network prefix.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "f25a87c7fb3287b833348bf627e5b4a56d6ca23d46a64178e70e5a38562988c2": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/d2ec8e6313f2e8d0033fea010c076c5ac1ed86c324876b86b08bf27890ac99b5"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/d86f6d8557c32d6065024f9441fcfd95204fb8efd082a796c911cb5cb8027c68"
+    },
+    "description": "DHCPServerParametersType.",
+    "description_kind": "markdown"
+  },
+  "f60b7a1b5c8f50ba1fcfb926c9aa753a8cfca021b35755d83ec0584017322c2f": {
+    "dns_list": {
+      "$ref": "./shared-schema-components.json#/95e263c5afa63fecc9045fb6d4ae2be4fa368ce22219b585a5f5e6a50c47c38d"
+    }
+  },
+  "f6ec1dcea9cfee017e5104f5a5bb7c40e1027008d7359313c040342d36407ff4": {
+    "type": "string",
+    "description": "Exclusive with [default_gateway node_interface] Traffic matching the IP prefixes is sent to this IP Address.",
+    "description_kind": "markdown",
+    "optional": true
+  },
+  "f71c3350a2c7ae719b36230596b3a0c9d2c80b7a2914b9c9ac8007d71bc8a5cd": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/246f61cacc457673ea0766b452d0e175ed2db54b0b5f6b2d3abb942385f9e762"
+    }
+  },
+  "f7e2908e774c9796bd016de789ff1256ef57e398e61de44e803580aa21f4c300": {
+    "nesting_mode": "single",
+    "block": {
+      "$ref": "./shared-schema-components.json#/b573c8a6a37adbc9b351dacbb9d7742e668fb75eef249e2681cf244c8ba0b2ec"
+    }
+  },
+  "f9f070320cd4645755f7bbf1643c6fa9d954486ce8325840e32c17d0d2ef9035": {
+    "attributes": {
+      "$ref": "./shared-schema-components.json#/8d6c28c52404d66a907414eb75c45eab6a96c9679bff045a96d2920ca29e1ec6"
+    },
+    "block_types": {
+      "$ref": "./shared-schema-components.json#/8aa1994dd7483c6edc6e99dbd12a3bd4295c08d8a152e927c5147fec2f923bae"
+    },
+    "description": "Configuration parameter for bond interface.",
+    "description_kind": "markdown"
+  },
+  "fade15bfeb7c855af1d6b69e788be59b2f04cb96983caf4abcaaa90b9a52b6f7": {
+    "nesting_mode": "list",
+    "block": {
+      "$ref": "./shared-schema-components.json#/594843f71e3608fd5e35ede610e4b784ab4f99ae60ed59ce4fcb4530b85eaba7"
+    }
+  },
+  "fb235ccb7a1a8c56a437a0911a5ba0ce4ae6869006afed7338ea0cd4889cde3a": {
+    "node": {
+      "$ref": "./shared-schema-components.json#/8c8dfcb6e0d549c70fb8601b81df291f306c7fffbcc94aa37493433b738e87f3"
+    }
+  }
+}

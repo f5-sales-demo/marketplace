@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { renderVerifiedReplacementResource, verifiedReplacementProjection } from '../src/replacement-renderer';
 import { renderProviderResource } from '../src/resource-renderer';
+import schema from './fixtures/replacement-provider-schema';
 import fixture from './fixtures/securemesh-replacement.json';
-import schema from './fixtures/securemesh-replacement-provider-schema.json';
 
 type Interface = {
   name: string;

@@ -1,8 +1,11 @@
 """Store identical CE fixture objects once; expansion preserves the full vendor schemas."""
 
+import argparse
 import collections
 import hashlib
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -23,7 +26,15 @@ def fail(message: str) -> NoReturn:
 
 def main() -> None:
     """Regenerate shared objects without changing expanded fixture documents."""
-    shared_path = ROOT / "shared-schema-components.json"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fixtures-dir", type=Path, default=ROOT)
+    parser.add_argument("--schema-root", default="schemas")
+    args = parser.parse_args()
+    fixture_root = args.fixtures_dir.resolve()
+    shared_path = fixture_root / "shared-schema-components.json"
+    formatter = shutil.which("biome")
+    if formatter is None:
+        fail("Biome is required to preserve repository fixture formatting")
     existing = json.loads(shared_path.read_text()) if shared_path.exists() else {}
 
     def expand(value: Any, visiting: tuple[str, ...] = ()) -> Any:
@@ -43,7 +54,7 @@ def main() -> None:
 
     documents = {
         path: expand(json.loads(path.read_text()))
-        for path in sorted(ROOT.glob("*schema.json"))
+        for path in sorted(fixture_root.glob("*schema.json"))
     }
     counts: collections.Counter[str] = collections.Counter()
     examples = {}
@@ -61,7 +72,7 @@ def main() -> None:
                 visit(item)
 
     for document in documents.values():
-        visit(document["schemas"])
+        visit(document[args.schema_root])
     selected = {
         key: hashlib.sha256(key.encode()).hexdigest()
         for key, count in counts.items()
@@ -92,6 +103,19 @@ def main() -> None:
         path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
     shared_path.write_text(
         json.dumps(dict(sorted(shared.items())), indent=2, ensure_ascii=False) + "\n"
+    )
+    # Resolved formatter and absolute fixture paths are literal argv; no shell is used.
+    subprocess.run(  # noqa: S603 - fixed formatter flags and absolute owner-selected fixture paths
+        [
+            str(Path(formatter).resolve()),
+            "format",
+            "--write",
+            "--",
+            *map(str, output),
+            str(shared_path),
+        ],
+        check=True,
+        shell=False,
     )
     print(f"Stored {len(shared)} shared fixture objects")
 
