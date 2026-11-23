@@ -10539,6 +10539,101 @@ function sameIdentity2(a, b) {
     ['pid', 'group', 'start', 'boot'].every((key) => row[key] === b[key])
   );
 }
+async function inspectGuestOrigin(witness) {
+  const origin = witness.origin;
+  if (!origin) return;
+  if (
+    origin.schemaVersion !== 1 ||
+    origin.kind !== 'original-installed-guest-reader-origin' ||
+    origin.owner?.provider !== 'gcp' ||
+    origin.owner.engine !== 'terraform' ||
+    Object.keys(origin.owner).sort().join(',') !== 'account,deploymentId,engine,provider,region' ||
+    ['account', 'region', 'deploymentId'].some((key) => typeof origin.owner[key] !== 'string' || !origin.owner[key]) ||
+    !['before', 'after'].includes(origin.phase) ||
+    !/^[a-z][a-z0-9-]{0,62}$/.test(origin.nodeName) ||
+    ![origin.instanceId, origin.observerId].every((value) => /^[1-9][0-9]{0,19}$/.test(value)) ||
+    ![origin.tokenSha256, origin.ownershipSha256].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
+    origin.request?.path !== join14(witness.directory, 'request.private.json') ||
+    origin.admission?.path !== join14(witness.directory, 'original-execution.private.json') ||
+    !witness.inputs.capture ||
+    witness.inputs.capture.path !== join14(witness.directory, 'final-execution.private.json') ||
+    [origin.request, origin.admission].some(
+      (row) =>
+        !row.expectedIdentity || !row.expectedParentIdentity || (Number(row.expectedIdentity.mode) & 511) !== 256,
+    )
+  )
+    throw new Error('Original guest reader source origin required');
+  const bindings = { request: origin.request, admission: origin.admission, ...witness.inputs };
+  const monitor = await monitorOriginalInputs(bindings);
+  try {
+    const read = async (binding) => {
+      const current = await owned(binding.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(binding, current.binding);
+      return decodeEvidenceObject(current.bytes);
+    };
+    const request = await read(origin.request),
+      admission = await read(origin.admission);
+    const binding = request.binding;
+    const inputs = request.inputs;
+    const script = inputs?.['script:guest_entrypoint.py'],
+      python = inputs?.python;
+    const expectedArgs = [
+      '-I',
+      '-B',
+      script?.path,
+      '--request',
+      origin.request.path,
+      '--sha256',
+      origin.request.sha256,
+    ];
+    const before = origin.phase === 'before';
+    const deadlines = request.deadlines;
+    if (
+      request.schemaVersion !== (before ? 1 : 2) ||
+      request.kind !== (before ? 'original-gcp-guest-worker' : 'original-gcp-final-guest-worker') ||
+      request.originalStartMs !== witness.originalBudget.start ||
+      !Array.isArray(deadlines) ||
+      deadlines.length !== 2 ||
+      (before &&
+        (deadlines[0] !== witness.originalBudget.deadline ||
+          deadlines[1] !== witness.originalBudget.deadline + 300000)) ||
+      (!before && request.originalDeadlineMs !== witness.originalBudget.deadline) ||
+      binding?.project !== origin.owner.account ||
+      binding?.region !== origin.owner.region ||
+      binding?.node_name !== origin.nodeName ||
+      binding?.token_node !== origin.nodeName ||
+      binding?.instance_id !== origin.instanceId ||
+      binding?.observer_id !== origin.observerId ||
+      binding?.token_sha256 !== origin.tokenSha256 ||
+      binding?.ownership_sha256 !== origin.ownershipSha256 ||
+      !script ||
+      !python ||
+      !/^[a-f0-9]{64}$/.test(script.sha256) ||
+      python.sha256 !== witness.pythonSha256 ||
+      admission.schemaVersion !== 1 ||
+      admission.kind !== 'original-installed-guest-worker-admission' ||
+      admission.phase !== origin.phase ||
+      !sameOwner2(admission.owner, origin.owner) ||
+      admission.requestSha256 !== origin.request.sha256 ||
+      !sameIdentity2(admission.identity, witness.identity) ||
+      JSON.stringify(admission.args) !== JSON.stringify(expectedArgs) ||
+      JSON.stringify(admission.budget) !== JSON.stringify(witness.originalBudget)
+    )
+      throw new Error('Original guest request, actor or ownership source differs');
+    const capture = await read(witness.inputs.capture);
+    if (!before && (deadlines[0] !== capture.finalDeadlineMs || deadlines[1] !== capture.finalDeadlineMs))
+      throw new Error('Original final guest request reserve differs');
+    if (witness.inputs.submission) {
+      const submission = await read(witness.inputs.submission);
+      const executable = submission.executable;
+      if (JSON.stringify(submission.args) !== JSON.stringify(expectedArgs) || executable?.path !== python.path)
+        throw new Error('Original guest submitted command source differs');
+    }
+    await monitor.assertOriginal();
+  } finally {
+    monitor.close();
+  }
+}
 async function inspect(witness) {
   const expected = [
     'bootstrap',
@@ -10636,6 +10731,7 @@ async function inspect(witness) {
       )
         throw new Error('Original owning reader capture binding differs');
     }
+    await inspectGuestOrigin(witness);
     await assertRecordedProcessGroupAbsent(witness.identity);
     await monitor.assertOriginal();
   } finally {
@@ -10668,6 +10764,7 @@ async function collectOriginalReaderGroupClosure(input) {
   const witness = {
     schemaVersion: 1,
     kind: 'original-reader-group-closure',
+    ...(input.origin ? { origin: Object.freeze(structuredClone(input.origin)) } : {}),
     directory: input.directory,
     identity: Object.freeze({ ...input.capture.identity }),
     originalBudget: Object.freeze({ ...input.originalBudget }),
@@ -10689,7 +10786,7 @@ async function assertOriginalReaderGroupClosure(witness) {
 function sameOwner2(a, b) {
   return ['provider', 'engine', 'account', 'region', 'deploymentId'].every((key) => a?.[key] === b[key]);
 }
-async function assertSourceCoverage(sources, required) {
+async function assertSourceCoverage(sources, required, owner) {
   if (
     !required.length ||
     new Set(required).size !== required.length ||
@@ -10709,6 +10806,8 @@ async function assertSourceCoverage(sources, required) {
     )
       throw new Error('Original reader attempt coverage incomplete');
     for (const witness of source.witnesses) {
+      if (witness.origin && !sameOwner2(witness.origin.owner, owner))
+        throw new Error('Original guest reader set owner differs');
       const id = JSON.stringify(witness.identity),
         value = JSON.stringify(witness);
       const prior = original.get(id);
@@ -10724,7 +10823,7 @@ async function persistOriginalReaderGroupSet(input) {
     required = [...input.requiredSources];
   await input.store.verify();
   if (!sameOwner2(input.store.owner, owner)) throw new Error('Original reader group store owner differs');
-  await assertSourceCoverage(sources, required);
+  await assertSourceCoverage(sources, required, owner);
   const record = await input.store.writeImmutableBytes(
     `immutable-reader-groups-${randomUUID8()}.json`,
     Buffer.from(
@@ -10761,7 +10860,7 @@ async function assertOriginalReaderGroupInputs(input) {
       record.requiredSources.slice().sort().join(',') !== input.requiredSources.slice().sort().join(',')
     )
       throw new Error('Original reader set owner or source coverage differs');
-    await assertSourceCoverage(record.sources, input.requiredSources);
+    await assertSourceCoverage(record.sources, input.requiredSources, input.owner);
     await monitor.assertOriginal();
   } finally {
     monitor.close();
@@ -21915,6 +22014,7 @@ class OriginalGuestControlParent {
 }
 
 // plugins/terraform/src/installed-guest-worker.ts
+var originalReaderClosures = new WeakMap();
 var originalRoundSources = new WeakMap();
 var originalRoundWorkers = new WeakMap();
 async function assertOriginalInstalledGuestRoundWorker(value, context, nodeName) {
@@ -21927,6 +22027,11 @@ async function collectInstalledOriginalGuestRound(value) {
   if (!value || typeof value !== 'object') throw new Error('Original installed guest worker required');
   const collect = originalRoundSources.get(value);
   if (!collect) throw new Error('Original source-issued installed guest worker required');
+  return collect();
+}
+async function collectInstalledOriginalGuestReaderClosures(value) {
+  const collect = value && typeof value === 'object' ? originalReaderClosures.get(value) : undefined;
+  if (!collect) throw new Error('Original source-issued installed guest reader required');
   return collect();
 }
 var hash29 = (bytes) => createHash39('sha256').update(bytes).digest('hex');
@@ -22015,6 +22120,7 @@ async function openOriginalGuestWorkerSource(options, after) {
   const root = join34(context.executionDirectory, `gcp-guest-worker-${randomUUID19()}`);
   let actor, final;
   let executionDirectory;
+  let requestBinding, admissionBinding, captureBinding;
   let completion;
   let terminal = false,
     initialized = false,
@@ -22138,6 +22244,7 @@ async function openOriginalGuestWorkerSource(options, after) {
     };
     const raw = Buffer.from(JSON.stringify(request));
     const requestInput = await persist(join34(root, 'request.private.json'), raw);
+    requestBinding = requestInput;
     requestMonitor = await monitorOriginalInputs({ request: requestInput });
     parent = new OriginalGuestControlParent({
       peer,
@@ -22179,15 +22286,29 @@ async function openOriginalGuestWorkerSource(options, after) {
           throw new Error('Original installed guest kernel and SDK admission differs');
         actor = Object.freeze({ ...admitted.identity });
         executionDirectory = dirname17(admitted.stdoutPath);
-        await persist(
+        admissionBinding = await persist(
           join34(root, 'original-execution.private.json'),
-          Buffer.from(JSON.stringify({ identity: actor, bootstrap, args, budget })),
+          Buffer.from(
+            JSON.stringify({
+              schemaVersion: 1,
+              kind: 'original-installed-guest-worker-admission',
+              owner: context.owner,
+              phase: after ? 'after' : 'before',
+              requestSha256: requestInput.sha256,
+              identity: actor,
+              bootstrap,
+              args,
+              budget,
+            }),
+          ),
         );
         await assertActor();
       },
       finalCapture: async (capture) => {
-        await assertInputs();
-        await persist(join34(root, 'final-execution.private.json'), Buffer.from(JSON.stringify(capture)));
+        captureBinding = await persist(
+          join34(root, 'final-execution.private.json'),
+          Buffer.from(JSON.stringify(capture)),
+        );
         if (
           !equalIdentity2(capture.identity, actor) ||
           capture.pid !== actor?.pid ||
@@ -22196,6 +22317,7 @@ async function openOriginalGuestWorkerSource(options, after) {
         )
           throw new Error('Original installed guest final execution differs');
         final = Object.freeze(structuredClone(capture));
+        await assertInputs();
         if (initialized && capture.actualExitCode === null && parent) {
           await parent.settlePending();
           try {
@@ -22338,6 +22460,44 @@ async function openOriginalGuestWorkerSource(options, after) {
         guestAcceptanceComplete: false,
       });
     },
+  });
+  originalReaderClosures.set(worker, async () => {
+    if (submissions === 0) return Object.freeze([]);
+    if (!terminal || !final || !actor || !executionDirectory || !requestBinding || !admissionBinding || !captureBinding)
+      throw new Error('Original guest reader terminal execution and immutable source bindings required');
+    const monitor = await monitorOriginalInputs({
+      request: requestBinding,
+      admission: admissionBinding,
+      capture: captureBinding,
+    });
+    try {
+      const closure = await collectOriginalReaderGroupClosure({
+        directory: root,
+        capture: final,
+        originalBudget: budget,
+        pythonSha256: inputs.python.sha256,
+        executableSha256: inputs.python.sha256,
+        gateSha256: hash29(Buffer.from(signalFreeBootstrapSource)),
+        captureBinding,
+        origin: {
+          schemaVersion: 1,
+          kind: 'original-installed-guest-reader-origin',
+          owner: context.owner,
+          phase: after ? 'after' : 'before',
+          nodeName: String(binding.node_name),
+          instanceId: String(binding.instance_id),
+          observerId: String(binding.observer_id),
+          tokenSha256: String(binding.token_sha256),
+          ownershipSha256: String(binding.ownership_sha256),
+          request: requestBinding,
+          admission: admissionBinding,
+        },
+      });
+      await monitor.assertOriginal();
+      return Object.freeze([closure]);
+    } finally {
+      monitor.close();
+    }
   });
   originalRoundWorkers.set(worker, {
     context,
@@ -24070,6 +24230,7 @@ export {
   collectInstalledCeInsertWitnesses,
   collectInstalledObserverInsertWitnesses,
   collectInstalledOriginalCeAudit,
+  collectInstalledOriginalGuestReaderClosures,
   collectInstalledOriginalGuestRound,
   collectInstalledOriginalObserverAudit,
   collectOriginalEarlyGcpInsertIdentity,

@@ -11,9 +11,24 @@ import { readOwnedInstalledInput } from './installed-runtime';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import type { FinalExecutionCapture } from './signal-free-executor';
 
+export interface OriginalGuestReaderOrigin {
+  readonly schemaVersion: 1;
+  readonly kind: 'original-installed-guest-reader-origin';
+  readonly owner: CeOwner;
+  readonly phase: 'before' | 'after';
+  readonly nodeName: string;
+  readonly instanceId: string;
+  readonly observerId: string;
+  readonly tokenSha256: string;
+  readonly ownershipSha256: string;
+  readonly request: OriginalInputBinding;
+  readonly admission: OriginalInputBinding;
+}
+
 export interface OriginalReaderGroupClosure {
   readonly schemaVersion: 1;
   readonly kind: 'original-reader-group-closure';
+  readonly origin?: OriginalGuestReaderOrigin;
   readonly directory: string;
   readonly identity: RecordedProcessGroupIdentity;
   readonly originalBudget: Readonly<{ start: number; deadline: number }>;
@@ -34,6 +49,104 @@ function sameIdentity(a: unknown, b: RecordedProcessGroupIdentity) {
     (['pid', 'group', 'start', 'boot'] as const).every((key) => row[key] === b[key])
   );
 }
+async function inspectGuestOrigin(witness: OriginalReaderGroupClosure) {
+  const origin = witness.origin;
+  if (!origin) return; // Existing generic reader receipts retain their original interpretation.
+  if (
+    origin.schemaVersion !== 1 ||
+    origin.kind !== 'original-installed-guest-reader-origin' ||
+    origin.owner?.provider !== 'gcp' ||
+    origin.owner.engine !== 'terraform' ||
+    Object.keys(origin.owner).sort().join(',') !== 'account,deploymentId,engine,provider,region' ||
+    ['account', 'region', 'deploymentId'].some(
+      (key) => typeof origin.owner[key as keyof CeOwner] !== 'string' || !origin.owner[key as keyof CeOwner],
+    ) ||
+    !['before', 'after'].includes(origin.phase) ||
+    !/^[a-z][a-z0-9-]{0,62}$/.test(origin.nodeName) ||
+    ![origin.instanceId, origin.observerId].every((value) => /^[1-9][0-9]{0,19}$/.test(value)) ||
+    ![origin.tokenSha256, origin.ownershipSha256].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
+    origin.request?.path !== join(witness.directory, 'request.private.json') ||
+    origin.admission?.path !== join(witness.directory, 'original-execution.private.json') ||
+    !witness.inputs.capture ||
+    witness.inputs.capture.path !== join(witness.directory, 'final-execution.private.json') ||
+    [origin.request, origin.admission].some(
+      (row) =>
+        !row.expectedIdentity || !row.expectedParentIdentity || (Number(row.expectedIdentity.mode) & 0o777) !== 0o400,
+    )
+  )
+    throw new Error('Original guest reader source origin required');
+  const bindings = { request: origin.request, admission: origin.admission, ...witness.inputs };
+  const monitor = await monitorOriginalInputs(bindings);
+  try {
+    const read = async (binding: OriginalInputBinding) => {
+      const current = await readOwnedInstalledInput(binding.path, 4 * 1024 * 1024);
+      assertSameOriginalInput(binding, current.binding);
+      return decodeEvidenceObject(current.bytes);
+    };
+    const request = await read(origin.request),
+      admission = await read(origin.admission);
+    const binding = request.binding as Record<string, unknown> | undefined;
+    const inputs = request.inputs as Record<string, OriginalInputBinding> | undefined;
+    const script = inputs?.['script:guest_entrypoint.py'],
+      python = inputs?.python;
+    const expectedArgs = [
+      '-I',
+      '-B',
+      script?.path,
+      '--request',
+      origin.request.path,
+      '--sha256',
+      origin.request.sha256,
+    ];
+    const before = origin.phase === 'before';
+    const deadlines = request.deadlines;
+    if (
+      request.schemaVersion !== (before ? 1 : 2) ||
+      request.kind !== (before ? 'original-gcp-guest-worker' : 'original-gcp-final-guest-worker') ||
+      request.originalStartMs !== witness.originalBudget.start ||
+      !Array.isArray(deadlines) ||
+      deadlines.length !== 2 ||
+      (before &&
+        (deadlines[0] !== witness.originalBudget.deadline ||
+          deadlines[1] !== witness.originalBudget.deadline + 300000)) ||
+      (!before && request.originalDeadlineMs !== witness.originalBudget.deadline) ||
+      binding?.project !== origin.owner.account ||
+      binding?.region !== origin.owner.region ||
+      binding?.node_name !== origin.nodeName ||
+      binding?.token_node !== origin.nodeName ||
+      binding?.instance_id !== origin.instanceId ||
+      binding?.observer_id !== origin.observerId ||
+      binding?.token_sha256 !== origin.tokenSha256 ||
+      binding?.ownership_sha256 !== origin.ownershipSha256 ||
+      !script ||
+      !python ||
+      !/^[a-f0-9]{64}$/.test(script.sha256) ||
+      python.sha256 !== witness.pythonSha256 ||
+      admission.schemaVersion !== 1 ||
+      admission.kind !== 'original-installed-guest-worker-admission' ||
+      admission.phase !== origin.phase ||
+      !sameOwner(admission.owner as CeOwner, origin.owner) ||
+      admission.requestSha256 !== origin.request.sha256 ||
+      !sameIdentity(admission.identity, witness.identity) ||
+      JSON.stringify(admission.args) !== JSON.stringify(expectedArgs) ||
+      JSON.stringify(admission.budget) !== JSON.stringify(witness.originalBudget)
+    )
+      throw new Error('Original guest request, actor or ownership source differs');
+    const capture = await read(witness.inputs.capture);
+    if (!before && (deadlines[0] !== capture.finalDeadlineMs || deadlines[1] !== capture.finalDeadlineMs))
+      throw new Error('Original final guest request reserve differs');
+    if (witness.inputs.submission) {
+      const submission = await read(witness.inputs.submission);
+      const executable = submission.executable as Record<string, unknown> | undefined;
+      if (JSON.stringify(submission.args) !== JSON.stringify(expectedArgs) || executable?.path !== python.path)
+        throw new Error('Original guest submitted command source differs');
+    }
+    await monitor.assertOriginal();
+  } finally {
+    monitor.close();
+  }
+}
+
 async function inspect(witness: OriginalReaderGroupClosure) {
   const expected = [
     'bootstrap',
@@ -131,6 +244,7 @@ async function inspect(witness: OriginalReaderGroupClosure) {
       )
         throw new Error('Original owning reader capture binding differs');
     }
+    await inspectGuestOrigin(witness);
     await assertRecordedProcessGroupAbsent(witness.identity);
     await monitor.assertOriginal();
   } finally {
@@ -148,6 +262,7 @@ export async function collectOriginalReaderGroupClosure(input: {
   readonly executableSha256: string;
   readonly gateSha256: string;
   readonly captureBinding?: OriginalInputBinding;
+  readonly origin?: OriginalGuestReaderOrigin;
 }): Promise<OriginalReaderGroupClosure> {
   if (!input.capture.identity) throw new Error('Original captured reader identity required');
   const root = dirname(input.capture.stdoutPath);
@@ -174,6 +289,7 @@ export async function collectOriginalReaderGroupClosure(input: {
   const witness: OriginalReaderGroupClosure = {
     schemaVersion: 1,
     kind: 'original-reader-group-closure',
+    ...(input.origin ? { origin: Object.freeze(structuredClone(input.origin)) } : {}),
     directory: input.directory,
     identity: Object.freeze({ ...input.capture.identity }),
     originalBudget: Object.freeze({ ...input.originalBudget }),
@@ -201,7 +317,11 @@ export interface OriginalReaderSourceClosure {
 function sameOwner(a: CeOwner, b: CeOwner) {
   return (['provider', 'engine', 'account', 'region', 'deploymentId'] as const).every((key) => a?.[key] === b[key]);
 }
-async function assertSourceCoverage(sources: readonly OriginalReaderSourceClosure[], required: readonly string[]) {
+async function assertSourceCoverage(
+  sources: readonly OriginalReaderSourceClosure[],
+  required: readonly string[],
+  owner: CeOwner,
+) {
   if (
     !required.length ||
     new Set(required).size !== required.length ||
@@ -221,6 +341,8 @@ async function assertSourceCoverage(sources: readonly OriginalReaderSourceClosur
     )
       throw new Error('Original reader attempt coverage incomplete');
     for (const witness of source.witnesses) {
+      if (witness.origin && !sameOwner(witness.origin.owner, owner))
+        throw new Error('Original guest reader set owner differs');
       const id = JSON.stringify(witness.identity),
         value = JSON.stringify(witness);
       const prior = original.get(id);
@@ -243,7 +365,7 @@ export async function persistOriginalReaderGroupSet(input: {
     required = [...input.requiredSources];
   await input.store.verify();
   if (!sameOwner(input.store.owner, owner)) throw new Error('Original reader group store owner differs');
-  await assertSourceCoverage(sources, required);
+  await assertSourceCoverage(sources, required, owner);
   const record = await input.store.writeImmutableBytes(
     `immutable-reader-groups-${randomUUID()}.json`,
     Buffer.from(
@@ -287,6 +409,7 @@ export async function assertOriginalReaderGroupInputs(input: {
     await assertSourceCoverage(
       record.sources as unknown as readonly OriginalReaderSourceClosure[],
       input.requiredSources,
+      input.owner,
     );
     await monitor.assertOriginal();
   } finally {

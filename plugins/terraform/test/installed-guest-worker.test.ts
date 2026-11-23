@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test';
 import sourcePins from '../src/gcp-capture-source-pins.json';
 import { createInstalledCaptureContext } from '../src/installed-capture-context';
-import { inspectOriginalGuestCompletion, openInstalledGuestWorker } from '../src/installed-guest-worker';
+import {
+  collectInstalledOriginalGuestReaderClosures,
+  inspectOriginalGuestCompletion,
+  openInstalledGuestWorker,
+} from '../src/installed-guest-worker';
 import pins from '../src/installed-runtime-pins.json';
 import type { OriginalInputBinding } from '../src/original-input-monitor';
 
@@ -121,4 +125,16 @@ test('original completion can prove later closure without rewriting the initial 
   ]) {
     expect(() => inspectOriginalGuestCompletion({ ...completed, ...change }, initial, identity)).toThrow();
   }
+});
+
+test('guest reader closure refuses synthetic and copied worker claims before filesystem or execution', async () => {
+  for (const value of [
+    {},
+    { disposed: true, terminal: true },
+    {
+      evidence: () => ({ submissions: 0, disposed: true }),
+      readerClosureWitnesses: async () => [],
+    },
+  ])
+    await expect(collectInstalledOriginalGuestReaderClosures(value)).rejects.toThrow('source-issued');
 });

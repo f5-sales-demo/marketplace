@@ -2285,3 +2285,15 @@ Worker closure failures preserve their original bindings while independent
 sources still receive retirement attempts. Remaining actual reader witnesses,
 full factory cleanup bindings and every original installed/runtime/live/cleanup/
 CI/review/delivery gate remain open. The factory stays inactive and untracked.
+
+## Original native guest reader source closure
+
+The [guest source receipt](gcp-original-guest-reader-closure-20261123.md) records
+actual before/after/fault actor provenance, immutable source joins and failed-lock
+preservation. All 126 source/native/runtime cases and 1,499 assertions pass;
+three full strict types and the normal runtime build pass. Independent archives
+verify 1,883 retained files and three original guest physical absences. The held
+factory retains original guest attempt coverage while preserving failures.
+Remaining actual xcsh/SSH/access/client source coverage, full durable factory
+cleanup binding and every original feature/runtime/live/CI/review/delivery gate
+remain open. No GCP apply was submitted.

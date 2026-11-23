@@ -17,6 +17,7 @@ export { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
 export { openInstalledBootstrapCapture } from './installed-bootstrap-capture';
 export { openInstalledGcpGuestBinding } from './installed-guest-binding';
 export {
+  collectInstalledOriginalGuestReaderClosures,
   collectInstalledOriginalGuestRound,
   openInstalledFinalGuestWorker,
   openInstalledGuestWorker,

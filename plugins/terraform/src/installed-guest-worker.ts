@@ -11,11 +11,13 @@ import { linuxMonotonicMs } from './linux-clock';
 import { openOriginalGuestFifoPeer } from './original-guest-fifo';
 import { OriginalGuestControlParent, type OriginalGuestParentAdmission } from './original-guest-parent';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import { collectOriginalReaderGroupClosure, type OriginalReaderGroupClosure } from './original-reader-group-closure';
 import { inspectFinalReaderReserve } from './reader-final-reserve';
 import {
   type ExecutionCaptureAdmission,
   type FinalExecutionCapture,
   type SignalFreeExecutionPolicy,
+  signalFreeBootstrapSource,
   signalFreeFinalGuestWorkerExecutor,
   signalFreeTerraformExecutor,
 } from './signal-free-executor';
@@ -23,6 +25,7 @@ import {
 type Message = Record<string, unknown>;
 type Identity = ExecutionCaptureAdmission['identity'];
 type GuestRoundReport = Awaited<ReturnType<typeof runOriginalGuestCaptureRound>>;
+const originalReaderClosures = new WeakMap<object, () => Promise<readonly OriginalReaderGroupClosure[]>>();
 const originalRoundSources = new WeakMap<object, () => Promise<GuestRoundReport>>();
 const originalRoundWorkers = new WeakMap<
   object,
@@ -52,6 +55,14 @@ export async function collectInstalledOriginalGuestRound(value: unknown) {
   if (!collect) throw new Error('Original source-issued installed guest worker required');
   return collect();
 }
+/** Only the original source-owned worker can expose its native closure.
+ * Physical absence, complete capture and guest acceptance remain distinct. */
+export async function collectInstalledOriginalGuestReaderClosures(value: unknown) {
+  const collect = value && typeof value === 'object' ? originalReaderClosures.get(value) : undefined;
+  if (!collect) throw new Error('Original source-issued installed guest reader required');
+  return collect();
+}
+
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const equalIdentity = (a: Identity | undefined, b: Identity | undefined) =>
   !!a && !!b && ['pid', 'group', 'start', 'boot'].every((key) => a[key as keyof Identity] === b[key as keyof Identity]);
@@ -166,6 +177,9 @@ async function openOriginalGuestWorkerSource(
   const root = join(context.executionDirectory, `gcp-guest-worker-${randomUUID()}`);
   let actor: Identity | undefined, final: FinalExecutionCapture | undefined;
   let executionDirectory: string | undefined;
+  let requestBinding: OriginalInputBinding | undefined,
+    admissionBinding: OriginalInputBinding | undefined,
+    captureBinding: OriginalInputBinding | undefined;
   let completion: Readonly<Message> | undefined;
   let terminal = false,
     initialized = false,
@@ -296,6 +310,7 @@ async function openOriginalGuestWorkerSource(
     };
     const raw = Buffer.from(JSON.stringify(request));
     const requestInput = await persist(join(root, 'request.private.json'), raw);
+    requestBinding = requestInput;
     requestMonitor = await monitorOriginalInputs({ request: requestInput });
     parent = new OriginalGuestControlParent({
       peer,
@@ -335,15 +350,29 @@ async function openOriginalGuestWorkerSource(
           throw new Error('Original installed guest kernel and SDK admission differs');
         actor = Object.freeze({ ...admitted.identity });
         executionDirectory = dirname(admitted.stdoutPath);
-        await persist(
+        admissionBinding = await persist(
           join(root, 'original-execution.private.json'),
-          Buffer.from(JSON.stringify({ identity: actor, bootstrap, args, budget })),
+          Buffer.from(
+            JSON.stringify({
+              schemaVersion: 1,
+              kind: 'original-installed-guest-worker-admission',
+              owner: context.owner,
+              phase: after ? 'after' : 'before',
+              requestSha256: requestInput.sha256,
+              identity: actor,
+              bootstrap,
+              args,
+              budget,
+            }),
+          ),
         );
         await assertActor();
       },
       finalCapture: async (capture) => {
-        await assertInputs();
-        await persist(join(root, 'final-execution.private.json'), Buffer.from(JSON.stringify(capture)));
+        captureBinding = await persist(
+          join(root, 'final-execution.private.json'),
+          Buffer.from(JSON.stringify(capture)),
+        );
         if (
           !equalIdentity(capture.identity, actor) ||
           capture.pid !== actor?.pid ||
@@ -352,6 +381,7 @@ async function openOriginalGuestWorkerSource(
         )
           throw new Error('Original installed guest final execution differs');
         final = Object.freeze(structuredClone(capture));
+        await assertInputs();
         if (initialized && capture.actualExitCode === null && parent) {
           await parent.settlePending();
           try {
@@ -496,6 +526,44 @@ async function openOriginalGuestWorkerSource(
         guestAcceptanceComplete: false,
       });
     },
+  });
+  originalReaderClosures.set(worker, async () => {
+    if (submissions === 0) return Object.freeze([]);
+    if (!terminal || !final || !actor || !executionDirectory || !requestBinding || !admissionBinding || !captureBinding)
+      throw new Error('Original guest reader terminal execution and immutable source bindings required');
+    const monitor = await monitorOriginalInputs({
+      request: requestBinding,
+      admission: admissionBinding,
+      capture: captureBinding,
+    });
+    try {
+      const closure = await collectOriginalReaderGroupClosure({
+        directory: root,
+        capture: final,
+        originalBudget: budget,
+        pythonSha256: inputs.python.sha256,
+        executableSha256: inputs.python.sha256,
+        gateSha256: hash(Buffer.from(signalFreeBootstrapSource)),
+        captureBinding,
+        origin: {
+          schemaVersion: 1,
+          kind: 'original-installed-guest-reader-origin',
+          owner: context.owner,
+          phase: after ? 'after' : 'before',
+          nodeName: String(binding.node_name),
+          instanceId: String(binding.instance_id),
+          observerId: String(binding.observer_id),
+          tokenSha256: String(binding.token_sha256),
+          ownershipSha256: String(binding.ownership_sha256),
+          request: requestBinding,
+          admission: admissionBinding,
+        },
+      });
+      await monitor.assertOriginal();
+      return Object.freeze([closure]);
+    } finally {
+      monitor.close();
+    }
   });
   originalRoundWorkers.set(worker, {
     context,
