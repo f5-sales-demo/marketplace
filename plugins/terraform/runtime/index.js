@@ -3075,6 +3075,186 @@ function projectResourceFields(values, sensitivity, fields) {
   }
   return selected;
 }
+function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt, selections) {
+  const minimalEmptyState =
+    Object.keys(state).length === 1 &&
+    state.format_version === '1.0' &&
+    identity.version === 4 &&
+    identity.terraform_version === terraformVersion &&
+    Array.isArray(identity.resources) &&
+    identity.resources.length === 0 &&
+    identity.outputs !== null &&
+    typeof identity.outputs === 'object' &&
+    !Array.isArray(identity.outputs) &&
+    Object.keys(identity.outputs).length === 0;
+  if (state.format_version !== '1.0' || (state.terraform_version !== terraformVersion && !minimalEmptyState))
+    throw new Error('Terraform state format or version changed');
+  const module = object3(object3(state.values ?? {}).root_module ?? {});
+  const resources = module.resources ?? [];
+  if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
+  if (
+    (Array.isArray(module.child_modules) && module.child_modules.length) ||
+    resources
+      .map(object3)
+      .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
+  )
+    throw new Error('Foreign state resource requires reconciliation');
+  const result = {};
+  for (const [address, fields] of Object.entries(selections)) {
+    const reviewed = receipt.changes.filter((change) => change.address === address);
+    if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
+    const matches = resources.map(object3).filter((resource) => resource.address === address);
+    if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
+    if (!matches.length) {
+      result[address] = null;
+      continue;
+    }
+    const resource = matches[0];
+    if (
+      resource.mode !== (address.startsWith('data.') ? 'data' : 'managed') ||
+      resource.type !== reviewed[0].type ||
+      resource.type !== address.split('.')[address.startsWith('data.') ? 1 : 0]
+    )
+      throw new Error('Terraform state resource differs from reviewed identity');
+    if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
+    result[address] = projectResourceFields(object3(resource.values), resource.sensitive_values, fields);
+  }
+  return result;
+}
+async function readCaptureCleanupAttemptResourceFields(input, signal) {
+  const directory = input.directory;
+  const receipt = structuredClone(input.receipt);
+  const selections = structuredClone(input.selections);
+  const bindings = structuredClone(input.inputs);
+  const environment = { ...input.environment };
+  const execute = input.execute;
+  const closure = input.assertIndependentClosure.bind(input);
+  const files = [
+    'deployment.json',
+    'main.tf.json',
+    '.terraform.lock.hcl',
+    'deployment.tfrc',
+    'terraform.tfstate',
+    'plan-receipt.json',
+    'saved.tfplan',
+  ];
+  const locks = ['claim.json', 'lifetime.json', 'capture-unresolved.json'];
+  const required = [...files, ...locks.map((name) => `lock:${name}`)];
+  validateResourceSelections(selections);
+  if (
+    !isAbsolute3(directory) ||
+    resolve3(directory) !== directory ||
+    execute === executeTerraform ||
+    canonical(Object.keys(bindings).sort()) !== canonical(required.sort()) ||
+    required.some((name) => {
+      const expected = name.startsWith('lock:')
+        ? join3(directory, '.terraform-executor-lock', name.slice(5))
+        : join3(directory, name);
+      return (
+        bindings[name].path !== expected || !bindings[name].expectedIdentity || !bindings[name].expectedParentIdentity
+      );
+    }) ||
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.operation !== undefined ||
+    receipt.noChanges !== false ||
+    (receipt.actionInvocations !== undefined &&
+      (!Array.isArray(receipt.actionInvocations) || receipt.actionInvocations.length !== 0)) ||
+    !Array.isArray(receipt.changes) ||
+    receipt.changes.length !== Object.keys(selections).length ||
+    receipt.changes.some(
+      (row) => !row || !Object.hasOwn(selections, row.address) || canonical(row.actions) !== canonical(['create']),
+    ) ||
+    new Set(receipt.changes.map((row) => row.address)).size !== receipt.changes.length
+  )
+    throw new Error('Exact original read-only capture inspection required');
+  const monitor = await monitorOriginalInputs(bindings);
+  const assertClosed = async () => {
+    signal?.throwIfAborted();
+    await monitor.assertOriginal();
+    await assertExecutorProcessGroupAbsent(join3(directory, '.terraform-executor-lock'));
+    await closure();
+    await monitor.assertOriginal();
+    signal?.throwIfAborted();
+  };
+  try {
+    await assertClosed();
+    const snapshots = new Map();
+    for (const name of files) snapshots.set(name, await privateRead(join3(directory, name)));
+    const raw = (name) => {
+      const value = snapshots.get(name);
+      if (!value) throw new Error('Original capture inspection snapshot unavailable');
+      return value;
+    };
+    const manifest = decode2(raw('deployment.json').toString());
+    const checkpoint = decode2(raw('plan-receipt.json').toString());
+    const identity = decode2(raw('terraform.tfstate').toString());
+    if (
+      manifest.schemaVersion !== 1 ||
+      manifest.engine !== 'terraform' ||
+      manifest.deploymentId !== receipt.deploymentId ||
+      manifest.backendIdentity !== receipt.backendIdentity ||
+      manifest.configurationSha256 !== receipt.configurationSha256 ||
+      manifest.providerLockSha256 !== receipt.providerLockSha256 ||
+      digest2(raw('main.tf.json')) !== receipt.configurationSha256 ||
+      digest2(raw('.terraform.lock.hcl')) !== receipt.providerLockSha256 ||
+      digest2(raw('deployment.tfrc')) !== digest2(cliConfig) ||
+      digest2(raw('saved.tfplan')) !== receipt.planSha256 ||
+      canonical(checkpoint.receipt) !== canonical(receipt) ||
+      !['applying', 'applied'].includes(String(checkpoint.state)) ||
+      identity.version !== 4 ||
+      typeof identity.lineage !== 'string' ||
+      !identity.lineage.trim() ||
+      !Number.isSafeInteger(identity.serial) ||
+      identity.serial < 0 ||
+      !Array.isArray(identity.resources)
+    )
+      throw new Error('Original interrupted create or state binding differs');
+    const seen = new Set();
+    for (const value of identity.resources) {
+      const row = object3(value);
+      if (row.mode === 'data') continue;
+      const address = `${row.type}.${row.name}`;
+      if (
+        row.mode !== 'managed' ||
+        row.module !== undefined ||
+        !Object.hasOwn(selections, address) ||
+        seen.has(address) ||
+        !Array.isArray(row.instances) ||
+        row.instances.length !== 1 ||
+        object3(row.instances[0]).deposed !== undefined ||
+        object3(row.instances[0]).index_key !== undefined
+      )
+        throw new Error('Original interrupted state resource is ambiguous or foreign');
+      seen.add(address);
+    }
+    await assertClosed();
+    const run = async (args) => {
+      await assertClosed();
+      const result = await execute({ cwd: directory, args, env: environment, signal });
+      await assertClosed();
+      if (result.code !== 0) throw new Error('Original read-only capture inspection command failed');
+      return decode2(result.stdout);
+    };
+    const version = await run(['version', '-json']);
+    if (typeof manifest.terraformVersion !== 'string' || version.terraform_version !== manifest.terraformVersion)
+      throw new Error('Original capture inspection Terraform version changed');
+    const state = await run(['show', '-json', 'terraform.tfstate']);
+    const resources = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
+    await assertClosed();
+    return {
+      schemaVersion: 1,
+      applyState: checkpoint.state,
+      planSha256: receipt.planSha256,
+      stateSha256: digest2(raw('terraform.tfstate')),
+      lineage: identity.lineage,
+      serial: identity.serial,
+      resources,
+    };
+  } finally {
+    monitor.close();
+  }
+}
 var executeTerraform = terraformExecutor(undefined, true);
 
 class TerraformRunner {
@@ -4033,52 +4213,7 @@ class TerraformRunner {
       const version = decode2(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
       const state = decode2(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
-      const minimalEmptyState =
-        Object.keys(state).length === 1 &&
-        state.format_version === '1.0' &&
-        identity.version === 4 &&
-        identity.terraform_version === manifest.terraformVersion &&
-        Array.isArray(identity.resources) &&
-        identity.resources.length === 0 &&
-        identity.outputs !== null &&
-        typeof identity.outputs === 'object' &&
-        !Array.isArray(identity.outputs) &&
-        Object.keys(identity.outputs).length === 0;
-      if (
-        state.format_version !== '1.0' ||
-        (state.terraform_version !== manifest.terraformVersion && !minimalEmptyState)
-      )
-        throw new Error('Terraform state format or version changed');
-      const module = object3(object3(state.values ?? {}).root_module ?? {});
-      const resources = module.resources ?? [];
-      if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
-      if (
-        (Array.isArray(module.child_modules) && module.child_modules.length) ||
-        resources
-          .map(object3)
-          .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
-      )
-        throw new Error('Foreign state resource requires reconciliation');
-      const result = {};
-      for (const [address, fields] of Object.entries(selections)) {
-        const reviewed = receipt.changes.filter((change) => change.address === address);
-        if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
-        const matches = resources.map(object3).filter((resource) => resource.address === address);
-        if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
-        if (!matches.length) {
-          result[address] = null;
-          continue;
-        }
-        const resource = matches[0];
-        if (
-          resource.mode !== (address.startsWith('data.') ? 'data' : 'managed') ||
-          resource.type !== reviewed[0].type ||
-          resource.type !== address.split('.')[address.startsWith('data.') ? 1 : 0]
-        )
-          throw new Error('Terraform state resource differs from reviewed identity');
-        if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
-        result[address] = projectResourceFields(object3(resource.values), resource.sensitive_values, fields);
-      }
+      const result = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
       if (digest2(snapshot) !== digest2(await privateRead(statePath)))
         throw new Error('Terraform state changed during identity inspection');
       await this.#verifyInputs();
@@ -23579,6 +23714,7 @@ export {
   openOriginalGcpObserverClientInstallation,
   prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant,
+  readCaptureCleanupAttemptResourceFields,
   readOriginalApplyGcpInventory,
   readOriginalEarlyGcpInsertBodies,
   readOriginalEarlyGcpInsertIdentity,

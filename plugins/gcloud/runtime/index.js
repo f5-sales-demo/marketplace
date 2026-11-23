@@ -766,517 +766,45 @@ var init_shared = __esm(() => {
   init_exec();
 });
 
-// plugins/gcloud/src/gcloud/formatters.ts
-function basename2(url) {
-  const idx = url.lastIndexOf('/');
-  return idx === -1 ? url : url.slice(idx + 1);
-}
-function normalizeConfig(raw) {
-  const core = raw.core ?? {};
-  const compute = raw.compute ?? {};
-  return {
-    project: String(core.project ?? ''),
-    account: String(core.account ?? ''),
-    region: String(compute.region ?? ''),
-    zone: String(compute.zone ?? ''),
-  };
-}
-function normalizeProject(raw) {
-  return {
-    projectId: String(raw.projectId ?? ''),
-    name: String(raw.name ?? ''),
-    projectNumber: String(raw.projectNumber ?? ''),
-    lifecycleState: String(raw.lifecycleState ?? ''),
-  };
-}
-function normalizeInstance(raw) {
-  const interfaces = raw.networkInterfaces ?? [];
-  const primary = interfaces[0] ?? {};
-  const accessConfigs = primary.accessConfigs ?? [];
-  const primaryAccess = accessConfigs[0] ?? {};
-  return {
-    name: String(raw.name ?? ''),
-    zone: basename2(String(raw.zone ?? '')),
-    machineType: basename2(String(raw.machineType ?? '')),
-    status: String(raw.status ?? ''),
-    internalIp: String(primary.networkIP ?? ''),
-    externalIp: String(primaryAccess.natIP ?? ''),
-  };
-}
-function normalizeBucket(raw) {
-  return {
-    name: String(raw.name ?? ''),
-    location: String(raw.location ?? ''),
-    storageClass: String(raw.storageClass ?? raw.storage_class ?? ''),
-    created: String(raw.timeCreated ?? raw.creation_time ?? ''),
-  };
-}
-function normalizeProjects(raw) {
-  return raw.map((item) => normalizeProject(item));
-}
-function normalizeInstances(raw) {
-  return raw.map((item) => normalizeInstance(item));
-}
-function normalizeBuckets(raw) {
-  return raw.map((item) => normalizeBucket(item));
-}
-function formatConfigDetail(config) {
-  return [
-    `**Project:** ${config.project || '-'}`,
-    `**Account:** ${config.account || '-'}`,
-    `**Region:** ${config.region || '-'}`,
-    `**Zone:** ${config.zone || '-'}`,
-  ].join(`
-`);
-}
-function formatProjectTable(projects) {
-  if (projects.length === 0) return 'No projects found.';
-  const header = '| Project ID | Name | Number | State |';
-  const sep = '|------------|------|--------|-------|';
-  const rows = projects.map(
-    (p) => `| ${p.projectId} | ${p.name || '-'} | ${p.projectNumber || '-'} | ${p.lifecycleState || '-'} |`,
-  );
-  return [header, sep, ...rows].join(`
-`);
-}
-function formatInstanceTable(instances) {
-  if (instances.length === 0) return 'No instances found.';
-  const header = '| Name | Zone | Machine Type | Status | Internal IP | External IP |';
-  const sep = '|------|------|--------------|--------|-------------|-------------|';
-  const rows = instances.map(
-    (i) =>
-      `| ${i.name} | ${i.zone} | ${i.machineType} | ${i.status} | ${i.internalIp || '-'} | ${i.externalIp || '-'} |`,
-  );
-  return [header, sep, ...rows].join(`
-`);
-}
-function formatBucketTable(buckets) {
-  if (buckets.length === 0) return 'No buckets found.';
-  const header = '| Name | Location | Storage Class | Created |';
-  const sep = '|------|----------|---------------|---------|';
-  const rows = buckets.map(
-    (b) => `| ${b.name} | ${b.location || '-'} | ${b.storageClass || '-'} | ${b.created || '-'} |`,
-  );
-  return [header, sep, ...rows].join(`
-`);
-}
-
-// plugins/gcloud/src/prompts/gcloud-config-list.md
-var gcloud_config_list_default =
-  '# Show Google Cloud CLI Configuration\n\nShow the active Google Cloud CLI configuration via `gcloud config list`.\n\nReturns the resolved project, account, region, and zone for the current `gcloud` configuration. Use this to confirm which project and identity subsequent commands will target.\n\nTakes no parameters. For richer configuration queries (all properties, named configurations), run `gcloud_exec` with `config list --all` and your own `--filter`/`--format` expressions.\n';
-var init_gcloud_config_list = () => {};
-
-// plugins/gcloud/src/tools/gcloud-config-list.ts
-function createGcloudConfigListTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({});
-  return {
-    name: 'gcloud_config_list',
-    label: 'Google Cloud Config',
-    description: gcloud_config_list_default,
-    parameters,
-    async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
-      const base = { tool: 'gcloud_config_list' };
-      const api = makeApi(ctx.cwd);
-      const args = ['config', 'list'];
-      try {
-        const raw = await execGcloudJson(api, args, signal);
-        const config = normalizeConfig(raw);
-        return textResult(formatConfigDetail(config), { ...base, config });
-      } catch (err) {
-        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
+// plugins/platform/src/ce/evidence-json.ts
+function decodeEvidenceObject(raw) {
+  const source = new TextDecoder('utf8', { fatal: true }).decode(raw);
+  const value = object(JSON.parse(source));
+  const scopes = [];
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    if (char === '{' || char === '[') {
+      if (scopes.length >= 64) throw new Error('Original JSON nesting exceeded');
+      scopes.push(char === '{' ? new Set() : null);
+    } else if (char === '}' || char === ']') scopes.pop();
+    else if (char === '"') {
+      const start = i++;
+      while (i < source.length && source[i] !== '"') {
+        if (source[i] === '\\') i++;
+        i++;
       }
-    },
-  };
+      let next = i + 1;
+      while (/\s/.test(source[next] ?? '') && next < source.length) next++;
+      if (source[next] === ':') {
+        const key = JSON.parse(source.slice(start, i + 1));
+        const keys = scopes.at(-1);
+        if (!keys || keys.has(key)) throw new Error('Duplicate original JSON identity');
+        keys.add(key);
+      }
+    }
+  }
+  return value;
 }
-var init_gcloud_config_list2 = __esm(() => {
-  init_exec();
-  init_gcloud_config_list();
-  init_shared();
-});
-
-// plugins/gcloud/src/prompts/gcloud-projects-list.md
-var gcloud_projects_list_default =
-  '# List Google Cloud Projects\n\nList the Google Cloud projects accessible to the active account via `gcloud projects list`.\n\nReturns a table of project ID, name, number, and lifecycle state.\n\n## Parameters\n\n| Parameter | Description                                                           |\n| --------- | --------------------------------------------------------------------- |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"lifecycleState=ACTIVE"` |\n| `limit`   | Optional positive integer capping the number of results               |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `projects list` and your own `--filter`/`--format` flags.\n';
-var init_gcloud_projects_list = () => {};
-
-// plugins/gcloud/src/tools/gcloud-projects-list.ts
-function createGcloudProjectsListTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    filter: Type.Optional(Type.String({ description: 'gcloud --filter expression, e.g. "lifecycleState=ACTIVE"' })),
-    limit: Type.Optional(Type.Number({ description: 'Maximum number of projects to return (positive integer)' })),
-  });
-  return {
-    name: 'gcloud_projects_list',
-    label: 'Google Cloud Projects',
-    description: gcloud_projects_list_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'gcloud_projects_list' };
-      if (params.limit !== undefined && (!Number.isInteger(params.limit) || params.limit <= 0)) {
-        return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
-      }
-      const api = makeApi(ctx.cwd);
-      const args = listArgs('projects', params);
-      try {
-        const raw = await execGcloudJson(api, args, signal);
-        const projects = normalizeProjects(raw);
-        return textResult(formatProjectTable(projects), { ...base, projects });
-      } catch (err) {
-        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
-      }
-    },
-  };
-}
-var init_gcloud_projects_list2 = __esm(() => {
-  init_exec();
-  init_gcloud_projects_list();
-  init_shared();
-});
-
-// plugins/gcloud/src/gcloud/types.ts
-var PROJECT_ID_PATTERN, ZONE_PATTERN, HELP_PATH_PATTERN;
-var init_types = __esm(() => {
-  PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-  ZONE_PATTERN = /^[a-z]+-[a-z]+\d-[a-z]$/;
-  HELP_PATH_PATTERN = /^[a-z][a-z0-9 -]*$/;
-});
-
-// plugins/gcloud/src/prompts/gcloud-compute-instances-list.md
-var gcloud_compute_instances_list_default =
-  '# List Compute Engine Instances\n\nList Compute Engine virtual machine instances via `gcloud compute instances list`.\n\nReturns a table of instance name, zone, machine type, status, and internal/external IP.\n\n## Parameters\n\n| Parameter | Description                                                                            |\n| --------- | -------------------------------------------------------------------------------------- |\n| `zone`    | Optional zone to restrict results (mapped to gcloud `--zones`), e.g. `"us-central1-a"` |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"status=RUNNING"`                         |\n| `limit`   | Optional positive integer capping the number of results                                |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `compute instances list` and your own `--filter`/`--format` flags.\n';
-var init_gcloud_compute_instances_list = () => {};
-
-// plugins/gcloud/src/tools/gcloud-compute-instances-list.ts
-function createGcloudComputeInstancesListTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    zone: Type.Optional(Type.String({ description: 'Restrict results to a zone, e.g. "us-central1-a"' })),
-    filter: Type.Optional(Type.String({ description: 'gcloud --filter expression, e.g. "status=RUNNING"' })),
-    limit: Type.Optional(Type.Number({ description: 'Maximum number of instances to return (positive integer)' })),
-  });
-  return {
-    name: 'gcloud_compute_instances_list',
-    label: 'Google Cloud Compute Instances',
-    description: gcloud_compute_instances_list_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'gcloud_compute_instances_list' };
-      if (params.zone !== undefined && !ZONE_PATTERN.test(params.zone)) {
-        return errorResult(`Error: invalid zone "${params.zone}". Expected a gcloud zone like "us-central1-a".`, base);
-      }
-      if (params.limit !== undefined && (!Number.isInteger(params.limit) || params.limit <= 0)) {
-        return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
-      }
-      const api = makeApi(ctx.cwd);
-      const args = listArgs('instances', params);
-      try {
-        const raw = await execGcloudJson(api, args, signal);
-        const instances = normalizeInstances(raw);
-        return textResult(formatInstanceTable(instances), { ...base, instances });
-      } catch (err) {
-        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
-      }
-    },
-  };
-}
-var init_gcloud_compute_instances_list2 = __esm(() => {
-  init_exec();
-  init_types();
-  init_gcloud_compute_instances_list();
-  init_shared();
-});
-
-// plugins/gcloud/src/prompts/gcloud-storage-buckets-list.md
-var gcloud_storage_buckets_list_default =
-  '# List Cloud Storage Buckets\n\nList Cloud Storage buckets via `gcloud storage buckets list`.\n\nReturns a table of bucket name, location, storage class, and creation time.\n\n## Parameters\n\n| Parameter | Description                                                 |\n| --------- | ----------------------------------------------------------- |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"location=US"` |\n| `limit`   | Optional positive integer capping the number of results     |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `storage buckets list` and your own `--filter`/`--format` flags.\n';
-var init_gcloud_storage_buckets_list = () => {};
-
-// plugins/gcloud/src/tools/gcloud-storage-buckets-list.ts
-function createGcloudStorageBucketsListTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    filter: Type.Optional(Type.String({ description: 'gcloud --filter expression, e.g. "location=US"' })),
-    limit: Type.Optional(Type.Number({ description: 'Maximum number of buckets to return (positive integer)' })),
-  });
-  return {
-    name: 'gcloud_storage_buckets_list',
-    label: 'Google Cloud Storage Buckets',
-    description: gcloud_storage_buckets_list_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'gcloud_storage_buckets_list' };
-      if (params.limit !== undefined && (!Number.isInteger(params.limit) || params.limit <= 0)) {
-        return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
-      }
-      const api = makeApi(ctx.cwd);
-      const args = listArgs('buckets', params);
-      try {
-        const raw = await execGcloudJson(api, args, signal);
-        const buckets = normalizeBuckets(raw);
-        return textResult(formatBucketTable(buckets), { ...base, buckets });
-      } catch (err) {
-        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
-      }
-    },
-  };
-}
-var init_gcloud_storage_buckets_list2 = __esm(() => {
-  init_exec();
-  init_gcloud_storage_buckets_list();
-  init_shared();
-});
-
-// plugins/gcloud/src/prompts/gcloud-exec.md
-var gcloud_exec_default = `# Execute Google Cloud CLI Commands
-
-Execute any \`gcloud\` CLI command directly.
-
-This is the general-purpose tool for running Google Cloud CLI commands that are not covered by the typed tools. Use typed tools when available \u2014 they validate inputs and return structured data.
-
-## Usage
-
-Pass the group, verb, and flags as an array of arguments. Do NOT include \`gcloud\` itself \u2014 it is prepended automatically.
-
-**Example:** To run \`gcloud compute instances list --filter="status=RUNNING"\`:
-
-\`\`\`json
-{ "args": ["compute", "instances", "list", "--filter=status=RUNNING"] }
-\`\`\`
-
-When the command starts with \`alpha\` or \`beta\`, the plugin checks local SDK
-component state and automatically installs that missing command group with
-\`gcloud components install <group> --quiet\`. Installation is coordinated across
-callers and verified before the requested command runs. Child CLI prompts are
-disabled. If the installation's component manager is unavailable or installation
-cannot be verified, the command fails with package-manager recovery guidance.
-Cloud write and credential guards still apply before group preparation.
-
-## Safety
-
-- Arguments are passed as an array directly to the \`gcloud\` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid \`gcloud\` invocation runs, including full \`--filter\` and \`--format\` expressions. Only NUL/control bytes are rejected.
-- **Read-only by default.** Only recognized read verbs run:
-  - Exact reads: \`list\`, \`describe\`, \`get-iam-policy\`, \`get-value\`, \`get-server-config\`, \`get-ancestors\`, \`list-grantable-roles\`, \`print-settings\`, \`version\`, \`info\`.
-  - Read prefixes: any verb starting with \`list-\` or \`describe-\`.
-  - Top-level: \`version\`, \`info\`, \`help\`, \`topic\`, \`cheat-sheet\`.
-- **Mutating verbs are blocked** (\`create\`, \`delete\`, \`update\`, \`patch\`, \`set\`, \`deploy\`, \`enable\`, \`disable\`, \`set-iam-policy\`, \`add-iam-policy-binding\`, \u2026). Run write/destructive operations through an explicitly confirmed path \u2014 delegate to the \`gcloud:cli-operator\` agent, not \`gcloud_exec\`.
-- **Execution and credential vectors are blocked** even though some look read-shaped: \`ssh\`, \`scp\`, \`connect\`, \`call\`, \`execute\`, \`interactive\`, \`login\`, \`revoke\`, \`get-credentials\`, \`print-access-token\`, \`print-identity-token\`, \`reset-windows-password\`, \`simulate-maintenance-event\`, \`enable-service\`, \`configure-docker\`.
-  These open sessions, run code, or mint/print credentials \u2014 route them through the \`gcloud:cli-operator\` agent.
-- Unrecognized verbs are blocked (fail-safe): provide an explicit read-only verb.
-- Output is capped to prevent context overflow.
-
-## Querying: \`--filter\` vs \`--format\`
-
-gcloud splits querying into two distinct, complementary flags. This is **not** Azure \`--query\` (JMESPath): filtering and projection are separate.
-
-### \`--filter\` \u2014 server-side selection (which resources)
-
-Restricts *which* resources are returned, evaluated before results are sent back.
-
-- Equality: \`--filter="status=RUNNING"\` (\`key=value\`)
-- Boolean logic: \`--filter="status=RUNNING AND zone:us-central1"\` (\`AND\` / \`OR\`)
-- Substring match: \`--filter="name:prod"\` (\`:\` \u2014 has-substring)
-- Regex match: \`--filter="name~^web-.*"\` (\`~\`)
-
-### \`--format\` \u2014 client-side projection (how to show it)
-
-Shapes *how* the selected resources are rendered locally.
-
-- \`--format=json\` (default when you pass no \`--format\`)
-- \`--format=value(name)\` \u2014 bare field value(s), no keys
-- \`--format="table(name,status,zone)"\` \u2014 tabular columns
-- \`--format=csv(name,status)\` \u2014 comma-separated
-- \`--format=yaml\` \u2014 YAML document
-- \`--format=flattened\` \u2014 flat \`key: value\` lines
-
-## Tips
-
-- \`--format=json\` is added automatically unless you pass your own \`--format\` (e.g. \`--format="table(name)"\`, \`--format=yaml\`), which is respected.
-- \`--limit=N\` caps the number of results; \`--sort-by=field\` orders them.
-- \`--project=PROJECT_ID\` targets a specific Google Cloud project.
-- Combine freely: \`["compute", "instances", "list", "--filter=status=RUNNING", "--sort-by=name", "--format=value(name)"]\`.
-`;
-var init_gcloud_exec = () => {};
-
-// plugins/gcloud/src/tools/gcloud-exec.ts
-function createGcloudExecTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "gcloud" itself)' }), {
-      description: 'gcloud group, verb, and flags as an array, e.g. ["compute", "instances", "list", "--format=json"]',
-    }),
-  });
-  return {
-    name: 'gcloud_exec',
-    label: 'Google Cloud CLI Execute',
-    description: gcloud_exec_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'gcloud_exec' };
-      const args = params.args ?? [];
-      if (args.length === 0) {
-        return errorResult('Error: args array must not be empty. Provide a gcloud group and verb.', base);
-      }
-      for (const arg of args) {
-        if (hasControlChars(arg)) {
-          return errorResult(
-            `Error: argument contains a control character and cannot be passed to gcloud: "${arg}"`,
-            base,
-          );
-        }
-      }
-      const c = checkGcloud(args);
-      if (c.blocked) {
-        return errorResult(`Error: ${c.reason}`, base);
-      }
-      try {
-        const api = makeApi(ctx.cwd);
-        const result = await api.exec('gcloud', buildGcloudArgs(args), { signal });
-        if (result.exitCode !== 0) {
-          const failure = detectGcloudError(result.stderr || result.stdout, result.exitCode);
-          return errorResult(`gcloud command failed (exit ${result.exitCode}): ${failure.message}`, {
-            ...base,
-            errorType: detectErrorType(failure),
-          });
-        }
-        let output = result.stdout;
-        const fullOutput = output;
-        if (output.length > MAX_OUTPUT_LENGTH) {
-          output = `${output.slice(0, MAX_OUTPUT_LENGTH)}
-
-[Output truncated at ${MAX_OUTPUT_LENGTH} characters]`;
-        }
-        return textResult(output, { ...base, fullOutput, modelPreviewTruncated: output !== fullOutput });
-      } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
-          ...base,
-          errorType: detectErrorType(err),
-        });
-      }
-    },
-  };
-}
-var MAX_OUTPUT_LENGTH = 50000;
-var init_gcloud_exec2 = __esm(() => {
-  init_exec();
-  init_gcloud_exec();
-  init_gcloud_exec_guard();
-  init_shared();
-});
-
-// plugins/gcloud/src/prompts/gcloud-help.md
-var gcloud_help_default = `# View Google Cloud CLI Help
-
-Fetch help documentation for any \`gcloud\` CLI group or command.
-
-Use this tool to discover available groups, commands, and flags for Google Cloud CLI operations that are not covered by the embedded typed tools.
-
-## Usage
-
-Pass the command path (without the \`gcloud\` prefix) to get help. The tool appends \`--help\` for you.
-
-Paths beginning with \`alpha\` or \`beta\` automatically prepare the matching missing
-SDK command group before loading help. Installation uses noninteractive CLI
-arguments and verifies local component state. An unavailable component manager
-returns explicit package-manager recovery guidance.
-
-**Example:** To see help for the \`compute instances\` group:
-
-\`\`\`json
-{ "command_path": "compute instances" }
-\`\`\`
-
-**Example:** To see help for a top-level group:
-
-\`\`\`json
-{ "command_path": "projects" }
-\`\`\`
-
-**Example:** To see top-level \`gcloud\` help:
-
-\`\`\`json
-{ "command_path": "" }
-\`\`\`
-
-## When to Use
-
-- Before using \`gcloud_exec\` with an unfamiliar group or command
-- To discover available commands within a group
-- To find the correct flags for a specific command (e.g. \`--filter\`, \`--format\`)
-- To check required versus optional arguments
-
-## Output
-
-Returns the raw \`gcloud <command> --help\` output as plain text, including available commands, flags, and usage examples. Once you know the command, run the read through \`gcloud_exec\`.
-`;
-var init_gcloud_help = () => {};
-
-// plugins/gcloud/src/tools/gcloud-help.ts
-function createGcloudHelpTool(pi, makeApi = makeExecApi) {
-  const { Type } = pi.typebox;
-  const parameters = Type.Object({
-    command_path: Type.Optional(
-      Type.String({
-        description:
-          'Command path without "gcloud" prefix, e.g. "compute instances" or "projects". Empty for top-level help.',
-      }),
-    ),
-  });
-  return {
-    name: 'gcloud_help',
-    label: 'Google Cloud CLI Help',
-    description: gcloud_help_default,
-    parameters,
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const base = { tool: 'gcloud_help' };
-      const commandPath = params.command_path?.trim() ?? '';
-      if (commandPath.length > 0 && !HELP_PATH_PATTERN.test(commandPath)) {
-        return errorResult(
-          `Error: invalid command path "${commandPath}". Only lowercase letters, digits, hyphens, and spaces are allowed.`,
-          base,
-        );
-      }
-      const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
-      if (parts.some((p) => p.startsWith('-'))) {
-        return errorResult(
-          `Error: invalid command path "${commandPath}". Command path parts must not start with "-".`,
-          base,
-        );
-      }
-      const args = helpArgs(params.command_path);
-      const api = makeApi(ctx.cwd);
-      try {
-        const result = await api.exec('gcloud', args, { signal });
-        if (result.exitCode !== 0) {
-          const msg = result.stderr || result.stdout || `gcloud ${commandPath} --help failed (exit ${result.exitCode})`;
-          return errorResult(`Error: ${msg}`, { ...base, errorType: 'exec_error' });
-        }
-        const output = result.stdout || result.stderr;
-        if (!output.trim()) {
-          return errorResult(`No help output for "gcloud ${commandPath}".`, { ...base, errorType: 'exec_error' });
-        }
-        return textResult(output, base);
-      } catch (err) {
-        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
-          ...base,
-          errorType: detectErrorType(err),
-        });
-      }
-    },
-  };
-}
-var init_gcloud_help2 = __esm(() => {
-  init_types();
-  init_gcloud_help();
-  init_shared();
-});
+var object = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
+  return value;
+};
 
 // plugins/gcloud/src/ce/types.ts
 var GCP_CE_POLICY = 'f5xc-ce-automation-policy/v2',
   GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public',
   GCP_CE_OPERATIONS;
-var init_types2 = __esm(() => {
+var init_types = __esm(() => {
   GCP_CE_OPERATIONS = [
     'deploy',
     'reconcile',
@@ -1290,6 +818,14 @@ var init_types2 = __esm(() => {
     'failover',
     'teardown',
   ];
+});
+
+// plugins/gcloud/src/gcloud/types.ts
+var PROJECT_ID_PATTERN, ZONE_PATTERN, HELP_PATH_PATTERN;
+var init_types2 = __esm(() => {
+  PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+  ZONE_PATTERN = /^[a-z]+-[a-z]+\d-[a-z]$/;
+  HELP_PATH_PATTERN = /^[a-z][a-z0-9 -]*$/;
 });
 
 // plugins/gcloud/src/ce/site-access.ts
@@ -1627,10 +1163,10 @@ function validateIntent(intent) {
 }
 var NAME;
 var init_validation = __esm(() => {
-  init_types();
+  init_types2();
   init_observer_scope();
   init_site_access();
-  init_types2();
+  init_types();
   NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
 });
 
@@ -1756,7 +1292,377 @@ async function discoverGcp(api, project, region, signal) {
 }
 var init_discovery = __esm(() => {
   init_exec();
-  init_types2();
+  init_types();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/request-reason.ts
+import { randomUUID as randomUUID2 } from 'node:crypto';
+
+function createGcpTerraformRequestReason(intent) {
+  validateIntent(intent);
+  if (intent.engine !== 'terraform' || intent.operation !== 'deploy')
+    throw new Error('Original Terraform deployment intent required for request reason');
+  return Object.freeze({
+    schemaVersion: 1,
+    scope: 'gcp-terraform-deployment',
+    intentFingerprint: fingerprint(intent),
+    reason: `xcsh-gcp-${randomUUID2()}`,
+  });
+}
+function assertGcpTerraformRequestReason(value, intent, googleVersion) {
+  validateIntent(intent);
+  const reason = value;
+  if (
+    !reason ||
+    typeof reason !== 'object' ||
+    Array.isArray(reason) ||
+    Object.keys(reason).sort().join(',') !== 'intentFingerprint,reason,schemaVersion,scope' ||
+    reason.schemaVersion !== 1 ||
+    reason.scope !== 'gcp-terraform-deployment' ||
+    intent.engine !== 'terraform' ||
+    intent.operation !== 'deploy' ||
+    !['8.7.0', '8.10.0', '8.11.0', '8.12.0'].includes(googleVersion) ||
+    reason.intentFingerprint !== fingerprint(intent) ||
+    typeof reason.reason !== 'string' ||
+    !reasonPattern.test(reason.reason)
+  )
+    throw new Error('Reviewed original GCP Terraform request reason and provider mapping required');
+}
+var reasonPattern;
+var init_request_reason = __esm(() => {
+  init_discovery();
+  init_validation();
+  reasonPattern = /^xcsh-gcp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+});
+
+// plugins/gcloud/src/ce/compute-plan.ts
+function assertComputeOnly(intent) {
+  if (
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new Error('Compute translation cannot configure ingress or destination routes');
+}
+function translateGcpNativeCompute(intent) {
+  validateIntent(intent);
+  assertGcpSiteAccessProfile(intent);
+  if (intent.engine !== 'native') throw new Error('Native translation requires native ownership');
+  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
+    throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
+  const actions = [];
+  const networks = new Map();
+  for (const site of intent.sites)
+    for (const node of site.nodes)
+      for (const nic of node.interfaces) {
+        const prior = networks.get(nic.network);
+        if (prior && (prior.subnet !== nic.subnet || prior.cidr !== nic.cidr))
+          throw new Error('Shared network identity has conflicting subnet intent');
+        networks.set(nic.network, { subnet: nic.subnet, cidr: nic.cidr });
+      }
+  const scope = `--project=${intent.project}`;
+  for (const [network, subnet] of networks) {
+    actions.push({
+      id: `network-${network}`,
+      kind: 'network',
+      argv: [
+        'compute',
+        'networks',
+        'create',
+        network,
+        scope,
+        '--subnet-mode=custom',
+        '--bgp-routing-mode=REGIONAL',
+        '--quiet',
+        '--format=json',
+      ],
+      dependencies: [],
+    });
+    actions.push({
+      id: `subnetwork-${subnet.subnet}`,
+      kind: 'subnetwork',
+      argv: [
+        'compute',
+        'networks',
+        'subnets',
+        'create',
+        subnet.subnet,
+        scope,
+        `--region=${intent.region}`,
+        `--network=${network}`,
+        `--range=${subnet.cidr}`,
+        '--quiet',
+        '--format=json',
+      ],
+      dependencies: [`network-${network}`],
+    });
+  }
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const argv = [
+        'compute',
+        'instances',
+        'create',
+        node.name,
+        scope,
+        `--zone=${node.zone}`,
+        `--machine-type=${intent.machineType}`,
+        `--image=${intent.image.name}`,
+        '--image-project=f5-7626-networks-public',
+        `--boot-disk-size=${intent.diskGiB}GB`,
+        '--boot-disk-type=pd-balanced',
+        '--can-ip-forward',
+        '--no-service-account',
+        '--no-scopes',
+        `--labels=xcsh-deployment=${intent.deploymentName},xcsh-engine=native,xcsh-site=${site.name},xcsh-node=${node.name}`,
+      ];
+      for (const nic of node.interfaces)
+        argv.push(
+          `--network-interface=network=${nic.network},subnet=${nic.subnet}${nic.index === 0 ? '' : ',no-address'}`,
+        );
+      argv.push('--metadata=VmDnsSetting=ZonePreferred', '--async', '--quiet', '--format=json');
+      actions.push({
+        id: `instance-${node.name}`,
+        kind: 'instance',
+        argv,
+        dependencies: node.interfaces.map((nic) => `subnetwork-${nic.subnet}`),
+        sensitiveInput: 'restricted-node-metadata-file',
+      });
+    }
+  if (new Set(actions.map((a) => a.id)).size !== actions.length) throw new Error('GCP action identities collide');
+  return { schemaVersion: 1, engine: 'native', executable: false, actions, sha256: fingerprint({ intent, actions }) };
+}
+function translateGcpTerraformCompute(intent, googleProviderVersion, requestReason) {
+  validateIntent(intent);
+  if (intent.schemaVersion === 2) throw new Error('Observer intent requires the version3 original configuration');
+  if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
+  if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
+  if (requestReason !== undefined) assertGcpTerraformRequestReason(requestReason, intent, googleProviderVersion);
+  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
+    throw new Error('Compute candidate supports external-IP deployment only');
+  assertComputeOnly(intent);
+  const networks = {},
+    subnets = {},
+    instances = {};
+  const variable = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      for (const nic of node.interfaces) {
+        networks[nic.network.replaceAll('-', '_')] = {
+          name: nic.network,
+          project: intent.project,
+          auto_create_subnetworks: false,
+          routing_mode: 'REGIONAL',
+        };
+        const key = nic.subnet.replaceAll('-', '_');
+        const subnet = {
+          name: nic.subnet,
+          project: intent.project,
+          region: intent.region,
+          ip_cidr_range: nic.cidr,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
+        };
+        if (subnets[key] && fingerprint(subnets[key]) !== fingerprint(subnet))
+          throw new Error('Subnet identity has conflicting intent');
+        subnets[key] = subnet;
+      }
+      const key = node.name.replaceAll('-', '_');
+      variable[`${key}_user_data`] = {
+        type: 'string',
+        sensitive: true,
+        description: 'Restricted node-bound one-use bootstrap; never export as an output',
+      };
+      instances[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        machine_type: intent.machineType,
+        can_ip_forward: true,
+        boot_disk: [
+          {
+            auto_delete: true,
+            initialize_params: [{ image: intent.image.selfLink, size: intent.diskGiB, type: 'pd-balanced' }],
+          },
+        ],
+        network_interface: node.interfaces.map((nic) => ({
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
+          subnetwork: `\${google_compute_subnetwork.${nic.subnet.replaceAll('-', '_')}.id}`,
+          ...(nic.index === 0 ? { access_config: [{}] } : {}),
+        })),
+        labels: {
+          'xcsh-deployment': intent.deploymentName,
+          'xcsh-engine': 'terraform',
+          'xcsh-site': site.name,
+          'xcsh-node': node.name,
+        },
+        metadata: { VmDnsSetting: 'ZonePreferred', 'user-data': `\${var.${key}_user_data}` },
+      };
+    }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_providers: { google: { source: 'hashicorp/google', version: `= ${googleProviderVersion}` } },
+      },
+      provider: {
+        google: [
+          {
+            project: intent.project,
+            region: intent.region,
+            ...(requestReason !== undefined ? { request_reason: requestReason.reason } : {}),
+          },
+        ],
+      },
+      variable,
+      resource: {
+        google_compute_network: networks,
+        google_compute_subnetwork: subnets,
+        google_compute_instance: instances,
+      },
+    },
+  };
+}
+function translateGcpTerraformSiteCompute(intent, versions, requestReason) {
+  for (const version of Object.values(versions))
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
+  const cloud = translateGcpTerraformCompute(intent, versions.google, requestReason);
+  const access = gcpSiteAccessSpec(intent, versions.xcsh);
+  const sites = {};
+  const tokens = {};
+  const instances = cloud.configuration.resource.google_compute_instance;
+  for (const site of intent.sites) {
+    const siteKey = site.name.replaceAll('-', '_');
+    sites[siteKey] = {
+      name: site.name,
+      namespace: 'system',
+      labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
+      gcp: { not_managed: {} },
+      ...(intent.initialVersions
+        ? {
+            software_settings: {
+              sw: { volterra_software_version: intent.initialVersions.software },
+              os: { operating_system_version: intent.initialVersions.os },
+            },
+          }
+        : {}),
+      ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
+      disable_management_network: {},
+      ...(access ?? { block_all_services: {} }),
+      no_network_policy: {},
+      no_forward_proxy: {},
+      f5_proxy: {},
+      no_proxy_bypass: {},
+      logs_streaming_disabled: {},
+      no_s2s_connectivity_sli: {},
+      no_s2s_connectivity_slo: {},
+      disable_url_categorization: {},
+      local_vrf: { default_config: {}, default_sli_config: {} },
+    };
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      if (`${node.name}-token`.length > 63) throw new Error('Node name leaves no space for bound token name');
+      tokens[key] = {
+        name: `${node.name}-token`,
+        namespace: 'system',
+        type: 1,
+        site_name: `\${xcsh_securemesh_site_v2.${siteKey}.name}`,
+        labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-node': node.name, 'xcsh-engine': 'terraform' },
+      };
+      const userData = `#cloud-config
+write_files:
+  - path: /etc/vpm/user_data
+    permissions: "0600"
+    owner: root
+    content: |
+      token: \${xcsh_token.${key}.content}
+`;
+      instances[key].metadata = {
+        VmDnsSetting: 'ZonePreferred',
+        'user-data': `\${sensitive(${JSON.stringify(userData)})}`,
+      };
+    }
+  }
+  return {
+    schemaVersion: 1,
+    engine: 'terraform',
+    executable: false,
+    configuration: {
+      terraform: {
+        required_version: `= ${versions.terraform}`,
+        required_providers: {
+          google: { source: 'hashicorp/google', version: `= ${versions.google}` },
+          xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${versions.xcsh}` },
+        },
+      },
+      provider: { ...cloud.configuration.provider, xcsh: [{}] },
+      resource: { ...cloud.configuration.resource, xcsh_securemesh_site_v2: sites, xcsh_token: tokens },
+    },
+  };
+}
+function translateGcpPublicTerraformSiteCompute(intent, versions, requestReason) {
+  const translated = translateGcpTerraformSiteCompute(intent, versions, requestReason);
+  const disks = {};
+  for (const site of intent.sites)
+    for (const node of site.nodes) {
+      const key = node.name.replaceAll('-', '_');
+      disks[key] = {
+        name: node.name,
+        project: intent.project,
+        zone: node.zone,
+        image: intent.image.selfLink,
+        size: intent.diskGiB,
+        type: 'pd-balanced',
+      };
+      const instance = translated.configuration.resource.google_compute_instance[key];
+      instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
+    }
+  const firewalls = {};
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
+    const tag = `${site.name}-ha-peer`;
+    const dependencies = [];
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['INGRESS', 'EGRESS']) {
+        const name = `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`;
+        if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for firewall identity');
+        const key = name.replaceAll('-', '_');
+        firewalls[key] = {
+          name,
+          project: intent.project,
+          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.self_link}`,
+          direction,
+          ...(direction === 'INGRESS' ? { source_ranges: ['0.0.0.0/0'] } : { destination_ranges: ['0.0.0.0/0'] }),
+          target_tags: [tag],
+          allow: [{ protocol: 'all' }],
+        };
+        dependencies.push(`google_compute_firewall.${key}`);
+      }
+    for (const node of site.nodes) {
+      const instance = translated.configuration.resource.google_compute_instance[node.name.replaceAll('-', '_')];
+      instance.tags = [...new Set([...(instance.tags ?? []), tag])];
+      instance.depends_on = dependencies;
+    }
+  }
+  return {
+    ...translated,
+    schemaVersion: 2,
+    configuration: {
+      ...translated.configuration,
+      resource: {
+        ...translated.configuration.resource,
+        google_compute_disk: disks,
+        ...(Object.keys(firewalls).length ? { google_compute_firewall: firewalls } : {}),
+      },
+    },
+  };
+}
+var init_compute_plan = __esm(() => {
+  init_discovery();
+  init_request_reason();
+  init_site_access();
   init_validation();
 });
 
@@ -1779,7 +1685,7 @@ function matchesGcpOperationalPod(pod, mapping) {
   );
 }
 function qualifiedOperationalProfile(value, pinnedFingerprint) {
-  const p = object(value);
+  const p = object2(value);
   if (
     !p ||
     !HASH.test(pinnedFingerprint) ||
@@ -1791,7 +1697,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   )
     return false;
   for (const field of ['sourceHashes', 'parserVersions', 'roles', 'qualification'])
-    if (!object(p[field]) || !Object.keys(p[field]).length) return false;
+    if (!object2(p[field]) || !Object.keys(p[field]).length) return false;
   if (
     !Object.values(p.sourceHashes).every((hash) => typeof hash === 'string' && HASH.test(hash)) ||
     !Object.values(p.parserVersions).every(
@@ -1817,7 +1723,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   if (
     !Array.isArray(p.exclusions) ||
     p.exclusions.some((raw) => {
-      const e = object(raw);
+      const e = object2(raw);
       return (
         !e ||
         !GCP_OPERATIONAL_AUXILIARIES.includes(e.service) ||
@@ -1830,7 +1736,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   )
     return false;
   for (const [name, raw] of Object.entries(p.roles)) {
-    const role = object(raw);
+    const role = object2(raw);
     if (
       !NAME2.test(name) ||
       !role ||
@@ -1841,7 +1747,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
     )
       return false;
     if (role.runtimeRole !== undefined && !names([role.runtimeRole])) return false;
-    const containers = role.containers.map(object);
+    const containers = role.containers.map(object2);
     if (
       containers.some(
         (c) =>
@@ -1883,7 +1789,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   for (const service of GCP_OPERATIONAL_CORE_SEED)
     if (!declaredRoles.some((role) => role.components.includes(service))) return false;
   if (p.placementCounts !== undefined) {
-    const counts = object(p.placementCounts);
+    const counts = object2(p.placementCounts);
     const required = new Set([
       ...p.inventoryServices,
       ...declaredRoles.flatMap((role) => role.containers.map((c) => c.service)),
@@ -1919,7 +1825,7 @@ function hasGcpOperationalPlacementCoverage(profile, roles) {
 }
 function validBinding(value) {
   if (
-    !object(value) ||
+    !object2(value) ||
     !NAME2.test(value.siteName) ||
     ![
       value.contextFingerprint,
@@ -1934,7 +1840,7 @@ function validBinding(value) {
   return (
     value.nodes.every(
       (node) =>
-        object(node) &&
+        object2(node) &&
         NAME2.test(node.nodeName) &&
         /^\d+$/.test(node.instanceId) &&
         NAME2.test(node.role) &&
@@ -1954,7 +1860,7 @@ function validBinding(value) {
 function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFingerprint, now = Date.now()) {
   const reasons = new Set();
   const profile = qualifiedOperationalProfile(profileValue, pinnedFingerprint) ? profileValue : undefined;
-  const c = object(value);
+  const c = object2(value);
   if (!profile) reasons.add('operational-contract-unqualified');
   if (!validBinding(expected)) reasons.add('invalid-original-binding');
   if (
@@ -1994,23 +1900,23 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
   const finish = typeof c?.finishedAt === 'string' ? Date.parse(c.finishedAt) : NaN;
   if (![start, finish, now].every(Number.isFinite) || start > finish || finish > now || now - start > 300000)
     reasons.add('stale-or-malformed-observation');
-  const rawNodes = Array.isArray(c?.nodes) ? c.nodes.map(object) : [];
+  const rawNodes = Array.isArray(c?.nodes) ? c.nodes.map(object2) : [];
   const expectedNodes = Array.isArray(expected.nodes) ? expected.nodes : [];
   if (
     rawNodes.length !== 3 ||
-    rawNodes.some((row) => !row || !expectedNodes.some((node) => object(node) && node.nodeName === row.nodeName)) ||
+    rawNodes.some((row) => !row || !expectedNodes.some((node) => object2(node) && node.nodeName === row.nodeName)) ||
     new Set(rawNodes.map((row) => row?.nodeName)).size !== 3
   )
     reasons.add('invalid-observed-node-set');
   const nodes = expectedNodes
-    .filter((node) => object(node))
+    .filter((node) => object2(node))
     .map((node) => {
       const row = rawNodes.find((row) => row?.nodeName === node.nodeName);
       const checks = [];
       const check = (name, state, reasonCode) =>
         checks.push({ check: name, state, ...(state !== 'healthy' && reasonCode ? { reasonCode } : {}) });
       const read = (key) => {
-        const r = object(row?.[key]);
+        const r = object2(row?.[key]);
         const at = typeof r?.observedAt === 'string' ? Date.parse(r.observedAt) : NaN;
         if (
           r?.available !== true ||
@@ -2031,7 +1937,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
         return r.projection;
       };
       const registrationValue = read('registration');
-      const registration = object(registrationValue);
+      const registration = object2(registrationValue);
       if (registrationValue !== undefined && !registration)
         check('registration', 'unknown', 'required-projection-malformed');
       if (registration)
@@ -2060,7 +1966,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       const role = profile?.roles[node.role];
       if (!role) check('role', 'unknown', 'role-requalification-required');
       const siteValue = read('siteStatus');
-      const site = object(siteValue);
+      const site = object2(siteValue);
       if (siteValue !== undefined && !site) check('siteStatus', 'unknown', 'required-projection-malformed');
       if (site) {
         if (role?.runtimeRole)
@@ -2101,7 +2007,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       }
       const components = read('components');
       if (components !== undefined) {
-        const rows = Array.isArray(components) ? components.map(object) : [];
+        const rows = Array.isArray(components) ? components.map(object2) : [];
         if (
           !rows.length ||
           rows.some((r) => !r || typeof r.name !== 'string' || typeof r.state !== 'string') ||
@@ -2128,7 +2034,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       const inventory = read('inventory');
       let repeatedReferences = 0;
       if (inventory !== undefined) {
-        const rows = Array.isArray(inventory) ? inventory.map(object) : [];
+        const rows = Array.isArray(inventory) ? inventory.map(object2) : [];
         const identities = new Map();
         let invalid = !rows.length;
         for (const r of rows) {
@@ -2161,7 +2067,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       }
       const runtime = read('runtime');
       if (runtime !== undefined) {
-        const envelope = object(runtime);
+        const envelope = object2(runtime);
         if (profile?.placementCounts)
           check(
             'runtime-placement',
@@ -2169,7 +2075,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
             'runtime-placement-requalification-required',
           );
         const entries = profile?.placementCounts ? envelope?.containers : runtime;
-        const rows = Array.isArray(entries) ? entries.map(object) : [];
+        const rows = Array.isArray(entries) ? entries.map(object2) : [];
         if (
           !rows.length ||
           rows.some(
@@ -2201,7 +2107,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
           }
       }
       const diagnosticsValue = read('diagnostics');
-      const diagnostics = object(diagnosticsValue);
+      const diagnostics = object2(diagnosticsValue);
       if (diagnosticsValue !== undefined && !diagnostics)
         check('diagnostics', 'unknown', 'required-projection-malformed');
       if (diagnostics) {
@@ -2215,7 +2121,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
         )
           check('peers', 'unknown', 'diagnostic-peer-join-mismatch');
         for (const name of role?.diagnostics ?? []) {
-          const state = object(diagnostics.checks)?.[name];
+          const state = object2(diagnostics.checks)?.[name];
           check(
             `diagnostic:${name}`,
             state === 'pass' ? 'healthy' : state === 'fail' ? 'degraded' : 'unknown',
@@ -2270,7 +2176,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
   return { ...projection, projectionFingerprint: fingerprint(projection) };
 }
 function qualifiedOperationalRelease(value, pinnedReceiptFingerprint, contractFingerprint) {
-  const receipt = object(value);
+  const receipt = object2(value);
   return (
     !!receipt &&
     HASH.test(pinnedReceiptFingerprint) &&
@@ -2296,7 +2202,7 @@ var GCP_OPERATIONAL_CORE_SEED,
   GCP_OPERATIONAL_AUXILIARIES,
   HASH,
   NAME2,
-  object = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined),
+  object2 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined),
   names = (value) =>
     Array.isArray(value) &&
     value.length > 0 &&
@@ -2762,287 +2668,6 @@ var init_contract = __esm(() => {
   };
 });
 
-// plugins/platform/src/ce/deployment-store.ts
-var init_deployment_store = () => {};
-
-// plugins/platform/src/ce/evidence-json.ts
-function decodeEvidenceObject(raw) {
-  const source = new TextDecoder('utf8', { fatal: true }).decode(raw);
-  const value = object2(JSON.parse(source));
-  const scopes = [];
-  for (let i = 0; i < source.length; i++) {
-    const char = source[i];
-    if (char === '{' || char === '[') {
-      if (scopes.length >= 64) throw new Error('Original JSON nesting exceeded');
-      scopes.push(char === '{' ? new Set() : null);
-    } else if (char === '}' || char === ']') scopes.pop();
-    else if (char === '"') {
-      const start = i++;
-      while (i < source.length && source[i] !== '"') {
-        if (source[i] === '\\') i++;
-        i++;
-      }
-      let next = i + 1;
-      while (/\s/.test(source[next] ?? '') && next < source.length) next++;
-      if (source[next] === ':') {
-        const key = JSON.parse(source.slice(start, i + 1));
-        const keys = scopes.at(-1);
-        if (!keys || keys.has(key)) throw new Error('Duplicate original JSON identity');
-        keys.add(key);
-      }
-    }
-  }
-  return value;
-}
-var object2 = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
-  return value;
-};
-
-// plugins/platform/src/ce/gcp-http-capture.ts
-import { createHash as createHash5 } from 'node:crypto';
-
-async function assertOriginalGcpPlatformHttpBody(value) {
-  const issued = bodies.get(value);
-  if (!issued || hash2(value.bytes) !== issued.sha256) throw new Error('Original GCP Platform HTTP body required');
-  await issued.assertOriginal();
-}
-var hash2 = (bytes) => createHash5('sha256').update(bytes).digest('hex'),
-  bodies;
-var init_gcp_http_capture = __esm(() => {
-  bodies = new WeakMap();
-});
-
-// plugins/platform/src/ce/security.ts
-function containsControlCharacters(value) {
-  return Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || code === 127;
-  });
-}
-var init_security = () => {};
-
-// plugins/platform/src/ce/gcp-bootstrap-evidence.ts
-import { createHash as createHash6 } from 'node:crypto';
-
-function object3(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('Original bootstrap ownership object required');
-  return value;
-}
-function required(value, key) {
-  if (!Object.hasOwn(value, key)) throw new Error('Original bootstrap ownership field required');
-  return value[key];
-}
-async function original(body, path, owner) {
-  await assertOriginalGcpPlatformHttpBody(body);
-  const record = body.evidence,
-    now = Date.now();
-  if (
-    record.path !== path ||
-    record.method !== 'GET' ||
-    record.status !== 200 ||
-    !record.responseComplete ||
-    !record.accepted ||
-    record.truncated ||
-    ['provider', 'engine', 'account', 'region', 'deploymentId'].some((key) => record.owner[key] !== owner[key])
-  )
-    throw new Error('Original bootstrap ownership response required');
-  const started = Date.parse(record.startedAt),
-    finished = Date.parse(record.finishedAt);
-  if (
-    !Number.isFinite(started) ||
-    !Number.isFinite(finished) ||
-    finished < started ||
-    finished > now ||
-    now - started >= 300000
-  )
-    throw new Error('Original bootstrap ownership evidence is stale');
-  return decodeEvidenceObject(body.bytes);
-}
-function metadata(value, expectedName, expectedUid, binding, node) {
-  const meta = object3(required(value, 'metadata')),
-    labels = object3(required(meta, 'labels')),
-    system = object3(required(value, 'system_metadata'));
-  if (
-    required(meta, 'name') !== expectedName ||
-    required(meta, 'namespace') !== 'system' ||
-    required(system, 'uid') !== expectedUid ||
-    required(labels, 'xcsh-deployment') !== binding.deploymentName ||
-    required(labels, 'xcsh-engine') !== binding.owner.engine ||
-    (node !== undefined && required(labels, 'xcsh-node') !== node)
-  )
-    throw new Error('Original bootstrap ownership differs');
-}
-function jwt(value) {
-  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value))
-    throw new Error('Original site-bound JWT required');
-  const segment = value.split('.')[1],
-    raw = Buffer.from(segment, 'base64url');
-  if (raw.toString('base64url') !== segment) throw new Error('Original JWT encoding required');
-  let claims;
-  try {
-    claims = decodeEvidenceObject(raw);
-  } catch {
-    throw new Error('Original JWT claims required');
-  }
-  const exp = claims.exp;
-  if (
-    !Object.hasOwn(claims, 'exp') ||
-    typeof exp !== 'number' ||
-    !Number.isSafeInteger(exp) ||
-    !Number.isFinite(new Date(exp * 1000).getTime()) ||
-    exp * 1000 <= Date.now() + 60000
-  )
-    throw new Error('Original JWT expiry is missing or too near');
-  return { jwt: value, expiresAt: new Date(exp * 1000).toISOString() };
-}
-async function inspectOriginalGcpBootstrap(site, token, input) {
-  const binding = structuredClone(input);
-  if (
-    binding?.owner?.provider !== 'gcp' ||
-    !['native', 'terraform'].includes(binding.owner.engine) ||
-    [binding.deploymentName, binding.siteName, binding.nodeName, binding.tokenName].some(
-      (value) => typeof value !== 'string' || !name2.test(value),
-    ) ||
-    [binding.siteUid, binding.tokenUid].some(
-      (value) => typeof value !== 'string' || !value || value.length > 128 || containsControlCharacters(value),
-    )
-  )
-    throw new Error('Original bootstrap ownership binding required');
-  const siteValue = await original(
-    site,
-    `/api/config/namespaces/system/securemesh_site_v2s/${binding.siteName}`,
-    binding.owner,
-  );
-  const tokenValue = await original(
-    token,
-    `/api/register/namespaces/system/tokens/${binding.tokenName}`,
-    binding.owner,
-  );
-  if (
-    site.evidence.captureId !== token.evidence.captureId ||
-    site.evidence.origin !== token.evidence.origin ||
-    site.evidence.credentialSha256 !== token.evidence.credentialSha256
-  )
-    throw new Error('Original bootstrap recorder context differs');
-  metadata(siteValue, binding.siteName, binding.siteUid, binding);
-  metadata(tokenValue, binding.tokenName, binding.tokenUid, binding, binding.nodeName);
-  const spec = object3(required(tokenValue, 'spec'));
-  if (required(spec, 'site_name') !== binding.siteName || ![1, 'JWT'].includes(required(spec, 'type')))
-    throw new Error('Original bootstrap token ownership differs');
-  const material = jwt(required(spec, 'content'));
-  await assertOriginalGcpPlatformHttpBody(site);
-  await assertOriginalGcpPlatformHttpBody(token);
-  const value = Object.freeze({
-    schemaVersion: 1,
-    kind: 'original-gcp-platform-bootstrap-candidate',
-    owner: Object.freeze(binding.owner),
-    deploymentName: binding.deploymentName,
-    siteName: binding.siteName,
-    siteUid: binding.siteUid,
-    nodeName: binding.nodeName,
-    tokenName: binding.tokenName,
-    tokenUid: binding.tokenUid,
-    siteBodySha256: site.evidence.bodySha256,
-    tokenBodySha256: token.evidence.bodySha256,
-    jwtSha256: hash3(material.jwt),
-    expiresAt: material.expiresAt,
-    metadataCorroborated: true,
-    bootstrapOwnershipQualified: false,
-  });
-  issued.set(value, { site, token, jwt: material.jwt });
-  return value;
-}
-async function readOriginalGcpBootstrapJwt(value) {
-  const source = issued.get(value);
-  if (!source) throw new Error('Original bootstrap candidate required');
-  await assertOriginalGcpPlatformHttpBody(source.site);
-  await assertOriginalGcpPlatformHttpBody(source.token);
-  return source.jwt;
-}
-var hash3 = (value) => createHash6('sha256').update(value).digest('hex'),
-  name2,
-  issued,
-  _originalGcpBootstrapSource;
-var init_gcp_bootstrap_evidence = __esm(() => {
-  init_gcp_http_capture();
-  init_security();
-  name2 = /^[a-z][a-z0-9-]{0,62}$/;
-  issued = new WeakMap();
-  _originalGcpBootstrapSource = Object.freeze({
-    assertBody: assertOriginalGcpPlatformHttpBody,
-    inspect: inspectOriginalGcpBootstrap,
-    readJwt: readOriginalGcpBootstrapJwt,
-  });
-});
-
-// plugins/platform/src/ce/bgp-evidence.ts
-var init_bgp_evidence = () => {};
-
-// plugins/platform/src/ce/bgp-route-evidence.ts
-var init_bgp_route_evidence = () => {};
-
-// plugins/platform/src/ce/bootstrap.ts
-var init_bootstrap = () => {};
-
-// plugins/platform/src/ce/ingress-lifecycle.ts
-var init_ingress_lifecycle = __esm(() => {
-  init_process_lock();
-  init_runtime();
-});
-// plugins/platform/src/ce/interface-evidence.ts
-var init_interface_evidence = () => {};
-
-// plugins/platform/src/ce/origin-teardown.ts
-var init_origin_teardown = __esm(() => {
-  init_runtime();
-});
-
-// plugins/platform/src/ce/platform-drain.ts
-var init_platform_drain = __esm(() => {
-  init_runtime();
-});
-// plugins/platform/src/ce/teardown-inventory.ts
-var init_teardown_inventory = __esm(() => {
-  init_runtime();
-});
-
-// plugins/platform/src/ce/upgrade-evidence.ts
-var init_upgrade_evidence = () => {};
-
-// plugins/platform/src/ce/runtime.ts
-var init_runtime = __esm(() => {
-  init_bgp_evidence();
-  init_bgp_route_evidence();
-  init_bootstrap();
-  init_ingress_lifecycle();
-  init_interface_evidence();
-  init_origin_teardown();
-  init_platform_drain();
-  init_teardown_inventory();
-  init_upgrade_evidence();
-});
-
-// plugins/platform/src/ce/gcp-http.ts
-var init_gcp_http = __esm(() => {
-  init_runtime();
-});
-
-// plugins/platform/src/ce/gcp-bootstrap-observation.ts
-var init_gcp_bootstrap_observation = __esm(() => {
-  init_gcp_http();
-  init_gcp_http_capture();
-  init_security();
-});
-
-// plugins/platform/src/ce/gcp-lifecycle.ts
-var init_gcp_lifecycle = __esm(() => {
-  init_discovery();
-  init_site_access();
-  init_validation();
-});
-
 // plugins/gcloud/src/ce/ownership.ts
 function validateGcpResourceIdentity(resource) {
   if (
@@ -3141,486 +2766,6 @@ var init_ownership = __esm(() => {
     router: 'routers',
     route: 'routes',
   };
-});
-
-// plugins/gcloud/src/ce/interface-identity.ts
-function object4(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('Malformed GCP interface identity evidence');
-  return value;
-}
-function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue, configurationValue) {
-  const cloud = object4(cloudValue),
-    registration = object4(registrationValue),
-    configuration = object4(configurationValue);
-  if (
-    !/^\d+$/.test(expected.instanceId) ||
-    cloud.id !== expected.instanceId ||
-    cloud.name !== expected.nodeName ||
-    cloud.zone !== `https://www.googleapis.com/compute/v1/projects/${expected.project}/zones/${expected.zone}`
-  )
-    throw new Error('Owned GCP VM identity mismatch');
-  const metadata = object4(configuration.metadata);
-  if (metadata.name !== expected.siteName || metadata.namespace !== 'system')
-    throw new Error('Exact GCP site configuration identity required');
-  const spec = object4(registration.get_spec),
-    infra = object4(spec.infra),
-    passport = object4(spec.passport);
-  const status = object4(object4(registration.object).status);
-  if (
-    infra.provider !== 'GOOGLE' ||
-    String(infra.instance_id) !== expected.instanceId ||
-    infra.hostname !== expected.nodeName ||
-    infra.availability_zone !== expected.zone ||
-    passport.cluster_name !== expected.siteName ||
-    status.current_state !== 'ONLINE'
-  )
-    throw new Error('Registration is not ONLINE for the exact owned GCP node');
-  const nodes = object4(object4(object4(configuration.spec).gcp).not_managed).node_list;
-  if (!Array.isArray(nodes)) throw new Error('Missing configured GCP node inventory');
-  const matches = nodes.map(object4).filter((node) => node.hostname === expected.nodeName);
-  if (matches.length !== 1) throw new Error('Exact configured GCP node must be unique');
-  const configured = matches[0].interface_list;
-  const hardware = object4(infra.hw_info).network;
-  const cloudNics = cloud.networkInterfaces;
-  if (
-    !Array.isArray(configured) ||
-    !Array.isArray(hardware) ||
-    !Array.isArray(cloudNics) ||
-    configured.length !== expected.nics.length ||
-    cloudNics.length !== expected.nics.length
-  )
-    throw new Error('GCP interface topology evidence is incomplete');
-  const used = new Set();
-  const macs = new Set();
-  return configured
-    .map((value) => {
-      const nic = object4(value),
-        ethernet = object4(nic.ethernet_interface),
-        option = object4(nic.network_option);
-      if (
-        typeof ethernet.device !== 'string' ||
-        !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device) ||
-        typeof ethernet.mac !== 'string' ||
-        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/.test(ethernet.mac)
-      )
-        throw new Error('Configured device and MAC are required');
-      const mac = ethernet.mac;
-      if (macs.has(mac)) throw new Error('Duplicate configured MAC');
-      macs.add(mac);
-      const hw = hardware
-        .map(object4)
-        .filter(
-          (item) =>
-            item.name === ethernet.device &&
-            typeof item.mac_address === 'string' &&
-            item.mac_address.toLowerCase() === mac,
-        );
-      if (hw.length !== 1 || !Array.isArray(hw[0].ip_address)) throw new Error('Device/MAC hardware join is ambiguous');
-      const addresses = hw[0].ip_address.map((address) => (typeof address === 'string' ? address.split('/')[0] : ''));
-      const indices = cloudNics
-        .map(object4)
-        .flatMap((cloudNic, index) => (addresses.includes(String(cloudNic.networkIP)) ? [index] : []));
-      if (indices.length !== 1 || used.has(indices[0])) throw new Error('Cloud address/NIC join is ambiguous');
-      const index = indices[0],
-        cloudNic = object4(cloudNics[index]);
-      const wanted = expected.nics.find((item) => item.index === index);
-      if (
-        !wanted ||
-        cloudNic.name !== `nic${index}` ||
-        cloudNic.network !== wanted.network ||
-        cloudNic.subnetwork !== wanted.subnet
-      )
-        throw new Error('Cloud NIC network/subnet/order differs');
-      const roleField = wanted.role === 'slo' ? 'site_local_network' : 'site_local_inside_network';
-      if (
-        Object.keys(option).length !== 1 ||
-        !Object.hasOwn(option, roleField) ||
-        nic.is_primary !== (index === 0) ||
-        (wanted.role === 'slo') !== (index === 0)
-      )
-        throw new Error('Configured role/primary interface differs');
-      used.add(index);
-      return {
-        cloudNicIndex: index,
-        role: wanted.role,
-        vrf: wanted.vrf,
-        device: ethernet.device,
-        mac,
-        source: 'owned-cloud-vm-and-site-registration',
-      };
-    })
-    .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
-}
-
-// plugins/gcloud/src/ce/request-reason.ts
-import { randomUUID as randomUUID3 } from 'node:crypto';
-
-function createGcpTerraformRequestReason(intent) {
-  validateIntent(intent);
-  if (intent.engine !== 'terraform' || intent.operation !== 'deploy')
-    throw new Error('Original Terraform deployment intent required for request reason');
-  return Object.freeze({
-    schemaVersion: 1,
-    scope: 'gcp-terraform-deployment',
-    intentFingerprint: fingerprint(intent),
-    reason: `xcsh-gcp-${randomUUID3()}`,
-  });
-}
-function assertGcpTerraformRequestReason(value, intent, googleVersion) {
-  validateIntent(intent);
-  const reason = value;
-  if (
-    !reason ||
-    typeof reason !== 'object' ||
-    Array.isArray(reason) ||
-    Object.keys(reason).sort().join(',') !== 'intentFingerprint,reason,schemaVersion,scope' ||
-    reason.schemaVersion !== 1 ||
-    reason.scope !== 'gcp-terraform-deployment' ||
-    intent.engine !== 'terraform' ||
-    intent.operation !== 'deploy' ||
-    !['8.7.0', '8.10.0', '8.11.0', '8.12.0'].includes(googleVersion) ||
-    reason.intentFingerprint !== fingerprint(intent) ||
-    typeof reason.reason !== 'string' ||
-    !reasonPattern.test(reason.reason)
-  )
-    throw new Error('Reviewed original GCP Terraform request reason and provider mapping required');
-}
-var reasonPattern;
-var init_request_reason = __esm(() => {
-  init_discovery();
-  init_validation();
-  reasonPattern = /^xcsh-gcp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
-});
-
-// plugins/gcloud/src/ce/compute-plan.ts
-function assertComputeOnly(intent) {
-  if (
-    intent.ingress.profile !== 'none' ||
-    intent.routing.profile !== 'static-insertion' ||
-    intent.routing.destinationCidrs.length !== 0
-  )
-    throw new Error('Compute translation cannot configure ingress or destination routes');
-}
-function translateGcpNativeCompute(intent) {
-  validateIntent(intent);
-  assertGcpSiteAccessProfile(intent);
-  if (intent.engine !== 'native') throw new Error('Native translation requires native ownership');
-  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
-    throw new Error('Compute candidate supports external-IP deployment only');
-  assertComputeOnly(intent);
-  const actions = [];
-  const networks = new Map();
-  for (const site of intent.sites)
-    for (const node of site.nodes)
-      for (const nic of node.interfaces) {
-        const prior = networks.get(nic.network);
-        if (prior && (prior.subnet !== nic.subnet || prior.cidr !== nic.cidr))
-          throw new Error('Shared network identity has conflicting subnet intent');
-        networks.set(nic.network, { subnet: nic.subnet, cidr: nic.cidr });
-      }
-  const scope = `--project=${intent.project}`;
-  for (const [network, subnet] of networks) {
-    actions.push({
-      id: `network-${network}`,
-      kind: 'network',
-      argv: [
-        'compute',
-        'networks',
-        'create',
-        network,
-        scope,
-        '--subnet-mode=custom',
-        '--bgp-routing-mode=REGIONAL',
-        '--quiet',
-        '--format=json',
-      ],
-      dependencies: [],
-    });
-    actions.push({
-      id: `subnetwork-${subnet.subnet}`,
-      kind: 'subnetwork',
-      argv: [
-        'compute',
-        'networks',
-        'subnets',
-        'create',
-        subnet.subnet,
-        scope,
-        `--region=${intent.region}`,
-        `--network=${network}`,
-        `--range=${subnet.cidr}`,
-        '--quiet',
-        '--format=json',
-      ],
-      dependencies: [`network-${network}`],
-    });
-  }
-  for (const site of intent.sites)
-    for (const node of site.nodes) {
-      const argv = [
-        'compute',
-        'instances',
-        'create',
-        node.name,
-        scope,
-        `--zone=${node.zone}`,
-        `--machine-type=${intent.machineType}`,
-        `--image=${intent.image.name}`,
-        '--image-project=f5-7626-networks-public',
-        `--boot-disk-size=${intent.diskGiB}GB`,
-        '--boot-disk-type=pd-balanced',
-        '--can-ip-forward',
-        '--no-service-account',
-        '--no-scopes',
-        `--labels=xcsh-deployment=${intent.deploymentName},xcsh-engine=native,xcsh-site=${site.name},xcsh-node=${node.name}`,
-      ];
-      for (const nic of node.interfaces)
-        argv.push(
-          `--network-interface=network=${nic.network},subnet=${nic.subnet}${nic.index === 0 ? '' : ',no-address'}`,
-        );
-      argv.push('--metadata=VmDnsSetting=ZonePreferred', '--async', '--quiet', '--format=json');
-      actions.push({
-        id: `instance-${node.name}`,
-        kind: 'instance',
-        argv,
-        dependencies: node.interfaces.map((nic) => `subnetwork-${nic.subnet}`),
-        sensitiveInput: 'restricted-node-metadata-file',
-      });
-    }
-  if (new Set(actions.map((a) => a.id)).size !== actions.length) throw new Error('GCP action identities collide');
-  return { schemaVersion: 1, engine: 'native', executable: false, actions, sha256: fingerprint({ intent, actions }) };
-}
-function translateGcpTerraformCompute(intent, googleProviderVersion, requestReason) {
-  validateIntent(intent);
-  if (intent.schemaVersion === 2) throw new Error('Observer intent requires the version3 original configuration');
-  if (intent.engine !== 'terraform') throw new Error('Terraform translation requires Terraform ownership');
-  if (!/^\d+\.\d+\.\d+$/.test(googleProviderVersion)) throw new Error('Exact Google provider version required');
-  if (requestReason !== undefined) assertGcpTerraformRequestReason(requestReason, intent, googleProviderVersion);
-  if (intent.operation !== 'deploy' || intent.egress.mode !== 'external-ip')
-    throw new Error('Compute candidate supports external-IP deployment only');
-  assertComputeOnly(intent);
-  const networks = {},
-    subnets = {},
-    instances = {};
-  const variable = {};
-  for (const site of intent.sites)
-    for (const node of site.nodes) {
-      for (const nic of node.interfaces) {
-        networks[nic.network.replaceAll('-', '_')] = {
-          name: nic.network,
-          project: intent.project,
-          auto_create_subnetworks: false,
-          routing_mode: 'REGIONAL',
-        };
-        const key = nic.subnet.replaceAll('-', '_');
-        const subnet = {
-          name: nic.subnet,
-          project: intent.project,
-          region: intent.region,
-          ip_cidr_range: nic.cidr,
-          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
-        };
-        if (subnets[key] && fingerprint(subnets[key]) !== fingerprint(subnet))
-          throw new Error('Subnet identity has conflicting intent');
-        subnets[key] = subnet;
-      }
-      const key = node.name.replaceAll('-', '_');
-      variable[`${key}_user_data`] = {
-        type: 'string',
-        sensitive: true,
-        description: 'Restricted node-bound one-use bootstrap; never export as an output',
-      };
-      instances[key] = {
-        name: node.name,
-        project: intent.project,
-        zone: node.zone,
-        machine_type: intent.machineType,
-        can_ip_forward: true,
-        boot_disk: [
-          {
-            auto_delete: true,
-            initialize_params: [{ image: intent.image.selfLink, size: intent.diskGiB, type: 'pd-balanced' }],
-          },
-        ],
-        network_interface: node.interfaces.map((nic) => ({
-          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.id}`,
-          subnetwork: `\${google_compute_subnetwork.${nic.subnet.replaceAll('-', '_')}.id}`,
-          ...(nic.index === 0 ? { access_config: [{}] } : {}),
-        })),
-        labels: {
-          'xcsh-deployment': intent.deploymentName,
-          'xcsh-engine': 'terraform',
-          'xcsh-site': site.name,
-          'xcsh-node': node.name,
-        },
-        metadata: { VmDnsSetting: 'ZonePreferred', 'user-data': `\${var.${key}_user_data}` },
-      };
-    }
-  return {
-    schemaVersion: 1,
-    engine: 'terraform',
-    executable: false,
-    configuration: {
-      terraform: {
-        required_providers: { google: { source: 'hashicorp/google', version: `= ${googleProviderVersion}` } },
-      },
-      provider: {
-        google: [
-          {
-            project: intent.project,
-            region: intent.region,
-            ...(requestReason !== undefined ? { request_reason: requestReason.reason } : {}),
-          },
-        ],
-      },
-      variable,
-      resource: {
-        google_compute_network: networks,
-        google_compute_subnetwork: subnets,
-        google_compute_instance: instances,
-      },
-    },
-  };
-}
-function translateGcpTerraformSiteCompute(intent, versions, requestReason) {
-  for (const version of Object.values(versions))
-    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Exact Terraform/provider versions required');
-  const cloud = translateGcpTerraformCompute(intent, versions.google, requestReason);
-  const access = gcpSiteAccessSpec(intent, versions.xcsh);
-  const sites = {};
-  const tokens = {};
-  const instances = cloud.configuration.resource.google_compute_instance;
-  for (const site of intent.sites) {
-    const siteKey = site.name.replaceAll('-', '_');
-    sites[siteKey] = {
-      name: site.name,
-      namespace: 'system',
-      labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-engine': 'terraform' },
-      gcp: { not_managed: {} },
-      ...(intent.initialVersions
-        ? {
-            software_settings: {
-              sw: { volterra_software_version: intent.initialVersions.software },
-              os: { operating_system_version: intent.initialVersions.os },
-            },
-          }
-        : {}),
-      ...(site.nodes.length === 3 ? { enable_ha: {} } : { disable_ha: {} }),
-      disable_management_network: {},
-      ...(access ?? { block_all_services: {} }),
-      no_network_policy: {},
-      no_forward_proxy: {},
-      f5_proxy: {},
-      no_proxy_bypass: {},
-      logs_streaming_disabled: {},
-      no_s2s_connectivity_sli: {},
-      no_s2s_connectivity_slo: {},
-      disable_url_categorization: {},
-      local_vrf: { default_config: {}, default_sli_config: {} },
-    };
-    for (const node of site.nodes) {
-      const key = node.name.replaceAll('-', '_');
-      if (`${node.name}-token`.length > 63) throw new Error('Node name leaves no space for bound token name');
-      tokens[key] = {
-        name: `${node.name}-token`,
-        namespace: 'system',
-        type: 1,
-        site_name: `\${xcsh_securemesh_site_v2.${siteKey}.name}`,
-        labels: { 'xcsh-deployment': intent.deploymentName, 'xcsh-node': node.name, 'xcsh-engine': 'terraform' },
-      };
-      const userData = `#cloud-config
-write_files:
-  - path: /etc/vpm/user_data
-    permissions: "0600"
-    owner: root
-    content: |
-      token: \${xcsh_token.${key}.content}
-`;
-      instances[key].metadata = {
-        VmDnsSetting: 'ZonePreferred',
-        'user-data': `\${sensitive(${JSON.stringify(userData)})}`,
-      };
-    }
-  }
-  return {
-    schemaVersion: 1,
-    engine: 'terraform',
-    executable: false,
-    configuration: {
-      terraform: {
-        required_version: `= ${versions.terraform}`,
-        required_providers: {
-          google: { source: 'hashicorp/google', version: `= ${versions.google}` },
-          xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${versions.xcsh}` },
-        },
-      },
-      provider: { ...cloud.configuration.provider, xcsh: [{}] },
-      resource: { ...cloud.configuration.resource, xcsh_securemesh_site_v2: sites, xcsh_token: tokens },
-    },
-  };
-}
-function translateGcpPublicTerraformSiteCompute(intent, versions, requestReason) {
-  const translated = translateGcpTerraformSiteCompute(intent, versions, requestReason);
-  const disks = {};
-  for (const site of intent.sites)
-    for (const node of site.nodes) {
-      const key = node.name.replaceAll('-', '_');
-      disks[key] = {
-        name: node.name,
-        project: intent.project,
-        zone: node.zone,
-        image: intent.image.selfLink,
-        size: intent.diskGiB,
-        type: 'pd-balanced',
-      };
-      const instance = translated.configuration.resource.google_compute_instance[key];
-      instance.boot_disk = [{ auto_delete: false, source: `\${google_compute_disk.${key}.self_link}` }];
-    }
-  const firewalls = {};
-  for (const site of intent.sites.filter((site) => site.nodes.length === 3)) {
-    const tag = `${site.name}-ha-peer`;
-    const dependencies = [];
-    for (const nic of site.nodes[0].interfaces)
-      for (const direction of ['INGRESS', 'EGRESS']) {
-        const name = `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`;
-        if (name.length > 63 || tag.length > 63) throw new Error('HA site name leaves no space for firewall identity');
-        const key = name.replaceAll('-', '_');
-        firewalls[key] = {
-          name,
-          project: intent.project,
-          network: `\${google_compute_network.${nic.network.replaceAll('-', '_')}.self_link}`,
-          direction,
-          ...(direction === 'INGRESS' ? { source_ranges: ['0.0.0.0/0'] } : { destination_ranges: ['0.0.0.0/0'] }),
-          target_tags: [tag],
-          allow: [{ protocol: 'all' }],
-        };
-        dependencies.push(`google_compute_firewall.${key}`);
-      }
-    for (const node of site.nodes) {
-      const instance = translated.configuration.resource.google_compute_instance[node.name.replaceAll('-', '_')];
-      instance.tags = [...new Set([...(instance.tags ?? []), tag])];
-      instance.depends_on = dependencies;
-    }
-  }
-  return {
-    ...translated,
-    schemaVersion: 2,
-    configuration: {
-      ...translated.configuration,
-      resource: {
-        ...translated.configuration.resource,
-        google_compute_disk: disks,
-        ...(Object.keys(firewalls).length ? { google_compute_firewall: firewalls } : {}),
-      },
-    },
-  };
-}
-var init_compute_plan = __esm(() => {
-  init_discovery();
-  init_request_reason();
-  init_site_access();
-  init_validation();
 });
 
 // plugins/gcloud/src/ce/teardown-plan.ts
@@ -4634,6 +3779,861 @@ var init_terraform_public_ownership = __esm(() => {
   init_validation();
 });
 
+// plugins/gcloud/src/gcloud/formatters.ts
+function basename2(url) {
+  const idx = url.lastIndexOf('/');
+  return idx === -1 ? url : url.slice(idx + 1);
+}
+function normalizeConfig(raw) {
+  const core = raw.core ?? {};
+  const compute = raw.compute ?? {};
+  return {
+    project: String(core.project ?? ''),
+    account: String(core.account ?? ''),
+    region: String(compute.region ?? ''),
+    zone: String(compute.zone ?? ''),
+  };
+}
+function normalizeProject(raw) {
+  return {
+    projectId: String(raw.projectId ?? ''),
+    name: String(raw.name ?? ''),
+    projectNumber: String(raw.projectNumber ?? ''),
+    lifecycleState: String(raw.lifecycleState ?? ''),
+  };
+}
+function normalizeInstance(raw) {
+  const interfaces = raw.networkInterfaces ?? [];
+  const primary = interfaces[0] ?? {};
+  const accessConfigs = primary.accessConfigs ?? [];
+  const primaryAccess = accessConfigs[0] ?? {};
+  return {
+    name: String(raw.name ?? ''),
+    zone: basename2(String(raw.zone ?? '')),
+    machineType: basename2(String(raw.machineType ?? '')),
+    status: String(raw.status ?? ''),
+    internalIp: String(primary.networkIP ?? ''),
+    externalIp: String(primaryAccess.natIP ?? ''),
+  };
+}
+function normalizeBucket(raw) {
+  return {
+    name: String(raw.name ?? ''),
+    location: String(raw.location ?? ''),
+    storageClass: String(raw.storageClass ?? raw.storage_class ?? ''),
+    created: String(raw.timeCreated ?? raw.creation_time ?? ''),
+  };
+}
+function normalizeProjects(raw) {
+  return raw.map((item) => normalizeProject(item));
+}
+function normalizeInstances(raw) {
+  return raw.map((item) => normalizeInstance(item));
+}
+function normalizeBuckets(raw) {
+  return raw.map((item) => normalizeBucket(item));
+}
+function formatConfigDetail(config) {
+  return [
+    `**Project:** ${config.project || '-'}`,
+    `**Account:** ${config.account || '-'}`,
+    `**Region:** ${config.region || '-'}`,
+    `**Zone:** ${config.zone || '-'}`,
+  ].join(`
+`);
+}
+function formatProjectTable(projects) {
+  if (projects.length === 0) return 'No projects found.';
+  const header = '| Project ID | Name | Number | State |';
+  const sep = '|------------|------|--------|-------|';
+  const rows = projects.map(
+    (p) => `| ${p.projectId} | ${p.name || '-'} | ${p.projectNumber || '-'} | ${p.lifecycleState || '-'} |`,
+  );
+  return [header, sep, ...rows].join(`
+`);
+}
+function formatInstanceTable(instances) {
+  if (instances.length === 0) return 'No instances found.';
+  const header = '| Name | Zone | Machine Type | Status | Internal IP | External IP |';
+  const sep = '|------|------|--------------|--------|-------------|-------------|';
+  const rows = instances.map(
+    (i) =>
+      `| ${i.name} | ${i.zone} | ${i.machineType} | ${i.status} | ${i.internalIp || '-'} | ${i.externalIp || '-'} |`,
+  );
+  return [header, sep, ...rows].join(`
+`);
+}
+function formatBucketTable(buckets) {
+  if (buckets.length === 0) return 'No buckets found.';
+  const header = '| Name | Location | Storage Class | Created |';
+  const sep = '|------|----------|---------------|---------|';
+  const rows = buckets.map(
+    (b) => `| ${b.name} | ${b.location || '-'} | ${b.storageClass || '-'} | ${b.created || '-'} |`,
+  );
+  return [header, sep, ...rows].join(`
+`);
+}
+
+// plugins/gcloud/src/prompts/gcloud-config-list.md
+var gcloud_config_list_default =
+  '# Show Google Cloud CLI Configuration\n\nShow the active Google Cloud CLI configuration via `gcloud config list`.\n\nReturns the resolved project, account, region, and zone for the current `gcloud` configuration. Use this to confirm which project and identity subsequent commands will target.\n\nTakes no parameters. For richer configuration queries (all properties, named configurations), run `gcloud_exec` with `config list --all` and your own `--filter`/`--format` expressions.\n';
+var init_gcloud_config_list = () => {};
+
+// plugins/gcloud/src/tools/gcloud-config-list.ts
+function createGcloudConfigListTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({});
+  return {
+    name: 'gcloud_config_list',
+    label: 'Google Cloud Config',
+    description: gcloud_config_list_default,
+    parameters,
+    async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
+      const base = { tool: 'gcloud_config_list' };
+      const api = makeApi(ctx.cwd);
+      const args = ['config', 'list'];
+      try {
+        const raw = await execGcloudJson(api, args, signal);
+        const config = normalizeConfig(raw);
+        return textResult(formatConfigDetail(config), { ...base, config });
+      } catch (err) {
+        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
+      }
+    },
+  };
+}
+var init_gcloud_config_list2 = __esm(() => {
+  init_exec();
+  init_gcloud_config_list();
+  init_shared();
+});
+
+// plugins/gcloud/src/prompts/gcloud-projects-list.md
+var gcloud_projects_list_default =
+  '# List Google Cloud Projects\n\nList the Google Cloud projects accessible to the active account via `gcloud projects list`.\n\nReturns a table of project ID, name, number, and lifecycle state.\n\n## Parameters\n\n| Parameter | Description                                                           |\n| --------- | --------------------------------------------------------------------- |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"lifecycleState=ACTIVE"` |\n| `limit`   | Optional positive integer capping the number of results               |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `projects list` and your own `--filter`/`--format` flags.\n';
+var init_gcloud_projects_list = () => {};
+
+// plugins/gcloud/src/tools/gcloud-projects-list.ts
+function createGcloudProjectsListTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    filter: Type.Optional(Type.String({ description: 'gcloud --filter expression, e.g. "lifecycleState=ACTIVE"' })),
+    limit: Type.Optional(Type.Number({ description: 'Maximum number of projects to return (positive integer)' })),
+  });
+  return {
+    name: 'gcloud_projects_list',
+    label: 'Google Cloud Projects',
+    description: gcloud_projects_list_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'gcloud_projects_list' };
+      if (params.limit !== undefined && (!Number.isInteger(params.limit) || params.limit <= 0)) {
+        return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
+      }
+      const api = makeApi(ctx.cwd);
+      const args = listArgs('projects', params);
+      try {
+        const raw = await execGcloudJson(api, args, signal);
+        const projects = normalizeProjects(raw);
+        return textResult(formatProjectTable(projects), { ...base, projects });
+      } catch (err) {
+        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
+      }
+    },
+  };
+}
+var init_gcloud_projects_list2 = __esm(() => {
+  init_exec();
+  init_gcloud_projects_list();
+  init_shared();
+});
+
+// plugins/gcloud/src/prompts/gcloud-compute-instances-list.md
+var gcloud_compute_instances_list_default =
+  '# List Compute Engine Instances\n\nList Compute Engine virtual machine instances via `gcloud compute instances list`.\n\nReturns a table of instance name, zone, machine type, status, and internal/external IP.\n\n## Parameters\n\n| Parameter | Description                                                                            |\n| --------- | -------------------------------------------------------------------------------------- |\n| `zone`    | Optional zone to restrict results (mapped to gcloud `--zones`), e.g. `"us-central1-a"` |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"status=RUNNING"`                         |\n| `limit`   | Optional positive integer capping the number of results                                |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `compute instances list` and your own `--filter`/`--format` flags.\n';
+var init_gcloud_compute_instances_list = () => {};
+
+// plugins/gcloud/src/tools/gcloud-compute-instances-list.ts
+function createGcloudComputeInstancesListTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    zone: Type.Optional(Type.String({ description: 'Restrict results to a zone, e.g. "us-central1-a"' })),
+    filter: Type.Optional(Type.String({ description: 'gcloud --filter expression, e.g. "status=RUNNING"' })),
+    limit: Type.Optional(Type.Number({ description: 'Maximum number of instances to return (positive integer)' })),
+  });
+  return {
+    name: 'gcloud_compute_instances_list',
+    label: 'Google Cloud Compute Instances',
+    description: gcloud_compute_instances_list_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'gcloud_compute_instances_list' };
+      if (params.zone !== undefined && !ZONE_PATTERN.test(params.zone)) {
+        return errorResult(`Error: invalid zone "${params.zone}". Expected a gcloud zone like "us-central1-a".`, base);
+      }
+      if (params.limit !== undefined && (!Number.isInteger(params.limit) || params.limit <= 0)) {
+        return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
+      }
+      const api = makeApi(ctx.cwd);
+      const args = listArgs('instances', params);
+      try {
+        const raw = await execGcloudJson(api, args, signal);
+        const instances = normalizeInstances(raw);
+        return textResult(formatInstanceTable(instances), { ...base, instances });
+      } catch (err) {
+        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
+      }
+    },
+  };
+}
+var init_gcloud_compute_instances_list2 = __esm(() => {
+  init_exec();
+  init_types2();
+  init_gcloud_compute_instances_list();
+  init_shared();
+});
+
+// plugins/gcloud/src/prompts/gcloud-storage-buckets-list.md
+var gcloud_storage_buckets_list_default =
+  '# List Cloud Storage Buckets\n\nList Cloud Storage buckets via `gcloud storage buckets list`.\n\nReturns a table of bucket name, location, storage class, and creation time.\n\n## Parameters\n\n| Parameter | Description                                                 |\n| --------- | ----------------------------------------------------------- |\n| `filter`  | Optional gcloud `--filter` expression, e.g. `"location=US"` |\n| `limit`   | Optional positive integer capping the number of results     |\n\nFor richer queries (custom projections, sorting, sub-field selection), run `gcloud_exec` with `storage buckets list` and your own `--filter`/`--format` flags.\n';
+var init_gcloud_storage_buckets_list = () => {};
+
+// plugins/gcloud/src/tools/gcloud-storage-buckets-list.ts
+function createGcloudStorageBucketsListTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    filter: Type.Optional(Type.String({ description: 'gcloud --filter expression, e.g. "location=US"' })),
+    limit: Type.Optional(Type.Number({ description: 'Maximum number of buckets to return (positive integer)' })),
+  });
+  return {
+    name: 'gcloud_storage_buckets_list',
+    label: 'Google Cloud Storage Buckets',
+    description: gcloud_storage_buckets_list_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'gcloud_storage_buckets_list' };
+      if (params.limit !== undefined && (!Number.isInteger(params.limit) || params.limit <= 0)) {
+        return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
+      }
+      const api = makeApi(ctx.cwd);
+      const args = listArgs('buckets', params);
+      try {
+        const raw = await execGcloudJson(api, args, signal);
+        const buckets = normalizeBuckets(raw);
+        return textResult(formatBucketTable(buckets), { ...base, buckets });
+      } catch (err) {
+        return errorResult(`Error: ${renderError(err)}`, { ...base, errorType: detectErrorType(err) });
+      }
+    },
+  };
+}
+var init_gcloud_storage_buckets_list2 = __esm(() => {
+  init_exec();
+  init_gcloud_storage_buckets_list();
+  init_shared();
+});
+
+// plugins/gcloud/src/prompts/gcloud-exec.md
+var gcloud_exec_default = `# Execute Google Cloud CLI Commands
+
+Execute any \`gcloud\` CLI command directly.
+
+This is the general-purpose tool for running Google Cloud CLI commands that are not covered by the typed tools. Use typed tools when available \u2014 they validate inputs and return structured data.
+
+## Usage
+
+Pass the group, verb, and flags as an array of arguments. Do NOT include \`gcloud\` itself \u2014 it is prepended automatically.
+
+**Example:** To run \`gcloud compute instances list --filter="status=RUNNING"\`:
+
+\`\`\`json
+{ "args": ["compute", "instances", "list", "--filter=status=RUNNING"] }
+\`\`\`
+
+When the command starts with \`alpha\` or \`beta\`, the plugin checks local SDK
+component state and automatically installs that missing command group with
+\`gcloud components install <group> --quiet\`. Installation is coordinated across
+callers and verified before the requested command runs. Child CLI prompts are
+disabled. If the installation's component manager is unavailable or installation
+cannot be verified, the command fails with package-manager recovery guidance.
+Cloud write and credential guards still apply before group preparation.
+
+## Safety
+
+- Arguments are passed as an array directly to the \`gcloud\` binary \u2014 **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid \`gcloud\` invocation runs, including full \`--filter\` and \`--format\` expressions. Only NUL/control bytes are rejected.
+- **Read-only by default.** Only recognized read verbs run:
+  - Exact reads: \`list\`, \`describe\`, \`get-iam-policy\`, \`get-value\`, \`get-server-config\`, \`get-ancestors\`, \`list-grantable-roles\`, \`print-settings\`, \`version\`, \`info\`.
+  - Read prefixes: any verb starting with \`list-\` or \`describe-\`.
+  - Top-level: \`version\`, \`info\`, \`help\`, \`topic\`, \`cheat-sheet\`.
+- **Mutating verbs are blocked** (\`create\`, \`delete\`, \`update\`, \`patch\`, \`set\`, \`deploy\`, \`enable\`, \`disable\`, \`set-iam-policy\`, \`add-iam-policy-binding\`, \u2026). Run write/destructive operations through an explicitly confirmed path \u2014 delegate to the \`gcloud:cli-operator\` agent, not \`gcloud_exec\`.
+- **Execution and credential vectors are blocked** even though some look read-shaped: \`ssh\`, \`scp\`, \`connect\`, \`call\`, \`execute\`, \`interactive\`, \`login\`, \`revoke\`, \`get-credentials\`, \`print-access-token\`, \`print-identity-token\`, \`reset-windows-password\`, \`simulate-maintenance-event\`, \`enable-service\`, \`configure-docker\`.
+  These open sessions, run code, or mint/print credentials \u2014 route them through the \`gcloud:cli-operator\` agent.
+- Unrecognized verbs are blocked (fail-safe): provide an explicit read-only verb.
+- Output is capped to prevent context overflow.
+
+## Querying: \`--filter\` vs \`--format\`
+
+gcloud splits querying into two distinct, complementary flags. This is **not** Azure \`--query\` (JMESPath): filtering and projection are separate.
+
+### \`--filter\` \u2014 server-side selection (which resources)
+
+Restricts *which* resources are returned, evaluated before results are sent back.
+
+- Equality: \`--filter="status=RUNNING"\` (\`key=value\`)
+- Boolean logic: \`--filter="status=RUNNING AND zone:us-central1"\` (\`AND\` / \`OR\`)
+- Substring match: \`--filter="name:prod"\` (\`:\` \u2014 has-substring)
+- Regex match: \`--filter="name~^web-.*"\` (\`~\`)
+
+### \`--format\` \u2014 client-side projection (how to show it)
+
+Shapes *how* the selected resources are rendered locally.
+
+- \`--format=json\` (default when you pass no \`--format\`)
+- \`--format=value(name)\` \u2014 bare field value(s), no keys
+- \`--format="table(name,status,zone)"\` \u2014 tabular columns
+- \`--format=csv(name,status)\` \u2014 comma-separated
+- \`--format=yaml\` \u2014 YAML document
+- \`--format=flattened\` \u2014 flat \`key: value\` lines
+
+## Tips
+
+- \`--format=json\` is added automatically unless you pass your own \`--format\` (e.g. \`--format="table(name)"\`, \`--format=yaml\`), which is respected.
+- \`--limit=N\` caps the number of results; \`--sort-by=field\` orders them.
+- \`--project=PROJECT_ID\` targets a specific Google Cloud project.
+- Combine freely: \`["compute", "instances", "list", "--filter=status=RUNNING", "--sort-by=name", "--format=value(name)"]\`.
+`;
+var init_gcloud_exec = () => {};
+
+// plugins/gcloud/src/tools/gcloud-exec.ts
+function createGcloudExecTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "gcloud" itself)' }), {
+      description: 'gcloud group, verb, and flags as an array, e.g. ["compute", "instances", "list", "--format=json"]',
+    }),
+  });
+  return {
+    name: 'gcloud_exec',
+    label: 'Google Cloud CLI Execute',
+    description: gcloud_exec_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'gcloud_exec' };
+      const args = params.args ?? [];
+      if (args.length === 0) {
+        return errorResult('Error: args array must not be empty. Provide a gcloud group and verb.', base);
+      }
+      for (const arg of args) {
+        if (hasControlChars(arg)) {
+          return errorResult(
+            `Error: argument contains a control character and cannot be passed to gcloud: "${arg}"`,
+            base,
+          );
+        }
+      }
+      const c = checkGcloud(args);
+      if (c.blocked) {
+        return errorResult(`Error: ${c.reason}`, base);
+      }
+      try {
+        const api = makeApi(ctx.cwd);
+        const result = await api.exec('gcloud', buildGcloudArgs(args), { signal });
+        if (result.exitCode !== 0) {
+          const failure = detectGcloudError(result.stderr || result.stdout, result.exitCode);
+          return errorResult(`gcloud command failed (exit ${result.exitCode}): ${failure.message}`, {
+            ...base,
+            errorType: detectErrorType(failure),
+          });
+        }
+        let output = result.stdout;
+        const fullOutput = output;
+        if (output.length > MAX_OUTPUT_LENGTH) {
+          output = `${output.slice(0, MAX_OUTPUT_LENGTH)}
+
+[Output truncated at ${MAX_OUTPUT_LENGTH} characters]`;
+        }
+        return textResult(output, { ...base, fullOutput, modelPreviewTruncated: output !== fullOutput });
+      } catch (err) {
+        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+          ...base,
+          errorType: detectErrorType(err),
+        });
+      }
+    },
+  };
+}
+var MAX_OUTPUT_LENGTH = 50000;
+var init_gcloud_exec2 = __esm(() => {
+  init_exec();
+  init_gcloud_exec();
+  init_gcloud_exec_guard();
+  init_shared();
+});
+
+// plugins/gcloud/src/prompts/gcloud-help.md
+var gcloud_help_default = `# View Google Cloud CLI Help
+
+Fetch help documentation for any \`gcloud\` CLI group or command.
+
+Use this tool to discover available groups, commands, and flags for Google Cloud CLI operations that are not covered by the embedded typed tools.
+
+## Usage
+
+Pass the command path (without the \`gcloud\` prefix) to get help. The tool appends \`--help\` for you.
+
+Paths beginning with \`alpha\` or \`beta\` automatically prepare the matching missing
+SDK command group before loading help. Installation uses noninteractive CLI
+arguments and verifies local component state. An unavailable component manager
+returns explicit package-manager recovery guidance.
+
+**Example:** To see help for the \`compute instances\` group:
+
+\`\`\`json
+{ "command_path": "compute instances" }
+\`\`\`
+
+**Example:** To see help for a top-level group:
+
+\`\`\`json
+{ "command_path": "projects" }
+\`\`\`
+
+**Example:** To see top-level \`gcloud\` help:
+
+\`\`\`json
+{ "command_path": "" }
+\`\`\`
+
+## When to Use
+
+- Before using \`gcloud_exec\` with an unfamiliar group or command
+- To discover available commands within a group
+- To find the correct flags for a specific command (e.g. \`--filter\`, \`--format\`)
+- To check required versus optional arguments
+
+## Output
+
+Returns the raw \`gcloud <command> --help\` output as plain text, including available commands, flags, and usage examples. Once you know the command, run the read through \`gcloud_exec\`.
+`;
+var init_gcloud_help = () => {};
+
+// plugins/gcloud/src/tools/gcloud-help.ts
+function createGcloudHelpTool(pi, makeApi = makeExecApi) {
+  const { Type } = pi.typebox;
+  const parameters = Type.Object({
+    command_path: Type.Optional(
+      Type.String({
+        description:
+          'Command path without "gcloud" prefix, e.g. "compute instances" or "projects". Empty for top-level help.',
+      }),
+    ),
+  });
+  return {
+    name: 'gcloud_help',
+    label: 'Google Cloud CLI Help',
+    description: gcloud_help_default,
+    parameters,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const base = { tool: 'gcloud_help' };
+      const commandPath = params.command_path?.trim() ?? '';
+      if (commandPath.length > 0 && !HELP_PATH_PATTERN.test(commandPath)) {
+        return errorResult(
+          `Error: invalid command path "${commandPath}". Only lowercase letters, digits, hyphens, and spaces are allowed.`,
+          base,
+        );
+      }
+      const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
+      if (parts.some((p) => p.startsWith('-'))) {
+        return errorResult(
+          `Error: invalid command path "${commandPath}". Command path parts must not start with "-".`,
+          base,
+        );
+      }
+      const args = helpArgs(params.command_path);
+      const api = makeApi(ctx.cwd);
+      try {
+        const result = await api.exec('gcloud', args, { signal });
+        if (result.exitCode !== 0) {
+          const msg = result.stderr || result.stdout || `gcloud ${commandPath} --help failed (exit ${result.exitCode})`;
+          return errorResult(`Error: ${msg}`, { ...base, errorType: 'exec_error' });
+        }
+        const output = result.stdout || result.stderr;
+        if (!output.trim()) {
+          return errorResult(`No help output for "gcloud ${commandPath}".`, { ...base, errorType: 'exec_error' });
+        }
+        return textResult(output, base);
+      } catch (err) {
+        return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
+          ...base,
+          errorType: detectErrorType(err),
+        });
+      }
+    },
+  };
+}
+var init_gcloud_help2 = __esm(() => {
+  init_types2();
+  init_gcloud_help();
+  init_shared();
+});
+
+// plugins/platform/src/ce/deployment-store.ts
+var init_deployment_store = () => {};
+
+// plugins/platform/src/ce/gcp-http-capture.ts
+import { createHash as createHash6 } from 'node:crypto';
+
+async function assertOriginalGcpPlatformHttpBody(value) {
+  const issued = bodies.get(value);
+  if (!issued || hash2(value.bytes) !== issued.sha256) throw new Error('Original GCP Platform HTTP body required');
+  await issued.assertOriginal();
+}
+var hash2 = (bytes) => createHash6('sha256').update(bytes).digest('hex'),
+  bodies;
+var init_gcp_http_capture = __esm(() => {
+  bodies = new WeakMap();
+});
+
+// plugins/platform/src/ce/security.ts
+function containsControlCharacters(value) {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127;
+  });
+}
+var init_security = () => {};
+
+// plugins/platform/src/ce/gcp-bootstrap-evidence.ts
+import { createHash as createHash7 } from 'node:crypto';
+
+function object3(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Original bootstrap ownership object required');
+  return value;
+}
+function required(value, key) {
+  if (!Object.hasOwn(value, key)) throw new Error('Original bootstrap ownership field required');
+  return value[key];
+}
+async function original(body, path, owner) {
+  await assertOriginalGcpPlatformHttpBody(body);
+  const record = body.evidence,
+    now = Date.now();
+  if (
+    record.path !== path ||
+    record.method !== 'GET' ||
+    record.status !== 200 ||
+    !record.responseComplete ||
+    !record.accepted ||
+    record.truncated ||
+    ['provider', 'engine', 'account', 'region', 'deploymentId'].some((key) => record.owner[key] !== owner[key])
+  )
+    throw new Error('Original bootstrap ownership response required');
+  const started = Date.parse(record.startedAt),
+    finished = Date.parse(record.finishedAt);
+  if (
+    !Number.isFinite(started) ||
+    !Number.isFinite(finished) ||
+    finished < started ||
+    finished > now ||
+    now - started >= 300000
+  )
+    throw new Error('Original bootstrap ownership evidence is stale');
+  return decodeEvidenceObject(body.bytes);
+}
+function metadata(value, expectedName, expectedUid, binding, node) {
+  const meta = object3(required(value, 'metadata')),
+    labels = object3(required(meta, 'labels')),
+    system = object3(required(value, 'system_metadata'));
+  if (
+    required(meta, 'name') !== expectedName ||
+    required(meta, 'namespace') !== 'system' ||
+    required(system, 'uid') !== expectedUid ||
+    required(labels, 'xcsh-deployment') !== binding.deploymentName ||
+    required(labels, 'xcsh-engine') !== binding.owner.engine ||
+    (node !== undefined && required(labels, 'xcsh-node') !== node)
+  )
+    throw new Error('Original bootstrap ownership differs');
+}
+function jwt(value) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value))
+    throw new Error('Original site-bound JWT required');
+  const segment = value.split('.')[1],
+    raw = Buffer.from(segment, 'base64url');
+  if (raw.toString('base64url') !== segment) throw new Error('Original JWT encoding required');
+  let claims;
+  try {
+    claims = decodeEvidenceObject(raw);
+  } catch {
+    throw new Error('Original JWT claims required');
+  }
+  const exp = claims.exp;
+  if (
+    !Object.hasOwn(claims, 'exp') ||
+    typeof exp !== 'number' ||
+    !Number.isSafeInteger(exp) ||
+    !Number.isFinite(new Date(exp * 1000).getTime()) ||
+    exp * 1000 <= Date.now() + 60000
+  )
+    throw new Error('Original JWT expiry is missing or too near');
+  return { jwt: value, expiresAt: new Date(exp * 1000).toISOString() };
+}
+async function inspectOriginalGcpBootstrap(site, token, input) {
+  const binding = structuredClone(input);
+  if (
+    binding?.owner?.provider !== 'gcp' ||
+    !['native', 'terraform'].includes(binding.owner.engine) ||
+    [binding.deploymentName, binding.siteName, binding.nodeName, binding.tokenName].some(
+      (value) => typeof value !== 'string' || !name2.test(value),
+    ) ||
+    [binding.siteUid, binding.tokenUid].some(
+      (value) => typeof value !== 'string' || !value || value.length > 128 || containsControlCharacters(value),
+    )
+  )
+    throw new Error('Original bootstrap ownership binding required');
+  const siteValue = await original(
+    site,
+    `/api/config/namespaces/system/securemesh_site_v2s/${binding.siteName}`,
+    binding.owner,
+  );
+  const tokenValue = await original(
+    token,
+    `/api/register/namespaces/system/tokens/${binding.tokenName}`,
+    binding.owner,
+  );
+  if (
+    site.evidence.captureId !== token.evidence.captureId ||
+    site.evidence.origin !== token.evidence.origin ||
+    site.evidence.credentialSha256 !== token.evidence.credentialSha256
+  )
+    throw new Error('Original bootstrap recorder context differs');
+  metadata(siteValue, binding.siteName, binding.siteUid, binding);
+  metadata(tokenValue, binding.tokenName, binding.tokenUid, binding, binding.nodeName);
+  const spec = object3(required(tokenValue, 'spec'));
+  if (required(spec, 'site_name') !== binding.siteName || ![1, 'JWT'].includes(required(spec, 'type')))
+    throw new Error('Original bootstrap token ownership differs');
+  const material = jwt(required(spec, 'content'));
+  await assertOriginalGcpPlatformHttpBody(site);
+  await assertOriginalGcpPlatformHttpBody(token);
+  const value = Object.freeze({
+    schemaVersion: 1,
+    kind: 'original-gcp-platform-bootstrap-candidate',
+    owner: Object.freeze(binding.owner),
+    deploymentName: binding.deploymentName,
+    siteName: binding.siteName,
+    siteUid: binding.siteUid,
+    nodeName: binding.nodeName,
+    tokenName: binding.tokenName,
+    tokenUid: binding.tokenUid,
+    siteBodySha256: site.evidence.bodySha256,
+    tokenBodySha256: token.evidence.bodySha256,
+    jwtSha256: hash3(material.jwt),
+    expiresAt: material.expiresAt,
+    metadataCorroborated: true,
+    bootstrapOwnershipQualified: false,
+  });
+  issued.set(value, { site, token, jwt: material.jwt });
+  return value;
+}
+async function readOriginalGcpBootstrapJwt(value) {
+  const source = issued.get(value);
+  if (!source) throw new Error('Original bootstrap candidate required');
+  await assertOriginalGcpPlatformHttpBody(source.site);
+  await assertOriginalGcpPlatformHttpBody(source.token);
+  return source.jwt;
+}
+var hash3 = (value) => createHash7('sha256').update(value).digest('hex'),
+  name2,
+  issued,
+  _originalGcpBootstrapSource;
+var init_gcp_bootstrap_evidence = __esm(() => {
+  init_gcp_http_capture();
+  init_security();
+  name2 = /^[a-z][a-z0-9-]{0,62}$/;
+  issued = new WeakMap();
+  _originalGcpBootstrapSource = Object.freeze({
+    assertBody: assertOriginalGcpPlatformHttpBody,
+    inspect: inspectOriginalGcpBootstrap,
+    readJwt: readOriginalGcpBootstrapJwt,
+  });
+});
+
+// plugins/platform/src/ce/bgp-evidence.ts
+var init_bgp_evidence = () => {};
+
+// plugins/platform/src/ce/bgp-route-evidence.ts
+var init_bgp_route_evidence = () => {};
+
+// plugins/platform/src/ce/bootstrap.ts
+var init_bootstrap = () => {};
+
+// plugins/platform/src/ce/ingress-lifecycle.ts
+var init_ingress_lifecycle = __esm(() => {
+  init_process_lock();
+  init_runtime();
+});
+// plugins/platform/src/ce/interface-evidence.ts
+var init_interface_evidence = () => {};
+
+// plugins/platform/src/ce/origin-teardown.ts
+var init_origin_teardown = __esm(() => {
+  init_runtime();
+});
+
+// plugins/platform/src/ce/platform-drain.ts
+var init_platform_drain = __esm(() => {
+  init_runtime();
+});
+// plugins/platform/src/ce/teardown-inventory.ts
+var init_teardown_inventory = __esm(() => {
+  init_runtime();
+});
+
+// plugins/platform/src/ce/upgrade-evidence.ts
+var init_upgrade_evidence = () => {};
+
+// plugins/platform/src/ce/runtime.ts
+var init_runtime = __esm(() => {
+  init_bgp_evidence();
+  init_bgp_route_evidence();
+  init_bootstrap();
+  init_ingress_lifecycle();
+  init_interface_evidence();
+  init_origin_teardown();
+  init_platform_drain();
+  init_teardown_inventory();
+  init_upgrade_evidence();
+});
+
+// plugins/platform/src/ce/gcp-http.ts
+var init_gcp_http = __esm(() => {
+  init_runtime();
+});
+
+// plugins/platform/src/ce/gcp-bootstrap-observation.ts
+var init_gcp_bootstrap_observation = __esm(() => {
+  init_gcp_http();
+  init_gcp_http_capture();
+  init_security();
+});
+
+// plugins/platform/src/ce/gcp-lifecycle.ts
+var init_gcp_lifecycle = __esm(() => {
+  init_discovery();
+  init_site_access();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/interface-identity.ts
+function object4(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Malformed GCP interface identity evidence');
+  return value;
+}
+function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue, configurationValue) {
+  const cloud = object4(cloudValue),
+    registration = object4(registrationValue),
+    configuration = object4(configurationValue);
+  if (
+    !/^\d+$/.test(expected.instanceId) ||
+    cloud.id !== expected.instanceId ||
+    cloud.name !== expected.nodeName ||
+    cloud.zone !== `https://www.googleapis.com/compute/v1/projects/${expected.project}/zones/${expected.zone}`
+  )
+    throw new Error('Owned GCP VM identity mismatch');
+  const metadata = object4(configuration.metadata);
+  if (metadata.name !== expected.siteName || metadata.namespace !== 'system')
+    throw new Error('Exact GCP site configuration identity required');
+  const spec = object4(registration.get_spec),
+    infra = object4(spec.infra),
+    passport = object4(spec.passport);
+  const status = object4(object4(registration.object).status);
+  if (
+    infra.provider !== 'GOOGLE' ||
+    String(infra.instance_id) !== expected.instanceId ||
+    infra.hostname !== expected.nodeName ||
+    infra.availability_zone !== expected.zone ||
+    passport.cluster_name !== expected.siteName ||
+    status.current_state !== 'ONLINE'
+  )
+    throw new Error('Registration is not ONLINE for the exact owned GCP node');
+  const nodes = object4(object4(object4(configuration.spec).gcp).not_managed).node_list;
+  if (!Array.isArray(nodes)) throw new Error('Missing configured GCP node inventory');
+  const matches = nodes.map(object4).filter((node) => node.hostname === expected.nodeName);
+  if (matches.length !== 1) throw new Error('Exact configured GCP node must be unique');
+  const configured = matches[0].interface_list;
+  const hardware = object4(infra.hw_info).network;
+  const cloudNics = cloud.networkInterfaces;
+  if (
+    !Array.isArray(configured) ||
+    !Array.isArray(hardware) ||
+    !Array.isArray(cloudNics) ||
+    configured.length !== expected.nics.length ||
+    cloudNics.length !== expected.nics.length
+  )
+    throw new Error('GCP interface topology evidence is incomplete');
+  const used = new Set();
+  const macs = new Set();
+  return configured
+    .map((value) => {
+      const nic = object4(value),
+        ethernet = object4(nic.ethernet_interface),
+        option = object4(nic.network_option);
+      if (
+        typeof ethernet.device !== 'string' ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device) ||
+        typeof ethernet.mac !== 'string' ||
+        !/^(?:[a-f0-9]{2}:){5}[a-f0-9]{2}$/.test(ethernet.mac)
+      )
+        throw new Error('Configured device and MAC are required');
+      const mac = ethernet.mac;
+      if (macs.has(mac)) throw new Error('Duplicate configured MAC');
+      macs.add(mac);
+      const hw = hardware
+        .map(object4)
+        .filter(
+          (item) =>
+            item.name === ethernet.device &&
+            typeof item.mac_address === 'string' &&
+            item.mac_address.toLowerCase() === mac,
+        );
+      if (hw.length !== 1 || !Array.isArray(hw[0].ip_address)) throw new Error('Device/MAC hardware join is ambiguous');
+      const addresses = hw[0].ip_address.map((address) => (typeof address === 'string' ? address.split('/')[0] : ''));
+      const indices = cloudNics
+        .map(object4)
+        .flatMap((cloudNic, index) => (addresses.includes(String(cloudNic.networkIP)) ? [index] : []));
+      if (indices.length !== 1 || used.has(indices[0])) throw new Error('Cloud address/NIC join is ambiguous');
+      const index = indices[0],
+        cloudNic = object4(cloudNics[index]);
+      const wanted = expected.nics.find((item) => item.index === index);
+      if (
+        !wanted ||
+        cloudNic.name !== `nic${index}` ||
+        cloudNic.network !== wanted.network ||
+        cloudNic.subnetwork !== wanted.subnet
+      )
+        throw new Error('Cloud NIC network/subnet/order differs');
+      const roleField = wanted.role === 'slo' ? 'site_local_network' : 'site_local_inside_network';
+      if (
+        Object.keys(option).length !== 1 ||
+        !Object.hasOwn(option, roleField) ||
+        nic.is_primary !== (index === 0) ||
+        (wanted.role === 'slo') !== (index === 0)
+      )
+        throw new Error('Configured role/primary interface differs');
+      used.add(index);
+      return {
+        cloudNicIndex: index,
+        role: wanted.role,
+        vrf: wanted.vrf,
+        device: ethernet.device,
+        mac,
+        source: 'owned-cloud-vm-and-site-registration',
+      };
+    })
+    .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
+}
+
 // plugins/platform/src/ce/gcp-operational-binding.ts
 var init_gcp_operational_binding = __esm(() => {
   init_discovery();
@@ -4857,7 +4857,7 @@ var init_byol_vm_contract = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/corporate-funding.ts
-import { createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash8 } from 'node:crypto';
 import { lstat as lstat3, readFile as readFile2 } from 'node:fs/promises';
 import { homedir as homedir2 } from 'node:os';
 import { join as join4 } from 'node:path';
@@ -4880,7 +4880,7 @@ async function readGcpCorporateFundingPolicy(
   const raw = await readFile2(filename, 'utf8');
   const policy = JSON.parse(raw);
   validatePolicy(policy, project);
-  return { policy, policySha256: `sha256:${createHash7('sha256').update(raw).digest('hex')}` };
+  return { policy, policySha256: `sha256:${createHash8('sha256').update(raw).digest('hex')}` };
 }
 function validatePolicy(policy, project) {
   if (
@@ -4978,7 +4978,7 @@ var init_corporate_funding = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/byol-terms.ts
-import { createHash as createHash8 } from 'node:crypto';
+import { createHash as createHash9 } from 'node:crypto';
 
 async function normalizedGoogleMarketplaceTerms(bytes) {
   const cleaned = await new HTMLRewriter()
@@ -5066,7 +5066,7 @@ async function binding(intent, source, signal, profile = byol_vm_contract_defaul
     const bytes = await source.document(expected.url, signal);
     const content =
       expected.digestKind === 'normalized-current-legal-text' ? await normalizedGoogleMarketplaceTerms(bytes) : bytes;
-    const sha256 = `sha256:${createHash8('sha256').update(content).digest('hex')}`;
+    const sha256 = `sha256:${createHash9('sha256').update(content).digest('hex')}`;
     if (sha256 !== expected.sha256) throw new Error('BYOL legal document changed; requalification required');
     documents.push({ role: expected.role, url: expected.url, version: expected.version, sha256 });
   }
@@ -6290,12 +6290,12 @@ var init_planner = __esm(() => {
   init_contract();
   init_corporate_funding();
   init_discovery();
-  init_types2();
+  init_types();
   init_validation();
 });
 
 // plugins/gcloud/src/ce/policy.ts
-import { createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash10 } from 'node:crypto';
 
 function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
   if (!/^contract_id:\s*f5xc-ce-automation-policy\s*$/m.test(text) || !/^contract_version:\s*v2\s*$/m.test(text))
@@ -6314,7 +6314,7 @@ function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
     identity: 'f5xc-ce-automation-policy/v2',
     url: GCP_CE_POLICY_URL,
     observedAt,
-    normalizedSha256: `sha256:${createHash9('sha256').update(normalized).digest('hex')}`,
+    normalizedSha256: `sha256:${createHash10('sha256').update(normalized).digest('hex')}`,
   };
 }
 async function readGcpCePolicy(fetcher = fetch) {
@@ -7712,7 +7712,7 @@ var init_owned_status = __esm(() => {
 });
 
 // plugins/terraform/src/google-adc-session.ts
-import { createHash as createHash10 } from 'node:crypto';
+import { createHash as createHash11 } from 'node:crypto';
 import { constants, watch } from 'node:fs';
 import { lstat as lstat5, open, realpath as realpath3 } from 'node:fs/promises';
 import { dirname as dirname2, isAbsolute as isAbsolute2, resolve } from 'node:path';
@@ -7884,7 +7884,7 @@ async function openGoogleAdcSession(input, expectedInput) {
   return Object.freeze({ environment, verify, close });
 }
 var googleCredentialAlternatives,
-  hash4 = (value) => createHash10('sha256').update(value).digest('hex'),
+  hash4 = (value) => createHash11('sha256').update(value).digest('hex'),
   validHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   sameOwner = (a, b) =>
     a?.engine === 'terraform' &&
@@ -7994,7 +7994,7 @@ var init_installed_capture_context = __esm(() => {
 });
 
 // plugins/terraform/src/original-input-monitor.ts
-import { createHash as createHash11 } from 'node:crypto';
+import { createHash as createHash12 } from 'node:crypto';
 import { constants as constants2, watch as watch2 } from 'node:fs';
 import { lstat as lstat6, open as open2, realpath as realpath4 } from 'node:fs/promises';
 import { basename as basename3, dirname as dirname3, isAbsolute as isAbsolute4, resolve as resolve3 } from 'node:path';
@@ -8150,7 +8150,7 @@ async function monitorOriginalInputs(input, options = {}) {
 var OriginalInputMonitorError,
   keys2,
   parentKeys2,
-  hash5 = (raw) => createHash11('sha256').update(raw).digest('hex'),
+  hash5 = (raw) => createHash12('sha256').update(raw).digest('hex'),
   maximum,
   identity = (stat) => Object.fromEntries(keys2.map((key) => [key, stat[key].toString()]));
 var init_original_input_monitor = __esm(() => {
@@ -8168,7 +8168,7 @@ var init_original_input_monitor = __esm(() => {
 });
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash12, randomUUID as randomUUID4 } from 'node:crypto';
+import { createHash as createHash13, randomUUID as randomUUID4 } from 'node:crypto';
 import {
   chmod,
   lstat as lstat7,
@@ -8552,6 +8552,52 @@ function projectResourceFields(values, sensitivity, fields) {
     selected[field] = value;
   }
   return selected;
+}
+function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt, selections) {
+  const minimalEmptyState =
+    Object.keys(state).length === 1 &&
+    state.format_version === '1.0' &&
+    identity.version === 4 &&
+    identity.terraform_version === terraformVersion &&
+    Array.isArray(identity.resources) &&
+    identity.resources.length === 0 &&
+    identity.outputs !== null &&
+    typeof identity.outputs === 'object' &&
+    !Array.isArray(identity.outputs) &&
+    Object.keys(identity.outputs).length === 0;
+  if (state.format_version !== '1.0' || (state.terraform_version !== terraformVersion && !minimalEmptyState))
+    throw new Error('Terraform state format or version changed');
+  const module = object7(object7(state.values ?? {}).root_module ?? {});
+  const resources = module.resources ?? [];
+  if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
+  if (
+    (Array.isArray(module.child_modules) && module.child_modules.length) ||
+    resources
+      .map(object7)
+      .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
+  )
+    throw new Error('Foreign state resource requires reconciliation');
+  const result = {};
+  for (const [address, fields] of Object.entries(selections)) {
+    const reviewed = receipt.changes.filter((change) => change.address === address);
+    if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
+    const matches = resources.map(object7).filter((resource) => resource.address === address);
+    if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
+    if (!matches.length) {
+      result[address] = null;
+      continue;
+    }
+    const resource = matches[0];
+    if (
+      resource.mode !== (address.startsWith('data.') ? 'data' : 'managed') ||
+      resource.type !== reviewed[0].type ||
+      resource.type !== address.split('.')[address.startsWith('data.') ? 1 : 0]
+    )
+      throw new Error('Terraform state resource differs from reviewed identity');
+    if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
+    result[address] = projectResourceFields(object7(resource.values), resource.sensitive_values, fields);
+  }
+  return result;
 }
 
 class TerraformRunner {
@@ -9510,52 +9556,7 @@ class TerraformRunner {
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
       const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
-      const minimalEmptyState =
-        Object.keys(state).length === 1 &&
-        state.format_version === '1.0' &&
-        identity.version === 4 &&
-        identity.terraform_version === manifest.terraformVersion &&
-        Array.isArray(identity.resources) &&
-        identity.resources.length === 0 &&
-        identity.outputs !== null &&
-        typeof identity.outputs === 'object' &&
-        !Array.isArray(identity.outputs) &&
-        Object.keys(identity.outputs).length === 0;
-      if (
-        state.format_version !== '1.0' ||
-        (state.terraform_version !== manifest.terraformVersion && !minimalEmptyState)
-      )
-        throw new Error('Terraform state format or version changed');
-      const module = object7(object7(state.values ?? {}).root_module ?? {});
-      const resources = module.resources ?? [];
-      if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
-      if (
-        (Array.isArray(module.child_modules) && module.child_modules.length) ||
-        resources
-          .map(object7)
-          .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
-      )
-        throw new Error('Foreign state resource requires reconciliation');
-      const result = {};
-      for (const [address, fields] of Object.entries(selections)) {
-        const reviewed = receipt.changes.filter((change) => change.address === address);
-        if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
-        const matches = resources.map(object7).filter((resource) => resource.address === address);
-        if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
-        if (!matches.length) {
-          result[address] = null;
-          continue;
-        }
-        const resource = matches[0];
-        if (
-          resource.mode !== (address.startsWith('data.') ? 'data' : 'managed') ||
-          resource.type !== reviewed[0].type ||
-          resource.type !== address.split('.')[address.startsWith('data.') ? 1 : 0]
-        )
-          throw new Error('Terraform state resource differs from reviewed identity');
-        if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
-        result[address] = projectResourceFields(object7(resource.values), resource.sensitive_values, fields);
-      }
+      const result = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
       if (digest2(snapshot) !== digest2(await privateRead(statePath)))
         throw new Error('Terraform state changed during identity inspection');
       await this.#verifyInputs();
@@ -9776,7 +9777,7 @@ var originalPlanSources,
 }
 disable_checkpoint = true
 `,
-  digest2 = (value) => createHash12('sha256').update(value).digest('hex'),
+  digest2 = (value) => createHash13('sha256').update(value).digest('hex'),
   safeId,
   executeTerraform;
 var init_runner = __esm(() => {
@@ -12924,7 +12925,7 @@ var init_gcp_ce = __esm(() => {
   init_terraform_public_teardown();
   init_terraform_session();
   init_terraform_teardown();
-  init_types2();
+  init_types();
   init_validation();
   init_exec();
   init_shared();
@@ -13192,6 +13193,114 @@ function presentTool(tool, p) {
 
 // plugins/gcloud/src/index.ts
 init_shared();
+
+// plugins/gcloud/src/ce/capture-cleanup-state.ts
+import { createHash as createHash5 } from 'node:crypto';
+
+init_discovery();
+init_terraform_public_ownership();
+init_validation();
+var fail = () => new Error('Original declared GCP capture cleanup state required');
+var plainString = (value) =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= 2048 &&
+  value.trim() === value &&
+  !/[\0\r\n]/.test(value);
+function readGcpCaptureCleanupStateCandidate(input) {
+  const intent = structuredClone(input.intent);
+  validateIntent(intent);
+  const receipt = structuredClone(input.createReceipt);
+  const expected = publicTerraformAddresses(intent);
+  if (
+    intent.engine !== 'terraform' ||
+    receipt.schemaVersion !== 1 ||
+    receipt.engine !== 'terraform' ||
+    receipt.deploymentId !== intent.deploymentName ||
+    receipt.backendIdentity !== `local:${intent.deploymentName}` ||
+    receipt.operation !== undefined ||
+    receipt.noChanges !== false ||
+    (receipt.actionInvocations !== undefined &&
+      (!Array.isArray(receipt.actionInvocations) || receipt.actionInvocations.length !== 0)) ||
+    !/^[a-f0-9]{64}$/.test(receipt.planSha256) ||
+    !/^[a-f0-9]{64}$/.test(receipt.configurationSha256) ||
+    !/^[a-f0-9]{64}$/.test(receipt.providerLockSha256) ||
+    !Array.isArray(receipt.changes) ||
+    receipt.changes.length !== expected.length ||
+    receipt.changes.some(
+      (row) =>
+        !row ||
+        !expected.includes(row.address) ||
+        row.type !== row.address.split('.')[0] ||
+        !Array.isArray(row.actions) ||
+        row.actions.length !== 1 ||
+        row.actions[0] !== 'create',
+    ) ||
+    new Set(receipt.changes.map((row) => row.address)).size !== expected.length ||
+    input.bytes.byteLength > 16 * 1024 * 1024
+  )
+    throw fail();
+  const bytes = Buffer.from(input.bytes);
+  const stateSha256 = createHash5('sha256').update(bytes).digest('hex');
+  if (stateSha256 !== input.expectedStateSha256 || !/^[a-f0-9]{64}$/.test(input.expectedStateSha256)) throw fail();
+  const state = decodeEvidenceObject(bytes);
+  if (
+    state.version !== 4 ||
+    !plainString(state.lineage) ||
+    !Number.isSafeInteger(state.serial) ||
+    state.serial < 0 ||
+    !Array.isArray(state.resources)
+  )
+    throw fail();
+  const resources = [];
+  const seen = new Set();
+  const identities = new Set();
+  for (const value of state.resources) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail();
+    const row = value;
+    if (row.mode === 'data') continue;
+    if (
+      row.mode !== 'managed' ||
+      row.module !== undefined ||
+      !plainString(row.type) ||
+      !plainString(row.name) ||
+      !Array.isArray(row.instances) ||
+      row.instances.length !== 1
+    )
+      throw fail();
+    const address = `${row.type}.${row.name}`;
+    if (!expected.includes(address) || seen.has(address)) throw fail();
+    const instance = row.instances[0];
+    if (!instance || typeof instance !== 'object' || Array.isArray(instance)) throw fail();
+    const item = instance;
+    if (
+      item.deposed !== undefined ||
+      item.index_key !== undefined ||
+      !item.attributes ||
+      typeof item.attributes !== 'object' ||
+      Array.isArray(item.attributes)
+    )
+      throw fail();
+    const id = item.attributes.id;
+    if (!plainString(id) || identities.has(`${row.type}:${id}`)) throw fail();
+    seen.add(address);
+    identities.add(`${row.type}:${id}`);
+    resources.push(Object.freeze({ address, id }));
+  }
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: 'gcp-capture-cleanup-state-candidate',
+    intentFingerprint: fingerprint(intent),
+    createPlanSha256: receipt.planSha256,
+    state: Object.freeze({ sha256: stateSha256, lineage: state.lineage, serial: state.serial }),
+    resources: Object.freeze(resources.sort((a, b) => a.address.localeCompare(b.address))),
+    liveOwnershipVerified: false,
+    readerClosureVerified: false,
+    executionAuthorized: false,
+  });
+}
+
+// plugins/gcloud/src/index.ts
 function sanitizeHintField(value, maxLen = 200) {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
@@ -13357,4 +13466,10 @@ var factory = async (pi) => {
 };
 var src_default = factory;
 
-export { gcloudInstallArgv, retryAfterMsFromHeaders, src_default as default, withErrorType };
+export {
+  gcloudInstallArgv,
+  readGcpCaptureCleanupStateCandidate,
+  retryAfterMsFromHeaders,
+  src_default as default,
+  withErrorType,
+};

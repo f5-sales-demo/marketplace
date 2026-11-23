@@ -2230,3 +2230,13 @@ hash verified. Complete live before/final factory execution and every original
 installed/live/cleanup/CI/review/delivery gate remain open. A fresh 21-resource
 original source plan and its independent initial absences are retained; no apply
 has been submitted.
+
+## Independent capture cleanup ownership inspection
+
+The [cleanup inspection receipt](gcp-capture-cleanup-inspection-source-20261122.md)
+records the immutable state-snapshot and malformed receipt failures, their
+repairs, and the shared read-only inspection path through retained failed locks.
+All 137 affected cases, current strict Terraform/GCloud types and the normal
+three-plugin build pass. Concrete signal-free inspection, original reader-group
+closure and real GCP/XC ownership admission remain the next gate. Every original
+installed/runtime/live/cleanup/CI/review/delivery gate remains open.

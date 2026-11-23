@@ -3,9 +3,178 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { type CaptureCleanupRecovery, TerraformRunner } from '../src/runner';
+import { type CaptureCleanupRecovery, readCaptureCleanupAttemptResourceFields, TerraformRunner } from '../src/runner';
 
 const hash = (raw: string | Uint8Array) => createHash('sha256').update(raw).digest('hex');
+
+async function inspectionFixture() {
+  const f = await fixture();
+  const manifest = JSON.parse(await readFile(join(f.dir, 'deployment.json'), 'utf8'));
+  const plan = Buffer.from('original-private-plan-fixture');
+  const receipt = {
+    schemaVersion: 1 as const,
+    deploymentId: manifest.deploymentId,
+    engine: 'terraform' as const,
+    backendIdentity: manifest.backendIdentity,
+    configurationSha256: manifest.configurationSha256,
+    providerLockSha256: manifest.providerLockSha256,
+    planSha256: hash(plan),
+    noChanges: false,
+    changes: [{ address: 'terraform_data.one', type: 'terraform_data', actions: ['create'] }],
+  };
+  await writeFile(join(f.dir, 'saved.tfplan'), plan, { mode: 0o600 });
+  await writeFile(join(f.dir, 'plan-receipt.json'), JSON.stringify({ state: 'applying', receipt }), { mode: 0o600 });
+  const names = [
+    'deployment.json',
+    'main.tf.json',
+    '.terraform.lock.hcl',
+    'deployment.tfrc',
+    'terraform.tfstate',
+    'plan-receipt.json',
+    'saved.tfplan',
+  ];
+  const inputs = Object.fromEntries(
+    await Promise.all(names.map(async (name) => [name, await f.binding(join(f.dir, name))])),
+  );
+  for (const [name, binding] of Object.entries(f.recovery.retainedLockInputs)) inputs[`lock:${name}`] = binding;
+  let checks = 0;
+  const rendered = {
+    format_version: '1.0',
+    terraform_version: manifest.terraformVersion,
+    values: {
+      root_module: {
+        resources: [
+          {
+            address: 'terraform_data.one',
+            mode: 'managed',
+            type: 'terraform_data',
+            values: { id: 'example-owned-id', secret: 'private-example-content' },
+            sensitive_values: { secret: true },
+          },
+        ],
+      },
+    },
+  };
+  const input = {
+    directory: f.dir,
+    inputs,
+    receipt,
+    selections: { 'terraform_data.one': ['id'] },
+    environment: {},
+    assertIndependentClosure: async () => {
+      checks++;
+    },
+    execute: async (request: { cwd: string; args: string[] }) => {
+      f.calls.push(request.args);
+      expect(request.cwd).toBe(f.dir);
+      return {
+        code: 0,
+        stdout: JSON.stringify(
+          request.args[0] === 'version' ? { terraform_version: manifest.terraformVersion } : rendered,
+        ),
+      };
+    },
+  };
+  return { ...f, input, rendered, checks: () => checks };
+}
+
+test('independent capture cleanup inspection reads original ownership without reclaiming the failed executor or submitting writes', async () => {
+  const f = await inspectionFixture();
+  const failed = await readFile(join(f.lock, 'capture-unresolved.json'));
+  const result = await readCaptureCleanupAttemptResourceFields(f.input);
+  expect(result.applyState).toBe('applying');
+  expect(result.resources).toEqual({ 'terraform_data.one': { id: 'example-owned-id' } });
+  expect(result.stateSha256).toBe(f.recovery.state.sha256);
+  expect(f.calls.map((args) => args[0])).toEqual(['version', 'show']);
+  expect(f.checks()).toBeGreaterThan(1);
+  expect(JSON.stringify(result)).not.toContain('private-example-content');
+  expect(await readFile(join(f.lock, 'capture-unresolved.json'))).toEqual(failed);
+});
+
+for (const mode of ['state-change', 'plan-replacement', 'planned-checkpoint', 'reader-live'] as const)
+  test(`independent cleanup inspection refuses before any executor read: ${mode}`, async () => {
+    const f = await inspectionFixture();
+    if (mode === 'state-change') await writeFile(join(f.dir, 'terraform.tfstate'), '{}', { mode: 0o600 });
+    if (mode === 'plan-replacement') {
+      const path = join(f.dir, 'saved.tfplan'),
+        raw = await readFile(path);
+      await rename(path, `${path}.original`);
+      await writeFile(path, raw, { mode: 0o600 });
+    }
+    if (mode === 'planned-checkpoint') {
+      const path = join(f.dir, 'plan-receipt.json');
+      await writeFile(path, JSON.stringify({ state: 'planned', receipt: f.input.receipt }), { mode: 0o600 });
+      f.input.inputs['plan-receipt.json'] = await f.binding(path);
+    }
+    if (mode === 'reader-live')
+      f.input.assertIndependentClosure = async () => {
+        throw new Error('Original reader remains live');
+      };
+    await expect(readCaptureCleanupAttemptResourceFields(f.input)).rejects.toThrow();
+    expect(f.calls).toHaveLength(0);
+    expect(await Bun.file(join(f.lock, 'capture-unresolved.json')).exists()).toBe(true);
+  });
+
+test('independent cleanup inspection refuses sensitive ownership fields without exposing raw state', async () => {
+  const f = await inspectionFixture();
+  Object.assign(f.rendered.values.root_module.resources[0].sensitive_values, { id: true });
+  await expect(readCaptureCleanupAttemptResourceFields(f.input)).rejects.toThrow();
+  expect(await Bun.file(join(f.lock, 'capture-unresolved.json')).exists()).toBe(true);
+});
+
+test('independent cleanup inspection permits an empty original state as evidence without deletion authority', async () => {
+  const f = await inspectionFixture();
+  const path = join(f.dir, 'terraform.tfstate');
+  const state = {
+    version: 4,
+    terraform_version: '1.16.6',
+    lineage: 'example-lineage',
+    serial: 2,
+    resources: [],
+    outputs: {},
+  };
+  await writeFile(path, JSON.stringify(state), { mode: 0o600 });
+  f.input.inputs['terraform.tfstate'] = await f.binding(path);
+  f.input.execute = async (request) => {
+    f.calls.push(request.args);
+    return {
+      code: 0,
+      stdout: JSON.stringify(
+        request.args[0] === 'version' ? { terraform_version: '1.16.6' } : { format_version: '1.0' },
+      ),
+    };
+  };
+  const result = await readCaptureCleanupAttemptResourceFields(f.input);
+  expect(result.resources).toEqual({ 'terraform_data.one': null });
+  expect(result.serial).toBe(2);
+  expect(f.calls.map((args) => args[0])).toEqual(['version', 'show']);
+  expect(await Bun.file(join(f.lock, 'capture-unresolved.json')).exists()).toBe(true);
+});
+
+test('independent cleanup inspection rejects state replacement during the rendered state read', async () => {
+  const f = await inspectionFixture();
+  const execute = f.input.execute;
+  f.input.execute = async (request) => {
+    const result = await execute(request);
+    if (request.args[0] === 'show') {
+      const path = join(f.dir, 'terraform.tfstate'),
+        raw = await readFile(path);
+      await rename(path, `${path}.original`);
+      await writeFile(path, raw, { mode: 0o600 });
+    }
+    return result;
+  };
+  await expect(readCaptureCleanupAttemptResourceFields(f.input)).rejects.toThrow();
+  expect(f.calls.map((args) => args[0])).toEqual(['version', 'show']);
+  expect(await Bun.file(join(f.lock, 'capture-unresolved.json')).exists()).toBe(true);
+});
+
+test('independent cleanup inspection requires every original failed-lock binding before executor access', async () => {
+  const f = await inspectionFixture();
+  delete f.input.inputs['lock:lifetime.json'];
+  await expect(readCaptureCleanupAttemptResourceFields(f.input)).rejects.toThrow();
+  expect(f.calls).toHaveLength(0);
+});
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'ce-capture-cleanup-'));
   const dir = join(root, 'cleanup-fixture');
