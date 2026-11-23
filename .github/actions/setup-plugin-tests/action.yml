@@ -1,6 +1,6 @@
 ---
 name: Set up isolated plugin test runtime
-description: Install pinned Bun, qualification shells and Python fixture dependencies in runner temporary storage.
+description: Install pinned Bun, Terraform, qualification shells and Python fixture dependencies in runner temporary storage.
 outputs:
   python-site:
     description: Isolated Python fixture dependency path
@@ -17,6 +17,9 @@ runs:
     - name: Install isolated Bash/Zsh qualification shell
       shell: bash
       run: ./scripts/install-ci-zsh.sh
+    - name: Install current isolated Terraform qualification runtime
+      shell: bash
+      run: ./scripts/install-ci-terraform.sh
     - name: Prepare isolated Python fixture dependencies
       id: python
       shell: bash
