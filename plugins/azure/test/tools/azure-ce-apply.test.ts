@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AzExecApi } from '../../src/az/exec';
-import { type SessionManagerLike, saveCheckpoint, savePlanArtifact } from '../../src/ce/artifacts';
+import { loadCheckpoint, type SessionManagerLike, saveCheckpoint, savePlanArtifact } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { buildAzureNativePendingAction } from '../../src/ce/native-action-recovery';
 import { compileAzureCePlan } from '../../src/ce/planner';
@@ -758,4 +758,87 @@ it('checkpoints native platform ingress before collecting content-bound traffic 
     'traffic',
     `save:${trafficAction.id}`,
   ]);
+});
+
+describe('Azure CE native command authentication failures', () => {
+  for (const code of ['AADSTS50076', 'AADSTS50079']) {
+    it(`reports ${code} without disclosing stderr and preserves the incomplete action for resume`, async () => {
+      const f = await fixture(['vm', 'vnet'], []);
+      let mutationAttempts = 0;
+      const marker = 'synthetic-output-must-stay-private';
+      const failingApi: AzExecApi = {
+        async exec(command, args, options) {
+          if (args[0] === 'resource' && args[1] === 'delete') {
+            mutationAttempts++;
+            return {
+              exitCode: 1,
+              stdout: '',
+              stderr: `${code}: MFA required. ${marker}. Trace ID: 00000000-0000-0000-0000-000000000001`,
+            };
+          }
+          return f.api.exec(command, args, options);
+        },
+      };
+      const run = (api: AzExecApi) =>
+        executeAzureCeNativeApply(
+          { planId: f.plan.planId, planSha256: f.plan.planSha256 },
+          { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager: f.sessionManager },
+          api,
+          f.platform,
+          undefined,
+          { observe: async () => f.current() },
+        );
+      let caught: unknown;
+      try {
+        await run(failingApi);
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      const message = (caught as Error).message;
+      expect((caught as Error).cause).toMatchObject({ errorType: 'auth_required', vendorCode: code });
+      expect(message).toContain(code);
+      expect(message).toContain('authentication requires MFA');
+      expect(message).toContain('az login');
+      expect(message).toContain('Resume with the same plan ID and SHA-256');
+      expect(message).not.toContain(marker);
+      expect(message).not.toContain('00000000-0000-0000-0000-000000000001');
+      expect(mutationAttempts).toBe(1);
+      expect(f.events.filter((event) => event.startsWith('mutate:'))).toEqual([]);
+      const stopped = await loadCheckpoint(f.sessionManager, f.plan);
+      expect(stopped?.state).toBe('partial');
+      expect(stopped?.failedActionId).toBe(f.plan.actions[0].id);
+      expect(stopped?.completedActionIds).toEqual([]);
+      const resumed = await run(f.api);
+      expect(resumed.checkpoint.state).toBe('complete');
+      expect(resumed.checkpoint.completedActionIds).toEqual(f.plan.actions.map((action) => action.id));
+      expect(f.events.filter((event) => event.startsWith('mutate:'))).toHaveLength(2);
+    });
+  }
+  it('keeps unrecognized failures generic and does not misread a longer AADSTS code as MFA', async () => {
+    const f = await fixture(['vm', 'vnet'], []);
+    const marker = 'synthetic-output-must-stay-private';
+    const api: AzExecApi = {
+      async exec(command, args, options) {
+        if (args[0] === 'resource' && args[1] === 'delete')
+          return { exitCode: 23, stdout: '', stderr: `AADSTS500760: unrelated failure ${marker}` };
+        return f.api.exec(command, args, options);
+      },
+    };
+    await expect(
+      executeAzureCeNativeApply(
+        { planId: f.plan.planId, planSha256: f.plan.planSha256 },
+        { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager: f.sessionManager },
+        api,
+        f.platform,
+        undefined,
+        { observe: async () => f.current() },
+      ),
+    ).rejects.toThrow(
+      `Azure action ${f.plan.actions[0].id} failed with exit code 23. Resume with the same plan ID and SHA-256; 0/2 actions are checkpointed.`,
+    );
+    const checkpoint = await loadCheckpoint(f.sessionManager, f.plan);
+    expect(checkpoint?.state).toBe('partial');
+    expect(checkpoint?.completedActionIds).toEqual([]);
+  });
 });

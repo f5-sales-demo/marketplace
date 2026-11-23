@@ -54,18 +54,6 @@ import {
   validateAzureTrafficCheckpoint,
 } from './runtime-0wh24qrj.js';
 import {
-  azureFailoverOwner,
-  azureTerraformFailoverDeployment,
-  buildAzureCeFailoverPlan,
-  requireAzureFailoverExecutionContract,
-  validateAzureFailoverCheckpoint,
-  validateAzureFailoverReceipt,
-  validateAzureFailoverTrafficHistory,
-  validateAzureTerraformFailoverPlan,
-  validateAzureTerraformFailoverRetirement,
-  verifyAzureCeFailoverPlan,
-} from './runtime-cyhdbt19.js';
-import {
   AzureTerraformOutcomeAbsent,
   azureTerraformNetworkPowerDeployment,
   azureTerraformNetworkPowerSelections,
@@ -99,7 +87,19 @@ import {
   validateAzureTerraformNetworkReplacementCompletion,
   verifyAzureTerraformReplacementHistoricalArtifacts,
   withAzureTerraformPowerLifecycle,
-} from './runtime-z9w1njfk.js';
+} from './runtime-6w7a214s.js';
+import {
+  azureFailoverOwner,
+  azureTerraformFailoverDeployment,
+  buildAzureCeFailoverPlan,
+  requireAzureFailoverExecutionContract,
+  validateAzureFailoverCheckpoint,
+  validateAzureFailoverReceipt,
+  validateAzureFailoverTrafficHistory,
+  validateAzureTerraformFailoverPlan,
+  validateAzureTerraformFailoverRetirement,
+  verifyAzureCeFailoverPlan,
+} from './runtime-cyhdbt19.js';
 import './runtime-p156wb33.js';
 
 // plugins/azure/src/ce/native-bootstrap-retirement.ts

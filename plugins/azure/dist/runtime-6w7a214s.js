@@ -465,6 +465,25 @@ async function persistAzureNativeActionEvidence(plan, action, evidence, store) {
   });
 }
 
+// plugins/azure/src/ce/native-command-failure.ts
+class AzureNativeCommandFailure extends Error {
+  errorType;
+  vendorCode;
+  constructor(actionId, result) {
+    const matched = /\bAADSTS(50076|50079)\b/i.exec(result.stderr);
+    const vendorCode = matched ? `AADSTS${matched[1]}` : undefined;
+    super(
+      `Azure action ${actionId} failed with exit code ${result.exitCode}` +
+        (vendorCode
+          ? `: Azure authentication requires MFA (${vendorCode}). Run az login and complete the interactive sign-in`
+          : ''),
+    );
+    this.name = 'AzureNativeCommandFailure';
+    this.errorType = vendorCode ? 'auth_required' : 'exec_error';
+    this.vendorCode = vendorCode;
+  }
+}
+
 // plugins/azure/src/ce/ingress-interface-identity.ts
 function object3(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message);
@@ -22293,8 +22312,7 @@ ${plan.actions.length - completed.size} action(s) remain.`,
           }
         }
         const result = bootstrap ? await withAzureNativeBootstrapFile(bootstrap, execute) : await execute();
-        if (result.exitCode !== 0)
-          throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
+        if (result.exitCode !== 0) throw new AzureNativeCommandFailure(action.id, result);
         if (checkpoint.pendingAction) {
           const deadline = Date.now() + 15 * 60000;
           const resolvedAction = {
@@ -22381,6 +22399,7 @@ ${plan.actions.length - completed.size} action(s) remain.`,
       if (networkUpdate) await persistAzureNativeNetworkCheckpointHistory(plan, checkpoint, storage);
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
+        { cause: error },
       );
     }
   }
@@ -22496,6 +22515,8 @@ function createAzureCeApplyTool2(pi, makeApi = makeExecApi, terraformDependencie
           details: { tool: 'azure_ce_apply', planId: plan.planId, checkpoint },
         };
       } catch (error) {
+        const commandFailure =
+          error instanceof Error && error.cause instanceof AzureNativeCommandFailure ? error.cause : undefined;
         return {
           content: [
             {
@@ -22504,7 +22525,16 @@ function createAzureCeApplyTool2(pi, makeApi = makeExecApi, terraformDependencie
             },
           ],
           isError: true,
-          details: { tool: 'azure_ce_apply', planId: originalPlanId },
+          details: {
+            tool: 'azure_ce_apply',
+            planId: originalPlanId,
+            ...(commandFailure
+              ? {
+                  errorType: commandFailure.errorType,
+                  ...(commandFailure.vendorCode ? { vendorCode: commandFailure.vendorCode } : {}),
+                }
+              : {}),
+          },
         };
       }
     },

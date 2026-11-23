@@ -98,9 +98,16 @@ rebuild an interrupted deployment under a new repair identity.
 
 For headless execution, use `XCSH_CE_HEADLESS_MUTATIONS=1`, and
 `XCSH_CE_ALLOW_DESTROY=1` for teardown. Version-1 and version-2 deployment plans and
-Azure-named compatibility gates are unsupported. The published v6.1.2 API schema and the held
-`f5xc-smsv2-api/v1@7.0.0` executable contract are separate identities; schema presence alone does
-not authorize create, bootstrap, routing, health, failover, or teardown execution.
+Azure-named compatibility gates are unsupported. Published API schemas and executable CE
+contracts are separate identities. Use the installed producer bindings and current CE capability
+evidence to verify both; schema presence alone does not authorize lifecycle execution.
+
+For native `azure_ce_apply`, an `auth_required` result with `vendorCode` `AADSTS50076` or
+`AADSTS50079` requires an interactive Azure sign-in and MFA. Run `az login` on the execution host,
+complete the tenant-required authentication, and resume through `azure_ce_apply` with the original
+plan ID and SHA-256. Keep the failed action incomplete; read-only discovery success does not prove
+that a later write has usable authentication. Unrecognized command failures return `exec_error`
+and the exit code without copying raw Azure output into the public result.
 
 Marketplace terms remain a live discovery requirement. For an initial Terraform deployment, the
 same idempotent `terraform apply` reads and accepts only the exact observed F5 XC agreement and then

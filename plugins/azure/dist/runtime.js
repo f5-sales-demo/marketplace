@@ -477,11 +477,11 @@ var factory = async (pi) => {
     const { createAzHelpTool } = await import('./runtime-s7b82gyx.js');
     const { createAzureComputeDiscoverTool } = await import('./runtime-5z61tzz2.js');
     const { createAzureCePlanTool } = await import('./runtime-bj1fdsgg.js');
-    const { createAzureCeApplyTool } = await import('./runtime-3qqb4wws.js');
+    const { createAzureCeApplyTool } = await import('./runtime-5cdq6ksj.js');
     const { createAzureCeStatusTool } = await import('./runtime-k4zwgc2g.js');
     const { createAzureCeUpgradeTool } = await import('./runtime-b9e95x78.js');
     const { createAzureCeFailoverTool } = await import('./runtime-wepnyrdv.js');
-    const { createAzureCeTeardownTool } = await import('./runtime-nvbham8s.js');
+    const { createAzureCeTeardownTool } = await import('./runtime-7rpgm8ea.js');
     const { createAzureCeDiagnoseTool } = await import('./runtime-p1hsnrdv.js');
     const { createAzureCloudInitAnalyzeTool } = await import('./runtime-4bw8ps08.js');
     pi.registerTool(presentTool2(createAzAccountShowTool(pi)));

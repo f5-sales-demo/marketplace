@@ -21,6 +21,7 @@ import {
   buildAzureNativePendingAction,
   validateAzureNativePendingAction,
 } from '../ce/native-action-recovery';
+import { AzureNativeCommandFailure } from '../ce/native-command-failure';
 import { persistAzureNativeNetworkCheckpointHistory } from '../ce/native-network-checkpoint-history';
 import { persistAzureNativeNetworkGenerationCompletion } from '../ce/native-network-generation';
 import { persistAzureNativeNetworkHistory } from '../ce/native-network-history';
@@ -698,8 +699,7 @@ export async function executeAzureCeNativeApply(
           }
         }
         const result = bootstrap ? await withAzureNativeBootstrapFile(bootstrap, execute) : await execute();
-        if (result.exitCode !== 0)
-          throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
+        if (result.exitCode !== 0) throw new AzureNativeCommandFailure(action.id, result);
         if (checkpoint.pendingAction) {
           const deadline = Date.now() + 15 * 60_000;
           const resolvedAction = {
@@ -786,6 +786,7 @@ export async function executeAzureCeNativeApply(
       if (networkUpdate) await persistAzureNativeNetworkCheckpointHistory(plan, checkpoint, storage);
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
+        { cause: error },
       );
     }
   }
@@ -912,6 +913,8 @@ export function createAzureCeApplyTool(
           details: { tool: 'azure_ce_apply', planId: plan.planId, checkpoint },
         };
       } catch (error) {
+        const commandFailure =
+          error instanceof Error && error.cause instanceof AzureNativeCommandFailure ? error.cause : undefined;
         return {
           content: [
             {
@@ -920,7 +923,16 @@ export function createAzureCeApplyTool(
             },
           ],
           isError: true,
-          details: { tool: 'azure_ce_apply', planId: originalPlanId },
+          details: {
+            tool: 'azure_ce_apply',
+            planId: originalPlanId,
+            ...(commandFailure
+              ? {
+                  errorType: commandFailure.errorType,
+                  ...(commandFailure.vendorCode ? { vendorCode: commandFailure.vendorCode } : {}),
+                }
+              : {}),
+          },
         };
       }
     },
