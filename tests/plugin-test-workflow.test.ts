@@ -83,6 +83,7 @@ test('shared runtime preserves isolated installers and uses a scoped dependency 
     './scripts/install-ci-bun.sh',
     './scripts/check-ci-bun-lockfile-compatibility.sh',
     './scripts/install-ci-zsh.sh',
+    './scripts/install-ci-terraform.sh',
   ]) {
     expect(setup.some((step) => field(step, 'run') === command)).toBe(true);
   }
