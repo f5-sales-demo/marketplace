@@ -122,12 +122,20 @@ printf '%s|%s\n' "$*" "${PUPPETEER_SKIP_DOWNLOAD:-}" >>"$TEST_STATE/calls"
 if [ "${1:-}" = install ]; then
   [ "${INSTALL_EXIT:-0}" = 0 ] || exit "$INSTALL_EXIT"
   if sdk=$(jq -er '.devDependencies["@f5-sales-demo/xcsh"] // empty' package.json); then
+    anthropic_version=0.124.0
+    acp_version=1.4.0
+    google_genai_version=2.21.0
+    if [ "$sdk" = "23.10.19" ]; then
+      anthropic_version=1.8.0
+      acp_version=2.6.0
+      google_genai_version=3.3.0
+    fi
     for package in @f5-sales-demo/xcsh @f5-sales-demo/pi-ai @f5-sales-demo/pi-utils @anthropic-ai/sdk @agentclientprotocol/sdk @google/genai @sinclair/typebox bun-types; do
       case "$package" in
       @f5-sales-demo/xcsh | @f5-sales-demo/pi-ai | @f5-sales-demo/pi-utils) version="$sdk" ;;
-      @anthropic-ai/sdk) version=0.124.0 ;;
-      @agentclientprotocol/sdk) version=1.4.0 ;;
-      @google/genai) version=2.21.0 ;;
+      @anthropic-ai/sdk) version="$anthropic_version" ;;
+      @agentclientprotocol/sdk) version="$acp_version" ;;
+      @google/genai) version="$google_genai_version" ;;
       @sinclair/typebox) version=0.34.52 ;;
       bun-types) version=$(jq -er '.devDependencies["bun-types"] | ltrimstr("^")' package.json) ;;
       esac
