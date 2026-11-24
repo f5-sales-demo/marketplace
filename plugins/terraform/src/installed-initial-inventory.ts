@@ -16,6 +16,7 @@ import {
 import {
   assertOriginalApplyCallback,
   assertOriginalApplyLifetime,
+  isOriginalApplyLifetimeEnd,
   type OriginalApplyCallbackContext,
 } from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
@@ -424,8 +425,12 @@ async function openInitialInventory(
             schemaVersion: 1,
             kind: 'original-apply-gcp-inventory',
           });
+          // The issuer may end before work while the same immutable baseline
+          // remains needed by the original final reserve. Only that authenticated
+          // temporal fact retires this phase; integrity failures retire both.
+          let beforeRetired = false;
           applyInventories.set(packet, async (final) => {
-            if (retired) throw new Error('Original apply-bound inventory retired');
+            if (retired || (!final && beforeRetired)) throw new Error('Original apply-bound inventory retired');
             try {
               if (final) {
                 await assertOriginalApplyCallback(final);
@@ -516,7 +521,8 @@ async function openInitialInventory(
                 executionAuthorized: false as const,
               });
             } catch (error) {
-              retired = true;
+              if (!final && isOriginalApplyLifetimeEnd(error, callback)) beforeRetired = true;
+              else retired = true;
               try {
                 await retainFailure(error);
               } catch (retention) {

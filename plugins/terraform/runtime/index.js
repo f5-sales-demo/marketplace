@@ -8001,8 +8001,9 @@ async function openInitialInventory(input, options = {}) {
             schemaVersion: 1,
             kind: 'original-apply-gcp-inventory',
           });
+          let beforeRetired = false;
           applyInventories.set(packet, async (final) => {
-            if (retired) throw new Error('Original apply-bound inventory retired');
+            if (retired || (!final && beforeRetired)) throw new Error('Original apply-bound inventory retired');
             try {
               if (final) {
                 await assertOriginalApplyCallback(final);
@@ -8083,7 +8084,8 @@ async function openInitialInventory(input, options = {}) {
                 executionAuthorized: false,
               });
             } catch (error) {
-              retired = true;
+              if (!final && isOriginalApplyLifetimeEnd(error, callback)) beforeRetired = true;
+              else retired = true;
               try {
                 await retainFailure(error);
               } catch (retention) {

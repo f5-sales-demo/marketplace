@@ -62,6 +62,25 @@ resumes without submission. The original controller and process group are absent
 The successor will select fresh serial-verified RSA CE keys with modern SHA-2
 signatures and preserve observer Ed25519 trust, strict checking and all bounds.
 
+## Current installed runtime on November 24
+
+The [current runtime receipt](gcp-current-installed-runtime-20261124.md)
+qualifies 834 installed files from `d69661ba`, automatic Platform dependency
+installation, optional then explicit Terraform installation and 11 doctor
+checks. A fresh ordinary Ubuntu `bun dev` session at xcsh `f825957460` and
+Bun 1.4.4 executed one project-identity call and two exact readiness calls.
+Native default and explicit Terraform selection passed; both returned zero
+actions with no approval. Normal exit returned code 0, and independent reads
+verified both original process groups absent. All 884 archived evidence files
+passed independent hash verification. The failed preliminary transcript
+checker remains retained.
+
+The factory remains inactive and untracked. The runtime reported the held GCP
+mapping and shared runner capabilities explicitly. Complete factory before/final
+source and real guest capture, same-provider expiry renewal, every original
+lifecycle/network/traffic/recovery/cleanup gate and CI/review/merge/publication/
+published installation remain open. No GCP apply was submitted.
+
 ## Source continuation on November 17
 
 The [original observer client renewal checkpoint](gcp-observer-renewal-source-20261117.md)
@@ -2369,3 +2388,17 @@ catalog, dependency and warning-clean lint checks pass. The revised factory
 remains inactive and untracked. Actual source/guest/expiry admission and every
 original live/lifecycle/network/traffic/recovery/cleanup/CI/review/delivery gate
 remain open. No GCP apply was submitted.
+
+## Original final inventory after before retirement
+
+The [source receipt](gcp-final-baseline-lifetime-source-20261124.md) records
+failing-first final baseline handoff and wrong before-dispatch evidence. The
+source repair preserves final validation after an original before lifetime end;
+before work and changed evidence cannot revive. The held factory corrects its
+before API call and verifies native capture flags against original completion
+bytes. All 76 affected source/native cases pass with 631 assertions, three strict
+typechecks, normal runtime generation, catalog, dependency and warning-clean
+lint checks. The factory remains inactive and untracked. The changed Terraform
+2.4.170 candidate needs fresh installation/runtime qualification, and all
+original live/expiry/lifecycle/network/traffic/recovery/cleanup/CI/review/merge/
+publication/published-installation gates remain open. No GCP apply occurred.

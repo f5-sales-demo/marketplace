@@ -10,10 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.169 preserves original first final bootstrap ownership
-  and serializes source-issued read-only output inspection. Existing token/NIC,
-  capture-failure, consuming-reader and final-reserve refusals stay enforced.
-  Full factory/live qualification and publication remain held (#1559).
+- **`terraform`** v2.4.170 preserves original final inventory after genuine
+  before-phase retirement. Exact callback, ownership, original absence bytes,
+  source integrity and final-reserve checks remain enforced. Complete factory,
+  live qualification and publication remain held (#1559).
 
 - **`platform`** v6.3.33 rebuilds the shared CE runtime with Bun 1.4.4 and
   retains independent Linux process group closure evidence without signals.
