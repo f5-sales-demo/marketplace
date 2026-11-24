@@ -10,8 +10,10 @@ import { corroborateOriginalGoogleRpcProvider } from '../src/original-google-pro
 import {
   bindOriginalExecutionOutput,
   type OriginalExecutionOutput,
+  readOriginalCompletedOutputInputs,
   readOriginalExecutionChunk,
   readOriginalExecutionCompletion,
+  readOriginalExecutionPrefix,
 } from '../src/original-output-stream';
 import {
   type ExecutionCaptureAdmission,
@@ -526,6 +528,68 @@ test('original lifecycle RPC source requires issued stderr chunks and its matchi
       const unowned = new GoogleProviderLifecycleParser(scope, binding);
       unowned.push(Buffer.from(raw));
       expect(() => unowned.finishOriginal(output, completion)).toThrow('Original descriptor');
+    },
+  );
+  expect((await run.execute()).code).toBe(0);
+});
+
+test('concurrent issued prefix inspections preserve original offsets and source validity', async () => {
+  const run = await fixture(
+    'print("original")\n',
+    async () => {},
+    async (output) => {
+      expect((await output.read('stdout'))?.bytes.toString()).toBe('original\n');
+      const prefix = await readOriginalExecutionPrefix(output);
+      const views = await Promise.all([
+        readOriginalExecutionPrefix(output, prefix),
+        readOriginalExecutionPrefix(output, prefix),
+        readOriginalExecutionPrefix(output, prefix),
+      ]);
+      expect(views.every((view) => view === prefix)).toBe(true);
+      expect(await output.read('stdout')).toBeNull();
+      expect((await output.finish()).stdout.sha256).toBe(hash('original\n'));
+    },
+  );
+  expect((await run.execute()).code).toBe(0);
+});
+
+test('one consumer and original prefix inspection serialize without duplicate or skipped offsets', async () => {
+  const body = 'import sys\nsys.stdout.write("x"*150000)\nsys.stdout.flush()\n';
+  const run = await fixture(
+    body,
+    async () => {},
+    async (output) => {
+      expect((await output.read('stdout'))?.endOffset).toBe(65536);
+      const prefix = await readOriginalExecutionPrefix(output);
+      const [inspected, chunk] = await Promise.all([
+        readOriginalExecutionPrefix(output, prefix),
+        output.read('stdout'),
+      ]);
+      expect(inspected).toBe(prefix);
+      expect(chunk?.offset).toBe(65536);
+      expect(chunk?.endOffset).toBe(131072);
+      expect((await output.read('stdout'))?.endOffset).toBe(150000);
+      expect((await output.finish()).stdout.sha256).toBe(hash('x'.repeat(150000)));
+    },
+  );
+  expect((await run.execute()).code).toBe(0);
+});
+
+test('concurrent closed-output input inspections retain the same exact owned files', async () => {
+  const run = await fixture(
+    'print("original")\n',
+    async () => {},
+    async (output) => {
+      await output.read('stdout');
+      const completion = await output.finish();
+      const views = await Promise.all([
+        readOriginalCompletedOutputInputs(output, completion),
+        readOriginalCompletedOutputInputs(output, completion),
+        readOriginalCompletedOutputInputs(output, completion),
+      ]);
+      expect(views.every((view) => JSON.stringify(view) === JSON.stringify(views[0]))).toBe(true);
+      expect(views[0].stdout.sha256).toBe(hash('original\n'));
+      expect(views[0].stderr.sha256).toBe(hash(''));
     },
   );
   expect((await run.execute()).code).toBe(0);

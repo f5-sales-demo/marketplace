@@ -2358,3 +2358,14 @@ incomplete reader capture and parser failures remain retained. The factory
 stays inactive. Actual guest capture, cloud ownership/expiry admission and every
 original installed/runtime/live/cleanup/CI/review/delivery gate remain open.
 No GCP apply was submitted.
+
+## First final bootstrap and ordered original inspection
+
+The [source receipt](gcp-first-final-bootstrap-source-20261124.md) records the
+missing final-only join, copied-identity claim poisoning and concurrent original
+output-inspection failures and their repairs. All 49 focused cases and 42 related
+cases pass, with 624 assertions; three strict typechecks, normal runtime,
+catalog, dependency and warning-clean lint checks pass. The revised factory
+remains inactive and untracked. Actual source/guest/expiry admission and every
+original live/lifecycle/network/traffic/recovery/cleanup/CI/review/delivery gate
+remain open. No GCP apply was submitted.

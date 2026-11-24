@@ -55,7 +55,7 @@ type EarlyBootstrapView = Awaited<ReturnType<typeof readOriginalEarlyGcpVmEviden
     guestAcceptanceComplete: false;
   }>;
 export interface OriginalFinalGcpBootstrapVm {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 1 | 2;
   readonly kind: 'original-final-gcp-bootstrap-vm-reference';
 }
 type FinalBootstrapView = Awaited<ReturnType<typeof readOriginalFinalGcpVmEvidence>> &
@@ -68,7 +68,8 @@ type FinalBootstrapView = Awaited<ReturnType<typeof readOriginalFinalGcpVmEviden
     | 'bootstrapCorroborated'
     | 'guestAcceptanceComplete'
     | 'originalBeforeReadExpired'
-  >;
+  > &
+  Readonly<{ initialPhase?: 'after'; originalEarlyBootstrapJoined?: false }>;
 type BootstrapView = EarlyBootstrapView | FinalBootstrapView;
 interface FinalBootstrapHandoff {
   readonly callback: OriginalApplyCallbackContext;
@@ -114,6 +115,217 @@ export async function readOriginalFinalGcpBootstrapVm(value: unknown, callback: 
     throw new Error('Original final bootstrap VM and actual callback required');
   return origin.read();
 }
+/** Shared ownership/token/NIC verification. Both original phases retain the
+ * same checks; final-only admission never manufactures an early capability. */
+async function readOriginalBootstrapVmJoin(input: {
+  context: InstalledCaptureContext;
+  selectedCallback: OriginalApplyCallbackContext;
+  selectedBootstrap: OriginalGcpPreapplyBootstrapEvidence;
+  identity: OriginalEarlyGcpInsertIdentity;
+  selectedVm: OriginalEarlyGcpVmEvidence | OriginalFinalGcpVmEvidence;
+  beforeReadExpired: boolean;
+}): Promise<BootstrapView> {
+  const { context, selectedCallback, selectedBootstrap, identity, selectedVm, beforeReadExpired } = input;
+  const verifyCallback = () =>
+    selectedCallback.phase === 'before'
+      ? assertOriginalApplyLifetime(selectedCallback)
+      : assertOriginalApplyCallback(selectedCallback);
+  await verifyCallback();
+  await context.assertInputs();
+  await assertOriginalGcpPreapplyBootstrapContext(selectedBootstrap, context);
+  if (selectedCallback.phase === 'after')
+    await assertOriginalGcpPreapplyBootstrapCallback(selectedBootstrap, selectedCallback);
+  await assertOriginalGcpVmCaptureCallback(selectedVm, selectedCallback);
+  const inserted = await readOriginalEarlyGcpInsertIdentity(identity);
+  const observed =
+    selectedCallback.phase === 'after'
+      ? await readOriginalFinalGcpVmEvidence(selectedVm)
+      : await readOriginalEarlyGcpVmEvidence(selectedVm);
+  const base = selectedBootstrap.bootstrap;
+  if (
+    fingerprint(base.owner) !== fingerprint(context.owner) ||
+    base.deploymentName !== context.owner.deploymentId ||
+    inserted.planSha256 !== selectedBootstrap.planSha256 ||
+    inserted.project !== context.owner.account ||
+    observed.project !== inserted.project ||
+    observed.nodeName !== inserted.nodeName ||
+    observed.nodeName !== base.nodeName ||
+    observed.zone !== inserted.zone ||
+    observed.resourceAddress !== inserted.address ||
+    observed.sourceRequestSha256 !== inserted.requestBodySha256 ||
+    observed.operationId !== inserted.operationId ||
+    (['pid', 'group', 'start', 'boot'] as const).some(
+      (key) =>
+        selectedBootstrap.executor[key] !== selectedCallback.execution.identity[key] ||
+        inserted.executor[key] !== selectedCallback.execution.identity[key],
+    )
+  )
+    throw new Error('Original early bootstrap VM scope or executor differs');
+  const binding = context.inputs['workspace:gcp-terraform-input-identity.json'];
+  if (!binding) throw new Error('Original reviewed guest intent required');
+  const original = await readOwnedInstalledInput(binding.path);
+  assertSameOriginalInput(binding, original.binding);
+  const saved = decodeEvidenceObject(original.bytes) as unknown as {
+    intent: GcpCeIntent;
+    intentFingerprint: string;
+  };
+  if (
+    saved.intentFingerprint !== fingerprint(saved.intent) ||
+    saved.intent.project !== context.owner.account ||
+    saved.intent.region !== context.owner.region ||
+    saved.intent.deploymentName !== context.owner.deploymentId ||
+    saved.intent.engine !== 'terraform' ||
+    saved.intent.operation !== 'deploy'
+  )
+    throw new Error('Original reviewed guest intent differs');
+  const sites = saved.intent.sites.filter(
+    (site) => site.name === base.siteName && site.nodes.some((node) => node.name === base.nodeName),
+  );
+  if (sites.length !== 1) throw new Error('Original bootstrap site and node differ from review');
+  const nodes = sites[0].nodes.filter((node) => node.name === base.nodeName && node.zone === observed.zone);
+  if (
+    nodes.length !== 1 ||
+    nodes[0].interfaces.length !== 2 ||
+    observed.interfaces.length !== 2 ||
+    observed.interfaces.some(
+      (nic, index) =>
+        nic.index !== index ||
+        nic.name !== `nic${index}` ||
+        nic.network !== `projects/${context.owner.account}/global/networks/${nodes[0].interfaces[index].network}` ||
+        nic.subnetwork !==
+          `projects/${context.owner.account}/regions/${context.owner.region}/subnetworks/${nodes[0].interfaces[index].subnet}`,
+    )
+  )
+    throw new Error('Original reviewed CE NIC mapping differs');
+  const bodies = await readOriginalEarlyGcpInsertBodies(identity);
+  const request = decodeEvidenceObject(Buffer.from(bodies.requestBody));
+  const metadata = object(request.metadata),
+    labels = object(request.labels);
+  if (
+    labels['xcsh-site'] !== base.siteName ||
+    labels['xcsh-node'] !== base.nodeName ||
+    labels['xcsh-deployment'] !== base.deploymentName ||
+    labels['xcsh-engine'] !== 'terraform'
+  )
+    throw new Error('Original VM bootstrap site labels differ');
+  if (!Array.isArray(metadata.items)) throw new Error('Original token-only metadata required');
+  const data = metadata.items.map(object).filter((entry) => entry.key === 'user-data');
+  const jwt = await readOriginalGcpPreapplyBootstrapJwt(selectedBootstrap);
+  if (data.length !== 1 || typeof data[0].value !== 'string' || hash(data[0].value) !== inserted.bootstrapSha256)
+    throw new Error('Original bootstrap token metadata differs');
+  let config: Json;
+  try {
+    config = object(Bun.YAML.parse(data[0].value));
+  } catch {
+    throw new Error('Original token-only cloud-init required');
+  }
+  if (
+    !data[0].value.startsWith('#cloud-config') ||
+    Object.keys(config).join(',') !== 'write_files' ||
+    !Array.isArray(config.write_files) ||
+    config.write_files.length !== 1
+  )
+    throw new Error('Original token-only cloud-init required');
+  const file = object(config.write_files[0]);
+  if (
+    Object.keys(file).sort().join(',') !== 'content,owner,path,permissions' ||
+    file.path !== '/etc/vpm/user_data' ||
+    file.owner !== 'root' ||
+    file.permissions !== '0600' ||
+    typeof file.content !== 'string' ||
+    file.content.trim() !== `token: ${jwt}` ||
+    hash(jwt) !== base.jwtSha256 ||
+    !Number.isFinite(Date.parse(base.expiresAt)) ||
+    Date.now() >= Date.parse(base.expiresAt)
+  )
+    throw new Error('Original unexpired bootstrap token differs');
+  await assertOriginalGcpPreapplyBootstrapContext(selectedBootstrap, context);
+  await assertOriginalGcpVmCaptureCallback(selectedVm, selectedCallback);
+  await readOriginalEarlyGcpInsertIdentity(identity);
+  await context.assertInputs();
+  await verifyCallback();
+  return Object.freeze({
+    ...observed,
+    siteName: base.siteName,
+    expiresAt: base.expiresAt,
+    jwtSha256: base.jwtSha256,
+    ownershipSha256: fingerprint({
+      owner: context.owner,
+      siteUid: base.siteUid,
+      tokenUid: base.tokenUid,
+      vm: observed.instanceId,
+      operation: observed.operationId,
+      interfaces: observed.interfaces,
+      jwt: base.jwtSha256,
+      userdata: inserted.bootstrapSha256,
+      request: inserted.requestBodySha256,
+    }).slice(7),
+    bootstrapCorroborated: true as const,
+    originalBeforeReadExpired: beforeReadExpired,
+    guestAcceptanceComplete: false as const,
+  });
+}
+
+const initialFinalBootstrapVms = new WeakSet<OriginalFinalGcpVmEvidence>();
+const initialFinalBootstrapNodes = new WeakMap<OriginalApplyCallbackContext, Set<string>>();
+/** First bootstrap coupling during the actual five-minute final reserve.
+ * Original insert, token creation, userdata and NIC issuers remain mandatory.
+ * It reads existing bootstrap material and issues no token or guest account. */
+export async function joinOriginalFinalGcpBootstrapVm(input: {
+  context: InstalledCaptureContext;
+  callback: OriginalApplyCallbackContext;
+  bootstrap: OriginalGcpPreapplyBootstrapEvidence;
+  identity: OriginalEarlyGcpInsertIdentity;
+  vm: OriginalFinalGcpVmEvidence;
+}): Promise<OriginalFinalGcpBootstrapVm> {
+  const { context, callback, bootstrap, identity, vm } = input;
+  if (callback.original !== context || callback.phase !== 'after' || !callback.reserve)
+    throw new Error('Original first final bootstrap callback and reserve required');
+  await assertOriginalApplyCallback(callback);
+  await assertOriginalGcpPreapplyBootstrapCallback(bootstrap, callback);
+  await readOriginalEarlyGcpInsertIdentity(identity);
+  if (initialFinalBootstrapVms.has(vm)) throw new Error('Original first final bootstrap VM already claimed');
+  initialFinalBootstrapVms.add(vm);
+  await assertOriginalGcpVmCaptureCallback(vm, callback);
+  const observed = await readOriginalFinalGcpVmEvidence(vm);
+  const claimed = initialFinalBootstrapNodes.get(callback) ?? new Set<string>();
+  if (claimed.has(observed.nodeName)) throw new Error('Original first final bootstrap node already claimed');
+  claimed.add(observed.nodeName);
+  initialFinalBootstrapNodes.set(callback, claimed);
+  let refused = false;
+  let anchor: string | undefined;
+  const read = async (): Promise<FinalBootstrapView> => {
+    if (refused) throw new Error('Original first final bootstrap VM join was refused');
+    try {
+      const value = await readOriginalBootstrapVmJoin({
+        context,
+        selectedCallback: callback,
+        selectedBootstrap: bootstrap,
+        identity,
+        selectedVm: vm,
+        beforeReadExpired: false,
+      });
+      if (
+        value.kind !== 'original-final-gcp-vm-cloud-candidate' ||
+        (anchor !== undefined && value.ownershipSha256 !== anchor)
+      )
+        throw new Error('Original first final bootstrap VM ownership differs');
+      return Object.freeze({ ...value, initialPhase: 'after' as const, originalEarlyBootstrapJoined: false as const });
+    } catch (error) {
+      refused = true;
+      throw error;
+    }
+  };
+  const initial = await read();
+  anchor = initial.ownershipSha256;
+  const ref: OriginalFinalGcpBootstrapVm = Object.freeze({
+    schemaVersion: 2,
+    kind: 'original-final-gcp-bootstrap-vm-reference',
+  });
+  finalBootstrapOrigins.set(ref, { callback, bootstrap, vm, read });
+  return ref;
+}
+
 /** Read-only early bootstrap/NIC join. Final RPC/provider/audit, guest evidence
  * and reviewed execution authorization remain separate mandatory boundaries. */
 export async function joinOriginalEarlyGcpBootstrapVm(input: {
@@ -140,147 +352,18 @@ export async function joinOriginalEarlyGcpBootstrapVm(input: {
     const selectedCallback = currentCallback,
       selectedVm = currentVm,
       selectedBootstrap = currentBootstrap;
-    const verifyCallback = () =>
-      selectedCallback.phase === 'before'
-        ? assertOriginalApplyLifetime(selectedCallback)
-        : assertOriginalApplyCallback(selectedCallback);
     try {
-      await verifyCallback();
-      await context.assertInputs();
-      await assertOriginalGcpPreapplyBootstrapContext(selectedBootstrap, context);
-      if (selectedCallback.phase === 'after')
-        await assertOriginalGcpPreapplyBootstrapCallback(selectedBootstrap, selectedCallback);
-      await assertOriginalGcpVmCaptureCallback(selectedVm, selectedCallback);
-      const inserted = await readOriginalEarlyGcpInsertIdentity(identity);
-      const observed =
-        selectedCallback.phase === 'after'
-          ? await readOriginalFinalGcpVmEvidence(selectedVm)
-          : await readOriginalEarlyGcpVmEvidence(selectedVm);
-      const base = selectedBootstrap.bootstrap;
-      if (
-        fingerprint(base.owner) !== fingerprint(context.owner) ||
-        base.deploymentName !== context.owner.deploymentId ||
-        inserted.planSha256 !== selectedBootstrap.planSha256 ||
-        inserted.project !== context.owner.account ||
-        observed.project !== inserted.project ||
-        observed.nodeName !== inserted.nodeName ||
-        observed.nodeName !== base.nodeName ||
-        observed.zone !== inserted.zone ||
-        observed.resourceAddress !== inserted.address ||
-        observed.sourceRequestSha256 !== inserted.requestBodySha256 ||
-        observed.operationId !== inserted.operationId ||
-        (['pid', 'group', 'start', 'boot'] as const).some(
-          (key) =>
-            selectedBootstrap.executor[key] !== selectedCallback.execution.identity[key] ||
-            inserted.executor[key] !== selectedCallback.execution.identity[key],
-        )
-      )
-        throw new Error('Original early bootstrap VM scope or executor differs');
-      const binding = context.inputs['workspace:gcp-terraform-input-identity.json'];
-      if (!binding) throw new Error('Original reviewed guest intent required');
-      const original = await readOwnedInstalledInput(binding.path);
-      assertSameOriginalInput(binding, original.binding);
-      const saved = decodeEvidenceObject(original.bytes) as unknown as {
-        intent: GcpCeIntent;
-        intentFingerprint: string;
-      };
-      if (
-        saved.intentFingerprint !== fingerprint(saved.intent) ||
-        saved.intent.project !== context.owner.account ||
-        saved.intent.region !== context.owner.region ||
-        saved.intent.deploymentName !== context.owner.deploymentId ||
-        saved.intent.engine !== 'terraform' ||
-        saved.intent.operation !== 'deploy'
-      )
-        throw new Error('Original reviewed guest intent differs');
-      const sites = saved.intent.sites.filter(
-        (site) => site.name === base.siteName && site.nodes.some((node) => node.name === base.nodeName),
-      );
-      if (sites.length !== 1) throw new Error('Original bootstrap site and node differ from review');
-      const nodes = sites[0].nodes.filter((node) => node.name === base.nodeName && node.zone === observed.zone);
-      if (
-        nodes.length !== 1 ||
-        nodes[0].interfaces.length !== 2 ||
-        observed.interfaces.length !== 2 ||
-        observed.interfaces.some(
-          (nic, index) =>
-            nic.index !== index ||
-            nic.name !== `nic${index}` ||
-            nic.network !== `projects/${context.owner.account}/global/networks/${nodes[0].interfaces[index].network}` ||
-            nic.subnetwork !==
-              `projects/${context.owner.account}/regions/${context.owner.region}/subnetworks/${nodes[0].interfaces[index].subnet}`,
-        )
-      )
-        throw new Error('Original reviewed CE NIC mapping differs');
-      const bodies = await readOriginalEarlyGcpInsertBodies(identity);
-      const request = decodeEvidenceObject(Buffer.from(bodies.requestBody));
-      const metadata = object(request.metadata),
-        labels = object(request.labels);
-      if (
-        labels['xcsh-site'] !== base.siteName ||
-        labels['xcsh-node'] !== base.nodeName ||
-        labels['xcsh-deployment'] !== base.deploymentName ||
-        labels['xcsh-engine'] !== 'terraform'
-      )
-        throw new Error('Original VM bootstrap site labels differ');
-      if (!Array.isArray(metadata.items)) throw new Error('Original token-only metadata required');
-      const data = metadata.items.map(object).filter((entry) => entry.key === 'user-data');
-      const jwt = await readOriginalGcpPreapplyBootstrapJwt(selectedBootstrap);
-      if (data.length !== 1 || typeof data[0].value !== 'string' || hash(data[0].value) !== inserted.bootstrapSha256)
-        throw new Error('Original bootstrap token metadata differs');
-      let config: Json;
-      try {
-        config = object(Bun.YAML.parse(data[0].value));
-      } catch {
-        throw new Error('Original token-only cloud-init required');
-      }
-      if (
-        !data[0].value.startsWith('#cloud-config') ||
-        Object.keys(config).join(',') !== 'write_files' ||
-        !Array.isArray(config.write_files) ||
-        config.write_files.length !== 1
-      )
-        throw new Error('Original token-only cloud-init required');
-      const file = object(config.write_files[0]);
-      if (
-        Object.keys(file).sort().join(',') !== 'content,owner,path,permissions' ||
-        file.path !== '/etc/vpm/user_data' ||
-        file.owner !== 'root' ||
-        file.permissions !== '0600' ||
-        typeof file.content !== 'string' ||
-        file.content.trim() !== `token: ${jwt}` ||
-        hash(jwt) !== base.jwtSha256 ||
-        !Number.isFinite(Date.parse(base.expiresAt)) ||
-        Date.now() >= Date.parse(base.expiresAt)
-      )
-        throw new Error('Original unexpired bootstrap token differs');
-      await assertOriginalGcpPreapplyBootstrapContext(selectedBootstrap, context);
-      await assertOriginalGcpVmCaptureCallback(selectedVm, selectedCallback);
-      await readOriginalEarlyGcpInsertIdentity(identity);
-      await context.assertInputs();
-      await verifyCallback();
+      const view = await readOriginalBootstrapVmJoin({
+        context,
+        selectedCallback,
+        selectedBootstrap,
+        identity,
+        selectedVm,
+        beforeReadExpired,
+      });
       if (selectedCallback !== currentCallback || selectedVm !== currentVm || selectedBootstrap !== currentBootstrap)
         throw new Error('Original bootstrap VM lifetime changed during source read');
-      return Object.freeze({
-        ...observed,
-        siteName: base.siteName,
-        expiresAt: base.expiresAt,
-        jwtSha256: base.jwtSha256,
-        ownershipSha256: fingerprint({
-          owner: context.owner,
-          siteUid: base.siteUid,
-          tokenUid: base.tokenUid,
-          vm: observed.instanceId,
-          operation: observed.operationId,
-          interfaces: observed.interfaces,
-          jwt: base.jwtSha256,
-          userdata: inserted.bootstrapSha256,
-          request: inserted.requestBodySha256,
-        }).slice(7),
-        bootstrapCorroborated: true as const,
-        originalBeforeReadExpired: beforeReadExpired,
-        guestAcceptanceComplete: false as const,
-      });
+      return view;
     } catch (error) {
       if (isOriginalApplyLifetimeExpiry(error, selectedCallback)) beforeReadExpired = true;
       else refused = true;

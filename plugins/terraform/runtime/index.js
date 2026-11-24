@@ -1141,7 +1141,8 @@ async function bindOriginalExecutionOutput(input) {
   const streams = {};
   let refused = false;
   let closed = false;
-  let busy = false;
+  let consumptionPending = false;
+  let operationTail = Promise.resolve();
   let phase = 'admission';
   let failureRecord;
   let closingLeader;
@@ -1328,27 +1329,37 @@ async function bindOriginalExecutionOutput(input) {
       throw new OutputRefusal('Original output retained prefix changed');
     }
   };
-  const exclusive = async (action) => {
+  const exclusive = async (action, inspection = false) => {
     assertOpen();
-    if (busy) {
+    if (!inspection && consumptionPending) {
       refused = true;
       throw new OutputRefusal('Concurrent original output capture refused');
     }
-    busy = true;
+    if (!inspection) consumptionPending = true;
+    const predecessor = operationTail;
+    let release = () => {};
+    operationTail = new Promise((resolve) => {
+      release = resolve;
+    });
+    await predecessor;
     try {
-      return await action();
-    } catch (error) {
-      if (error instanceof OutputNotReady) throw error;
-      refused = true;
+      assertOpen();
       try {
-        await retainFailure(error);
-      } catch (persistence) {
-        throw new AggregateError([error, persistence], 'Original private capture failure unresolved');
+        return await action();
+      } catch (error) {
+        if (error instanceof OutputNotReady) throw error;
+        refused = true;
+        try {
+          await retainFailure(error);
+        } catch (persistence) {
+          throw new AggregateError([error, persistence], 'Original private capture failure unresolved');
+        }
+        if (error instanceof OutputRefusal) throw error;
+        throw new OutputRefusal('Original output capture identity or lifetime unavailable');
       }
-      if (error instanceof OutputRefusal) throw error;
-      throw new OutputRefusal('Original output capture identity or lifetime unavailable');
     } finally {
-      busy = false;
+      if (!inspection) consumptionPending = false;
+      release();
     }
   };
   try {
@@ -1474,7 +1485,7 @@ async function bindOriginalExecutionOutput(input) {
               }
               readOriginalExecutionCompletion(output, completion);
               return Object.freeze(inputs);
-            }),
+            }, true),
           );
           return completion;
         });
@@ -1512,7 +1523,7 @@ async function bindOriginalExecutionOutput(input) {
         });
         prefixOrigins.set(prefix, output);
         return prefix;
-      }),
+      }, true),
     );
     return { output, close };
   } catch (error) {
@@ -21552,6 +21563,8 @@ var object15 = (value) => {
 };
 var finalBootstrapOrigins = new WeakMap();
 var earlyBootstrapOrigins = new WeakMap();
+var _initialFinalBootstrapVms = new WeakSet();
+var _initialFinalBootstrapNodes = new WeakMap();
 async function joinOriginalGcpBootstrapVm(input) {
   const { context, bootstrap, cloud } = input;
   await assertOriginalGcpPreapplyBootstrapContext(bootstrap, context);

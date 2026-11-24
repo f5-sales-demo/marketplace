@@ -147,7 +147,8 @@ export async function bindOriginalExecutionOutput(input: {
   const streams = {} as Record<Channel, Stream>;
   let refused = false;
   let closed = false;
-  let busy = false;
+  let consumptionPending = false;
+  let operationTail = Promise.resolve();
   let phase = 'admission';
   let failureRecord: Promise<void> | undefined;
   let closingLeader: Readonly<{ state: string; flags: string; exiting: boolean }> | undefined;
@@ -348,27 +349,40 @@ export async function bindOriginalExecutionOutput(input: {
       throw new OutputRefusal('Original output retained prefix changed');
     }
   };
-  const exclusive = async <T>(action: () => Promise<T>): Promise<T> => {
+  /** All descriptor work remains ordered. Two consuming requests still refuse;
+   * source-issued read-only checks queue and revalidate their own lifetime,
+   * identities and retained bytes instead of poisoning a valid shared source. */
+  const exclusive = async <T>(action: () => Promise<T>, inspection = false): Promise<T> => {
     assertOpen();
-    if (busy) {
+    if (!inspection && consumptionPending) {
       refused = true;
       throw new OutputRefusal('Concurrent original output capture refused');
     }
-    busy = true;
+    if (!inspection) consumptionPending = true;
+    const predecessor = operationTail;
+    let release = () => {};
+    operationTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await predecessor;
     try {
-      return await action();
-    } catch (error) {
-      if (error instanceof OutputNotReady) throw error;
-      refused = true;
+      assertOpen();
       try {
-        await retainFailure(error);
-      } catch (persistence) {
-        throw new AggregateError([error, persistence], 'Original private capture failure unresolved');
+        return await action();
+      } catch (error) {
+        if (error instanceof OutputNotReady) throw error;
+        refused = true;
+        try {
+          await retainFailure(error);
+        } catch (persistence) {
+          throw new AggregateError([error, persistence], 'Original private capture failure unresolved');
+        }
+        if (error instanceof OutputRefusal) throw error;
+        throw new OutputRefusal('Original output capture identity or lifetime unavailable');
       }
-      if (error instanceof OutputRefusal) throw error;
-      throw new OutputRefusal('Original output capture identity or lifetime unavailable');
     } finally {
-      busy = false;
+      if (!inspection) consumptionPending = false;
+      release();
     }
   };
   try {
@@ -501,7 +515,7 @@ export async function bindOriginalExecutionOutput(input: {
               }
               readOriginalExecutionCompletion(output, completion);
               return Object.freeze(inputs);
-            }),
+            }, true),
           );
           return completion;
         });
@@ -539,7 +553,7 @@ export async function bindOriginalExecutionOutput(input: {
         });
         prefixOrigins.set(prefix, output);
         return prefix;
-      }),
+      }, true),
     );
     return { output, close };
   } catch (error) {

@@ -10,13 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.168 binds original GCP inventory, bootstrap, VM,
-  serial and guest inputs. Adds a separate final guest evidence window after
-  operation expiry and qualifies current signed provider identities. Live GCP
-  campaign qualification remains held.
-  Original bootstrap publisher closure now retains immutable claim, request,
-  admission and final evidence. Initial-guard refusal requires native no-spawn
-  provenance, exact invocation accounting and durable directory flushes.
+- **`terraform`** v2.4.169 preserves original first final bootstrap ownership
+  and serializes source-issued read-only output inspection. Existing token/NIC,
+  capture-failure, consuming-reader and final-reserve refusals stay enforced.
+  Full factory/live qualification and publication remain held (#1559).
 
 - **`platform`** v6.3.33 rebuilds the shared CE runtime with Bun 1.4.4 and
   retains independent Linux process group closure evidence without signals.
