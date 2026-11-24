@@ -456,3 +456,89 @@ test('delayed original cloud observations cannot consume repeated startup pollin
     }
   });
 }, 60000);
+
+for (const fault of ['input-guard', 'arguments'] as const)
+  test(`original key-scan wrapper retains exact native or command refusal: ${fault}`, async () => {
+    const captureSource = await import('../src/original-access-reader-source');
+    const { readOriginalGcpKeyScanCommand } = await import('../src/gcp-keyscan-command');
+    const { retainOwnedTestCapture } = await import('./retained-test-capture');
+    let result: 'success' | 'failure' = 'failure';
+    await withObserverInsert(
+      async (input) => {
+        const profile = await clients(),
+          target = await vm(input);
+        try {
+          const command = await bindOriginalGcpObserverKeyScanCommand(target, input.callback, profile);
+          const view = await readOriginalGcpKeyScanCommand(command);
+          const args = fault === 'arguments' ? ['-invalid-source-only'] : [...view.args];
+          const directory = join(
+            input.callback.original.executionDirectory,
+            `gcp-wire-key-readers-${(await import('node:crypto')).randomUUID()}`,
+          );
+          await mkdir(directory, { mode: 0o700 });
+          const recorder = await captureSource.openOriginalAccessReaderCapture({
+            callback: input.callback,
+            family: 'observer',
+            role: 'wire',
+            instanceId: view.vm.instanceId,
+            directory,
+            python: input.callback.original.inputs.python,
+            executable: view.executable,
+            args,
+          });
+          const port = Object.freeze({});
+          captureSource.bindOriginalAccessReaderCapture(port, recorder);
+          let releases = 0,
+            captures = 0;
+          const execute = await executor.signalFreeGcpKeyScanExecutor(
+            {
+              python: input.callback.original.inputs.python,
+              executable: view.executable,
+              originalStartMs: input.callback.original.budget.start,
+              originalDeadlineMs: input.callback.original.budget.deadline,
+              assertOriginal: async () => {
+                throw new Error('Intentional current key scan guard refusal');
+              },
+              beforeRelease: async () => {
+                releases++;
+              },
+              finalCapture: async () => {
+                captures++;
+              },
+            },
+            command,
+          );
+          expect(await executor.collectOriginalSignalFreeUnspawnedExecutions(execute)).toEqual([]);
+          await recorder.begin(args);
+          await expect(execute({ cwd: directory, args, env: { LC_ALL: 'C' } })).rejects.toThrow(
+            fault === 'arguments' ? 'arguments' : 'current key scan guard refusal',
+          );
+          recorder.finished(execute);
+          const inputs = await executor.collectOriginalSignalFreeUnspawnedExecutions(execute);
+          expect(inputs).toHaveLength(1);
+          const row = await captureSource.collectInstalledOriginalAccessReaderSource(port);
+          expect(row.attemptCount).toBe(0);
+          expect(row.invocationCount).toBe(1);
+          expect(row.witnesses).toHaveLength(0);
+          expect(row.unspawned?.[0].evidence).toEqual(inputs[0]);
+          const raw = JSON.parse(await readFile(inputs[0].path, 'utf8'));
+          expect(raw.layer).toBe(fault === 'arguments' ? 'command' : 'native');
+          expect(raw.phase).toBe(fault === 'arguments' ? 'owning-command-guard' : 'initial-input-guard');
+          expect(raw.commandSubmitted).toBe(false);
+          expect(raw.nativeSpawnInvoked).toBe(false);
+          expect(releases).toBe(0);
+          expect(captures).toBe(0);
+          result = 'success';
+        } finally {
+          closeOriginalGcpSshClientProfile(profile);
+        }
+      },
+      undefined,
+      async (callback) => {
+        await retainOwnedTestCapture(callback.original.executionDirectory, `keyscan-unspawned-${fault}`, result);
+      },
+      undefined,
+      false,
+      { current: true },
+    );
+  }, 60000);

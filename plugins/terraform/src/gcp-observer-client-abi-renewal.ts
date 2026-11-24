@@ -387,7 +387,7 @@ export async function openGcpObserverClientAbiRenewal(command: unknown) {
       try {
         result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
       } finally {
-        recorder.finished();
+        recorder.finished(execute);
       }
       await assertOriginalGcpObserverClientAbiRenewalInputs(command);
       if (

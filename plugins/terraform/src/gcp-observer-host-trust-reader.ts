@@ -316,7 +316,7 @@ async function openOriginalHostTrustReader<K extends TrustFamily>(
       try {
         result = await execute({ cwd: root, args, env: { LC_ALL: 'C' } });
       } finally {
-        recorder.finished();
+        recorder.finished(execute);
       }
       await assertMaterial();
       if (

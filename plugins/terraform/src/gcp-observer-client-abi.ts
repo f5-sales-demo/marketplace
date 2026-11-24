@@ -361,7 +361,7 @@ export async function openGcpObserverClientAbi(command: unknown) {
       try {
         result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
       } finally {
-        recorder.finished();
+        recorder.finished(execute);
       }
       await assertOriginalGcpObserverClientAbiInputs(command);
       if (

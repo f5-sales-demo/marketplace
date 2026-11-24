@@ -361,7 +361,7 @@ export async function openGcpCeWireKeyReader(command: unknown) {
       try {
         result = await execute({ cwd: root, args: [...original.args], env: { LC_ALL: 'C' } });
       } finally {
-        recorder.finished();
+        recorder.finished(execute);
       }
       await assertOriginalGcpCeKeyScanInputs(command);
       if (

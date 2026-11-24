@@ -11,12 +11,16 @@ import { readOwnedInstalledInput } from './installed-runtime';
 import { monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import {
   assertOriginalAccessReaderStdin,
+  assertOriginalUnspawnedSource,
   collectOriginalReaderGroupClosure,
   type OriginalAccessReaderOrigin,
   type OriginalReaderSourceClosure,
   originalAccessReaderPrefix,
 } from './original-reader-group-closure';
+import { inspectFinalReaderReserve } from './reader-final-reserve';
+import type { Executor } from './runner';
 import {
+  collectOriginalSignalFreeUnspawnedExecutions,
   type ExecutionCaptureAdmission,
   type FinalExecutionCapture,
   signalFreeBootstrapSource,
@@ -26,7 +30,7 @@ type Recorder = Readonly<{
   begin(args?: readonly string[]): Promise<void>;
   admit(value: ExecutionCaptureAdmission): Promise<void>;
   capture(value: FinalExecutionCapture): Promise<void>;
-  finished(): void;
+  finished(executor?: Executor): void;
 }>;
 type Source = Readonly<{
   callback: OriginalApplyCallbackContext;
@@ -138,6 +142,9 @@ export async function openOriginalAccessReaderCapture(input: {
       parent: callback.execution.identity,
       executionDirectory: callback.original.executionDirectory,
       budget: callback.original.budget,
+      ...(callback.phase === 'after'
+        ? { finalReserve: inspectFinalReaderReserve(callback.reserve as NonNullable<typeof callback.reserve>) }
+        : {}),
       python: input.python,
       executable: input.executable,
       args: [...(input.args ?? [])],
@@ -190,6 +197,7 @@ export async function openOriginalAccessReaderCapture(input: {
     admission: OriginalInputBinding | undefined,
     capture: OriginalInputBinding | undefined;
   let final: FinalExecutionCapture | undefined;
+  let originalExecutor: Executor | undefined;
   const recorder: Recorder = Object.freeze({
     async begin(commandArgs = args) {
       if (began) throw new Error('Original access native attempt is single-use');
@@ -225,7 +233,10 @@ export async function openOriginalAccessReaderCapture(input: {
       final = Object.freeze(structuredClone(value));
       capture = await persist('reader-final.private.json', final);
     },
-    finished() {
+    finished(executor) {
+      if (terminal && originalExecutor !== executor)
+        throw new Error('Original access executor source cannot be replaced');
+      originalExecutor = executor;
       terminal = true;
     },
   });
@@ -238,9 +249,22 @@ export async function openOriginalAccessReaderCapture(input: {
       if (offline) throw new Error('Original native access reader required; offline execution is not closure evidence');
       const name = `${declaration.family}-${declaration.role}`;
       if (!starts) return Object.freeze({ name, attemptCount: 0, witnesses: Object.freeze([]) });
-      if (!terminal || !request || !capture || !final)
-        throw new Error('Original access terminal execution and immutable capture required');
+      if (!terminal || !request) throw new Error('Original access terminal execution and immutable capture required');
       await assertRoot();
+      if (!capture && !final && originalExecutor) {
+        const values = await collectOriginalSignalFreeUnspawnedExecutions(originalExecutor);
+        if (values.length !== 1) throw new Error('One original access unspawned execution required');
+        const unspawned = Object.freeze({ request, evidence: values[0] });
+        await assertOriginalUnspawnedSource(unspawned, declaration.owner);
+        return Object.freeze({
+          name,
+          attemptCount: 0,
+          invocationCount: starts,
+          witnesses: Object.freeze([]),
+          unspawned: Object.freeze([unspawned]),
+        });
+      }
+      if (!capture || !final) throw new Error('Original access terminal execution and immutable capture required');
       const monitor = await monitorOriginalInputs({ request, capture, ...(admission ? { admission } : {}) });
       try {
         const witness = await collectOriginalReaderGroupClosure({

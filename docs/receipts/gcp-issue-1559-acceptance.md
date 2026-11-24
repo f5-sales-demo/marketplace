@@ -2334,3 +2334,14 @@ catalog and warning-clean lint checks pass. Capture failures and unknown source
 coverage remain refusals. Complete factory execution, early startup provenance,
 real expiry renewal and every original installed/runtime/live/cleanup/CI/review/
 delivery gate remain open. No GCP apply was submitted.
+
+## Original command refusal and final-reserve source facts
+
+The [command refusal receipt](gcp-original-command-refusal-20261124.md) records
+immutable pre-spawn guards, actual nested executor handoff and original final
+reserve/physical-parent joins. All 102 executor/source/cleanup and 38 adapter
+cases, final legacy/native integrity checks, three strict types, normal build,
+configured lint, dependency and catalog checks pass. Failed captures and locks
+remain failed. Complete factory/live source coverage and every original
+installed/runtime/live/cleanup/CI/review/delivery gate remain open. No GCP apply
+was submitted.

@@ -757,7 +757,7 @@ export interface OriginalReaderSourceClosure {
   readonly invocationCount?: number;
   readonly unspawned?: readonly Readonly<{ request: OriginalInputBinding; evidence: OriginalInputBinding }>[];
 }
-async function assertUnspawnedSource(
+export async function assertOriginalUnspawnedSource(
   input: NonNullable<OriginalReaderSourceClosure['unspawned']>[number],
   owner: CeOwner,
 ) {
@@ -773,6 +773,73 @@ async function assertUnspawnedSource(
     const budget = request.budget as { start?: unknown; deadline?: unknown } | undefined;
     const python = request.python as { path?: unknown; sha256?: unknown } | undefined;
     const expectedExecutable = request.executable ?? request.python;
+    const final = evidence.finalReserve as
+      | {
+          schemaVersion?: unknown;
+          kind?: unknown;
+          identity?: { pid?: unknown; group?: unknown; start?: unknown; boot?: unknown };
+          originalStartMs?: unknown;
+          originalDeadlineMs?: unknown;
+          finalStartedMs?: unknown;
+          finalDeadlineMs?: unknown;
+        }
+      | undefined;
+    if (evidence.schemaVersion === 1 && (evidence.finalReserve !== undefined || request.finalReserve !== undefined))
+      throw new Error('Legacy original unspawned source cannot adopt a final reserve');
+    if (evidence.schemaVersion === 2) {
+      if (
+        evidence.executionAccepted !== false ||
+        evidence.executionDeadlineMs !== (final?.finalDeadlineMs ?? budget?.deadline)
+      )
+        throw new Error('Original unspawned execution refusal and deadline differ');
+      if (final) {
+        if (
+          request.kind !== 'original-installed-gcp-access-reader-request' ||
+          request.phase !== 'after' ||
+          JSON.stringify(request.finalReserve) !== JSON.stringify(final) ||
+          JSON.stringify(request.parent) !== JSON.stringify(final.identity) ||
+          final.schemaVersion !== 1 ||
+          final.kind !== 'original-final-reader-reserve' ||
+          final.originalStartMs !== budget?.start ||
+          final.originalDeadlineMs !== budget?.deadline ||
+          !Number.isSafeInteger(final.finalStartedMs) ||
+          !Number.isSafeInteger(final.finalDeadlineMs) ||
+          (final.finalStartedMs as number) < (budget?.start as number) ||
+          (evidence.invocationStartedMs as number) < (final.finalStartedMs as number) ||
+          (final.finalDeadlineMs as number) - (final.finalStartedMs as number) !== 300000 ||
+          !Number.isSafeInteger(final.identity?.pid) ||
+          (final.identity?.pid as number) < 1 ||
+          final.identity?.group !== final.identity?.pid ||
+          typeof final.identity?.start !== 'string' ||
+          !/^[0-9]+$/.test(final.identity.start) ||
+          typeof final.identity?.boot !== 'string' ||
+          !/^[a-f0-9-]{36}$/.test(final.identity.boot)
+        )
+          throw new Error('Original unspawned final reserve or parent differs');
+        await assertRecordedProcessGroupAbsent({
+          pid: final.identity.pid as number,
+          group: final.identity.group as number,
+          boot: final.identity.boot as string,
+          start: final.identity.start as string,
+        });
+      } else if (request.finalReserve !== undefined || request.phase === 'after') {
+        throw new Error('Original unspawned final reserve is missing');
+      }
+      if (
+        evidence.phase === 'deadline-validation' &&
+        (evidence.invocationStartedMs as number) >= (budget?.start as number) &&
+        (evidence.invocationStartedMs as number) < (evidence.executionDeadlineMs as number)
+      )
+        throw new Error('Original unspawned deadline refusal does not match its clock');
+      if (evidence.phase === 'cancellation' && evidence.cancellationRequested !== true)
+        throw new Error('Original unspawned cancellation source required');
+      if (
+        evidence.phase === 'loader-validation' &&
+        (!Array.isArray(evidence.loaderVariables) || !evidence.loaderVariables.length)
+      )
+        throw new Error('Original unspawned loader source required');
+    }
+
     if (
       request.schemaVersion !== 1 ||
       !['original-bootstrap-publisher-request', 'original-installed-gcp-access-reader-request'].includes(
@@ -782,9 +849,16 @@ async function assertUnspawnedSource(
       !Number.isSafeInteger(budget?.start) ||
       !Number.isSafeInteger(budget?.deadline) ||
       (budget?.deadline as number) - (budget?.start as number) !== 7200000 ||
-      evidence.schemaVersion !== 1 ||
+      ![1, 2].includes(evidence.schemaVersion as number) ||
       evidence.kind !== 'original-executor-unspawned' ||
-      evidence.phase !== 'initial-input-guard' ||
+      (evidence.schemaVersion === 1
+        ? evidence.phase !== 'initial-input-guard'
+        : evidence.layer === 'command'
+          ? evidence.phase !== 'owning-command-guard'
+          : evidence.layer !== 'native' ||
+            !['initial-input-guard', 'loader-validation', 'deadline-validation', 'cancellation'].includes(
+              evidence.phase as string,
+            )) ||
       evidence.nativeSpawnInvoked !== false ||
       evidence.commandSubmitted !== false ||
       evidence.signalsSent !== false ||
@@ -804,7 +878,11 @@ async function assertUnspawnedSource(
       evidence.gateSha256 !== createHash('sha256').update(signalFreeBootstrapSource).digest('hex') ||
       !Number.isSafeInteger(evidence.invocationStartedMs) ||
       (evidence.invocationStartedMs as number) < (budget?.start as number) ||
-      (evidence.invocationStartedMs as number) >= (budget?.deadline as number) ||
+      ((evidence.invocationStartedMs as number) >= ((final?.finalDeadlineMs ?? budget?.deadline) as number) &&
+        !(
+          evidence.schemaVersion === 2 &&
+          ['loader-validation', 'deadline-validation', 'owning-command-guard'].includes(evidence.phase as string)
+        )) ||
       ![input.request, input.evidence].every(
         (binding) =>
           binding.expectedIdentity &&
@@ -851,7 +929,7 @@ async function assertSourceCoverage(
         if (unspawnedInputs.has(input.evidence.path))
           throw new Error('Original unspawned invocation attributed to multiple sources');
         unspawnedInputs.add(input.evidence.path);
-        await assertUnspawnedSource(input, owner);
+        await assertOriginalUnspawnedSource(input, owner);
       }
     } else if (source.invocationCount !== undefined && source.invocationCount !== source.attemptCount)
       throw new Error('Original invocation coverage differs');

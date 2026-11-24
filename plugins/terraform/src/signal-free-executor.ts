@@ -41,6 +41,7 @@ const unspawnedExecutors = new WeakMap<object, OriginalInputBinding[]>();
 export async function collectOriginalSignalFreeUnspawnedExecutions(value: unknown) {
   const inputs = typeof value === 'function' ? unspawnedExecutors.get(value) : undefined;
   if (!inputs) throw new Error('Original source-issued signal-free executor required');
+  if (!inputs.length) return Object.freeze([]);
   const monitor = await monitorOriginalInputs(
     Object.fromEntries(inputs.map((binding, index) => [String(index), binding])),
   );
@@ -270,6 +271,146 @@ async function pinned(binding: ExecutableBinding) {
   };
 }
 
+type OriginalUnspawnedPhase =
+  | 'loader-validation'
+  | 'deadline-validation'
+  | 'cancellation'
+  | 'initial-input-guard'
+  | 'owning-command-guard';
+/** Called only before this command's original executor has been invoked. */
+async function retainOriginalUnspawnedInvocation(input: {
+  readonly cwd: string;
+  readonly args: readonly string[];
+  readonly environment: Readonly<Record<string, string | undefined>>;
+  readonly signal?: AbortSignal;
+  readonly policy: Pick<SignalFreeExecutionPolicy, 'python' | 'executable' | 'originalStartMs' | 'originalDeadlineMs'>;
+  readonly began: number;
+  readonly phase: OriginalUnspawnedPhase;
+  readonly layer: 'native' | 'command';
+  readonly finalReserve?: FinalReaderReserveSnapshot;
+  readonly error: unknown;
+}): Promise<OriginalInputBinding> {
+  const { cwd, policy } = input;
+  const current = await lstat(cwd);
+  if (
+    !current.isDirectory() ||
+    current.isSymbolicLink() ||
+    current.uid !== process.getuid?.() ||
+    (current.mode & 0o077) !== 0 ||
+    (await realpath(cwd)) !== cwd
+  )
+    throw new Error('Original unspawned execution directory required');
+  const directory = join(cwd, 'executor-unspawned', randomUUID());
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const path = join(directory, 'source.private.json');
+  const file = await open(path, 'wx', 0o400);
+  try {
+    await file.writeFile(
+      JSON.stringify({
+        schemaVersion: 2,
+        kind: 'original-executor-unspawned',
+        layer: input.layer,
+        phase: input.phase,
+        directory: cwd,
+        args: [...input.args],
+        python: { path: policy.python.path, sha256: policy.python.sha256 },
+        executable: { path: policy.executable.path, sha256: policy.executable.sha256 },
+        originalStartMs: policy.originalStartMs,
+        originalDeadlineMs: policy.originalDeadlineMs,
+        executionDeadlineMs: input.finalReserve?.finalDeadlineMs ?? policy.originalDeadlineMs,
+        invocationStartedMs: input.began,
+        ...(input.finalReserve ? { finalReserve: input.finalReserve } : {}),
+        cancellationRequested: input.signal?.aborted === true,
+        loaderVariables: originalLoaderAlternatives.filter((key) => input.environment[key] !== undefined),
+        nativeSpawnInvoked: false,
+        commandSubmitted: false,
+        signalsSent: false,
+        executionAccepted: false,
+        errorType: input.error instanceof Error ? input.error.name : typeof input.error,
+        gateSha256: hash(Buffer.from(signalFreeBootstrapSource)),
+      }),
+    );
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  for (const path of [directory, dirname(directory), cwd]) {
+    const before = await lstat(path, { bigint: true });
+    if (
+      !before.isDirectory() ||
+      before.isSymbolicLink() ||
+      before.uid !== BigInt(process.getuid?.() ?? -1) ||
+      (before.mode & 0o077n) !== 0n ||
+      (await realpath(path)) !== path
+    )
+      throw new Error('Original no-spawn evidence parent directory required');
+    const parent = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    try {
+      const opened = await parent.stat({ bigint: true });
+      if (opened.dev !== before.dev || opened.ino !== before.ino)
+        throw new Error('Original no-spawn evidence parent changed during flush');
+      await parent.sync();
+    } finally {
+      await parent.close();
+    }
+  }
+  return (await readOwnedInstalledInput(path)).binding;
+}
+
+/** A compiled command guard never invokes the child until the returned native
+ * executor has been verified. Earlier refusals and the actual child's original
+ * refusal records are retained separately from execution/capture acceptance. */
+function originalGuardedCommandExecutor(
+  input: SignalFreeExecutionPolicy,
+  reserve: FinalReaderReserve | undefined,
+  prepare: (invocation: Parameters<Executor>[0]) => Promise<Executor>,
+  after?: () => Promise<void>,
+): Executor {
+  const policy = { ...input, python: { ...input.python }, executable: { ...input.executable } };
+  const inherited = reserve ? inspectFinalReaderReserve(reserve) : undefined;
+  const records: OriginalInputBinding[] = [];
+  const execute: Executor = async (invocation) => {
+    const began = now();
+    let child: Executor;
+    let original: OriginalInputBinding[];
+    try {
+      child = await prepare(invocation);
+      const issued = unspawnedExecutors.get(child);
+      if (!issued) throw new Error('Original source-issued command child executor required');
+      original = issued;
+    } catch (error) {
+      try {
+        records.push(
+          await retainOriginalUnspawnedInvocation({
+            cwd: invocation.cwd,
+            args: invocation.args,
+            environment: invocation.env,
+            signal: invocation.signal,
+            policy,
+            began,
+            phase: 'owning-command-guard',
+            layer: 'command',
+            finalReserve: inherited,
+            error,
+          }),
+        );
+      } catch (retention) {
+        throw new AggregateError([error, retention], 'Original command guard refusal and unspawned retention failed');
+      }
+      throw error;
+    }
+    try {
+      const result = await child(invocation);
+      await after?.();
+      return result;
+    } finally {
+      for (const binding of original) if (!records.some((saved) => saved.path === binding.path)) records.push(binding);
+    }
+  };
+  unspawnedExecutors.set(execute, records);
+  return execute;
+}
+
 /** Signal-free execution for a trusted server policy. Never resumes or replaces an original child. */
 export function signalFreeTerraformExecutor(input: SignalFreeExecutionPolicy): Executor {
   return originalExecutor(input);
@@ -298,72 +439,77 @@ export async function signalFreeGcpObserverClientDeliveryExecutor(
   )
     throw new Error('Original observer delivery limits cannot be extended');
   if (input.stdin) assertSameOriginalInput(source.stdin, input.stdin);
-  return async (invocation) => {
-    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
-      throw new Error('Original observer delivery arguments differ');
-    await checkoutOriginalGcpObserverClientDeliveryCommand(command);
-    const remaining = source.sourceDeadlineMs - now();
-    if (remaining <= 0) throw new Error('Original observer delivery deadline exhausted');
-    const policy: SignalFreeExecutionPolicy = {
-      ...input,
-      stdin: source.stdin,
-      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
-      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
-      maxOutputBytes: input.maxOutputBytes ?? 65536,
-      assertOriginal: async () => {
-        await readOriginalGcpObserverClientDeliveryCommand(command);
-        await input.assertOriginal();
-      },
-      assertOriginalIdentity: async () => {
-        await assertOriginalGcpObserverClientDeliveryIdentity(command);
-        await (input.assertOriginalIdentity ?? input.assertOriginal)();
-      },
-      assertFinalInputs: async () => {
-        await assertOriginalGcpObserverClientDeliveryInputs(command);
-        await (input.assertFinalInputs ?? input.assertOriginal)();
-      },
-      beforeRelease: async (admission) => {
-        await readOriginalGcpObserverClientDeliveryCommand(command);
-        if (
-          !admission.stdin ||
-          admission.stdin.path !== source.stdin.path ||
-          admission.stdin.sha256 !== source.stdin.sha256
-        )
-          throw new Error('Original observer delivery sealed stdin admission differs');
-        await input.beforeRelease?.(admission);
-      },
-      finalCapture: async (capture) => {
-        const failures: unknown[] = [];
-        try {
+  return originalGuardedCommandExecutor(
+    input,
+    source.callback.phase === 'after' ? source.callback.reserve : undefined,
+    async (invocation) => {
+      if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+        throw new Error('Original observer delivery arguments differ');
+      await checkoutOriginalGcpObserverClientDeliveryCommand(command);
+      const remaining = source.sourceDeadlineMs - now();
+      if (remaining <= 0) throw new Error('Original observer delivery deadline exhausted');
+      const policy: SignalFreeExecutionPolicy = {
+        ...input,
+        stdin: source.stdin,
+        timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+        startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+        maxOutputBytes: input.maxOutputBytes ?? 65536,
+        assertOriginal: async () => {
+          await readOriginalGcpObserverClientDeliveryCommand(command);
+          await input.assertOriginal();
+        },
+        assertOriginalIdentity: async () => {
+          await assertOriginalGcpObserverClientDeliveryIdentity(command);
+          await (input.assertOriginalIdentity ?? input.assertOriginal)();
+        },
+        assertFinalInputs: async () => {
           await assertOriginalGcpObserverClientDeliveryInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await input.finalCapture(capture);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await assertOriginalGcpObserverClientDeliveryInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        if (failures.length)
-          throw new AggregateError(failures, 'Original observer delivery final capture or input retention failed');
-      },
-    };
-    let reserve: FinalReaderReserve | undefined;
-    if (source.callback.phase === 'after') {
-      reserve = source.callback.reserve;
-      if (!reserve) throw new Error('Original final observer delivery reserve required');
-      await assertFinalReaderReserve(reserve);
-    }
-    const execute = originalExecutor(policy, reserve);
-    const result = await execute(invocation);
-    await assertOriginalGcpObserverClientDeliveryInputs(command);
-    return result;
-  };
+          await (input.assertFinalInputs ?? input.assertOriginal)();
+        },
+        beforeRelease: async (admission) => {
+          await readOriginalGcpObserverClientDeliveryCommand(command);
+          if (
+            !admission.stdin ||
+            admission.stdin.path !== source.stdin.path ||
+            admission.stdin.sha256 !== source.stdin.sha256
+          )
+            throw new Error('Original observer delivery sealed stdin admission differs');
+          await input.beforeRelease?.(admission);
+        },
+        finalCapture: async (capture) => {
+          const failures: unknown[] = [];
+          try {
+            await assertOriginalGcpObserverClientDeliveryInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await input.finalCapture(capture);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await assertOriginalGcpObserverClientDeliveryInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          if (failures.length)
+            throw new AggregateError(failures, 'Original observer delivery final capture or input retention failed');
+        },
+      };
+      let reserve: FinalReaderReserve | undefined;
+      if (source.callback.phase === 'after') {
+        reserve = source.callback.reserve;
+        if (!reserve) throw new Error('Original final observer delivery reserve required');
+        await assertFinalReaderReserve(reserve);
+      }
+      const execute = originalExecutor(policy, reserve);
+      return execute;
+    },
+    async () => {
+      await assertOriginalGcpObserverClientDeliveryInputs(command);
+    },
+  );
 }
 
 /** Only the original, fixed observer proof command may consume this native
@@ -445,15 +591,15 @@ export async function signalFreeGcpObserverSshExecutor(
       throw new Error('Original observer SSH parent reserve differs');
   }
   const execute = originalExecutor(policy, reserve);
-  return async (invocation) => {
+  return originalGuardedCommandExecutor(input, reserve, async (invocation) => {
     if (
       JSON.stringify(invocation.args) !== JSON.stringify(source.args) ||
       Object.keys(invocation.env).length !== 1 ||
       invocation.env.LC_ALL !== 'C'
     )
       throw new Error('Exact original observer SSH arguments and environment required');
-    return execute(invocation);
-  };
+    return execute;
+  });
 }
 
 /** Specific native read mapping. Only an original VM/client/callback-bound
@@ -520,7 +666,7 @@ export async function signalFreeGcpKeyScanExecutor(
       throw new Error('Original final key-scan parent reserve differs');
   }
   const execute = originalExecutor(policy, reserve);
-  return async (invocation) => {
+  return originalGuardedCommandExecutor(input, reserve, async (invocation) => {
     await readOriginalGcpKeyScanCommand(command);
     if (
       invocation.args.length !== original.args.length ||
@@ -529,8 +675,8 @@ export async function signalFreeGcpKeyScanExecutor(
       throw new Error('Exact original VM-bound key-scan arguments required');
     if (Object.keys(invocation.env).length !== 1 || invocation.env.LC_ALL !== 'C')
       throw new Error('Exact credential-free key-scan environment required');
-    return execute(invocation);
-  };
+    return execute;
+  });
 }
 
 /** Only isolated Python readers can consume an already admitted parent's final reserve.
@@ -547,7 +693,7 @@ export function signalFreeFinalReaderExecutor(input: SignalFreeExecutionPolicy, 
   if (input.timeoutMs !== undefined && input.timeoutMs > 60_000)
     throw new Error('Final reader commands have a sixty-second limit');
   const execute = originalExecutor({ ...input, timeoutMs: input.timeoutMs ?? 60_000 }, reserve);
-  return async (invocation) => {
+  return originalGuardedCommandExecutor(input, reserve, async (invocation) => {
     if (
       invocation.args.length < 3 ||
       invocation.args[0] !== '-I' ||
@@ -555,8 +701,8 @@ export function signalFreeFinalReaderExecutor(input: SignalFreeExecutionPolicy, 
       !isAbsolute(invocation.args[2])
     )
       throw new Error('Exact isolated final reader script arguments required');
-    return execute(invocation);
-  };
+    return execute;
+  });
 }
 
 /** A multi-command guest worker inherits only the actual parent's final window.
@@ -575,7 +721,7 @@ export function signalFreeFinalGuestWorkerExecutor(
   if (input.timeoutMs !== undefined && input.timeoutMs > 300000)
     throw new Error('Original final guest worker exceeds its five-minute reserve');
   const execute = originalExecutor({ ...input, timeoutMs: input.timeoutMs ?? 300000 }, reserve);
-  return async (invocation) => {
+  return originalGuardedCommandExecutor(input, reserve, async (invocation) => {
     if (
       invocation.args.length < 3 ||
       invocation.args[0] !== '-I' ||
@@ -583,8 +729,8 @@ export function signalFreeFinalGuestWorkerExecutor(
       !isAbsolute(invocation.args[2])
     )
       throw new Error('Exact isolated original final guest script arguments required');
-    return execute(invocation);
-  };
+    return execute;
+  });
 }
 
 function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReaderReserve): Executor {
@@ -634,81 +780,41 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     let stdinSnapshot: OriginalExecutionStdinSnapshot | undefined;
     const args = [...inputArgs];
     const env = { ...inputEnvironment };
-    if (originalLoaderAlternatives.some((key) => env[key] !== undefined))
-      throw new Error('Original execution loader substitution refused');
     const began = now();
-    if (began < policy.originalStartMs || began >= executionDeadline)
-      throw new Error('Original operation deadline exhausted');
-    signal?.throwIfAborted();
-    try {
-      await assertOriginal();
-    } catch (error) {
-      // This point precedes every native spawn and executable invocation in this source.
-      // A failed write remains unresolved; never infer zero children from missing files.
+    const refuse = async (phase: OriginalUnspawnedPhase, error: unknown): Promise<never> => {
       try {
-        const current = await lstat(cwd);
-        if (
-          !current.isDirectory() ||
-          current.isSymbolicLink() ||
-          current.uid !== process.getuid?.() ||
-          (current.mode & 0o077) !== 0 ||
-          (await realpath(cwd)) !== cwd
-        )
-          throw new Error('Original unspawned execution directory required');
-        const directory = join(cwd, 'executor-unspawned', randomUUID());
-        await mkdir(directory, { recursive: true, mode: 0o700 });
-        const path = join(directory, 'source.private.json');
-        const file = await open(path, 'wx', 0o400);
-        try {
-          await file.writeFile(
-            JSON.stringify({
-              schemaVersion: 1,
-              kind: 'original-executor-unspawned',
-              phase: 'initial-input-guard',
-              directory: cwd,
-              args,
-              python: { path: policy.python.path, sha256: policy.python.sha256 },
-              executable: { path: policy.executable.path, sha256: policy.executable.sha256 },
-              originalStartMs: policy.originalStartMs,
-              originalDeadlineMs: policy.originalDeadlineMs,
-              invocationStartedMs: began,
-              nativeSpawnInvoked: false,
-              commandSubmitted: false,
-              signalsSent: false,
-              errorType: error instanceof Error ? error.name : typeof error,
-              gateSha256: hash(Buffer.from(signalFreeBootstrapSource)),
-            }),
-          );
-          await file.sync();
-        } finally {
-          await file.close();
-        }
-        // Flush each directory entry, including both newly created parent links.
-        for (const path of [directory, dirname(directory), cwd]) {
-          const before = await lstat(path, { bigint: true });
-          if (
-            !before.isDirectory() ||
-            before.isSymbolicLink() ||
-            before.uid !== BigInt(process.getuid?.() ?? -1) ||
-            (before.mode & 0o077n) !== 0n ||
-            (await realpath(path)) !== path
-          )
-            throw new Error('Original no-spawn evidence parent directory required');
-          const parent = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-          try {
-            const current = await parent.stat({ bigint: true });
-            if (current.dev !== before.dev || current.ino !== before.ino)
-              throw new Error('Original no-spawn evidence parent changed during flush');
-            await parent.sync();
-          } finally {
-            await parent.close();
-          }
-        }
-        unspawned.push((await readOwnedInstalledInput(path)).binding);
+        unspawned.push(
+          await retainOriginalUnspawnedInvocation({
+            cwd,
+            args,
+            environment: env,
+            signal,
+            policy,
+            began,
+            phase,
+            layer: 'native',
+            finalReserve: inherited,
+            error,
+          }),
+        );
       } catch (retention) {
         throw new AggregateError([error, retention], 'Original initial guard refusal and unspawned retention failed');
       }
       throw error;
+    };
+    if (originalLoaderAlternatives.some((key) => env[key] !== undefined))
+      return refuse('loader-validation', new Error('Original execution loader substitution refused'));
+    if (began < policy.originalStartMs || began >= executionDeadline)
+      return refuse('deadline-validation', new Error('Original operation deadline exhausted'));
+    try {
+      signal?.throwIfAborted();
+    } catch (error) {
+      return refuse('cancellation', error);
+    }
+    try {
+      await assertOriginal();
+    } catch (error) {
+      return refuse('initial-input-guard', error);
     }
     const directory = await lstat(cwd);
     if (
@@ -1300,66 +1406,71 @@ export async function signalFreeGcpObserverClientAbiExecutor(
   )
     throw new Error('Original observer ABI limits cannot be extended');
   if (input.stdin !== undefined) throw new Error('Original observer ABI command does not accept stdin');
-  return async (invocation) => {
-    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
-      throw new Error('Original observer ABI arguments differ');
-    await checkoutOriginalGcpObserverClientAbiCommand(command);
-    const remaining = source.sourceDeadlineMs - now();
-    if (remaining <= 0) throw new Error('Original observer ABI deadline exhausted');
-    const policy: SignalFreeExecutionPolicy = {
-      ...input,
-      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
-      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
-      maxOutputBytes: input.maxOutputBytes ?? 65536,
-      assertOriginal: async () => {
-        await readOriginalGcpObserverClientAbiCommand(command);
-        await input.assertOriginal();
-      },
-      assertOriginalIdentity: async () => {
-        await assertOriginalGcpObserverClientAbiIdentity(command);
-        await (input.assertOriginalIdentity ?? input.assertOriginal)();
-      },
-      assertFinalInputs: async () => {
-        await assertOriginalGcpObserverClientAbiInputs(command);
-        await (input.assertFinalInputs ?? input.assertOriginal)();
-      },
-      beforeRelease: async (admission) => {
-        await readOriginalGcpObserverClientAbiCommand(command);
-        if (admission.stdin !== undefined) throw new Error('Original observer ABI stdin admission differs');
-        await input.beforeRelease?.(admission);
-      },
-      finalCapture: async (capture) => {
-        const failures: unknown[] = [];
-        try {
+  return originalGuardedCommandExecutor(
+    input,
+    source.callback.phase === 'after' ? source.callback.reserve : undefined,
+    async (invocation) => {
+      if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+        throw new Error('Original observer ABI arguments differ');
+      await checkoutOriginalGcpObserverClientAbiCommand(command);
+      const remaining = source.sourceDeadlineMs - now();
+      if (remaining <= 0) throw new Error('Original observer ABI deadline exhausted');
+      const policy: SignalFreeExecutionPolicy = {
+        ...input,
+        timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+        startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+        maxOutputBytes: input.maxOutputBytes ?? 65536,
+        assertOriginal: async () => {
+          await readOriginalGcpObserverClientAbiCommand(command);
+          await input.assertOriginal();
+        },
+        assertOriginalIdentity: async () => {
+          await assertOriginalGcpObserverClientAbiIdentity(command);
+          await (input.assertOriginalIdentity ?? input.assertOriginal)();
+        },
+        assertFinalInputs: async () => {
           await assertOriginalGcpObserverClientAbiInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await input.finalCapture(capture);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await assertOriginalGcpObserverClientAbiInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        if (failures.length)
-          throw new AggregateError(failures, 'Original observer ABI final capture or input retention failed');
-      },
-    };
-    let reserve: FinalReaderReserve | undefined;
-    if (source.callback.phase === 'after') {
-      reserve = source.callback.reserve;
-      if (!reserve) throw new Error('Original final observer ABI reserve required');
-      await assertFinalReaderReserve(reserve);
-    }
-    const execute = originalExecutor(policy, reserve);
-    const result = await execute(invocation);
-    await assertOriginalGcpObserverClientAbiInputs(command);
-    return result;
-  };
+          await (input.assertFinalInputs ?? input.assertOriginal)();
+        },
+        beforeRelease: async (admission) => {
+          await readOriginalGcpObserverClientAbiCommand(command);
+          if (admission.stdin !== undefined) throw new Error('Original observer ABI stdin admission differs');
+          await input.beforeRelease?.(admission);
+        },
+        finalCapture: async (capture) => {
+          const failures: unknown[] = [];
+          try {
+            await assertOriginalGcpObserverClientAbiInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await input.finalCapture(capture);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await assertOriginalGcpObserverClientAbiInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          if (failures.length)
+            throw new AggregateError(failures, 'Original observer ABI final capture or input retention failed');
+        },
+      };
+      let reserve: FinalReaderReserve | undefined;
+      if (source.callback.phase === 'after') {
+        reserve = source.callback.reserve;
+        if (!reserve) throw new Error('Original final observer ABI reserve required');
+        await assertFinalReaderReserve(reserve);
+      }
+      const execute = originalExecutor(policy, reserve);
+      return execute;
+    },
+    async () => {
+      await assertOriginalGcpObserverClientAbiInputs(command);
+    },
+  );
 }
 
 import {
@@ -1390,66 +1501,71 @@ export async function signalFreeGcpObserverClientAbiRenewalExecutor(
   )
     throw new Error('Original observer ABI renewal limits cannot be extended');
   if (input.stdin !== undefined) throw new Error('Original observer ABI renewal command does not accept stdin');
-  return async (invocation) => {
-    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
-      throw new Error('Original observer ABI renewal arguments differ');
-    await checkoutOriginalGcpObserverClientAbiRenewalCommand(command);
-    const remaining = source.sourceDeadlineMs - now();
-    if (remaining <= 0) throw new Error('Original observer ABI renewal deadline exhausted');
-    const policy: SignalFreeExecutionPolicy = {
-      ...input,
-      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
-      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
-      maxOutputBytes: input.maxOutputBytes ?? 65536,
-      assertOriginal: async () => {
-        await readOriginalGcpObserverClientAbiRenewalCommand(command);
-        await input.assertOriginal();
-      },
-      assertOriginalIdentity: async () => {
-        await assertOriginalGcpObserverClientAbiRenewalIdentity(command);
-        await (input.assertOriginalIdentity ?? input.assertOriginal)();
-      },
-      assertFinalInputs: async () => {
-        await assertOriginalGcpObserverClientAbiRenewalInputs(command);
-        await (input.assertFinalInputs ?? input.assertOriginal)();
-      },
-      beforeRelease: async (admission) => {
-        await readOriginalGcpObserverClientAbiRenewalCommand(command);
-        if (admission.stdin !== undefined) throw new Error('Original observer ABI renewal stdin admission differs');
-        await input.beforeRelease?.(admission);
-      },
-      finalCapture: async (capture) => {
-        const failures: unknown[] = [];
-        try {
+  return originalGuardedCommandExecutor(
+    input,
+    source.callback.phase === 'after' ? source.callback.reserve : undefined,
+    async (invocation) => {
+      if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+        throw new Error('Original observer ABI renewal arguments differ');
+      await checkoutOriginalGcpObserverClientAbiRenewalCommand(command);
+      const remaining = source.sourceDeadlineMs - now();
+      if (remaining <= 0) throw new Error('Original observer ABI renewal deadline exhausted');
+      const policy: SignalFreeExecutionPolicy = {
+        ...input,
+        timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+        startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+        maxOutputBytes: input.maxOutputBytes ?? 65536,
+        assertOriginal: async () => {
+          await readOriginalGcpObserverClientAbiRenewalCommand(command);
+          await input.assertOriginal();
+        },
+        assertOriginalIdentity: async () => {
+          await assertOriginalGcpObserverClientAbiRenewalIdentity(command);
+          await (input.assertOriginalIdentity ?? input.assertOriginal)();
+        },
+        assertFinalInputs: async () => {
           await assertOriginalGcpObserverClientAbiRenewalInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await input.finalCapture(capture);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await assertOriginalGcpObserverClientAbiRenewalInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        if (failures.length)
-          throw new AggregateError(failures, 'Original observer ABI renewal final capture or input retention failed');
-      },
-    };
-    let reserve: FinalReaderReserve | undefined;
-    if (source.callback.phase === 'after') {
-      reserve = source.callback.reserve;
-      if (!reserve) throw new Error('Original final observer ABI renewal reserve required');
-      await assertFinalReaderReserve(reserve);
-    }
-    const execute = originalExecutor(policy, reserve);
-    const result = await execute(invocation);
-    await assertOriginalGcpObserverClientAbiRenewalInputs(command);
-    return result;
-  };
+          await (input.assertFinalInputs ?? input.assertOriginal)();
+        },
+        beforeRelease: async (admission) => {
+          await readOriginalGcpObserverClientAbiRenewalCommand(command);
+          if (admission.stdin !== undefined) throw new Error('Original observer ABI renewal stdin admission differs');
+          await input.beforeRelease?.(admission);
+        },
+        finalCapture: async (capture) => {
+          const failures: unknown[] = [];
+          try {
+            await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await input.finalCapture(capture);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          if (failures.length)
+            throw new AggregateError(failures, 'Original observer ABI renewal final capture or input retention failed');
+        },
+      };
+      let reserve: FinalReaderReserve | undefined;
+      if (source.callback.phase === 'after') {
+        reserve = source.callback.reserve;
+        if (!reserve) throw new Error('Original final observer ABI renewal reserve required');
+        await assertFinalReaderReserve(reserve);
+      }
+      const execute = originalExecutor(policy, reserve);
+      return execute;
+    },
+    async () => {
+      await assertOriginalGcpObserverClientAbiRenewalInputs(command);
+    },
+  );
 }
 
 import {
@@ -1480,64 +1596,69 @@ export async function signalFreeGcpCeKeyScanExecutor(
   )
     throw new Error('Original CE keyscan limits cannot be extended');
   if (input.stdin !== undefined) throw new Error('Original CE keyscan command does not accept stdin');
-  return async (invocation) => {
-    if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
-      throw new Error('Original CE keyscan arguments differ');
-    await checkoutOriginalGcpCeKeyScanCommand(command);
-    const remaining = source.sourceDeadlineMs - now();
-    if (remaining <= 0) throw new Error('Original CE keyscan deadline exhausted');
-    const policy: SignalFreeExecutionPolicy = {
-      ...input,
-      timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
-      startupTimeoutMs: input.startupTimeoutMs ?? 15000,
-      maxOutputBytes: input.maxOutputBytes ?? 65536,
-      assertOriginal: async () => {
-        await readOriginalGcpCeKeyScanCommand(command);
-        await input.assertOriginal();
-      },
-      assertOriginalIdentity: async () => {
-        await assertOriginalGcpCeKeyScanIdentity(command);
-        await (input.assertOriginalIdentity ?? input.assertOriginal)();
-      },
-      assertFinalInputs: async () => {
-        await assertOriginalGcpCeKeyScanInputs(command);
-        await (input.assertFinalInputs ?? input.assertOriginal)();
-      },
-      beforeRelease: async (admission) => {
-        await readOriginalGcpCeKeyScanCommand(command);
-        if (admission.stdin !== undefined) throw new Error('Original CE keyscan stdin admission differs');
-        await input.beforeRelease?.(admission);
-      },
-      finalCapture: async (capture) => {
-        const failures: unknown[] = [];
-        try {
+  return originalGuardedCommandExecutor(
+    input,
+    source.callback.phase === 'after' ? source.callback.reserve : undefined,
+    async (invocation) => {
+      if (JSON.stringify(invocation.args) !== JSON.stringify(source.args))
+        throw new Error('Original CE keyscan arguments differ');
+      await checkoutOriginalGcpCeKeyScanCommand(command);
+      const remaining = source.sourceDeadlineMs - now();
+      if (remaining <= 0) throw new Error('Original CE keyscan deadline exhausted');
+      const policy: SignalFreeExecutionPolicy = {
+        ...input,
+        timeoutMs: Math.min(input.timeoutMs ?? 60000, remaining),
+        startupTimeoutMs: input.startupTimeoutMs ?? 15000,
+        maxOutputBytes: input.maxOutputBytes ?? 65536,
+        assertOriginal: async () => {
+          await readOriginalGcpCeKeyScanCommand(command);
+          await input.assertOriginal();
+        },
+        assertOriginalIdentity: async () => {
+          await assertOriginalGcpCeKeyScanIdentity(command);
+          await (input.assertOriginalIdentity ?? input.assertOriginal)();
+        },
+        assertFinalInputs: async () => {
           await assertOriginalGcpCeKeyScanInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await input.finalCapture(capture);
-        } catch (error) {
-          failures.push(error);
-        }
-        try {
-          await assertOriginalGcpCeKeyScanInputs(command);
-        } catch (error) {
-          failures.push(error);
-        }
-        if (failures.length)
-          throw new AggregateError(failures, 'Original CE keyscan final capture or input retention failed');
-      },
-    };
-    let reserve: FinalReaderReserve | undefined;
-    if (source.callback.phase === 'after') {
-      reserve = source.callback.reserve;
-      if (!reserve) throw new Error('Original final CE keyscan reserve required');
-      await assertFinalReaderReserve(reserve);
-    }
-    const execute = originalExecutor(policy, reserve);
-    const result = await execute(invocation);
-    await assertOriginalGcpCeKeyScanInputs(command);
-    return result;
-  };
+          await (input.assertFinalInputs ?? input.assertOriginal)();
+        },
+        beforeRelease: async (admission) => {
+          await readOriginalGcpCeKeyScanCommand(command);
+          if (admission.stdin !== undefined) throw new Error('Original CE keyscan stdin admission differs');
+          await input.beforeRelease?.(admission);
+        },
+        finalCapture: async (capture) => {
+          const failures: unknown[] = [];
+          try {
+            await assertOriginalGcpCeKeyScanInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await input.finalCapture(capture);
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await assertOriginalGcpCeKeyScanInputs(command);
+          } catch (error) {
+            failures.push(error);
+          }
+          if (failures.length)
+            throw new AggregateError(failures, 'Original CE keyscan final capture or input retention failed');
+        },
+      };
+      let reserve: FinalReaderReserve | undefined;
+      if (source.callback.phase === 'after') {
+        reserve = source.callback.reserve;
+        if (!reserve) throw new Error('Original final CE keyscan reserve required');
+        await assertFinalReaderReserve(reserve);
+      }
+      const execute = originalExecutor(policy, reserve);
+      return execute;
+    },
+    async () => {
+      await assertOriginalGcpCeKeyScanInputs(command);
+    },
+  );
 }
