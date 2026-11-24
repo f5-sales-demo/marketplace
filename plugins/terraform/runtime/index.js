@@ -24647,12 +24647,12 @@ async function openInstalledApplyTraceStage(input) {
           await inputs();
         }
         const completion = await actor.output.finish();
-        ui.finishOriginal(actor.output, completion);
-        lifecycle.finishOriginal(actor.output, completion);
-        for (const selected of parsers) selected.parser.finishOriginal(actor.output, completion);
         await acknowledgeOriginalApplyGroupClosure(callback, completion);
         completedOutputInputs = await readOriginalCompletedOutputInputs(actor.output, completion);
         parentClosed = true;
+        ui.finishOriginal(actor.output, completion);
+        lifecycle.finishOriginal(actor.output, completion);
+        for (const selected of parsers) selected.parser.finishOriginal(actor.output, completion);
         transcript = Object.freeze({
           originalPlan: plan,
           binding,

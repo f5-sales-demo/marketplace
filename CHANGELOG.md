@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.167 binds original GCP inventory, bootstrap, VM,
+- **`terraform`** v2.4.168 binds original GCP inventory, bootstrap, VM,
   serial and guest inputs. Adds a separate final guest evidence window after
   operation expiry and qualifies current signed provider identities. Live GCP
   campaign qualification remains held.

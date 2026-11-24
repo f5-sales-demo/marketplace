@@ -1,6 +1,6 @@
 import { afterEach } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fingerprint } from '../../gcloud/src/ce/discovery';
@@ -88,6 +88,7 @@ export async function fixture(
   sourceCaptureInputs = false,
   operationRemainingMs = 7200000,
   afterSourceRetired?: () => Promise<void>,
+  nativeFiles?: { readonly terraform: string; readonly providers: string },
 ) {
   const deferredInputClosures: Array<() => void> = [];
   const root = await mkdtemp(join(tmpdir(), 'original-inventory-scope-'));
@@ -226,8 +227,14 @@ export async function fixture(
           if (!sourceProfile) throw new Error('Original source fixture profile required');
           Object.assign(inputs, await inspectInstalledCaptureScripts());
           const path = join(request.cwd, 'symbolic-terraform.private');
-          await writeFile(path, 'offline-qualified-terraform-label', { mode: 0o500 });
+          await writeFile(
+            path,
+            nativeFiles ? await readFile(nativeFiles.terraform) : 'offline-qualified-terraform-label',
+            { mode: 0o500 },
+          );
           symbolicTerraform = (await readOwnedInstalledInput(path)).binding;
+          if (nativeFiles && symbolicTerraform.sha256 !== sourceProfile.terraformSha256)
+            throw new Error('Original native fixture Terraform executable differs');
           inputs.terraform = { ...symbolicTerraform, sha256: sourceProfile.terraformSha256 };
         }
         const providers: Record<string, (typeof inputs)[string]> = {};
@@ -262,7 +269,12 @@ export async function fixture(
             await mkdir(folder, { recursive: true, mode: 0o700 });
             for (const name of names) {
               const path = join(folder, name);
-              await writeFile(path, `offline-qualified-provider-label:${name}`, {
+              const native = nativeFiles
+                ? await readFile(
+                    join(nativeFiles.providers, 'registry.terraform.io', address, version, 'linux_amd64', name),
+                  )
+                : undefined;
+              await writeFile(path, native ?? `offline-qualified-provider-label:${name}`, {
                 mode: name.startsWith('terraform-provider-') ? 0o500 : 0o400,
               });
               const actual = (await readOwnedInstalledInput(path)).binding;
@@ -271,6 +283,8 @@ export async function fixture(
                 : name.startsWith('terraform-provider-xcsh')
                   ? sourceProfile.xcProviderSha256
                   : actual.sha256;
+              if (nativeFiles && actual.sha256 !== digest)
+                throw new Error('Original native fixture provider executable differs');
               providers[`registry.terraform.io/${address}:${name}`] = { ...actual, sha256: digest };
             }
           }

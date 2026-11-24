@@ -12,7 +12,9 @@ class CaptureRetentionFailure extends Error {
 }
 const uid = () => BigInt(process.getuid?.() ?? -1);
 const directoryFlags = constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW;
-const maximumFile = 128 * 1024 * 1024,
+// Qualified Google provider 8.12.0 exceeds 128 MiB. This archive bound
+// includes software bytes; independent guest/output limits remain unchanged.
+const maximumFile = 256 * 1024 * 1024,
   maximumTotal = 512 * 1024 * 1024;
 const privateDirectory = (value: Awaited<ReturnType<Awaited<ReturnType<typeof open>>['stat']>>) =>
   value.isDirectory() && BigInt(value.uid) === uid() && (BigInt(value.mode) & 0o077n) === 0n;
@@ -132,6 +134,7 @@ export async function retainOwnedTestCapture(root: string, label: string, outcom
       outcome,
       status: failures.length ? 'incomplete' : 'retained',
       source: root,
+      limits: { maximumFile, maximumTotal },
       files,
       failures,
       excludedIpc: ipc,

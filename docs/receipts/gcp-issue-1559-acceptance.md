@@ -2345,3 +2345,16 @@ configured lint, dependency and catalog checks pass. Failed captures and locks
 remain failed. Complete factory/live source coverage and every original
 installed/runtime/live/cleanup/CI/review/delivery gate remain open. No GCP apply
 was submitted.
+
+## Original output closure before failed parser coverage
+
+The [trace closure receipt](gcp-trace-closure-before-parser-20261124.md) records
+the native failed-startup cleanup handoff defect and its source repair.
+All 59 affected cases, 473 assertions, strict Terraform types, warning-clean
+formatting and the normal runtime build pass. The pinned native case verifies
+29 source roles and immutable runtime handoff; independent review verifies 178
+files and three physical group absences. Initial false closure snapshots,
+incomplete reader capture and parser failures remain retained. The factory
+stays inactive. Actual guest capture, cloud ownership/expiry admission and every
+original installed/runtime/live/cleanup/CI/review/delivery gate remain open.
+No GCP apply was submitted.
