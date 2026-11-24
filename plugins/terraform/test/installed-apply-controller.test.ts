@@ -487,3 +487,8 @@ test('only exact input-verified original lifetime endings permit transfer bookke
   }
   expect(isOriginalApplyLifetimeEnd(closure, before)).toBe(false);
 });
+
+test('custom capture without durable source inputs retains its unavailable capability', () => {
+  const run = fixture();
+  expect(run.control.readClosedReaderGroupInputs).toBeUndefined();
+});

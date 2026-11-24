@@ -2323,3 +2323,14 @@ review verifies 350 retained files and 30 native physical group absences.
 Bootstrap handoff, complete durable factory coverage and every original
 feature/runtime/live/cleanup/CI/review/delivery gate remain open. No GCP apply
 was submitted.
+
+## Installed runtime closure and immutable reader handoff
+
+The [installed closure receipt](gcp-installed-runtime-source-closure-20261124.md)
+records physical parent closure, nested source inspection after capture failure
+and original immutable reader-input retention. Final 49-case focused and 68-case
+closure/cleanup/runtime suites, three strict typechecks, normal build, dependency,
+catalog and warning-clean lint checks pass. Capture failures and unknown source
+coverage remain refusals. Complete factory execution, early startup provenance,
+real expiry renewal and every original installed/runtime/live/cleanup/CI/review/
+delivery gate remain open. No GCP apply was submitted.

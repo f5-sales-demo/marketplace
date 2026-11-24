@@ -13700,7 +13700,6 @@ import {
 import { join as join13 } from 'node:path';
 
 init_discovery();
-init_process_lock();
 
 import { dirname as dirname5, isAbsolute as isAbsolute6, join as join5, resolve as resolve5 } from 'node:path';
 
@@ -14163,6 +14162,15 @@ var _hostKeys = Object.freeze([
   'SSL_CERT_FILE',
   'SSL_CERT_DIR',
 ]);
+
+// plugins/terraform/src/installed-reader-input-retention.ts
+init_discovery();
+init_installed_capture_context();
+init_original_input_monitor();
+
+// plugins/terraform/src/installed-runtime-source-closure.ts
+init_process_lock();
+init_original_input_monitor();
 
 // plugins/terraform/src/legacy-installed-executor.ts
 init_installed_capture_context();

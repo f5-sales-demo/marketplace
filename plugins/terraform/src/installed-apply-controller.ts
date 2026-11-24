@@ -101,6 +101,7 @@ export function createInstalledApplyController(
     assertOriginal: worker.assertOriginal.bind(worker),
     finalCapture: worker.finalCapture.bind(worker),
     close: worker.closeAfterExecutorExit.bind(worker),
+    readClosedInputs: worker.readClosedReaderGroupInputs?.bind(worker),
   };
   const nonce = randomUUID();
   let sequence = 0,
@@ -410,6 +411,9 @@ export function createInstalledApplyController(
       if (failures.length > 1)
         throw new AggregateError(failures, 'Original apply final capture and retention incomplete');
     },
+    // Inspection preserves the actual source accessor even after failed closure.
+    // Its owner validates durable inputs; no callback or plan authority is renewed.
+    ...(methods.readClosedInputs ? { readClosedReaderGroupInputs: methods.readClosedInputs } : {}),
     async closeAfterExecutorExit() {
       if (closed) return;
       if (started && (!finalStarted || !groupClosed)) throw new Error('Original apply executor closure required');

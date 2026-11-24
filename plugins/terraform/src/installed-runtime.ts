@@ -4,7 +4,6 @@ import { lstat, mkdir, open, readdir, readFile, realpath, writeFile } from 'node
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fingerprint } from '../../gcloud/src/ce/discovery';
-import { assertExecutorGroupClosed } from '../../platform/src/ce/process-lock';
 import captureSources from './gcp-capture-source-pins.json';
 import { authenticateGoogleAdc } from './google-adc-authentication';
 import type { GoogleAdcLease } from './google-adc-session';
@@ -21,7 +20,12 @@ import {
   InstalledCaptureInvocations,
 } from './installed-final-capture';
 import { createInstalledGcpInvocationCompiler, selectInstalledGcpEnvironment } from './installed-gcp-invocation';
+import { createInstalledReaderInputRetention } from './installed-reader-input-retention';
 import pins from './installed-runtime-pins.json';
+import {
+  closeInstalledOriginalRuntimeSources,
+  type OriginalInstalledRuntimeGroup,
+} from './installed-runtime-source-closure';
 import { resolveInstalledTerraformExecutable } from './installed-terraform-executable';
 import { isOriginalCreationScopeProfile, resolveInstalledGcpVersionProfile } from './installed-version-profile';
 import { createLegacyInstalledTerraformExecutor } from './legacy-installed-executor';
@@ -392,17 +396,32 @@ export function createInstalledRuntimeResolver(
     let capture: InstalledGcpCapture | undefined;
     let prepareCapture: (() => Promise<void>) | undefined;
     let active = 0;
-    const groups: string[] = [];
+    const groups: OriginalInstalledRuntimeGroup[] = [];
+    let closing = false;
+    const retainReaderInputs = createInstalledReaderInputRetention({
+      store,
+      owner,
+      executionDirectory,
+      readInputs: async () => capture?.readClosedReaderGroupInputs?.(),
+    });
     let originalEnvironment: { XCSH_API_URL: string; XCSH_API_TOKEN: string } | undefined;
     const close = async () => {
       if (active) throw new Error('Original installed executor remains in flight');
-      for (const group of groups) await assertExecutorGroupClosed(group);
-      if (await Bun.file(join(executionDirectory, '.terraform-executor-lock/capture-unresolved.json')).exists())
-        throw new Error('Original installed capture remains unresolved');
-      await capture?.closeAfterExecutorExit();
-      closePreparedCreationScope(preparedCreationScope);
-      providers?.close();
-      monitor?.close();
+      closing = true;
+      await closeInstalledOriginalRuntimeSources({
+        active,
+        executionDirectory,
+        groups,
+        closeCapture: async () => {
+          await capture?.closeAfterExecutorExit();
+        },
+        retainCaptureSources: retainReaderInputs,
+        retire: () => {
+          closePreparedCreationScope(preparedCreationScope);
+          providers?.close();
+          monitor?.close();
+        },
+      });
     };
     const googleAdc: GoogleAdcPolicy = {
       closeFailedAcquisition: close,
@@ -410,6 +429,7 @@ export function createInstalledRuntimeResolver(
       audienceSha256,
       qualificationSha256: pins.refreshQualificationSha256,
       acquire: async () => {
+        if (closing) throw new Error('Original installed runtime is closed for acquisition');
         await store.verify();
         const currentSource = await owned(sourcePath, 65536);
         assertSameOriginalInput(source.binding, currentSource.binding);
@@ -652,10 +672,11 @@ export function createInstalledRuntimeResolver(
                   await readFile(join(executionDirectory, '.terraform-executor-lock', name)),
                   { flag: 'wx', mode: 0o400 },
                 );
-              groups.push(currentGroup);
               const groupInputs: Record<string, OriginalInputBinding> = {};
+              groups.push(Object.freeze({ directory: currentGroup, inputs: groupInputs }));
               for (const name of ['claim', 'lifetime'])
                 groupInputs[name] = (await owned(join(currentGroup, `${name}.json`))).binding;
+              Object.freeze(groupInputs);
               const originalCapture = captureInvocations.admit({
                 identity: admission.identity,
                 budget: { start: admission.originalStartMs, deadline: admission.originalDeadlineMs },
@@ -702,6 +723,7 @@ export function createInstalledRuntimeResolver(
       },
     };
     const execute: Executor = async (invocation) => {
+      if (closing) throw new Error('Original installed runtime is closed for execution');
       if (invocation.cwd !== executionDirectory) throw new Error('Original Terraform execution directory changed');
       if (!executor || !originalEnvironment || !compileInvocation)
         throw new Error('Original installed ADC lease has not been acquired');
@@ -734,6 +756,7 @@ export function createInstalledRuntimeResolver(
       execute,
       ...(planSource ? { planSource } : {}),
       assertApplyReady: async () => {
+        if (closing) throw new Error('Original installed runtime is closed for apply admission');
         if (!captureFactory) throw new Error('Original GCP guest capture controller is not qualified');
         await store.verify();
       },
