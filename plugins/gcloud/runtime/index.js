@@ -7411,6 +7411,7 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
   );
   assertPublicTerraformSnapshot(intent, receipt, projected);
   const scope = publicTerraformCloudScope(intent);
+  const concurrency = readCleanupObservationConcurrency(runtime.api);
   const observations = await mapCleanupObservations(
     scope,
     async (expected, index) => {
@@ -7452,7 +7453,7 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
           throw new Error('Subnet ownership topology differs');
       }
       if (expected.kind === 'firewall') {
-        await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
+        if (concurrency === 1) await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
         const observer = intent.schemaVersion === 2 ? gcpTerraformObserverIdentity(intent) : undefined;
         if (observer && value.name === observer.firewallName) {
           if (
@@ -7496,9 +7497,21 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
       return { ...expected, id: live.id };
     },
     signal,
-    readCleanupObservationConcurrency(runtime.api),
+    concurrency,
   );
   const resources = observations.filter((row) => row !== undefined);
+  if (concurrency !== 1)
+    await mapCleanupObservations(
+      resources.filter((resource) => resource.kind === 'firewall'),
+      async (resource) => {
+        const address = `google_compute_firewall.${resource.selfLink.split('/').at(-1)?.replaceAll('-', '_')}`;
+        const value = projected.resources[address];
+        if (!value) throw new Error('Original firewall state binding unavailable');
+        await assertOriginalFirewallInsert(runtime, intent, value, resource.id, signal);
+      },
+      signal,
+      concurrency,
+    );
   const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
   for (const site of intent.sites)
     for (const node of site.nodes) {
@@ -7682,12 +7695,14 @@ async function assertOriginalFirewallInsert(runtime, intent, value, originalId, 
     !/^[1-9]\d*$/.test(originalId)
   )
     throw new Error('Original firewall insert timestamp unavailable');
+  signal?.throwIfAborted();
   const creation = Date.parse(value.creation_timestamp);
   const observation = await runtime.api.exec(
     'gcloud',
     gcpFirewallInsertObservationArgs(intent, value.name, value.self_link)[0],
     { signal },
   );
+  signal?.throwIfAborted();
   if (observation.exitCode !== 0) throw new Error('Original firewall creation identity unavailable');
   const live = parseGcloudJsonOutput(observation.stdout);
   if (
@@ -7703,6 +7718,7 @@ async function assertOriginalFirewallInsert(runtime, intent, value, originalId, 
     gcpFirewallInsertObservationArgs(intent, value.name, value.self_link)[1],
     { signal },
   );
+  signal?.throwIfAborted();
   if (result.exitCode !== 0) throw new Error('Original firewall insert evidence unavailable');
   const rows = parseGcloudJsonOutput(result.stdout);
   if (!Array.isArray(rows)) throw new Error('Original firewall insert evidence malformed');
@@ -7747,37 +7763,42 @@ async function assertOriginalObserverLiveBindings(runtime, intent, resources, si
   const observer = gcpTerraformObserverIdentity(intent),
     prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
   const expectedImage = `https://www.googleapis.com/compute/v1/projects/${GCP_TERRAFORM_OBSERVER_IMAGE.project}/global/images/${GCP_TERRAFORM_OBSERVER_IMAGE.name}`;
-  for (const kind of ['disk', 'instance']) {
-    const link = `${prefix}/zones/${observer.zone}/${kind === 'disk' ? 'disks' : 'instances'}/${observer.name}`;
-    const original = resources.find((row) => row.selfLink === link);
-    if (!original) continue;
-    const result = await runtime.api.exec('gcloud', gcpObserverLiveObservationArgs(intent, kind), { signal });
-    signal?.throwIfAborted();
-    if (result.exitCode !== 0) throw new Error('Original observer live ownership projection unavailable');
-    const live = parseGcloudJsonOutput(result.stdout);
-    if (String(live.id) !== original.id || live.selfLink !== link)
-      throw new Error('Original observer numeric identity changed');
-    if (kind === 'disk') {
-      if (live.sourceImage !== expectedImage || live.sourceImageId !== GCP_TERRAFORM_OBSERVER_IMAGE.id)
-        throw new Error('Original observer numeric image binding differs');
-    } else {
-      const nics = live.networkInterfaces;
-      const noAccounts =
-        live.serviceAccounts === undefined ||
-        (Array.isArray(live.serviceAccounts) && live.serviceAccounts.length === 0);
-      if (
-        !noAccounts ||
-        live.canIpForward !== false ||
-        !Array.isArray(nics) ||
-        nics.length !== 1 ||
-        !nics[0] ||
-        typeof nics[0] !== 'object' ||
-        nics[0].network !== `${prefix}/global/networks/${observer.network}` ||
-        nics[0].subnetwork !== `${prefix}/regions/${intent.region}/subnetworks/${observer.subnet}`
-      )
-        throw new Error('Original observer live account/NIC ownership differs');
-    }
-  }
+  await mapCleanupObservations(
+    ['disk', 'instance'],
+    async (kind) => {
+      const link = `${prefix}/zones/${observer.zone}/${kind === 'disk' ? 'disks' : 'instances'}/${observer.name}`;
+      const original = resources.find((row) => row.selfLink === link);
+      if (!original) return;
+      const result = await runtime.api.exec('gcloud', gcpObserverLiveObservationArgs(intent, kind), { signal });
+      signal?.throwIfAborted();
+      if (result.exitCode !== 0) throw new Error('Original observer live ownership projection unavailable');
+      const live = parseGcloudJsonOutput(result.stdout);
+      if (String(live.id) !== original.id || live.selfLink !== link)
+        throw new Error('Original observer numeric identity changed');
+      if (kind === 'disk') {
+        if (live.sourceImage !== expectedImage || live.sourceImageId !== GCP_TERRAFORM_OBSERVER_IMAGE.id)
+          throw new Error('Original observer numeric image binding differs');
+      } else {
+        const nics = live.networkInterfaces;
+        const noAccounts =
+          live.serviceAccounts === undefined ||
+          (Array.isArray(live.serviceAccounts) && live.serviceAccounts.length === 0);
+        if (
+          !noAccounts ||
+          live.canIpForward !== false ||
+          !Array.isArray(nics) ||
+          nics.length !== 1 ||
+          !nics[0] ||
+          typeof nics[0] !== 'object' ||
+          nics[0].network !== `${prefix}/global/networks/${observer.network}` ||
+          nics[0].subnetwork !== `${prefix}/regions/${intent.region}/subnetworks/${observer.subnet}`
+        )
+          throw new Error('Original observer live account/NIC ownership differs');
+      }
+    },
+    signal,
+    readCleanupObservationConcurrency(runtime.api),
+  );
 }
 var init_terraform_public_ownership = __esm(() => {
   init_exec();
