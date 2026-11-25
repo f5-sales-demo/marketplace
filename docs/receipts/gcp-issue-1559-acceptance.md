@@ -2455,3 +2455,13 @@ identity/watchers while full byte checks remain at execution/final boundaries.
 All 64 affected cases, strict types, normal build, configured lint and privacy
 checks pass. Full source startup, original guest/expiry and all original
 feature/live/delivery gates stay open; the factory remains inactive.
+
+## Output prefix lifetime checks after the full source probe
+
+The [output prefix receipt](gcp-output-prefix-startup-20261125.md) records the
+retained startup failure, independent 21 resource absences and 13 original native
+group absences. The unresolved executor lock and failed captures remain intact.
+Two failing-first regressions and 116 affected cases pass after prefix reads
+adopted the already admitted identity path. Full admission, release and final
+digests remain enforced. Full source startup, guest and provider expiry evidence,
+all original feature and live gates, and delivery remain unfinished.

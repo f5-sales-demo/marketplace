@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { linuxMonotonicMs } from '../src/linux-clock';
+import { readOriginalExecutionPrefix } from '../src/original-output-stream';
 import {
   type FinalExecutionCapture,
   type SignalFreeExecutionPolicy,
@@ -147,6 +148,71 @@ json.dump=slow_dump
     expect(observed).toBe(true);
     expect(result.code).toBe(0);
     expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(true);
+  });
+
+  test('original prefix inspection retains identity checks without repeating admitted full checks before release', async () => {
+    let fullChecks = 0,
+      identityChecks = 0,
+      finalChecks = 0,
+      prefixFullChecks = -1;
+    const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+      assertOriginalIdentity: async () => {
+        identityChecks++;
+      },
+      assertFinalInputs: async () => {
+        finalChecks++;
+      },
+      beforeRelease: async (admission) => {
+        const fullBeforePrefix = fullChecks,
+          identityBeforePrefix = identityChecks;
+        expect(fullBeforePrefix).toBeGreaterThan(0);
+        const prefix = await readOriginalExecutionPrefix(admission.output);
+        expect(prefix.identity).toEqual(admission.identity);
+        expect(prefix.stdout.bytes).toBe(0);
+        expect(prefix.stderr.bytes).toBe(0);
+        expect(fullChecks).toBe(fullBeforePrefix);
+        expect(identityChecks).toBeGreaterThan(identityBeforePrefix);
+        prefixFullChecks = fullChecks;
+        expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(false);
+      },
+    });
+    run.checks.push(async () => {
+      fullChecks++;
+    });
+    const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+    expect(result.code).toBe(0);
+    expect(prefixFullChecks).toBeGreaterThan(0);
+    expect(fullChecks).toBeGreaterThan(prefixFullChecks);
+    expect(finalChecks).toBeGreaterThan(0);
+    expect(run.captures[0].originalGroupClosed).toBe(true);
+    expect(run.captures[0].signalsSent).toBe(false);
+    expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(true);
+  });
+
+  test('original prefix inspection refuses an identity change before command release', async () => {
+    let changed = false,
+      prefixRefused = false;
+    const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+      assertOriginalIdentity: async () => {
+        if (changed) throw new Error('Original fixture identity changed');
+      },
+      assertFinalInputs: async () => {},
+      beforeRelease: async (admission) => {
+        changed = true;
+        try {
+          await readOriginalExecutionPrefix(admission.output);
+        } catch (error) {
+          prefixRefused = true;
+          throw error;
+        }
+      },
+    });
+    const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+    expect(prefixRefused).toBe(true);
+    expect(result.code).toBe(1);
+    expect(run.captures[0].submitted).toBe(false);
+    expect(run.captures[0].signalsSent).toBe(false);
+    expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(false);
   });
 
   test('capture startup failure prevents submission and still invokes independent final capture', async () => {

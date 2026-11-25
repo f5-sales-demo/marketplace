@@ -16485,11 +16485,13 @@ function originalExecutor(input, reserve) {
                   assertInputs: async () => {
                     await python.require();
                     await executable.require();
-                    await generatedInputs?.assertOriginal();
                     if (finalCaptureActive && policy.assertFinalInputs) {
+                      await generatedInputs?.assertOriginal();
                       if (reserve) await assertFinalReaderReserve(reserve);
                       await policy.assertFinalInputs();
                       if (reserve) await assertFinalReaderReserve(reserve);
+                    } else if (originalOutput && policy.assertOriginalIdentity) {
+                      await assertOriginalIdentity();
                     } else await assertOriginal();
                     const readerDeadline =
                       inherited?.finalDeadlineMs ??
