@@ -20630,7 +20630,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             assertWithinDeadline: inputChecks.assertCaptureWithinDeadline,
             readProviderInputs: async () => {
               if (!providers || !providerInputs) throw new Error('Original capture provider packages are not admitted');
-              await providers.assertOriginal();
+              await providers.assertOriginalIdentity();
               return providerInputs;
             },
           });

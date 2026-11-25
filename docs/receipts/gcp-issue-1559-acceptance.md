@@ -2445,3 +2445,13 @@ Failing-first startup and safe final-reason repairs passed native/shared tests,
 strict types, normal build and configured lint. Full changed-source startup,
 actual guest/expiry and every original feature/live/delivery gate remain open.
 The complete factory stays inactive.
+
+## Provider capture identity path after full source startup refusal
+
+The [provider identity receipt](gcp-provider-capture-identity-20261125.md)
+records the retained full-source startup refusal and independent 21-resource,
+12-native-group absences. Capture provider reads now retain original admitted
+identity/watchers while full byte checks remain at execution/final boundaries.
+All 64 affected cases, strict types, normal build, configured lint and privacy
+checks pass. Full source startup, original guest/expiry and all original
+feature/live/delivery gates stay open; the factory remains inactive.

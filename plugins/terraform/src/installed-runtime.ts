@@ -561,7 +561,10 @@ export function createInstalledRuntimeResolver(
             assertWithinDeadline: inputChecks.assertCaptureWithinDeadline,
             readProviderInputs: async () => {
               if (!providers || !providerInputs) throw new Error('Original capture provider packages are not admitted');
-              await providers.assertOriginal();
+              // bindProviders admits full digests; executor release and final
+              // hooks recheck them. Capture retains those original bindings
+              // through continuous file/parent identity and watcher checks.
+              await providers.assertOriginalIdentity();
               return providerInputs;
             },
           });
