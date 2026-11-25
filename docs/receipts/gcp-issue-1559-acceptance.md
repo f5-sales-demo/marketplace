@@ -2402,3 +2402,14 @@ lint checks. The factory remains inactive and untracked. The changed Terraform
 2.4.170 candidate needs fresh installation/runtime qualification, and all
 original live/expiry/lifecycle/network/traffic/recovery/cleanup/CI/review/merge/
 publication/published-installation gates remain open. No GCP apply occurred.
+
+## Original delete source coverage and empty output
+
+The [delete source receipt](gcp-delete-source-coverage-20261124.md) records
+failing-first missing coverage and empty-stderr closure failures, exact original
+output verification, and issuer-owned source collection after closure. Final
+tracked source cases, related closure tests, three strict typechecks, runtime,
+catalog, dependency, configured lint and privacy checks pass. The complete
+factory stays inactive and untracked. Fresh normal session preparation preserves
+complete original inputs; actual guest/expiry and every original live/lifecycle/
+network/traffic/recovery/cleanup/CI/review/delivery gate remain unfinished.

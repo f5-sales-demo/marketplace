@@ -10,16 +10,25 @@ import type { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import { acknowledgeOriginalApplyGroupClosure, assertOriginalApplyCallback } from './installed-apply-controller';
 import type { InstalledCaptureContext } from './installed-capture-context';
 import { type InstalledGcpCapture, readOwnedInstalledInput } from './installed-runtime';
-import { assertSameOriginalInput, type OriginalInputBinding } from './original-input-monitor';
+import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import {
   readOriginalCompletedOutputInputs,
   readOriginalExecutionChunk,
   readOriginalExecutionPrefix,
 } from './original-output-stream';
 import { bindOriginalTerraformPlanInputs } from './original-plan-inputs';
+import type { OriginalReaderSourceClosure } from './original-reader-group-closure';
 import { assertFinalReaderReserve, inspectFinalReaderReserve } from './reader-final-reserve';
 import { assertOriginalTerraformPlanProjection, type OriginalTerraformPlanProjection } from './runner';
 import type { ExecutionCaptureAdmission } from './signal-free-executor';
+
+const sourceReaders = new WeakMap<object, () => Promise<readonly OriginalReaderSourceClosure[]>>();
+/** Recheck source-issued delete closure without reopening execution authority. */
+export async function collectInstalledOriginalDeleteReaderSources(value: unknown) {
+  const collect = value && typeof value === 'object' ? sourceReaders.get(value) : undefined;
+  if (!collect) throw new Error('Original source-issued delete capture required');
+  return collect();
+}
 
 /** Capture for a source-issued destroy plan. The caller still proves live ownership,
  * reviewed authorization, applied state and independent absences. Capture never
@@ -121,6 +130,21 @@ export async function openInstalledDeleteCapture(input: {
     if (context.budget.start !== budget.start || context.budget.deadline !== budget.deadline)
       throw new Error('Original cleanup capture budget differs');
   };
+  const assertCompletedOutputs = async () => {
+    if (!actor) return;
+    if (!completedOutputs) throw new Error('Original complete delete output bindings required');
+    const monitor = await monitorOriginalInputs(completedOutputs, {
+      allowEmpty: Object.keys(completedOutputs).filter(
+        (name) => completedOutputs?.[name].expectedIdentity?.size === '0',
+      ),
+    });
+    try {
+      await inputs(false);
+      await monitor.assertOriginal();
+    } finally {
+      monitor.close();
+    }
+  };
   const persist = async (phase: string, extra: Record<string, unknown> = {}) => {
     await store.verify();
     await store.write(`gcp-delete-capture-${randomUUID()}.json`, {
@@ -137,7 +161,7 @@ export async function openInstalledDeleteCapture(input: {
       guestAcceptanceComplete: false,
     });
   };
-  return {
+  const port: InstalledGcpCapture = {
     async prepare(original) {
       if (original !== context || started || finalStarted || closed || failure)
         throw new Error('Original delete capture preparation context or lifecycle differs');
@@ -254,13 +278,7 @@ export async function openInstalledDeleteCapture(input: {
         // The owning runner retires its live source after apply. Closure rechecks
         // the admitted original files; it never revives that retired authority.
         await inputs(false);
-        if (actor) {
-          if (!completedOutputs) throw new Error('Original complete delete output bindings required');
-          for (const binding of Object.values(completedOutputs)) {
-            const current = await readOwnedInstalledInput(binding.path);
-            assertSameOriginalInput(binding, current.binding);
-          }
-        }
+        await assertCompletedOutputs();
         await persist(started ? 'closed' : 'preflight-closed', { earlierFailureRetained: !!failure });
         closed = true;
         if (failure) throw new Error('Original delete capture failure remains retained');
@@ -268,4 +286,14 @@ export async function openInstalledDeleteCapture(input: {
       return closure;
     },
   };
+  sourceReaders.set(port, async () => {
+    await closure;
+    if (!closed) throw new Error('Original delete source closure required');
+    await inputs(false);
+    await assertCompletedOutputs();
+    // Output is consumed in this process. No subordinate reader actor is
+    // started; the owning executor closure remains independently verified.
+    return Object.freeze([Object.freeze({ name: 'delete-output', attemptCount: 0, witnesses: Object.freeze([]) })]);
+  });
+  return Object.freeze(port);
 }
