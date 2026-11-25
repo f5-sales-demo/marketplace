@@ -2465,3 +2465,14 @@ Two failing-first regressions and 116 affected cases pass after prefix reads
 adopted the already admitted identity path. Full admission, release and final
 digests remain enforced. Full source startup, guest and provider expiry evidence,
 all original feature and live gates, and delivery remain unfinished.
+
+## Full pre-spawn admission and native output binding
+
+The [native output admission receipt](gcp-native-output-admission-20261125.md)
+records eight original stages started within the retained deadline with 45 ms
+remaining. Full command release and live acceptance are still unqualified.
+Independent closure verified 14 native group absences and 21 resource absences;
+failed captures and unresolved locks remain unchanged. The failing-first native
+phase regression and 117 affected cases pass after output binding adopted
+continuous original identity checks following full pre-spawn admission. Release
+and final digests remain required. All original feature and delivery gates stay open.

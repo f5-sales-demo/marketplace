@@ -16490,7 +16490,7 @@ function originalExecutor(input, reserve) {
                       if (reserve) await assertFinalReaderReserve(reserve);
                       await policy.assertFinalInputs();
                       if (reserve) await assertFinalReaderReserve(reserve);
-                    } else if (originalOutput && policy.assertOriginalIdentity) {
+                    } else if (policy.assertOriginalIdentity) {
                       await assertOriginalIdentity();
                     } else await assertOriginal();
                     const readerDeadline =

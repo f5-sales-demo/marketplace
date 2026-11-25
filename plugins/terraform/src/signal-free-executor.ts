@@ -1096,15 +1096,15 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
                   assertInputs: async () => {
                     await python.require();
                     await executable.require();
-                    // Admission retains full input digests. Once the original output
-                    // is bound, prefix inspection uses its continuous identity checks;
+                    // Inputs and executables were fully admitted before native spawn.
+                    // Output binding and prefix reads retain continuous identity checks;
                     // command release and final capture still require full digests.
                     if (finalCaptureActive && policy.assertFinalInputs) {
                       await generatedInputs?.assertOriginal();
                       if (reserve) await assertFinalReaderReserve(reserve);
                       await policy.assertFinalInputs();
                       if (reserve) await assertFinalReaderReserve(reserve);
-                    } else if (originalOutput && policy.assertOriginalIdentity) {
+                    } else if (policy.assertOriginalIdentity) {
                       await assertOriginalIdentity();
                     } else await assertOriginal();
                     const readerDeadline =

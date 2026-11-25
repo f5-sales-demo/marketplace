@@ -150,6 +150,45 @@ json.dump=slow_dump
     expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(true);
   });
 
+  test('full input admission precedes native output binding and release retains an independent full check', async () => {
+    let startupComplete = false,
+      admissionChecks = 0,
+      releaseChecks = 0,
+      finalChecks = 0;
+    const run = await fixture('from pathlib import Path\nPath("executed").write_text("yes")\n', {
+      assertOriginalIdentity: async () => {},
+      assertFinalInputs: async () => {
+        finalChecks++;
+      },
+      beforeRelease: async (admission) => {
+        expect(admissionChecks).toBeGreaterThan(0);
+        const prefix = await readOriginalExecutionPrefix(admission.output);
+        expect(prefix.identity).toEqual(admission.identity);
+        expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(false);
+        startupComplete = true;
+      },
+    });
+    run.checks.push(async () => {
+      const gates = await Array.fromAsync(
+        new Bun.Glob('executor-diagnostics/*/bootstrap.json').scan({ cwd: run.root, onlyFiles: true }),
+      );
+      if (!gates.length) admissionChecks++;
+      else {
+        if (!startupComplete) throw new Error('Full admitted input checks repeated during native startup');
+        releaseChecks++;
+      }
+    });
+    const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+    expect(result.code).toBe(0);
+    expect(startupComplete).toBe(true);
+    expect(admissionChecks).toBeGreaterThan(0);
+    expect(releaseChecks).toBeGreaterThan(0);
+    expect(finalChecks).toBeGreaterThan(0);
+    expect(run.captures[0].submitted).toBe(true);
+    expect(run.captures[0].signalsSent).toBe(false);
+    expect(await Bun.file(join(run.root, 'executed')).exists()).toBe(true);
+  });
+
   test('original prefix inspection retains identity checks without repeating admitted full checks before release', async () => {
     let fullChecks = 0,
       identityChecks = 0,
