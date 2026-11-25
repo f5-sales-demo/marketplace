@@ -422,6 +422,32 @@ export function assertPublicTerraformSnapshot(
 
 /** Google 8.7.0 has no numeric firewall ID in state. Join the retained creation timestamp to
  * the exact live timestamp and immutable target ID within the original insert operation interval. */
+export function gcpFirewallInsertObservationArgs(intent: GcpCeIntent, name: string, selfLink: string): string[][] {
+  return [
+    [
+      'compute',
+      'firewall-rules',
+      'describe',
+      name,
+      '--project',
+      intent.project,
+      '--format=json(id,selfLink,creationTimestamp)',
+      '--quiet',
+    ],
+    [
+      'compute',
+      'operations',
+      'list',
+      '--project',
+      intent.project,
+      '--filter',
+      `operationType=insert AND targetLink=${selfLink}`,
+      '--format=json',
+      '--quiet',
+    ],
+  ];
+}
+
 export async function assertOriginalFirewallInsert(
   runtime: GcpTerraformOwnershipObserverRuntime,
   intent: GcpCeIntent,
@@ -440,16 +466,7 @@ export async function assertOriginalFirewallInsert(
   const creation = Date.parse(value.creation_timestamp);
   const observation = await runtime.api.exec(
     'gcloud',
-    [
-      'compute',
-      'firewall-rules',
-      'describe',
-      value.name,
-      '--project',
-      intent.project,
-      '--format=json(id,selfLink,creationTimestamp)',
-      '--quiet',
-    ],
+    gcpFirewallInsertObservationArgs(intent, value.name, value.self_link)[0],
     { signal },
   );
   if (observation.exitCode !== 0) throw new Error('Original firewall creation identity unavailable');
@@ -464,17 +481,7 @@ export async function assertOriginalFirewallInsert(
     throw new Error('Original firewall live creation identity differs');
   const result = await runtime.api.exec(
     'gcloud',
-    [
-      'compute',
-      'operations',
-      'list',
-      '--project',
-      intent.project,
-      '--filter',
-      `operationType=insert AND targetLink=${value.self_link}`,
-      '--format=json',
-      '--quiet',
-    ],
+    gcpFirewallInsertObservationArgs(intent, value.name, value.self_link)[1],
     { signal },
   );
   if (result.exitCode !== 0) throw new Error('Original firewall insert evidence unavailable');
@@ -504,6 +511,21 @@ export async function assertOriginalFirewallInsert(
 }
 
 /** Independently join original numeric identities to the live no-account/NIC and pinned-image mapping. */
+export function gcpObserverLiveObservationArgs(intent: GcpCeIntent, kind: 'disk' | 'instance'): string[] {
+  const observer = gcpTerraformObserverIdentity(intent);
+  return [
+    'compute',
+    kind === 'disk' ? 'disks' : 'instances',
+    'describe',
+    observer.name,
+    `--project=${intent.project}`,
+    `--zone=${observer.zone}`,
+    kind === 'disk'
+      ? '--format=json(id,selfLink,sourceImage,sourceImageId)'
+      : '--format=json(id,selfLink,serviceAccounts,canIpForward,networkInterfaces)',
+  ];
+}
+
 export async function assertOriginalObserverLiveBindings(
   runtime: GcpTerraformOwnershipObserverRuntime,
   intent: GcpCeIntent,
@@ -518,21 +540,7 @@ export async function assertOriginalObserverLiveBindings(
     const link = `${prefix}/zones/${observer.zone}/${kind === 'disk' ? 'disks' : 'instances'}/${observer.name}`;
     const original = resources.find((row) => row.selfLink === link);
     if (!original) continue;
-    const result = await runtime.api.exec(
-      'gcloud',
-      [
-        'compute',
-        kind === 'disk' ? 'disks' : 'instances',
-        'describe',
-        observer.name,
-        `--project=${intent.project}`,
-        `--zone=${observer.zone}`,
-        kind === 'disk'
-          ? '--format=json(id,selfLink,sourceImage,sourceImageId)'
-          : '--format=json(id,selfLink,serviceAccounts,canIpForward,networkInterfaces)',
-      ],
-      { signal },
-    );
+    const result = await runtime.api.exec('gcloud', gcpObserverLiveObservationArgs(intent, kind), { signal });
     signal?.throwIfAborted();
     if (result.exitCode !== 0) throw new Error('Original observer live ownership projection unavailable');
     const live = parseGcloudJsonOutput<Record<string, unknown>>(result.stdout);

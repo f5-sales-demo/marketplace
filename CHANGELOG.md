@@ -35,9 +35,12 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.75 preserves typed authentication, expiry, permission
-  and setup refusals, and qualifies the current provider tuple and Site SSH
-  schema. Live GCP qualification remains held.
+- **`gcloud`** v1.7.76 adds exact original-scope cleanup observations through
+  the shared native executor without process signals. Original failed claims,
+  pinned CLI and credential scope, independent reader closure and reviewed
+  delete-only authorization remain required. Source composition and affected
+  regressions pass; live cleanup, full qualification and publication remain held
+  (#1559).
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding

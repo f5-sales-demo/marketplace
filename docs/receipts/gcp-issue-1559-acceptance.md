@@ -2486,3 +2486,13 @@ gate while preserving failed claims and requiring source inputs and independent
 group closure. It grants no deletion authority. The fresh 21-resource plan remains
 unsubmitted until actual ownership observation and full cleanup composition are
 qualified. All original live and delivery gates stay open.
+
+## Captured-cleanup CLI observations
+
+The [CLI transport receipt](gcp-cleanup-cli-transport-20261125.md) records the
+failing-first implementation and runtime export, 99 passing affected cases,
+strict types, normal runtime builds and source composition with two non-submitting
+resumes. GCloud 1.7.76 exports exact original-scope reads through the shared native
+executor without process signals. Live ownership and original reader bindings,
+actual cleanup composition and every original live and delivery gate remain open.
+The fresh 21-resource plan remains unsubmitted.

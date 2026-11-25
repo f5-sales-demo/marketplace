@@ -138,11 +138,7 @@ async function assertNativeCleanupTopology(
   )
     throw new Error('Partial cleanup ledger differs from completed creation journal');
 }
-export async function observeGcpTeardownResource(
-  api: GcloudExecApi,
-  resource: GcpResourceIdentity,
-  signal?: AbortSignal,
-) {
+export function gcpTeardownResourceObservationArgs(resource: GcpResourceIdentity): string[] {
   validateGcpResourceIdentity(resource);
   if (!['instance', 'disk', 'network', 'subnetwork', 'firewall'].includes(resource.kind))
     throw new Error('Qualified disposable teardown resource kind required');
@@ -163,18 +159,21 @@ export async function observeGcpTeardownResource(
                 ? 'firewall-rules'
                 : 'networks',
         ];
-  const response = await api.exec(
-    'gcloud',
-    [
-      ...base,
-      'describe',
-      name,
-      `--project=${resource.project}`,
-      ...(scope === 'zones' ? [`--zone=${location}`] : scope === 'regions' ? [`--region=${location}`] : []),
-      '--format=json(id,selfLink)',
-    ],
-    { signal },
-  );
+  return [
+    ...base,
+    'describe',
+    name,
+    `--project=${resource.project}`,
+    ...(scope === 'zones' ? [`--zone=${location}`] : scope === 'regions' ? [`--region=${location}`] : []),
+    '--format=json(id,selfLink)',
+  ];
+}
+export async function observeGcpTeardownResource(
+  api: GcloudExecApi,
+  resource: GcpResourceIdentity,
+  signal?: AbortSignal,
+) {
+  const response = await api.exec('gcloud', gcpTeardownResourceObservationArgs(resource), { signal });
   signal?.throwIfAborted();
   if (response.exitCode !== 0) {
     if (/\b404\b|was not found|not found/i.test(response.stderr)) return null;
