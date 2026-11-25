@@ -209,8 +209,13 @@ const factory: ExtensionFactory = async (pi) => {
 export default factory;
 
 export {
+  persistGcpAppliedSourceCleanupOrigin,
+  persistGcpAppliedSourceCleanupReview,
+} from './ce/applied-source-cleanup-durable';
+export {
   openGcpAppliedSourceTeardownOrigin,
   readGcpAppliedSourceTeardownOrigin,
+  resumeGcpAppliedSourceTeardownOrigin,
 } from './ce/applied-source-teardown-origin';
 export { openGcpCaptureCleanupAdmission } from './ce/capture-cleanup-admission';
 export { createGcpCaptureCleanupCli } from './ce/capture-cleanup-cli';

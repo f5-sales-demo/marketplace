@@ -2551,3 +2551,14 @@ failing-first cases, 855 affected cases, typechecks, builds and lint. Real insta
 SDK reads and a separate original-provider/Platform review proved all 21 initial
 absences. No apply was submitted; actual worker composition, live cleanup and
 every original networking, lifecycle, runtime and delivery gate remain open.
+
+## Durable successful-source cleanup recovery
+
+The [durable successful-source receipt](gcp-applied-source-durable-cleanup-20261125.md)
+records immutable applied provenance across destroy-plan overwrite, interrupted
+deletion and completed resumes. It passed 41 focused cases, 876 affected cases,
+strict types and runtime builds. Tests include a fresh Bun process, concurrency,
+stale plans, replacement and malformed action evidence. Recovery invokes no
+Terraform action and creates no failed flags or substitute deployment journals.
+Live cleanup worker composition and every original full acceptance gate remain
+open. The retained campaign is still unsubmitted.

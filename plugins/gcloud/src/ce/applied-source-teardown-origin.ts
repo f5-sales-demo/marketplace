@@ -1,6 +1,14 @@
 import type { PlanReceipt } from '../../../terraform/src/runner';
+import {
+  type GcpAppliedSourceCleanupResumeInput,
+  inspectGcpAppliedSourceCleanupResume,
+} from './applied-source-cleanup-durable';
 import { fingerprint } from './discovery';
-import { type GcpSourceCampaignInputs, openGcpSourceCampaignEvidence } from './source-campaign-evidence';
+import {
+  assertSuccessfulGcpSourceTerminal,
+  type GcpSourceCampaignInputs,
+  openGcpSourceCampaignEvidence,
+} from './source-campaign-evidence';
 import { publicTerraformContextHash } from './terraform-context';
 import {
   inspectPublicTerraformOwnership,
@@ -114,15 +122,7 @@ export async function openGcpAppliedSourceTeardownOrigin(
     }
   };
   try {
-    const noFailure = (value: unknown) =>
-      value === undefined || fingerprint(value) === fingerprint({ type: 'undefined' });
-    if (
-      evidence.terminal.applySucceeded !== true ||
-      evidence.terminal.closeSucceeded !== true ||
-      !noFailure(evidence.terminal.failure) ||
-      !noFailure(evidence.terminal.closeFailure)
-    )
-      throw new Error('Original successful apply and completed capture closure required');
+    assertSuccessfulGcpSourceTerminal(evidence.terminal);
     await guard();
     await evidence.assertReceipt(receipt);
     await assertApplied(receipt);
@@ -174,4 +174,27 @@ export async function readGcpAppliedSourceTeardownOrigin(value: GcpAppliedSource
     throw new Error('Source-issued original applied teardown capability required');
   await original.assertOriginal();
   return Object.freeze({ original: original.original, owned: original.owned, contextHash: original.contextHash });
+}
+
+/** Reissue only a verified durable original; no create or destroy action is executed. */
+export async function resumeGcpAppliedSourceTeardownOrigin(
+  input: GcpAppliedSourceCleanupResumeInput,
+  signal?: AbortSignal,
+) {
+  const resumed = await inspectGcpAppliedSourceCleanupResume(input, signal);
+  const origin: GcpAppliedSourceTeardownOrigin = Object.freeze({
+    schemaVersion: 1,
+    kind: 'applied-source-gcp-teardown-origin',
+    executionAuthorized: false,
+    close: resumed.close,
+  });
+  issued.set(origin, {
+    intent: fingerprint(input.intent),
+    contextHash: resumed.proof.contextHash,
+    original: resumed.proof.original,
+    owned: resumed.proof.owned,
+    assertOriginal: resumed.assertOriginal,
+  });
+  const { proof: _proof, assertOriginal: _assertOriginal, ...view } = resumed;
+  return Object.freeze({ ...view, origin });
 }

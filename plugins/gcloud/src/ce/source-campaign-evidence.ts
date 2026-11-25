@@ -130,3 +130,14 @@ export async function openGcpSourceCampaignEvidence(input: { intent: GcpCeIntent
     if (!returned) close();
   }
 }
+
+export function assertSuccessfulGcpSourceTerminal(terminal: Readonly<Record<string, unknown>>): void {
+  const absent = (value: unknown) => value === undefined || fingerprint(value) === fingerprint({ type: 'undefined' });
+  if (
+    terminal.applySucceeded !== true ||
+    terminal.closeSucceeded !== true ||
+    !absent(terminal.failure) ||
+    !absent(terminal.closeFailure)
+  )
+    throw new Error('Original successful apply and completed capture closure required');
+}
