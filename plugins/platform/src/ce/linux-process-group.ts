@@ -28,16 +28,7 @@ export function readRejectedLinuxProcessGroupRecord(error: unknown): RejectedLin
     : undefined;
 }
 
-/** Record validation only, never lock-closure authority. The process-lock
- * scanner supplies the actual procfs read; injected reads are offline fixtures. */
-export async function readLinuxProcessGroupRecord(pid: number, readRecord: () => Promise<string>): Promise<number> {
-  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
-  let text = await readRecord();
-  // A task may exit between opening procfs and its first read. Do not interpret
-  // an empty record as group zero or absence. Require a new complete record or
-  // propagate the actual second syscall error to the disappearance classifier.
-  const initialEmptyRead = text.length === 0;
-  if (initialEmptyRead) text = await readRecord();
+function splitProcessRecord(text: string) {
   const end = text.lastIndexOf(') ');
   const header = text.match(/^([1-9][0-9]*) \(/);
   const fields =
@@ -47,6 +38,34 @@ export async function readLinuxProcessGroupRecord(pid: number, readRecord: () =>
           .slice(end + 2)
           .trim()
           .split(/\s+/);
+  return { end, header, fields };
+}
+
+/** Record validation only, never lock-closure authority. The process-lock
+ * scanner supplies the actual procfs read; injected reads are offline fixtures. */
+export async function readLinuxProcessGroupRecord(pid: number, readRecord: () => Promise<string>): Promise<number> {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
+  let text = await readRecord();
+  const initialEmptyRead = text.length === 0;
+  let parsed = splitProcessRecord(text);
+  // Linux do_task_stat retains ppid=0, pgid=-1 and sid=-1 when a dead
+  // task no longer has lockable signal data. Neither that record nor an
+  // empty read proves absence. One fresh read must provide a valid record
+  // or propagate an actual syscall error to the disappearance classifier.
+  // Empty and dead-task recovery share the same two-read bound.
+  const deadTask =
+    parsed.header?.[1] === String(pid) &&
+    parsed.end >= (parsed.header?.[0].length ?? 0) &&
+    parsed.fields[0] === 'X' &&
+    parsed.fields[1] === '0' &&
+    parsed.fields[2] === '-1' &&
+    parsed.fields[3] === '-1' &&
+    /^[0-9]+$/.test(parsed.fields[19] ?? '');
+  if (initialEmptyRead || deadTask) {
+    text = await readRecord();
+    parsed = splitProcessRecord(text);
+  }
+  const { end, header, fields } = parsed;
   const group = Number(fields[2]);
   const validation = Object.freeze({
     headerMatches: header?.[1] === String(pid),

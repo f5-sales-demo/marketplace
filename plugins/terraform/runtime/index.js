@@ -2050,11 +2050,7 @@ async function assertAbsentProcessGroup(group, listNames, readGroup) {
 import { createHash as createHash5 } from 'node:crypto';
 
 var rejectedRecords = new WeakMap();
-async function readLinuxProcessGroupRecord(pid, readRecord) {
-  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
-  let text = await readRecord();
-  const initialEmptyRead = text.length === 0;
-  if (initialEmptyRead) text = await readRecord();
+function splitProcessRecord(text) {
   const end = text.lastIndexOf(') ');
   const header = text.match(/^([1-9][0-9]*) \(/);
   const fields =
@@ -2064,6 +2060,26 @@ async function readLinuxProcessGroupRecord(pid, readRecord) {
           .slice(end + 2)
           .trim()
           .split(/\s+/);
+  return { end, header, fields };
+}
+async function readLinuxProcessGroupRecord(pid, readRecord) {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
+  let text = await readRecord();
+  const initialEmptyRead = text.length === 0;
+  let parsed = splitProcessRecord(text);
+  const deadTask =
+    parsed.header?.[1] === String(pid) &&
+    parsed.end >= (parsed.header?.[0].length ?? 0) &&
+    parsed.fields[0] === 'X' &&
+    parsed.fields[1] === '0' &&
+    parsed.fields[2] === '-1' &&
+    parsed.fields[3] === '-1' &&
+    /^[0-9]+$/.test(parsed.fields[19] ?? '');
+  if (initialEmptyRead || deadTask) {
+    text = await readRecord();
+    parsed = splitProcessRecord(text);
+  }
+  const { end, header, fields } = parsed;
   const group = Number(fields[2]);
   const validation = Object.freeze({
     headerMatches: header?.[1] === String(pid),
