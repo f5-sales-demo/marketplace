@@ -240,13 +240,16 @@ export async function openInstalledXcshCreationReader(
     }
     return (await readOwnedInstalledInput(path, 65536)).binding;
   };
-  const startupDeadline = Math.min(admission.startupDeadlineMs, clock() + 15000, context.budget.deadline);
+  // Creation follows the owning apply lifetime; final capture retains its own reserve.
+  const observationDeadline = context.budget.deadline - 300000;
+  if (clock() >= observationDeadline) throw new Error('Original xcsh observation final reserve unavailable');
+  const startupDeadline = Math.min(admission.startupDeadlineMs, clock() + 15000, observationDeadline);
   const request = {
     schemaVersion: 1,
     kind: 'original-xcsh-creation-window',
     originalStartMs: context.budget.start,
     deadlineMs: context.budget.deadline,
-    windowMs: 45000,
+    windowMs: 7200000 - 300000,
     startupDeadlineMs: startupDeadline,
     executor: admission.identity,
     executables: {
@@ -304,7 +307,7 @@ export async function openInstalledXcshCreationReader(
       !Number.isSafeInteger(began) ||
       (began as number) < context.budget.start ||
       (began as number) > clock() ||
-      ended !== Math.min((began as number) + 45000, context.budget.deadline) ||
+      ended !== Math.min((began as number) + request.windowMs, observationDeadline) ||
       (ready && (began !== ready.windowStartedMs || ended !== ready.windowDeadlineMs)) ||
       value.executionAuthorized !== false ||
       value.signalsSent !== false ||
@@ -379,7 +382,7 @@ export async function openInstalledXcshCreationReader(
     executable: { path: inputs.python.path, sha256: pins.pythonSha256 },
     originalStartMs: context.budget.start,
     originalDeadlineMs: context.budget.deadline,
-    timeoutMs: 60000,
+    timeoutMs: Math.max(1, observationDeadline - clock()),
     assertOriginal: guard,
     beforeRelease: async (admitted) => {
       if (

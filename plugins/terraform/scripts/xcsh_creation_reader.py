@@ -27,7 +27,8 @@ LIMIT = 65536
 MAX_INPUTS = 1024
 MAX_TARGETS = 128
 ORIGINAL_BUDGET_MS = 7200000
-WINDOW_MS = 45000
+FINAL_CAPTURE_MS = 300000
+WINDOW_MS = ORIGINAL_BUDGET_MS - FINAL_CAPTURE_MS
 STARTUP_MS = 15000
 ARGUMENT_COUNT = 5
 PRIVATE_FILE_MODE = 0o400
@@ -254,12 +255,12 @@ def validate_request(data: dict[str, Any], now: int) -> int:
         any(not exact_native_type(v, int) for v in (start, deadline, window, now))
         or deadline - start != ORIGINAL_BUDGET_MS
         or window != WINDOW_MS
-        or not start <= now < deadline
+        or not start <= now < deadline - FINAL_CAPTURE_MS
     ):
         reject()
     startup = data["startupDeadlineMs"]
     if not exact_native_type(startup, int) or not now < startup <= min(
-        deadline, now + STARTUP_MS
+        deadline - FINAL_CAPTURE_MS, now + STARTUP_MS
     ):
         reject()
     validate_executor(data["executor"])
@@ -315,7 +316,7 @@ def validate_request(data: dict[str, Any], now: int) -> int:
         if key in unique:
             reject()
         unique.add(key)
-    return min(deadline, now + window)
+    return min(deadline - FINAL_CAPTURE_MS, now + window)
 
 
 class OriginalCreationInputs:

@@ -21,7 +21,7 @@ var gcp_capture_source_pins_default = {
     'gcp_provider_process.py': '2e8828b8907d344cd7f302d9a6c46957293ec8845719e1d39b1f06e98ed7ac00',
     'gcp_provider_reader.py': '7c74ad218ac485164e767c86c7cb3f46ea091729b21d14f08ed4a596a0b48ffb',
     'xcsh_creation_observer.py': '6ebd1f53ef6e1ae69c41533a6930351fca4e3a0d928d46fb6d3f0ea0fb918b5b',
-    'xcsh_creation_reader.py': '856825048ca0f9afab22edd0033a8b9c5c8a608b435206cabac538db432209a9',
+    'xcsh_creation_reader.py': '08789eb6a72405326ddcc724ab701b2721ff2f790e9ea630551d8fe3cf20191f',
     'publish_bootstrap_grant.py': '6309afaebcd31730e750d14fb03d12afff5b83e3b9f06f765f1c1178d156ab9a',
   },
 };
@@ -17233,7 +17233,7 @@ async function inspectXcshOrigin(witness) {
       request.kind !== 'original-xcsh-creation-window' ||
       request.originalStartMs !== witness.originalBudget.start ||
       request.deadlineMs !== witness.originalBudget.deadline ||
-      request.windowMs !== 45000 ||
+      (request.windowMs !== 45000 && request.windowMs !== 7200000 - 300000) ||
       !sameIdentity4(request.executor, origin.parent) ||
       !Number.isSafeInteger(request.startupDeadlineMs) ||
       request.startupDeadlineMs <= witness.originalBudget.start ||
@@ -18045,13 +18045,15 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     }
     return (await owned(path, 65536)).binding;
   };
-  const startupDeadline = Math.min(admission.startupDeadlineMs, clock() + 15000, context.budget.deadline);
+  const observationDeadline = context.budget.deadline - 300000;
+  if (clock() >= observationDeadline) throw new Error('Original xcsh observation final reserve unavailable');
+  const startupDeadline = Math.min(admission.startupDeadlineMs, clock() + 15000, observationDeadline);
   const request = {
     schemaVersion: 1,
     kind: 'original-xcsh-creation-window',
     originalStartMs: context.budget.start,
     deadlineMs: context.budget.deadline,
-    windowMs: 45000,
+    windowMs: 7200000 - 300000,
     startupDeadlineMs: startupDeadline,
     executor: admission.identity,
     executables: {
@@ -18101,7 +18103,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
       !Number.isSafeInteger(began) ||
       began < context.budget.start ||
       began > clock() ||
-      ended !== Math.min(began + 45000, context.budget.deadline) ||
+      ended !== Math.min(began + request.windowMs, observationDeadline) ||
       (ready && (began !== ready.windowStartedMs || ended !== ready.windowDeadlineMs)) ||
       value.executionAuthorized !== false ||
       value.signalsSent !== false ||
@@ -18180,7 +18182,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     executable: { path: inputs.python.path, sha256: installed_runtime_pins_default.pythonSha256 },
     originalStartMs: context.budget.start,
     originalDeadlineMs: context.budget.deadline,
-    timeoutMs: 60000,
+    timeoutMs: Math.max(1, observationDeadline - clock()),
     assertOriginal: guard,
     beforeRelease: async (admitted) => {
       if (

@@ -44,7 +44,7 @@ export async function openOriginalBootstrapFixture(
       scopeSha256: request.scope.planSha256,
       scopeFileSha256: request.scope.sha256,
       windowStartedMs: began,
-      windowDeadlineMs: Math.min(began + 45000, request.deadlineMs),
+      windowDeadlineMs: Math.min(began + request.windowMs, request.deadlineMs - 300000),
       executionAuthorized: false,
       signalsSent: false,
       cloudSubmissions: 0,

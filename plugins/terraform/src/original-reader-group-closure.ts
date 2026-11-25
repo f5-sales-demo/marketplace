@@ -301,7 +301,8 @@ async function inspectXcshOrigin(witness: OriginalReaderGroupClosure) {
       request.kind !== 'original-xcsh-creation-window' ||
       request.originalStartMs !== witness.originalBudget.start ||
       request.deadlineMs !== witness.originalBudget.deadline ||
-      request.windowMs !== 45000 ||
+      // Original short-window receipts remain readable for historical cleanup.
+      (request.windowMs !== 45000 && request.windowMs !== 7200000 - 300000) ||
       !sameIdentity(request.executor, origin.parent) ||
       !Number.isSafeInteger(request.startupDeadlineMs) ||
       (request.startupDeadlineMs as number) <= witness.originalBudget.start ||

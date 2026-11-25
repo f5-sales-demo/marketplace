@@ -329,7 +329,7 @@ const fakeExecutor =
       scopeSha256: request.scope.planSha256,
       scopeFileSha256: request.scope.sha256,
       windowStartedMs: began,
-      windowDeadlineMs: Math.min(began + 45000, request.deadlineMs),
+      windowDeadlineMs: Math.min(began + request.windowMs, request.deadlineMs - 300000),
       executionAuthorized: false,
       signalsSent: false,
       cloudSubmissions: 0,
@@ -1923,3 +1923,26 @@ for (const stageVariant of [
     );
   }, 30000);
 }
+
+test('serialized creation keeps its original observation budget and final capture reserve', async () => {
+  await scoped(async (context, admission, packet) => {
+    const module = await bridge();
+    let policyObserved = false;
+    const reader = await module.openInstalledXcshCreationReader(context, admission, packet, {
+      executorFactory: (policy) => {
+        policyObserved = true;
+        // Three serialized cloud creates can each exceed the former 45s window.
+        expect(policy.timeoutMs).toBeGreaterThan(3 * 75000);
+        expect(policy.timeoutMs).toBeLessThanOrEqual(7200000 - 300000);
+        return fakeExecutor(async (_value, request) => {
+          expect(request.windowMs).toBe(7200000 - 300000);
+        })(policy);
+      },
+    });
+    const ready = await reader.ready;
+    expect(ready.windowDeadlineMs).toBe(context.budget.deadline - 300000);
+    expect(ready.windowDeadlineMs - ready.windowStartedMs).toBeGreaterThan(3 * 75000);
+    expect((await reader.completed).complete).toBe(true);
+    expect(policyObserved).toBe(true);
+  });
+});

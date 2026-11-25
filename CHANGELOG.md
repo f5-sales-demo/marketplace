@@ -10,11 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.179 passes compiled original cleanup admission through
+- **`terraform`** v2.4.180 passes compiled original cleanup admission through
   the normal shared service to the existing runner. Recovery metadata is frozen,
   cleanup is limited to the original GCP workspace and resume, and every operation
   rechecks independent closure. Create replay and foreign scopes remain refused
   (#1559).
+  Creation observation uses the original apply budget and keeps a separate
+  five-minute final capture reserve. Historical reader closure remains readable.
 
 - **`platform`** v6.3.34 refreshes the selected API credential for each GCP
   observation and private Terraform environment read. The original tenant stays

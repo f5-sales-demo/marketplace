@@ -64,7 +64,8 @@ async function withFinalSources(
       true,
       {
         sourceCaptureInputs: true,
-        operationRemainingMs: mode === 'deadline' ? 20000 : 7200000,
+        // Begin observation before the five-minute final reserve, then await real expiry.
+        operationRemainingMs: mode === 'deadline' ? 330000 : 7200000,
         completeTraceBeforeExit: mode === 'deadline',
         prepare: async (context, store, state) => {
           const saved = (await store.read('gcp-terraform-input-identity.json')) as { intent: GcpCeIntent };
@@ -178,7 +179,7 @@ test('a first final binding uses the original final reserve after the operation 
     expect(view.initialPhase).toBe('after');
     expect(view.executionAuthorized).toBe(false);
   }, 'deadline');
-}, 60000);
+}, 400000);
 
 for (const mode of ['changed-token', 'network', 'userdata'] as const)
   test(`first final bootstrap rejects actual original ${mode} mismatch`, async () => {

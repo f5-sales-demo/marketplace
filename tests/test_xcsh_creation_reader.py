@@ -52,7 +52,7 @@ def request_data():
         "kind": "original-xcsh-creation-window",
         "originalStartMs": 100,
         "deadlineMs": 7200100,
-        "windowMs": 45000,
+        "windowMs": 7200000 - 300000,
         "startupDeadlineMs": 15100,
         "executor": {
             "pid": 123,
@@ -81,9 +81,10 @@ def request_data():
 
 
 def test_declared_xcsh_window_keeps_the_original_budget(reader, request_data):
-    assert reader.validate_request(request_data, 200) == 45200
+    assert reader.validate_request(request_data, 200) == 6900100
     request_data["startupDeadlineMs"] = 7200100
-    assert reader.validate_request(request_data, 7200099) == 7200100
+    with pytest.raises(ValueError, match="Original xcsh"):
+        reader.validate_request(request_data, 7200099)
 
 
 @pytest.mark.parametrize(
@@ -97,6 +98,9 @@ def test_declared_xcsh_window_keeps_the_original_budget(reader, request_data):
         ("deadlineMs", 7200200),
         ("windowMs", 60000),
         ("windowMs", 44999),
+        ("windowMs", 45000),
+        ("windowMs", 6899999),
+        ("windowMs", 6900001),
         ("windowMs", True),
     ],
 )
@@ -268,3 +272,19 @@ def test_reader_startup_has_its_own_fixed_fifteen_second_bound(
 def test_utf16_json_cannot_cross_the_declared_utf8_boundary(reader):
     with pytest.raises(ValueError, match="Original xcsh"):
         reader.strict_object("{}".encode("utf-16"))
+
+
+@pytest.mark.parametrize("now", [200, 75200, 225200, 6899999])
+def test_serialized_creation_lifetime_reserves_final_window(reader, request_data, now):
+    request_data["windowMs"] = 7200000 - 300000
+    request_data["startupDeadlineMs"] = min(6900100, now + 15000)
+    assert reader.validate_request(request_data, now) == 6900100
+
+
+@pytest.mark.parametrize("now", [6900100, 6900101, 7200099, 7200100])
+def test_observation_cannot_consume_or_renew_the_final_reserve(
+    reader, request_data, now
+):
+    request_data["startupDeadlineMs"] = min(request_data["deadlineMs"], now + 15000)
+    with pytest.raises(ValueError, match="Original xcsh"):
+        reader.validate_request(request_data, now)
