@@ -209,6 +209,26 @@ export function createGcpCeTools(
         validateScope(params.project, params.region);
         if (params.engine !== undefined && !['native', 'terraform'].includes(params.engine))
           throw new Error('Invalid owning engine');
+        const requestedEngine = params.engine ?? 'native';
+        const owningEngine = params.intent?.engine;
+        if ((owningEngine === 'native' || owningEngine === 'terraform') && owningEngine !== requestedEngine) {
+          // Report only validated engine enums. No adapter, cloud read or
+          // mutation has started, and the owning engine is never rewritten.
+          return result(
+            tool,
+            {
+              schemaVersion: 2,
+              availability: 'unavailable',
+              reason: 'owning_engine_mismatch',
+              requestedEngine,
+              owningEngine,
+              required: ['Select the owning deployment engine'],
+              cloudReadAttempted: false,
+              mutationAttempted: false,
+            },
+            true,
+          );
+        }
         if (signal?.aborted) throw new Error('Operation cancelled');
         if (params.operation && !GCP_CE_OPERATIONS.includes(params.operation))
           throw new Error('Invalid lifecycle operation');

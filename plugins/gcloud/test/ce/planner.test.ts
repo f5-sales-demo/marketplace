@@ -380,3 +380,74 @@ it('binds current policy receipt into the readiness plan hash', () => {
   expect(withPolicy.unavailable).not.toContain('current_policy_release_not_bound');
   expect(withPolicy.planHash).not.toBe(planGcpCe(i, d).planHash);
 });
+
+for (const requestedEngine of [undefined, 'native', 'terraform'] as const)
+  it(`reports exact owning-engine mismatch before any cloud adapter: ${requestedEngine ?? 'native-default'}`, async () => {
+    let adapters = 0;
+    let reads = 0;
+    const tool = createGcpCeTools(
+      { typebox },
+      () => {
+        adapters++;
+        return {
+          exec: async () => {
+            reads++;
+            throw new Error('unexpected cloud read');
+          },
+        };
+      },
+      boundary,
+    ).find((candidate) => candidate.name === 'gcp_ce_plan');
+    if (!tool) throw new Error('Missing plan tool');
+    const declared = intent();
+    declared.engine = requestedEngine === 'terraform' ? 'native' : 'terraform';
+    const result = await tool.execute(
+      'id',
+      {
+        project: declared.project,
+        region: declared.region,
+        ...(requestedEngine === undefined ? {} : { engine: requestedEngine }),
+        intent: declared,
+      },
+      undefined,
+      null,
+      { cwd: '/tmp' },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.details).toMatchObject({
+      reason: 'owning_engine_mismatch',
+      requestedEngine: requestedEngine ?? 'native',
+      owningEngine: declared.engine,
+      cloudReadAttempted: false,
+      mutationAttempted: false,
+    });
+    expect(adapters).toBe(0);
+    expect(reads).toBe(0);
+  });
+
+it('an invalid owning-engine value is refused without echoing its untrusted input', async () => {
+  let reads = 0;
+  const tool = createGcpCeTools(
+    { typebox },
+    () => ({
+      exec: async () => {
+        reads++;
+        throw new Error('unexpected cloud read');
+      },
+    }),
+    boundary,
+  ).find((candidate) => candidate.name === 'gcp_ce_plan');
+  if (!tool) throw new Error('Missing plan tool');
+  const declared = intent();
+  declared.engine = 'private-invalid-engine-canary' as never;
+  const result = await tool.execute(
+    'id',
+    { project: declared.project, region: declared.region, engine: 'terraform', intent: declared },
+    undefined,
+    null,
+    { cwd: '/tmp' },
+  );
+  expect(result.isError).toBe(true);
+  expect(JSON.stringify(result)).not.toContain('private-invalid-engine-canary');
+  expect(reads).toBe(0);
+});

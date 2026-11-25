@@ -2423,3 +2423,13 @@ documents. The version 2 source contract passes 27 affected cases, strict types
 and configured lint while preserving exact reviewed authorization. The complete
 factory remains inactive. Actual guest/expiry, full feature acceptance and every
 original runtime/cleanup/CI/review/delivery gate remain unfinished.
+
+## Concrete owning-engine diagnostic after ordinary runtime acceptance
+
+The [diagnostic receipt](gcp-owning-engine-diagnostic-20261125.md) records
+actual native-default/explicit-Terraform tool execution and the retained generic
+wrong-engine failure. The source repair passes three failing-first cases,
+20 focused cases, all 469 shared GCP CE cases, strict types, normal build and
+configured lint. Fresh changed-candidate runtime and authentication checks,
+actual guest/expiry coverage and all original feature/live/delivery gates remain
+open. The complete capture factory remains inactive.
