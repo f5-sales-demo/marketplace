@@ -236,7 +236,7 @@ test('bounded native transport refuses a fourth read without retiring the three 
     ...f.options,
     readConcurrency: 3,
     assertInputs: async () => {
-      if (++started === 3) began();
+      if (++started === 1) began();
       await gate;
       await f.options.assertInputs();
     },
@@ -244,6 +244,7 @@ test('bounded native transport refuses a fourth read without retiring the three 
   const args = gcpCaptureCleanupReadCommands(f.intent)[0];
   const pending = Array.from({ length: 3 }, () => api.exec('gcloud', [...args]));
   await admission;
+  expect(started).toBe(1);
   await expect(api.exec('gcloud', [...args])).rejects.toThrow('active or retired');
   release();
   expect((await Promise.all(pending)).map((r) => r.exitCode)).toEqual([0, 0, 0]);
@@ -318,7 +319,7 @@ test('bounded native transport refuses a seventh read without retiring the six a
     ...f.options,
     readConcurrency: 6,
     assertInputs: async () => {
-      if (++started === 6) began();
+      if (++started === 1) began();
       await gate;
       await f.options.assertInputs();
     },
@@ -326,6 +327,7 @@ test('bounded native transport refuses a seventh read without retiring the six a
   const args = gcpCaptureCleanupReadCommands(f.intent)[0];
   const pending = Array.from({ length: 6 }, () => api.exec('gcloud', [...args]));
   await admission;
+  expect(started).toBe(1);
   await expect(api.exec('gcloud', [...args])).rejects.toThrow('active or retired');
   release();
   expect((await Promise.all(pending)).map((r) => r.exitCode)).toEqual([0, 0, 0, 0, 0, 0]);

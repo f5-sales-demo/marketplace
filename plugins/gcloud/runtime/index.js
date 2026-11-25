@@ -18563,11 +18563,6 @@ init_capture_cleanup_admission();
 init_evidence_json();
 init_installed_runtime();
 init_linux_clock();
-init_signal_free_executor();
-init_bounded_cleanup_observations();
-init_deployment_teardown();
-init_terraform_public_ownership();
-init_validation();
 
 import { randomUUID as randomUUID9 } from 'node:crypto';
 import { constants as constants8 } from 'node:fs';
@@ -18580,6 +18575,61 @@ import {
 } from 'node:fs/promises';
 import { dirname as dirname11, isAbsolute as isAbsolute12, join as join22, resolve as resolve10 } from 'node:path';
 
+// plugins/terraform/src/pending-original-verification.ts
+function sharePendingOriginalVerification(verify, assertAvailable) {
+  if (typeof verify !== 'function' || typeof assertAvailable !== 'function')
+    throw new Error('Original verification and availability guards required');
+  const slots = {};
+  let refused = false;
+  let refusal;
+  const latch = (error) => {
+    if (!refused) {
+      refused = true;
+      refusal = error;
+    }
+    return refusal;
+  };
+  const check = () => {
+    if (refused) throw refusal;
+    try {
+      assertAvailable();
+    } catch (error) {
+      throw latch(error);
+    }
+  };
+  return async (verifyBytes = true) => {
+    if (typeof verifyBytes !== 'boolean') throw new Error('Original verification mode required');
+    check();
+    const mode = verifyBytes ? 'full' : 'identity';
+    let pending = slots[mode];
+    if (!pending) {
+      pending = Promise.resolve()
+        .then(async () => {
+          check();
+          await verify(verifyBytes);
+          check();
+        })
+        .catch((error) => {
+          throw latch(error);
+        });
+      slots[mode] = pending;
+      const current = pending;
+      const clear = () => {
+        if (slots[mode] === current) delete slots[mode];
+      };
+      pending.then(clear, clear);
+    }
+    await pending;
+    check();
+  };
+}
+
+// plugins/gcloud/src/ce/capture-cleanup-cli.ts
+init_signal_free_executor();
+init_bounded_cleanup_observations();
+init_deployment_teardown();
+init_terraform_public_ownership();
+init_validation();
 function gcpCaptureCleanupReadCommands(intent) {
   validateIntent(intent);
   if (intent.engine !== 'terraform') throw new Error('Original Terraform cleanup engine required');
@@ -18694,7 +18744,7 @@ function createGcpCaptureCleanupCli(options) {
   };
   const roots = Promise.all([inspect(directory), inspect(diagnosticsDirectory)]);
   roots.catch(() => {});
-  const guard = async (verifyBytes = true) => {
+  const verify = async (verifyBytes = true) => {
     if (retired) throw new Error('Original cleanup observation transport retired');
     const originals = await roots;
     for (const [index, path] of [directory, diagnosticsDirectory].entries()) {
@@ -18713,6 +18763,9 @@ function createGcpCaptureCleanupCli(options) {
     await assertIndependentClosure();
     await (assertInputIdentity ?? assertInputs)();
   };
+  const guard = sharePendingOriginalVerification(verify, () => {
+    if (retired) throw new Error('Original cleanup observation transport retired');
+  });
   return bindCleanupObservationConcurrency(
     Object.freeze({
       exec: async (command, supplied, invocation = {}) => {

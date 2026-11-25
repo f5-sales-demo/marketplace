@@ -26420,12 +26420,62 @@ async function collectInstalledCeInsertWitnesses(input) {
 }
 // plugins/terraform/src/installed-cleanup-executor.ts
 init_linux_clock();
-init_signal_free_executor();
 
 import { randomUUID as randomUUID22 } from 'node:crypto';
 import { lstat as lstat27, mkdir as mkdir20, realpath as realpath26, writeFile as writeFile6 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute21, join as join39, resolve as resolve22 } from 'node:path';
 
+// plugins/terraform/src/pending-original-verification.ts
+function sharePendingOriginalVerification(verify, assertAvailable) {
+  if (typeof verify !== 'function' || typeof assertAvailable !== 'function')
+    throw new Error('Original verification and availability guards required');
+  const slots = {};
+  let refused = false;
+  let refusal;
+  const latch = (error) => {
+    if (!refused) {
+      refused = true;
+      refusal = error;
+    }
+    return refusal;
+  };
+  const check = () => {
+    if (refused) throw refusal;
+    try {
+      assertAvailable();
+    } catch (error) {
+      throw latch(error);
+    }
+  };
+  return async (verifyBytes = true) => {
+    if (typeof verifyBytes !== 'boolean') throw new Error('Original verification mode required');
+    check();
+    const mode = verifyBytes ? 'full' : 'identity';
+    let pending = slots[mode];
+    if (!pending) {
+      pending = Promise.resolve()
+        .then(async () => {
+          check();
+          await verify(verifyBytes);
+          check();
+        })
+        .catch((error) => {
+          throw latch(error);
+        });
+      slots[mode] = pending;
+      const current = pending;
+      const clear = () => {
+        if (slots[mode] === current) delete slots[mode];
+      };
+      pending.then(clear, clear);
+    }
+    await pending;
+    check();
+  };
+}
+
+// plugins/terraform/src/installed-cleanup-executor.ts
+init_signal_free_executor();
 function createInstalledCleanupExecutor(options) {
   const directory = options.directory;
   const diagnosticsDirectory = options.diagnosticsDirectory;
@@ -26465,7 +26515,7 @@ function createInstalledCleanupExecutor(options) {
   };
   const roots = Promise.all([inspect(directory), inspect(diagnosticsDirectory)]);
   roots.catch(() => {});
-  const guard = async (verifyBytes = true) => {
+  const verify = async (verifyBytes = true) => {
     if (retired) throw new Error('Original cleanup executor is retired');
     const originals = await roots;
     for (const [index, path] of [directory, diagnosticsDirectory].entries()) {
@@ -26484,6 +26534,9 @@ function createInstalledCleanupExecutor(options) {
     await assertIndependentClosure();
     await (assertInputIdentity ?? assertInputs)();
   };
+  const guard = sharePendingOriginalVerification(verify, () => {
+    if (retired) throw new Error('Original cleanup executor is retired');
+  });
   return async (invocation) => {
     if (active || retired) throw new Error('Original cleanup executor remains active or retired');
     if (

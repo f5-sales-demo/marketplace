@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { linuxMonotonicMs } from './linux-clock';
+import { sharePendingOriginalVerification } from './pending-original-verification';
 import type { Executor } from './runner';
 import { type SignalFreeExecutionPolicy, signalFreeTerraformExecutor } from './signal-free-executor';
 
@@ -59,7 +60,7 @@ export function createInstalledCleanupExecutor(options: InstalledCleanupExecutor
   };
   const roots = Promise.all([inspect(directory), inspect(diagnosticsDirectory)]);
   roots.catch(() => {});
-  const guard = async (verifyBytes = true) => {
+  const verify = async (verifyBytes = true) => {
     if (retired) throw new Error('Original cleanup executor is retired');
     const originals = await roots;
     for (const [index, path] of [directory, diagnosticsDirectory].entries()) {
@@ -78,6 +79,9 @@ export function createInstalledCleanupExecutor(options: InstalledCleanupExecutor
     await assertIndependentClosure();
     await (assertInputIdentity ?? assertInputs)();
   };
+  const guard = sharePendingOriginalVerification(verify, () => {
+    if (retired) throw new Error('Original cleanup executor is retired');
+  });
   return async (invocation) => {
     if (active || retired) throw new Error('Original cleanup executor remains active or retired');
     if (

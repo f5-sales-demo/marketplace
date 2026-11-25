@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.193 verifies static image lookups against original
+- **`terraform`** v2.4.194 verifies static image lookups against original
   configuration, saved plans and independent state before cleanup ownership
   inspection. Unchanged lookups retained only in original prior state also require
   a literal saved declaration and exact provider pin. Compiled original cleanup
@@ -51,6 +51,9 @@ and this project adheres to
   Hash original cleanup artifacts from bound descriptors with bounded buffering.
   Preserve complete byte verification, shared pending reads, retirement checks
   and the existing review deadline. Live acceptance remains open (#1559).
+  Share pending original guard scans within each qualified cleanup transport.
+  Keep full and identity admission separate, preserve per-caller retirement checks
+  and fresh later boundaries. Live acceptance remains open (#1559).
 
 - **`platform`** v6.3.41 refreshes the selected API credential for each GCP
   Verify an original worker and every member of its recorded process group before cleanup,
@@ -93,7 +96,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.96 composes durable successful cleanup with normal Platform
+- **`gcloud`** v1.7.97 composes durable successful cleanup with normal Platform
   observations and the shared Terraform runner. Original ownership, reader closure,
   context and input checks surround reads and commands. Create replay and completed
   checkpoint rewriting are refused. Live cleanup and full acceptance remain open
@@ -128,6 +131,9 @@ and this project adheres to
   Hash original cleanup artifacts from bound descriptors with bounded buffering.
   Preserve complete byte verification, shared pending reads, retirement checks
   and the existing review deadline. Live acceptance remains open (#1559).
+  Share pending original guard scans within each qualified cleanup transport.
+  Keep full and identity admission separate, preserve per-caller retirement checks
+  and fresh later boundaries. Live acceptance remains open (#1559).
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding

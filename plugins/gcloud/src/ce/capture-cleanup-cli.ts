@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { decodeEvidenceObject } from '../../../terraform/src/evidence-json';
 import { readOwnedInstalledInput } from '../../../terraform/src/installed-runtime';
 import { linuxMonotonicMs } from '../../../terraform/src/linux-clock';
+import { sharePendingOriginalVerification } from '../../../terraform/src/pending-original-verification';
 import {
   type FinalExecutionCapture,
   type SignalFreeExecutionPolicy,
@@ -163,7 +164,7 @@ export function createGcpCaptureCleanupCli(options: GcpCaptureCleanupCliOptions)
   };
   const roots = Promise.all([inspect(directory), inspect(diagnosticsDirectory)]);
   roots.catch(() => {});
-  const guard = async (verifyBytes = true) => {
+  const verify = async (verifyBytes = true) => {
     if (retired) throw new Error('Original cleanup observation transport retired');
     const originals = await roots;
     for (const [index, path] of [directory, diagnosticsDirectory].entries()) {
@@ -182,6 +183,9 @@ export function createGcpCaptureCleanupCli(options: GcpCaptureCleanupCliOptions)
     await assertIndependentClosure();
     await (assertInputIdentity ?? assertInputs)();
   };
+  const guard = sharePendingOriginalVerification(verify, () => {
+    if (retired) throw new Error('Original cleanup observation transport retired');
+  });
   return bindCleanupObservationConcurrency(
     Object.freeze({
       exec: async (command, supplied, invocation = {}) => {
