@@ -2533,3 +2533,11 @@ The [shared context receipt](gcp-platform-selected-context-20261125.md) records
 refreshes credentials within the original tenant for cleanup, ordinary GETs and
 private Terraform environment reads. Concrete cleanup composition and fresh
 installed/live evidence remain open; this repair does not complete #1559.
+
+## Captured cleanup runtime composition
+
+The [compiled runtime receipt](gcp-captured-cleanup-runtime-20261125.md) records the
+normal Platform and shared Terraform session composition, original-file loading,
+input mutation guards and 834 passing affected cases. The original failed claim
+and create receipt stay intact. Actual worker/reader/client bindings, successful
+source-campaign cleanup and all original live/delivery gates remain unfinished.

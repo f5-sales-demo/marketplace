@@ -37,11 +37,11 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.79 links original source-campaign authorization and durable
-  ownership to reviewed teardown without creating substitute public deployment
-  receipts. Original context, review, identity, images and closure stay bound.
-  Partial cleanup refuses replay and requires a new reviewed subset; completed
-  recovery stays read-only. Live cleanup and publication remain held (#1559).
+- **`gcloud`** v1.7.80 composes captured source provenance with normal Platform
+  observations and the shared original Terraform cleanup session. It loads exact
+  deployment bytes, refreshes credentials within the original tenant and checks
+  original storage, API, source evidence and physical closure. Creation replay
+  stays refused. Real worker and live cleanup qualification remain open (#1559).
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding

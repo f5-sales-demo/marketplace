@@ -13504,6 +13504,292 @@ var init_capture_cleanup_admission = __esm(() => {
   init_terraform_public_teardown();
 });
 
+// plugins/terraform/src/service.ts
+import { join as join20 } from 'node:path';
+
+function snapshotCaptureCleanup(input, execute) {
+  if (!input) return;
+  if (!execute || typeof input.assertIndependentClosure !== 'function')
+    throw new Error('Captured cleanup requires a compiled original executor and closure capability');
+  const { assertIndependentClosure, ...fields } = input;
+  const snapshot = structuredClone(fields);
+  const freeze = (value) => {
+    if (value && typeof value === 'object') {
+      for (const row of Object.values(value)) freeze(row);
+      Object.freeze(value);
+    }
+    return value;
+  };
+  return Object.freeze({ ...freeze(snapshot), assertIndependentClosure: assertIndependentClosure.bind(input) });
+}
+function assertCaptureCleanupSession(cleanup, owner, deployment, resume) {
+  if (
+    cleanup &&
+    (!resume ||
+      owner.provider !== 'gcp' ||
+      deployment.stage !== undefined ||
+      cleanup.deploymentId !== owner.deploymentId)
+  )
+    throw new Error('Captured cleanup requires its original GCP owning workspace and resume');
+}
+function freezeRuntime(options) {
+  const execute = options.execute;
+  const captureCleanup = snapshotCaptureCleanup(options.captureCleanup, execute);
+  const planSource = options.planSource;
+  if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || !execute))
+    throw new Error('Qualified versioned plan source requires its original executor');
+  const assertApplyReady = options.assertApplyReady;
+  const googleAdc = options.googleAdc
+    ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
+    : undefined;
+  if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
+  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource, captureCleanup });
+}
+function createCeTerraformService(platform, options = {}) {
+  const defaults = freezeRuntime(options);
+  const resolveRuntime = options.resolveRuntime;
+  if (
+    resolveRuntime &&
+    (defaults.execute ||
+      defaults.googleAdc ||
+      defaults.assertApplyReady ||
+      defaults.planSource ||
+      defaults.captureCleanup)
+  )
+    throw new Error('Select one trusted runtime policy source');
+  return {
+    async open(owner, deployment, resume) {
+      owner = structuredClone(owner);
+      deployment = structuredClone(deployment);
+      if (
+        owner.engine !== 'terraform' ||
+        deployment.engine !== 'terraform' ||
+        owner.deploymentId !== deployment.deploymentId ||
+        owner.provider !== deployment.scope.cloud ||
+        owner.account !== deployment.scope.account ||
+        owner.region !== deployment.scope.region
+      )
+        throw new Error('Terraform deployment and cloud ownership differ');
+      assertCaptureCleanupSession(defaults.captureCleanup, owner, deployment, resume);
+      const shared = await platform();
+      const store = await shared.storage(owner);
+      if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
+        throw new Error('Invalid Terraform stage identity');
+      const directory = deployment.stage
+        ? join20(store.directory, 'terraform-stages', deployment.stage)
+        : store.directory;
+      const { execute, googleAdc, assertApplyReady, planSource, captureCleanup } = resolveRuntime
+        ? freezeRuntime(
+            await resolveRuntime({
+              owner: structuredClone(owner),
+              deployment: structuredClone(deployment),
+              directory,
+              resume,
+              platform: shared,
+            }),
+          )
+        : defaults;
+      assertCaptureCleanupSession(captureCleanup, owner, deployment, resume);
+      let adcSession;
+      let originalLease;
+      let retiring = false;
+      let inFlight = 0;
+      let disposal;
+      const policy = owner.provider === 'gcp' ? googleAdc : undefined;
+      const acquireAdc = () =>
+        (adcSession ??= (async () => {
+          if (!policy) throw new Error('Trusted Google ADC policy unavailable');
+          await shared.storage(owner);
+          const lease = await policy.acquire({
+            owner: structuredClone(owner),
+            deployment: structuredClone(deployment),
+            directory,
+            resume,
+          });
+          originalLease = Object.freeze({ ...lease, owner: structuredClone(lease.owner) });
+          return openGoogleAdcSession(originalLease, {
+            owner,
+            directory,
+            accountSha256: policy.accountSha256,
+            audienceSha256: policy.audienceSha256,
+            qualificationSha256: policy.qualificationSha256,
+          });
+        })());
+      const withAdc = async (operation) => {
+        if (retiring) throw new Error('Original Google ADC session is retired');
+        inFlight++;
+        try {
+          return await operation(await acquireAdc());
+        } finally {
+          inFlight--;
+        }
+      };
+      const guardedExecute =
+        policy && execute
+          ? (request) =>
+              withAdc(async (adc) => {
+                const environment = { ...request.env, ...adc.environment() };
+                if (
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== undefined &&
+                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== environment.GOOGLE_APPLICATION_CREDENTIALS
+                )
+                  throw new Error('Original Google ADC source changed');
+                await adc.verify(environment);
+                return withFinalCheck(
+                  () => execute({ ...request, env: environment }),
+                  () => adc.verify(environment),
+                  'Original Terraform invocation and ADC verification failed',
+                );
+              })
+          : execute;
+      const runner = new TerraformRunner(directory, guardedExecute, captureCleanup, planSource);
+      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
+      else await runner.prepare(deployment);
+      const checkOwner = async () => {
+        await shared.storage(owner);
+        await captureCleanup?.assertIndependentClosure();
+      };
+      const checkApplyReady = async () => {
+        await checkOwner();
+        if (retiring) throw new Error('Original Google ADC session is retired');
+        await assertApplyReady?.();
+      };
+      return {
+        ...(assertApplyReady || captureCleanup ? { assertApplyReady: checkApplyReady } : {}),
+        ...(policy
+          ? {
+              googleAdcEnvironment: () =>
+                withAdc(async (adc) => {
+                  await checkOwner();
+                  const environment = adc.environment();
+                  await adc.verify(environment);
+                  return environment;
+                }),
+              closeGoogleAdc: () => {
+                retiring = true;
+                if (inFlight) return Promise.reject(new Error('Original Google ADC invocation is in flight'));
+                if (!disposal)
+                  disposal = (async () => {
+                    await checkOwner();
+                    if (!adcSession) return;
+                    let adc;
+                    try {
+                      adc = await adcSession;
+                    } catch {
+                      if (!originalLease && policy.closeFailedAcquisition) {
+                        await policy.closeFailedAcquisition();
+                        return;
+                      }
+                      if (
+                        !originalLease ||
+                        originalLease.owner.deploymentId !== owner.deploymentId ||
+                        originalLease.owner.engine !== owner.engine ||
+                        originalLease.owner.provider !== owner.provider ||
+                        originalLease.owner.account !== owner.account ||
+                        originalLease.owner.region !== owner.region ||
+                        typeof originalLease.closeAfterExecutorExit !== 'function'
+                      )
+                        throw new Error('Original Google ADC lease closure ownership unavailable');
+                      await originalLease.closeAfterExecutorExit();
+                      return;
+                    }
+                    await adc.close();
+                  })().catch((error) => {
+                    disposal = undefined;
+                    throw error;
+                  });
+                return disposal;
+              },
+            }
+          : {}),
+        async readStateIdentity() {
+          await checkOwner();
+          return runner.readStateIdentity();
+        },
+        async assertApplied(receipt) {
+          await checkOwner();
+          return runner.assertApplied(receipt);
+        },
+        async readConfigurationSha256() {
+          await checkOwner();
+          return runner.readConfigurationSha256();
+        },
+        async readPlannedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readPlannedResourceFields(receipt, selections, env, signal);
+        },
+        async readAppliedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readAppliedResourceFields(receipt, selections, env, signal);
+        },
+        async readNoChangeResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readNoChangeResourceFields(receipt, selections, env, signal);
+        },
+        async readPlannedStateResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readPlannedStateResourceFields(receipt, selections, env, signal);
+        },
+        async readCurrentResourcePlanReceipt(env, signal) {
+          await checkOwner();
+          return runner.readCurrentResourcePlanReceipt(env, signal);
+        },
+        async readApplyCheckpoint(receipt) {
+          await checkOwner();
+          return runner.readApplyCheckpoint(receipt);
+        },
+        async readApplyAttemptResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readApplyAttemptResourceFields(receipt, selections, env, signal);
+        },
+        async readPlannedResourceIds(receipt, addresses, env, signal) {
+          await checkOwner();
+          return runner.readPlannedResourceIds(receipt, addresses, env, signal);
+        },
+        async readConfiguration(expectedSha256) {
+          await checkOwner();
+          return runner.readConfiguration(expectedSha256);
+        },
+        async readOutputs(names, env, signal) {
+          await checkOwner();
+          return runner.readOutputs(names, env, signal);
+        },
+        async reviseConfiguration(expectedSha256, configuration) {
+          await checkOwner();
+          return runner.reviseConfiguration(expectedSha256, configuration);
+        },
+        async reconcileApplyFromEvidence(receipt, evidenceSha256) {
+          await checkOwner();
+          return runner.reconcileApplyFromEvidence(receipt, evidenceSha256);
+        },
+        async planDestroy(env, signal) {
+          await checkOwner();
+          return runner.planDestroy(env, signal);
+        },
+        async planAction(intent, env, signal) {
+          await checkOwner();
+          return runner.planAction(intent, env, signal);
+        },
+        async plan(env, signal) {
+          await checkOwner();
+          return runner.plan(env, signal);
+        },
+        async apply(receipt, env, signal) {
+          signal?.throwIfAborted();
+          await checkApplyReady();
+          signal?.throwIfAborted();
+          await runner.apply(receipt, env, signal);
+        },
+      };
+    },
+  };
+}
+var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
+var init_service = __esm(() => {
+  init_google_adc_session();
+  init_runner();
+});
+
 // plugins/gcloud/src/gcloud/formatters.ts
 function basename4(url) {
   const idx = url.lastIndexOf('/');
@@ -14003,21 +14289,21 @@ var init_gcloud_help2 = __esm(() => {
 });
 
 // plugins/platform/src/ce/gcp-http-capture.ts
-import { createHash as createHash16 } from 'node:crypto';
+import { createHash as createHash17 } from 'node:crypto';
 
 async function assertOriginalGcpPlatformHttpBody(value) {
   const issued = bodies.get(value);
   if (!issued || hash6(value.bytes) !== issued.sha256) throw new Error('Original GCP Platform HTTP body required');
   await issued.assertOriginal();
 }
-var hash6 = (bytes) => createHash16('sha256').update(bytes).digest('hex'),
+var hash6 = (bytes) => createHash17('sha256').update(bytes).digest('hex'),
   bodies;
 var init_gcp_http_capture = __esm(() => {
   bodies = new WeakMap();
 });
 
 // plugins/platform/src/ce/gcp-bootstrap-evidence.ts
-import { createHash as createHash17 } from 'node:crypto';
+import { createHash as createHash18 } from 'node:crypto';
 
 function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -14155,7 +14441,7 @@ async function readOriginalGcpBootstrapJwt(value) {
   await assertOriginalGcpPlatformHttpBody(source.token);
   return source.jwt;
 }
-var hash7 = (value) => createHash17('sha256').update(value).digest('hex'),
+var hash7 = (value) => createHash18('sha256').update(value).digest('hex'),
   name2,
   issued6,
   _originalGcpBootstrapSource;
@@ -14483,7 +14769,7 @@ var init_verified_contract = __esm(() => {
 
 // plugins/platform/src/ce/service.ts
 var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
-var init_service = __esm(() => {
+var init_service2 = __esm(() => {
   init_contract();
   init_discovery();
   init_deployment_store();
@@ -15368,292 +15654,6 @@ var init_owned_status = __esm(() => {
   init_validation();
 });
 
-// plugins/terraform/src/service.ts
-import { join as join20 } from 'node:path';
-
-function snapshotCaptureCleanup(input, execute) {
-  if (!input) return;
-  if (!execute || typeof input.assertIndependentClosure !== 'function')
-    throw new Error('Captured cleanup requires a compiled original executor and closure capability');
-  const { assertIndependentClosure, ...fields } = input;
-  const snapshot = structuredClone(fields);
-  const freeze = (value) => {
-    if (value && typeof value === 'object') {
-      for (const row of Object.values(value)) freeze(row);
-      Object.freeze(value);
-    }
-    return value;
-  };
-  return Object.freeze({ ...freeze(snapshot), assertIndependentClosure: assertIndependentClosure.bind(input) });
-}
-function assertCaptureCleanupSession(cleanup, owner, deployment, resume) {
-  if (
-    cleanup &&
-    (!resume ||
-      owner.provider !== 'gcp' ||
-      deployment.stage !== undefined ||
-      cleanup.deploymentId !== owner.deploymentId)
-  )
-    throw new Error('Captured cleanup requires its original GCP owning workspace and resume');
-}
-function freezeRuntime(options) {
-  const execute = options.execute;
-  const captureCleanup = snapshotCaptureCleanup(options.captureCleanup, execute);
-  const planSource = options.planSource;
-  if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || !execute))
-    throw new Error('Qualified versioned plan source requires its original executor');
-  const assertApplyReady = options.assertApplyReady;
-  const googleAdc = options.googleAdc
-    ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
-    : undefined;
-  if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
-  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource, captureCleanup });
-}
-function createCeTerraformService(platform, options = {}) {
-  const defaults = freezeRuntime(options);
-  const resolveRuntime = options.resolveRuntime;
-  if (
-    resolveRuntime &&
-    (defaults.execute ||
-      defaults.googleAdc ||
-      defaults.assertApplyReady ||
-      defaults.planSource ||
-      defaults.captureCleanup)
-  )
-    throw new Error('Select one trusted runtime policy source');
-  return {
-    async open(owner, deployment, resume) {
-      owner = structuredClone(owner);
-      deployment = structuredClone(deployment);
-      if (
-        owner.engine !== 'terraform' ||
-        deployment.engine !== 'terraform' ||
-        owner.deploymentId !== deployment.deploymentId ||
-        owner.provider !== deployment.scope.cloud ||
-        owner.account !== deployment.scope.account ||
-        owner.region !== deployment.scope.region
-      )
-        throw new Error('Terraform deployment and cloud ownership differ');
-      assertCaptureCleanupSession(defaults.captureCleanup, owner, deployment, resume);
-      const shared = await platform();
-      const store = await shared.storage(owner);
-      if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
-        throw new Error('Invalid Terraform stage identity');
-      const directory = deployment.stage
-        ? join20(store.directory, 'terraform-stages', deployment.stage)
-        : store.directory;
-      const { execute, googleAdc, assertApplyReady, planSource, captureCleanup } = resolveRuntime
-        ? freezeRuntime(
-            await resolveRuntime({
-              owner: structuredClone(owner),
-              deployment: structuredClone(deployment),
-              directory,
-              resume,
-              platform: shared,
-            }),
-          )
-        : defaults;
-      assertCaptureCleanupSession(captureCleanup, owner, deployment, resume);
-      let adcSession;
-      let originalLease;
-      let retiring = false;
-      let inFlight = 0;
-      let disposal;
-      const policy = owner.provider === 'gcp' ? googleAdc : undefined;
-      const acquireAdc = () =>
-        (adcSession ??= (async () => {
-          if (!policy) throw new Error('Trusted Google ADC policy unavailable');
-          await shared.storage(owner);
-          const lease = await policy.acquire({
-            owner: structuredClone(owner),
-            deployment: structuredClone(deployment),
-            directory,
-            resume,
-          });
-          originalLease = Object.freeze({ ...lease, owner: structuredClone(lease.owner) });
-          return openGoogleAdcSession(originalLease, {
-            owner,
-            directory,
-            accountSha256: policy.accountSha256,
-            audienceSha256: policy.audienceSha256,
-            qualificationSha256: policy.qualificationSha256,
-          });
-        })());
-      const withAdc = async (operation) => {
-        if (retiring) throw new Error('Original Google ADC session is retired');
-        inFlight++;
-        try {
-          return await operation(await acquireAdc());
-        } finally {
-          inFlight--;
-        }
-      };
-      const guardedExecute =
-        policy && execute
-          ? (request) =>
-              withAdc(async (adc) => {
-                const environment = { ...request.env, ...adc.environment() };
-                if (
-                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== undefined &&
-                  request.env.GOOGLE_APPLICATION_CREDENTIALS !== environment.GOOGLE_APPLICATION_CREDENTIALS
-                )
-                  throw new Error('Original Google ADC source changed');
-                await adc.verify(environment);
-                return withFinalCheck(
-                  () => execute({ ...request, env: environment }),
-                  () => adc.verify(environment),
-                  'Original Terraform invocation and ADC verification failed',
-                );
-              })
-          : execute;
-      const runner = new TerraformRunner(directory, guardedExecute, captureCleanup, planSource);
-      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
-      else await runner.prepare(deployment);
-      const checkOwner = async () => {
-        await shared.storage(owner);
-        await captureCleanup?.assertIndependentClosure();
-      };
-      const checkApplyReady = async () => {
-        await checkOwner();
-        if (retiring) throw new Error('Original Google ADC session is retired');
-        await assertApplyReady?.();
-      };
-      return {
-        ...(assertApplyReady || captureCleanup ? { assertApplyReady: checkApplyReady } : {}),
-        ...(policy
-          ? {
-              googleAdcEnvironment: () =>
-                withAdc(async (adc) => {
-                  await checkOwner();
-                  const environment = adc.environment();
-                  await adc.verify(environment);
-                  return environment;
-                }),
-              closeGoogleAdc: () => {
-                retiring = true;
-                if (inFlight) return Promise.reject(new Error('Original Google ADC invocation is in flight'));
-                if (!disposal)
-                  disposal = (async () => {
-                    await checkOwner();
-                    if (!adcSession) return;
-                    let adc;
-                    try {
-                      adc = await adcSession;
-                    } catch {
-                      if (!originalLease && policy.closeFailedAcquisition) {
-                        await policy.closeFailedAcquisition();
-                        return;
-                      }
-                      if (
-                        !originalLease ||
-                        originalLease.owner.deploymentId !== owner.deploymentId ||
-                        originalLease.owner.engine !== owner.engine ||
-                        originalLease.owner.provider !== owner.provider ||
-                        originalLease.owner.account !== owner.account ||
-                        originalLease.owner.region !== owner.region ||
-                        typeof originalLease.closeAfterExecutorExit !== 'function'
-                      )
-                        throw new Error('Original Google ADC lease closure ownership unavailable');
-                      await originalLease.closeAfterExecutorExit();
-                      return;
-                    }
-                    await adc.close();
-                  })().catch((error) => {
-                    disposal = undefined;
-                    throw error;
-                  });
-                return disposal;
-              },
-            }
-          : {}),
-        async readStateIdentity() {
-          await checkOwner();
-          return runner.readStateIdentity();
-        },
-        async assertApplied(receipt) {
-          await checkOwner();
-          return runner.assertApplied(receipt);
-        },
-        async readConfigurationSha256() {
-          await checkOwner();
-          return runner.readConfigurationSha256();
-        },
-        async readPlannedResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readPlannedResourceFields(receipt, selections, env, signal);
-        },
-        async readAppliedResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readAppliedResourceFields(receipt, selections, env, signal);
-        },
-        async readNoChangeResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readNoChangeResourceFields(receipt, selections, env, signal);
-        },
-        async readPlannedStateResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readPlannedStateResourceFields(receipt, selections, env, signal);
-        },
-        async readCurrentResourcePlanReceipt(env, signal) {
-          await checkOwner();
-          return runner.readCurrentResourcePlanReceipt(env, signal);
-        },
-        async readApplyCheckpoint(receipt) {
-          await checkOwner();
-          return runner.readApplyCheckpoint(receipt);
-        },
-        async readApplyAttemptResourceFields(receipt, selections, env, signal) {
-          await checkOwner();
-          return runner.readApplyAttemptResourceFields(receipt, selections, env, signal);
-        },
-        async readPlannedResourceIds(receipt, addresses, env, signal) {
-          await checkOwner();
-          return runner.readPlannedResourceIds(receipt, addresses, env, signal);
-        },
-        async readConfiguration(expectedSha256) {
-          await checkOwner();
-          return runner.readConfiguration(expectedSha256);
-        },
-        async readOutputs(names, env, signal) {
-          await checkOwner();
-          return runner.readOutputs(names, env, signal);
-        },
-        async reviseConfiguration(expectedSha256, configuration) {
-          await checkOwner();
-          return runner.reviseConfiguration(expectedSha256, configuration);
-        },
-        async reconcileApplyFromEvidence(receipt, evidenceSha256) {
-          await checkOwner();
-          return runner.reconcileApplyFromEvidence(receipt, evidenceSha256);
-        },
-        async planDestroy(env, signal) {
-          await checkOwner();
-          return runner.planDestroy(env, signal);
-        },
-        async planAction(intent, env, signal) {
-          await checkOwner();
-          return runner.planAction(intent, env, signal);
-        },
-        async plan(env, signal) {
-          await checkOwner();
-          return runner.plan(env, signal);
-        },
-        async apply(receipt, env, signal) {
-          signal?.throwIfAborted();
-          await checkApplyReady();
-          signal?.throwIfAborted();
-          await runner.apply(receipt, env, signal);
-        },
-      };
-    },
-  };
-}
-var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
-var init_service2 = __esm(() => {
-  init_google_adc_session();
-  init_runner();
-});
-
 // plugins/gcloud/src/ce/runtime-prerequisites.ts
 function requestGcpTerraformService(events, signal) {
   const bus = events;
@@ -15682,7 +15682,7 @@ function requestGcpTerraformService(events, signal) {
 }
 var GcpTerraformSetupRequired;
 var init_runtime_prerequisites = __esm(() => {
-  init_service2();
+  init_service();
   GcpTerraformSetupRequired = class GcpTerraformSetupRequired extends Error {
     constructor() {
       super('Install and set up the Terraform plugin before selecting the Terraform engine');
@@ -15775,14 +15775,14 @@ var init_funding_session = __esm(() => {
 
 // plugins/gcloud/src/ce/terraform-preparation-resume.ts
 import { lstat as lstat14, readdir as readdir3 } from 'node:fs/promises';
-import { join as join21 } from 'node:path';
+import { join as join22 } from 'node:path';
 
 async function resolveGcpTerraformPreparationResume(store, deploymentId, resume) {
   if (!resume) return false;
   await store.verify();
   if (!/^[a-z][a-z0-9-]{0,62}$/.test(deploymentId)) throw new Error('Original preparation identity required');
   try {
-    const existing = await lstat14(join21(store.directory, deploymentId));
+    const existing = await lstat14(join22(store.directory, deploymentId));
     if (!existing.isDirectory() || existing.isSymbolicLink())
       throw new Error('Original runner directory differs; reconcile preparation');
     return resume;
@@ -15797,7 +15797,7 @@ async function resolveGcpTerraformPreparationResume(store, deploymentId, resume)
       throw new Error('Original preparation has missing or additional evidence; reconcile without recreation');
     const records = [];
     for (const name of ['', ...names]) {
-      const stat = await lstat14(join21(store.directory, name), { bigint: true });
+      const stat = await lstat14(join22(store.directory, name), { bigint: true });
       const directory = name === '' || name === 'gcp-campaign-access';
       if (
         stat.isSymbolicLink() ||
@@ -15952,7 +15952,7 @@ async function resumeGcpTerraformSession(platform, intent, installedService) {
   return openGcpTerraformSession(platform, saved.inputs, 'current', installedService);
 }
 var init_terraform_session = __esm(() => {
-  init_service2();
+  init_service();
   init_shared();
   init_compute_plan();
   init_discovery();
@@ -16067,7 +16067,7 @@ var init_terraform_public_runtime = __esm(() => {
 });
 
 // plugins/gcloud/src/tools/gcp-ce.ts
-import { join as join22 } from 'node:path';
+import { join as join23 } from 'node:path';
 
 function result(tool, data, isError = false) {
   return {
@@ -16404,7 +16404,7 @@ function createGcpCeTools(
             undefined,
             signal,
           );
-          const release = await acquireProcessLock(join22(store.directory, '.gcp-deployment-lock'));
+          const release = await acquireProcessLock(join23(store.directory, '.gcp-deployment-lock'));
           try {
             if (params.enableMarketplaceApi) await enableGcpMarketplaceApi(api, intent.project, signal);
             if (intent.image.name.endsWith('-byol') && !params.agreement) {
@@ -16823,7 +16823,7 @@ function createGcpCeTools(
 var UNKNOWN;
 var init_gcp_ce = __esm(() => {
   init_process_lock();
-  init_service();
+  init_service2();
   init_byol_terms();
   init_contract();
   init_corporate_funding();
@@ -17339,6 +17339,185 @@ function createGcpCaptureCleanupCli(options) {
 // plugins/gcloud/src/index.ts
 init_capture_cleanup_durable();
 init_capture_cleanup_state();
+
+// plugins/gcloud/src/ce/captured-cleanup-runtime.ts
+init_evidence_json();
+init_installed_runtime();
+init_original_input_monitor();
+init_service();
+init_captured_teardown_origin();
+init_discovery();
+init_terraform_context();
+init_validation();
+
+import { createHash as createHash16 } from 'node:crypto';
+import { dirname as dirname11, join as join21 } from 'node:path';
+
+async function openGcpCapturedCleanupRuntime(input, signal) {
+  const intent = structuredClone(input.intent),
+    environment = { ...input.environment };
+  const source = structuredClone(input.source),
+    reference = structuredClone(input.reference),
+    reviewReference = input.reviewReference && structuredClone(input.reviewReference);
+  const { api, platform, execute } = input,
+    assertIndependentClosure = input.assertIndependentClosure.bind(input);
+  validateIntent(intent);
+  if (intent.engine !== 'terraform' || intent.schemaVersion !== 2 || typeof execute !== 'function')
+    throw new Error('Original captured GCP cleanup scope and compiled executor required');
+  const owner = {
+    provider: 'gcp',
+    engine: 'terraform',
+    account: intent.project,
+    region: intent.region,
+    deploymentId: intent.deploymentName,
+  };
+  const directory = input.executionDirectory;
+  const contextHash = publicTerraformContextHash(intent, environment.XCSH_API_URL);
+  if (!platform.gcpObservations) throw new Error('Normal Platform cleanup observations unavailable');
+  const store = await platform.storage(owner);
+  const checkStore = async () => {
+    const current = await platform.storage(owner);
+    if (
+      store.directory !== dirname11(directory) ||
+      fingerprint(store.owner) !== fingerprint(owner) ||
+      current.directory !== dirname11(directory) ||
+      fingerprint(current.owner) !== fingerprint(owner)
+    )
+      throw new Error('Original captured cleanup Platform storage differs');
+    await current.verify();
+    await store.verify();
+  };
+  await checkStore();
+  const observations = await platform.gcpObservations(owner, intent.platformContext, signal);
+  if (!observations.teardown || !observations.terraformEnvironment)
+    throw new Error('Normal Platform cleanup observations and private environment unavailable');
+  const readEnvironment = observations.terraformEnvironment.bind(observations),
+    teardown = observations.teardown.bind(observations);
+  const inputs = Object.fromEntries(
+    await Promise.all(
+      [
+        join21(directory, 'deployment.json'),
+        join21(directory, 'main.tf.json'),
+        join21(directory, '.terraform.lock.hcl'),
+        join21(store.directory, 'gcp-terraform-input-identity.json'),
+      ].map(async (path, index) => [String(index), (await owned(path)).binding]),
+    ),
+  );
+  const monitor = await monitorOriginalInputs(inputs);
+  let retired = false,
+    origin;
+  const close = () => {
+    retired = true;
+    origin?.close();
+    monitor.close();
+  };
+  const guard = async () => {
+    if (retired) throw new Error('Original captured cleanup runtime is retired');
+    signal?.throwIfAborted();
+    await checkStore();
+    await monitor.assertOriginal();
+    const selected = await readEnvironment();
+    if (publicTerraformContextHash(intent, selected.XCSH_API_URL) !== contextHash || !selected.XCSH_API_TOKEN)
+      throw new Error('Original captured cleanup selected context differs');
+    Object.assign(environment, selected);
+    await monitor.assertOriginal();
+    if (retired) throw new Error('Original captured cleanup runtime retired during inspection');
+  };
+  try {
+    await guard();
+    const saved = await store.read('gcp-terraform-input-identity.json');
+    if (
+      fingerprint(saved.intent) !== fingerprint(intent) ||
+      saved.intentFingerprint !== fingerprint(intent) ||
+      saved.platformContext !== intent.platformContext
+    )
+      throw new Error('Original captured cleanup persisted intent differs');
+    const manifest = decodeEvidenceObject((await owned(join21(directory, 'deployment.json'))).bytes);
+    const configuration = (await owned(join21(directory, 'main.tf.json'))).bytes,
+      providerLock = (await owned(join21(directory, '.terraform.lock.hcl'))).bytes;
+    const hash = (bytes) => createHash16('sha256').update(bytes).digest('hex');
+    if (
+      manifest.stage !== undefined ||
+      manifest.configurationSha256 !== hash(configuration) ||
+      manifest.providerLockSha256 !== hash(providerLock)
+    )
+      throw new Error('Original captured cleanup deployment bytes differ');
+    const { configurationSha256: _configuration, providerLockSha256: _lock, ...fields } = manifest;
+    const deployment = {
+      ...fields,
+      configuration: configuration.toString('utf8'),
+      providerLock: providerLock.toString('utf8'),
+    };
+    const observePlatform = async (...args) => {
+      await guard();
+      return withFinalCheck(() => teardown(...args), guard, 'Original Platform cleanup observation changed');
+    };
+    origin = await openGcpCapturedTeardownOrigin(
+      {
+        ...input,
+        api,
+        intent,
+        environment,
+        source,
+        reference,
+        reviewReference,
+        observePlatform,
+        assertIndependentClosure: async (readers) => {
+          await guard();
+          await assertIndependentClosure(readers);
+          await guard();
+        },
+      },
+      signal,
+    );
+    const original = origin;
+    const verify = async () => {
+      await guard();
+      await readGcpCapturedTeardownOrigin(original, intent);
+      await guard();
+    };
+    const service = createCeTerraformService(async () => platform, {
+      captureCleanup: { ...original.recovery, assertIndependentClosure: verify },
+      execute: async (invocation) => {
+        await verify();
+        if (
+          invocation.env.XCSH_API_URL !== undefined &&
+          publicTerraformContextHash(intent, invocation.env.XCSH_API_URL) !== contextHash
+        )
+          throw new Error('Original captured cleanup invocation context differs');
+        return withFinalCheck(
+          () =>
+            execute({
+              ...invocation,
+              env: {
+                ...invocation.env,
+                XCSH_API_URL: environment.XCSH_API_URL,
+                XCSH_API_TOKEN: environment.XCSH_API_TOKEN,
+              },
+            }),
+          verify,
+          'Original captured cleanup execution or binding failed',
+        );
+      },
+    });
+    const session = await service.open(owner, deployment, true);
+    await verify();
+    const runtime = Object.freeze({
+      store,
+      session,
+      environment,
+      api,
+      observePlatform,
+      capturedTeardownOrigin: original,
+    });
+    return Object.freeze({ runtime, close });
+  } catch (error) {
+    close();
+    throw error;
+  }
+}
+
+// plugins/gcloud/src/index.ts
 init_captured_teardown_origin();
 init_terraform_public_teardown();
 function sanitizeHintField(value, maxLen = 200) {
@@ -17510,6 +17689,7 @@ export {
   createGcpCaptureCleanupCli,
   gcloudInstallArgv,
   openGcpCaptureCleanupAdmission,
+  openGcpCapturedCleanupRuntime,
   openGcpCapturedTeardownOrigin,
   persistGcpCaptureCleanupOrigin,
   persistGcpCaptureCleanupReview,
