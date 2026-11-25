@@ -55,7 +55,9 @@ test('prepares a private owned RSA4096 credential and an independently readable 
   expect(record.phase).toBe('prepared');
   const pub = join(f.root, 'synthetic-owned.pub');
   await writeFile(pub, auth.publicKey + '\n', { mode: 0o600 });
-  const parsed = Bun.spawnSync(['/usr/bin/ssh-keygen', '-l', '-f', pub, '-E', 'sha256']);
+  const sshKeygen = Bun.which('ssh-keygen');
+  if (!sshKeygen) throw new Error('Independent RSA4096 validation requires ssh-keygen on PATH');
+  const parsed = Bun.spawnSync([sshKeygen, '-l', '-f', pub, '-E', 'sha256']);
   expect(parsed.exitCode).toBe(0);
   expect(parsed.stdout.toString()).toMatch(/^4096 SHA256:/);
 });

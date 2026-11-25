@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 
@@ -45,7 +45,14 @@ if (!result.success || result.outputs.filter((output) => output.kind === 'entry-
   throw new Error('CE runtime build failed');
 const builtins = new Set(builtinModules.map((value) => value.replace(/^node:/, '')));
 const outputDirectory = resolve(root, 'dist');
-await mkdir(outputDirectory, { recursive: true });
+async function createRuntimeDirectory(directory: string): Promise<void> {
+  await mkdir(directory, { recursive: true });
+  for (let current = directory; ; current = dirname(current)) {
+    await chmod(current, 0o755);
+    if (current === outputDirectory) break;
+  }
+}
+await createRuntimeDirectory(outputDirectory);
 for (const name of await readdir(outputDirectory)) {
   if (/^runtime(?:-[a-z0-9]{8})?\.js$/.test(name)) await rm(resolve(outputDirectory, name));
 }
@@ -68,10 +75,20 @@ for (const output of result.outputs) {
     `// biome-ignore-all lint: Generated Bun bundle; lint the source modules instead.\n${content}`,
   );
   const format = Bun.spawn(
-    ['bunx', '@biomejs/biome@2.6.8', 'check', '--write', '--linter-enabled=false', '--vcs-enabled=false', target],
+    [
+      process.execPath,
+      'x',
+      '@biomejs/biome@2.6.8',
+      'check',
+      '--write',
+      '--linter-enabled=false',
+      '--vcs-enabled=false',
+      target,
+    ],
     { cwd: repository, stdout: 'pipe', stderr: 'pipe' },
   );
   if (await format.exited) throw Error('CE runtime formatting failed');
+  await chmod(target, 0o644);
   const bytes = await readFile(target);
   if (bytes.length > 1024 * 1024) throw Error('CE runtime output exceeds repository file-size limit');
   bundles.push({ runtimePath, kind: output.kind, sha256: createHash('sha256').update(bytes).digest('hex') });
@@ -80,8 +97,9 @@ const manifest = [];
 for (const [sourcePath, asset] of [...assets].sort(([a], [b]) => a.localeCompare(b))) {
   const bytes = await readFile(asset.source);
   const target = resolve(root, 'dist', asset.runtimePath);
-  await mkdir(dirname(target), { recursive: true });
+  await createRuntimeDirectory(dirname(target));
   await writeFile(target, bytes);
+  await chmod(target, 0o644);
   manifest.push({
     sourcePath,
     runtimePath: asset.runtimePath,
@@ -103,7 +121,8 @@ await writeFile(
 );
 const format = Bun.spawn(
   [
-    'bunx',
+    process.execPath,
+    'x',
     '@biomejs/biome@2.6.8',
     'check',
     '--write',
@@ -114,3 +133,4 @@ const format = Bun.spawn(
   { cwd: repository, stdout: 'pipe', stderr: 'pipe' },
 );
 if (await format.exited) throw Error('CE runtime formatting failed');
+await chmod(resolve(outputDirectory, 'runtime-assets.json'), 0o644);

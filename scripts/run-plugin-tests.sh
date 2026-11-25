@@ -29,6 +29,8 @@ command -v bun >/dev/null 2>&1 || {
 
 # Exercise fresh-checkout setup ordering and fail-closed frozen-install behavior.
 bun test tests/hermetic-dependency-precondition.test.ts || exit 1
+bun test tests/ci-openssh-installer.test.ts || exit 1
+bun test scripts/build-ce-runtime.test.ts || exit 1
 
 # The lockfiles are not enough: an existing workspace can remain physically linked to an
 # obsolete xcsh/provider graph and make source tests exercise different code than the

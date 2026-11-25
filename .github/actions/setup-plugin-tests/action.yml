@@ -20,6 +20,9 @@ runs:
     - name: Install current isolated Terraform qualification runtime
       shell: bash
       run: ./scripts/install-ci-terraform.sh
+    - name: Install isolated OpenSSH qualification client
+      shell: bash
+      run: ./scripts/install-ci-openssh.sh
     - name: Prepare isolated Python fixture dependencies
       id: python
       shell: bash

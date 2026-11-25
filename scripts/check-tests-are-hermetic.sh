@@ -33,6 +33,10 @@ command -v bun >/dev/null 2>&1 || {
   exit 2
 }
 
+# Exercise isolated parser installation before preparing the plugin graph.
+bun test tests/ci-openssh-installer.test.ts || exit 1
+bun test scripts/build-ce-runtime.test.ts || exit 1
+
 # Independent CI jobs start from a fresh checkout: prepare the frozen project
 # graph before shadowing cloud CLIs or starting any test.
 export PUPPETEER_SKIP_DOWNLOAD=true
