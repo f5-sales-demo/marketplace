@@ -10,10 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.175 preserves original final inventory after genuine
-  before-phase retirement. Exact callback, ownership, original absence bytes,
-  source integrity and final-reserve checks remain enforced. Complete factory,
-  live qualification and publication remain held (#1559).
+- **`terraform`** v2.4.175 uses continuous original input identity checks for
+  admitted native output prefix reads. Full digests remain checked at admission,
+  command release and final capture. Original startup and recovery bounds,
+  identity refusals and failed evidence remain intact. Complete factory, live
+  qualification and publication remain held (#1559).
 
 - **`platform`** v6.3.33 rebuilds the shared CE runtime with Bun 1.4.4 and
   retains independent Linux process group closure evidence without signals.
