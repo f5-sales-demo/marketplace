@@ -2093,6 +2093,160 @@ var init_failure = __esm(() => {
   };
 });
 
+// plugins/terraform/src/reviewed-data-sources.ts
+function object2(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Reviewed Terraform data object required');
+  return value;
+}
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+function nonsensitive(value) {
+  if (value === false) return true;
+  return value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive);
+}
+function moduleResources(values) {
+  const module = object2(object2(values).root_module ?? {});
+  if (module.child_modules !== undefined && (!Array.isArray(module.child_modules) || module.child_modules.length))
+    throw new Error('Nested Terraform data requires a verified mapping');
+  const rows = module.resources ?? [];
+  if (!Array.isArray(rows)) throw new Error('Reviewed Terraform data inventory required');
+  return rows.map(object2);
+}
+function hasReviewedDataSources(identity, state, selectedAddresses = []) {
+  const selected = new Set(selectedAddresses);
+  const raw = object2(identity).resources;
+  const rows = [
+    ...(Array.isArray(raw) ? raw.map(object2).map((row) => ({ ...row, address: `data.${row.type}.${row.name}` })) : []),
+    ...moduleResources(object2(state).values ?? {}),
+  ].filter((row) => row.mode === 'data' && !selected.has(String(row.address)));
+  if (rows.some((row) => row.type !== 'google_compute_image'))
+    throw new Error('Foreign state data requires a verified read-only mapping');
+  return rows.length > 0;
+}
+function projectReviewedDataSources(
+  configuration,
+  plan,
+  identity,
+  state,
+  terraformVersion,
+  operation,
+  selectedAddresses = [],
+) {
+  const config = object2(configuration),
+    saved = object2(plan),
+    raw = object2(identity),
+    rendered = object2(state);
+  if (
+    saved.terraform_version !== terraformVersion ||
+    typeof saved.format_version !== 'string' ||
+    !/^1\.\d+$/.test(saved.format_version) ||
+    rendered.terraform_version !== terraformVersion ||
+    rendered.format_version !== '1.0' ||
+    (raw.terraform_version !== undefined && raw.terraform_version !== terraformVersion)
+  )
+    throw new Error('Reviewed Terraform data format or version changed');
+  const selected = new Set(selectedAddresses);
+  const declarations = new Map();
+  for (const [type, names] of Object.entries(object2(config.data ?? {}))) {
+    for (const [name, value] of Object.entries(object2(names))) {
+      if (selected.has(`data.${type}.${name}`)) continue;
+      if (type !== 'google_compute_image')
+        throw new Error('Foreign Terraform data type lacks a verified read-only mapping');
+      const declaration = object2(value);
+      if (
+        !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) ||
+        canonical(Object.keys(declaration).sort()) !== canonical(['name', 'project']) ||
+        typeof declaration.project !== 'string' ||
+        !/^[a-z][a-z0-9-]*[a-z0-9]$/.test(declaration.project) ||
+        typeof declaration.name !== 'string' ||
+        !/^[a-z][a-z0-9-]*[a-z0-9]$/.test(declaration.name)
+      )
+        throw new Error('Exact static Google image declaration required');
+      declarations.set(`data.${type}.${name}`, declaration);
+    }
+  }
+  const planned = moduleResources(
+    operation === 'destroy' ? object2(saved.prior_state).values : saved.planned_values,
+  ).filter((row) => row.mode === 'data' && !selected.has(String(row.address)));
+  const observed = moduleResources(rendered.values).filter(
+    (row) => row.mode === 'data' && !selected.has(String(row.address)),
+  );
+  if (!Array.isArray(raw.resources)) throw new Error('Raw Terraform data inventory unavailable');
+  const rawData = raw.resources
+    .map(object2)
+    .filter((row) => row.mode === 'data' && !selected.has(`data.${row.type}.${row.name}`));
+  if (
+    !declarations.size ||
+    planned.length !== declarations.size ||
+    observed.length !== declarations.size ||
+    rawData.length !== declarations.size
+  )
+    throw new Error('Reviewed Terraform data inventories differ');
+  for (const [address, declaration] of declarations) {
+    const matches = (rows) => rows.filter((row) => row.address === address);
+    const planRows = matches(planned),
+      stateRows = matches(observed);
+    const rawRows = rawData.filter((row) => `data.${row.type}.${row.name}` === address);
+    if (planRows.length !== 1 || stateRows.length !== 1 || rawRows.length !== 1)
+      throw new Error('Reviewed Terraform data identity is missing or ambiguous');
+    const source = rawRows[0];
+    if (
+      source.module !== undefined ||
+      source.provider !== 'provider["registry.terraform.io/hashicorp/google"]' ||
+      !Array.isArray(source.instances) ||
+      source.instances.length !== 1
+    )
+      throw new Error('Reviewed Terraform data provider or instance differs');
+    const instance = object2(source.instances[0]);
+    if (
+      instance.schema_version !== 0 ||
+      instance.index_key !== undefined ||
+      instance.deposed !== undefined ||
+      (instance.sensitive_attributes !== undefined &&
+        (!Array.isArray(instance.sensitive_attributes) || instance.sensitive_attributes.length))
+    )
+      throw new Error('Reviewed raw Terraform data is ambiguous or sensitive');
+    const attributes = object2(instance.attributes);
+    for (const row of [planRows[0], stateRows[0]]) {
+      const values = object2(row.values);
+      if (
+        row.type !== 'google_compute_image' ||
+        row.name !== source.name ||
+        row.schema_version !== 0 ||
+        row.provider_name !== 'registry.terraform.io/hashicorp/google' ||
+        !nonsensitive(row.sensitive_values) ||
+        values.project !== declaration.project ||
+        values.name !== declaration.name ||
+        typeof values.image_id !== 'string' ||
+        !/^[1-9][0-9]*$/.test(values.image_id) ||
+        values.id !== `projects/${declaration.project}/global/images/${declaration.name}` ||
+        canonical(values) !== canonical(attributes)
+      )
+        throw new Error('Reviewed Terraform image identity, sensitivity or values changed');
+    }
+  }
+  const values = object2(rendered.values),
+    module = object2(values.root_module);
+  return {
+    ...rendered,
+    values: {
+      ...values,
+      root_module: {
+        ...module,
+        resources: moduleResources(values).filter((row) => row.mode !== 'data' || selected.has(String(row.address))),
+      },
+    },
+  };
+}
+
 // plugins/terraform/src/runner.ts
 import { createHash as createHash5, randomUUID as randomUUID2 } from 'node:crypto';
 import {
@@ -2114,14 +2268,14 @@ function freezeOriginalPlan(value) {
   }
   return value;
 }
-function object2(value) {
+function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Terraform JSON object is malformed');
   return value;
 }
 function decode(value) {
   try {
-    return object2(
+    return object3(
       JSON.parse(value, (_key, parsed, context) => {
         if (typeof parsed === 'number' && Number.isInteger(parsed) && !Number.isSafeInteger(parsed)) {
           if (!context?.source || !/^-?\d+$/.test(context.source))
@@ -2135,12 +2289,12 @@ function decode(value) {
     throw new Error('Terraform returned malformed JSON');
   }
 }
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+function canonical2(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.entries(value)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical2(item)}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
@@ -2182,16 +2336,16 @@ function inspectActionInvocations(plan, expected) {
   )
     throw new Error('Terraform actions are unrequested, missing, duplicated or deferred');
   if (!expected) return [];
-  const action = object2(invocations[0]);
+  const action = object3(invocations[0]);
   if (
     action.address !== expected.address ||
     action.type !== expected.type ||
     action.provider_name !== expected.providerName ||
     action.lifecycle_action_trigger !== undefined ||
-    Object.keys(object2(action.invoke_action_trigger)).length ||
+    Object.keys(object3(action.invoke_action_trigger)).length ||
     !allFalse(action.config_unknown) ||
     !allFalse(action.config_sensitive) ||
-    digest2(canonical(object2(action.config_values))) !== expected.configValuesSha256
+    digest2(canonical2(object3(action.config_values))) !== expected.configValuesSha256
   )
     throw new Error('Terraform action identity, trigger or configuration differs');
   return [{ ...expected }];
@@ -2493,13 +2647,13 @@ function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt,
     Object.keys(identity.outputs).length === 0;
   if (state.format_version !== '1.0' || (state.terraform_version !== terraformVersion && !minimalEmptyState))
     throw new Error('Terraform state format or version changed');
-  const module = object2(object2(state.values ?? {}).root_module ?? {});
+  const module = object3(object3(state.values ?? {}).root_module ?? {});
   const resources = module.resources ?? [];
   if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
   if (
     (Array.isArray(module.child_modules) && module.child_modules.length) ||
     resources
-      .map(object2)
+      .map(object3)
       .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
   )
     throw new Error('Foreign state resource requires reconciliation');
@@ -2507,7 +2661,7 @@ function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt,
   for (const [address, fields] of Object.entries(selections)) {
     const reviewed = receipt.changes.filter((change) => change.address === address);
     if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
-    const matches = resources.map(object2).filter((resource) => resource.address === address);
+    const matches = resources.map(object3).filter((resource) => resource.address === address);
     if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
     if (!matches.length) {
       result[address] = null;
@@ -2521,7 +2675,7 @@ function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt,
     )
       throw new Error('Terraform state resource differs from reviewed identity');
     if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
-    result[address] = projectResourceFields(object2(resource.values), resource.sensitive_values, fields);
+    result[address] = projectResourceFields(object3(resource.values), resource.sensitive_values, fields);
   }
   return result;
 }
@@ -2549,7 +2703,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
     !isAbsolute4(directory) ||
     resolve3(directory) !== directory ||
     execute === executeTerraform ||
-    canonical(Object.keys(bindings).sort()) !== canonical(required.sort()) ||
+    canonical2(Object.keys(bindings).sort()) !== canonical2(required.sort()) ||
     required.some((name) => {
       const expected = name.startsWith('lock:')
         ? join4(directory, '.terraform-executor-lock', name.slice(5))
@@ -2567,7 +2721,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
     !Array.isArray(receipt.changes) ||
     receipt.changes.length !== Object.keys(selections).length ||
     receipt.changes.some(
-      (row) => !row || !Object.hasOwn(selections, row.address) || canonical(row.actions) !== canonical(['create']),
+      (row) => !row || !Object.hasOwn(selections, row.address) || canonical2(row.actions) !== canonical2(['create']),
     ) ||
     new Set(receipt.changes.map((row) => row.address)).size !== receipt.changes.length
   )
@@ -2604,7 +2758,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
       digest2(raw('.terraform.lock.hcl')) !== receipt.providerLockSha256 ||
       digest2(raw('deployment.tfrc')) !== digest2(cliConfig) ||
       digest2(raw('saved.tfplan')) !== receipt.planSha256 ||
-      canonical(checkpoint.receipt) !== canonical(receipt) ||
+      canonical2(checkpoint.receipt) !== canonical2(receipt) ||
       !['applying', 'applied'].includes(String(checkpoint.state)) ||
       identity.version !== 4 ||
       typeof identity.lineage !== 'string' ||
@@ -2616,7 +2770,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
       throw new Error('Original interrupted create or state binding differs');
     const seen = new Set();
     for (const value of identity.resources) {
-      const row = object2(value);
+      const row = object3(value);
       if (row.mode === 'data') continue;
       const address = `${row.type}.${row.name}`;
       if (
@@ -2626,8 +2780,8 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
         seen.has(address) ||
         !Array.isArray(row.instances) ||
         row.instances.length !== 1 ||
-        object2(row.instances[0]).deposed !== undefined ||
-        object2(row.instances[0]).index_key !== undefined
+        object3(row.instances[0]).deposed !== undefined ||
+        object3(row.instances[0]).index_key !== undefined
       )
         throw new Error('Original interrupted state resource is ambiguous or foreign');
       seen.add(address);
@@ -2643,7 +2797,17 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
     const version = await run(['version', '-json']);
     if (typeof manifest.terraformVersion !== 'string' || version.terraform_version !== manifest.terraformVersion)
       throw new Error('Original capture inspection Terraform version changed');
-    const state = await run(['show', '-json', 'terraform.tfstate']);
+    let state = await run(['show', '-json', 'terraform.tfstate']);
+    if (hasReviewedDataSources(identity, state, Object.keys(selections))) {
+      const plan = await run(['show', '-json', 'saved.tfplan']);
+      state = projectReviewedDataSources(
+        decode(raw('main.tf.json').toString()),
+        plan,
+        identity,
+        state,
+        manifest.terraformVersion,
+      );
+    }
     const resources = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
     await assertClosed();
     return {
@@ -2661,7 +2825,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
 }
 async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
   const proof = scope.emptyOriginal;
-  const owner = object2(manifest);
+  const owner = object3(manifest);
   const prefix = `${join4(directory, 'capture-cleanup-verification')}/`;
   if (
     !proof ||
@@ -2683,7 +2847,7 @@ async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
     const state = decode(bytes.toString());
     if (
       !['applying', 'applied'].includes(String(row.state)) ||
-      canonical(row.receipt) !== canonical(receipt) ||
+      canonical2(row.receipt) !== canonical2(receipt) ||
       receipt.schemaVersion !== 1 ||
       receipt.engine !== 'terraform' ||
       receipt.operation !== undefined ||
@@ -2697,7 +2861,7 @@ async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
       receipt.providerLockSha256 !== owner.providerLockSha256 ||
       !Array.isArray(receipt.changes) ||
       !receipt.changes.length ||
-      receipt.changes.some((change) => canonical(change.actions) !== canonical(['create'])) ||
+      receipt.changes.some((change) => canonical2(change.actions) !== canonical2(['create'])) ||
       digest2(await privateRead(proof.savedPlan.path)) !== receipt.planSha256 ||
       digest2(bytes) !== scope.state.sha256 ||
       state.version !== 4 ||
@@ -2819,8 +2983,8 @@ class TerraformRunner {
       throw new Error('Exact Terraform version and provider lock are required');
     const configuration = decode(deployment.configuration);
     if (
-      object2(configuration.terraform ?? {}).backend ||
-      object2(configuration.terraform ?? {}).cloud ||
+      object3(configuration.terraform ?? {}).backend ||
+      object3(configuration.terraform ?? {}).cloud ||
       deployment.backendIdentity !==
         `local:${deployment.deploymentId}${deployment.stage ? `:stage:${deployment.stage}` : ''}`
     )
@@ -2867,7 +3031,7 @@ class TerraformRunner {
       const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
       if (
         !['applying', 'applied'].includes(String(journal.state)) ||
-        canonical(receipt) !== canonical(journal.receipt) ||
+        canonical2(receipt) !== canonical2(journal.receipt) ||
         receipt.engine !== 'terraform' ||
         receipt.deploymentId !== manifest.deploymentId ||
         receipt.backendIdentity !== manifest.backendIdentity ||
@@ -2913,12 +3077,12 @@ class TerraformRunner {
   }
   #validateRevision(configuration, previousConfiguration) {
     const next = decode(configuration);
-    const terraform = object2(next.terraform ?? {});
+    const terraform = object3(next.terraform ?? {});
     if (terraform.backend || terraform.cloud) throw new Error('Terraform configuration revision cannot change backend');
     if (previousConfiguration !== undefined) {
       const previous = decode(previousConfiguration);
       for (const key of ['terraform', 'provider'])
-        if (canonical(previous[key] ?? {}) !== canonical(next[key] ?? {}))
+        if (canonical2(previous[key] ?? {}) !== canonical2(next[key] ?? {}))
           throw new Error('Terraform configuration revision cannot change provider or execution identity');
     }
   }
@@ -2936,14 +3100,14 @@ class TerraformRunner {
       if (error.code === 'ENOENT') return;
       throw error;
     }
-    const previous = object2(transition.previous);
-    const next = object2(transition.next);
+    const previous = object3(transition.previous);
+    const next = object3(transition.next);
     if (
       typeof transition.configuration !== 'string' ||
       typeof transition.archiveId !== 'string' ||
       !/^[0-9a-f-]{36}$/.test(transition.archiveId) ||
       !/^[0-9a-f]{64}$/.test(previous.configurationSha256) ||
-      canonical({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical(next) ||
+      canonical2({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical2(next) ||
       next.configurationSha256 !== digest2(transition.configuration)
     )
       throw new Error('Terraform configuration transition is malformed');
@@ -2951,7 +3115,7 @@ class TerraformRunner {
     const owner = decode((await privateRead(join4(directory, 'deployment.json'))).toString());
     const current = await privateRead(join4(directory, 'main.tf.json'));
     if (
-      ![canonical(previous), canonical(next)].includes(canonical(owner)) ||
+      ![canonical2(previous), canonical2(next)].includes(canonical2(owner)) ||
       ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
       digest2(await privateRead(join4(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
       digest2(await privateRead(join4(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
@@ -3004,7 +3168,7 @@ class TerraformRunner {
           configurationMode === 'current' ? recoveredManifest.configurationSha256 : digest2(configuration),
         providerLockSha256: digest2(providerLock),
       };
-      if (canonical(recoveredManifest) !== canonical(expectedManifest))
+      if (canonical2(recoveredManifest) !== canonical2(expectedManifest))
         throw new Error('Terraform deployment differs from the requested identity or configuration');
       if (configurationMode === 'current')
         this.#validateRevision((await privateRead(join4(directory, 'main.tf.json'))).toString(), configuration);
@@ -3039,7 +3203,7 @@ class TerraformRunner {
         Object.fromEntries(
           ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].map((key) => [key, String(value[key])]),
         );
-      if (canonical(identity(first)) !== canonical(identity(second)))
+      if (canonical2(identity(first)) !== canonical2(identity(second)))
         throw new Error('Original cleanup inspection inputs changed');
       snapshots.set(name, raw);
       inputs[`inspection:${name}`] = {
@@ -3071,7 +3235,7 @@ class TerraformRunner {
       const owner = decode(raw('deployment.json').toString()),
         state = decode(raw('terraform.tfstate').toString());
       const checkpoint = decode(raw('plan-receipt.json').toString()),
-        receipt = object2(checkpoint.receipt);
+        receipt = object3(checkpoint.receipt);
       if (scope.emptyOriginal) await verifyEmptyOriginalCaptureCleanup(scope, directory, owner);
       if (
         digest2(raw('deployment.json')) !== scope.deploymentManifestSha256 ||
@@ -3134,7 +3298,7 @@ class TerraformRunner {
       if (error.code !== 'ENOENT') throw error;
     }
     const owner = decode((await privateRead(join4(this.#directory, 'deployment.json'))).toString());
-    if (canonical(owner) !== canonical(this.#manifest) || owner.engine !== 'terraform')
+    if (canonical2(owner) !== canonical2(this.#manifest) || owner.engine !== 'terraform')
       throw new Error('Terraform deployment ownership changed');
     for (const [file, expected] of [
       ['main.tf.json', this.#manifest.configurationSha256],
@@ -3233,7 +3397,7 @@ class TerraformRunner {
       this.#verificationMonitor ??= await monitorOriginalInputs({ checkpoint: verification.checkpoint });
       await this.#verificationMonitor.assertOriginal();
       const checkpoint = decode((await privateRead(verification.checkpoint.path)).toString());
-      const receipt = object2(checkpoint.receipt);
+      const receipt = object3(checkpoint.receipt);
       const changes = receipt.changes;
       if (
         checkpoint.state !== 'applied' ||
@@ -3250,24 +3414,24 @@ class TerraformRunner {
         !changes.length ||
         changes.some(
           (change) =>
-            object2(change).actions === undefined || canonical(object2(change).actions) !== canonical(['delete']),
+            object3(change).actions === undefined || canonical2(object3(change).actions) !== canonical2(['delete']),
         ) ||
-        canonical(changes.map((change) => object2(change).address).sort()) !==
-          canonical(scope.resources.map((resource) => resource.address).sort())
+        canonical2(changes.map((change) => object3(change).address).sort()) !==
+          canonical2(scope.resources.map((resource) => resource.address).sort())
       )
         throw new Error('Original applied destroy checkpoint required for cleanup verification');
       await this.#verificationMonitor.assertOriginal();
       this.#cleanupEmpty = true;
     }
-    const resources = state.resources.map(object2);
+    const resources = state.resources.map(object3);
     const actual = resources
       .filter((r) => r.mode === 'managed')
       .flatMap((r) => {
         if (typeof r.type !== 'string' || typeof r.name !== 'string' || !Array.isArray(r.instances))
           throw new Error('Original cleanup state resource malformed');
         return r.instances.map((instance) => {
-          const row = object2(instance),
-            attributes = object2(row.attributes);
+          const row = object3(instance),
+            attributes = object3(row.attributes);
           const prefix = typeof r.module === 'string' ? `${r.module}.` : '';
           const suffix = row.index_key === undefined ? '' : `[${JSON.stringify(row.index_key)}]`;
           return { address: `${prefix}${r.type}.${r.name}${suffix}`, id: attributes.id };
@@ -3277,8 +3441,8 @@ class TerraformRunner {
       if (actual.length) throw new Error('Owned cleanup resources remain');
     } else if (
       digest2(raw) !== scope.state.sha256 ||
-      canonical(actual.sort((a, b) => a.address.localeCompare(b.address))) !==
-        canonical([...scope.resources].sort((a, b) => a.address.localeCompare(b.address)))
+      canonical2(actual.sort((a, b) => a.address.localeCompare(b.address))) !==
+        canonical2([...scope.resources].sort((a, b) => a.address.localeCompare(b.address)))
     )
       throw new Error('Original reviewed cleanup state or owned resources changed');
     await assertExecutorProcessGroupAbsent(lock);
@@ -3352,8 +3516,8 @@ class TerraformRunner {
     const actionInvocations = inspectActionInvocations(plan, action);
     const changes = [];
     for (const value of plan.resource_changes ?? []) {
-      const resource = object2(value);
-      const actions = changeActions(object2(resource.change).actions);
+      const resource = object3(value);
+      const actions = changeActions(object3(resource.change).actions);
       if (
         typeof resource.address !== 'string' ||
         typeof resource.type !== 'string' ||
@@ -3362,8 +3526,8 @@ class TerraformRunner {
         throw new Error('Terraform resource change is malformed');
       changes.push({ address: resource.address, type: resource.type, actions });
     }
-    const outputs = Object.values(object2(plan.output_changes ?? {})).map((output) =>
-      changeActions(object2(output).actions, true),
+    const outputs = Object.values(object3(plan.output_changes ?? {})).map((output) =>
+      changeActions(object3(output).actions, true),
     );
     const resourcesUnchanged =
       changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
@@ -3446,7 +3610,7 @@ class TerraformRunner {
       throw error;
     }
     if (!['applying', 'applied'].includes(String(journal.state))) return;
-    const actions = object2(journal.receipt).actionInvocations;
+    const actions = object3(journal.receipt).actionInvocations;
     if (!Array.isArray(actions) || actions.length === 0) return;
     try {
       await privateRead(join4(directory, 'action-attempt.json'));
@@ -3471,7 +3635,7 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
-      const receipt = object2(journal.receipt);
+      const receipt = object3(journal.receipt);
       if (
         !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
@@ -3483,7 +3647,7 @@ class TerraformRunner {
       const outputs = decode(await this.#run(['output', '-json'], env, signal));
       const selected = {};
       for (const name of names) {
-        const output = object2(outputs[name]);
+        const output = object3(outputs[name]);
         if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
           throw new Error('Requested Terraform output is unavailable, malformed or sensitive');
         selected[name] = output.value;
@@ -3499,7 +3663,7 @@ class TerraformRunner {
       const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'applied' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
+        canonical2(journal.receipt) !== canonical2(receipt) ||
         receipt.deploymentId !== manifest.deploymentId ||
         receipt.engine !== 'terraform' ||
         receipt.backendIdentity !== manifest.backendIdentity ||
@@ -3542,7 +3706,7 @@ class TerraformRunner {
       const journal = decode((await privateRead(join4(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'planned' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
+        canonical2(journal.receipt) !== canonical2(receipt) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.planSha256 !== digest2(await privateRead(join4(directory, 'saved.tfplan')))
       )
@@ -3554,24 +3718,24 @@ class TerraformRunner {
       if (!Array.isArray(changes)) throw new Error('Terraform plan resource identities unavailable');
       const result = {};
       for (const [address, fields] of Object.entries(selections)) {
-        const matches = changes.map(object2).filter((resource) => resource.address === address);
+        const matches = changes.map(object3).filter((resource) => resource.address === address);
         if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
         if (!matches.length) {
           result[address] = null;
           continue;
         }
-        const change = object2(matches[0].change);
+        const change = object3(matches[0].change);
         if (change.before === null || change.before === undefined) {
           result[address] = null;
           continue;
         }
-        const before = object2(change.before);
+        const before = object3(change.before);
         const sensitivity =
           change.before_sensitive === undefined || change.before_sensitive === false
             ? {}
             : change.before_sensitive === true
               ? true
-              : object2(change.before_sensitive);
+              : object3(change.before_sensitive);
         const selected = projectResourceFields(before, sensitivity, fields);
         result[address] = selected;
       }
@@ -3626,7 +3790,7 @@ class TerraformRunner {
       const journalBytes = await privateRead(journalPath),
         planBytes = await privateRead(planPath);
       const journal = decode(journalBytes.toString()),
-        stored = object2(journal.receipt);
+        stored = object3(journal.receipt);
       if (journal.state !== 'planned' || (stored.operation && stored.operation !== 'destroy'))
         throw new Error('Current resource plan is consumed or requires reconciliation');
       const version = decode(await this.#run(['version', '-json'], env, signal));
@@ -3648,7 +3812,7 @@ class TerraformRunner {
         noChanges,
         ...(stored.operation === 'destroy' ? { operation: 'destroy' } : {}),
       };
-      if (canonical(stored) !== canonical(receipt))
+      if (canonical2(stored) !== canonical2(receipt))
         throw new Error('Current resource receipt differs from saved binary plan');
       const state = await this.#verifyApplyReceipt(receipt, ['planned']);
       if (
@@ -3673,7 +3837,7 @@ class TerraformRunner {
     const state = journal.state;
     if (
       !states.includes(state) ||
-      canonical(journal.receipt) !== canonical(receipt) ||
+      canonical2(journal.receipt) !== canonical2(receipt) ||
       receipt.engine !== 'terraform' ||
       receipt.deploymentId !== manifest.deploymentId ||
       receipt.backendIdentity !== manifest.backendIdentity ||
@@ -3704,7 +3868,25 @@ class TerraformRunner {
         throw new Error('Terraform state identity is malformed');
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
-      const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      let state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      if (hasReviewedDataSources(identity, state, Object.keys(selections))) {
+        const configuration = await privateRead(join4(directory, 'main.tf.json'));
+        const planBytes = await privateRead(join4(directory, 'saved.tfplan'));
+        if (digest2(configuration) !== receipt.configurationSha256 || digest2(planBytes) !== receipt.planSha256)
+          throw new Error('Reviewed Terraform data inputs changed before inspection');
+        const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+        if (digest2(planBytes) !== digest2(await privateRead(join4(directory, 'saved.tfplan'))))
+          throw new Error('Reviewed Terraform data plan changed during inspection');
+        state = projectReviewedDataSources(
+          decode(configuration.toString()),
+          plan,
+          identity,
+          state,
+          manifest.terraformVersion,
+          receipt.operation,
+          Object.keys(selections),
+        );
+      }
       const result = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
       if (digest2(snapshot) !== digest2(await privateRead(statePath)))
         throw new Error('Terraform state changed during identity inspection');
@@ -3729,7 +3911,7 @@ class TerraformRunner {
     if (!this.#busy || manifest.scope.cloud !== 'gcp' || receipt.actionInvocations?.length)
       throw new Error('Original GCP resource-only plan producer required');
     const inspected = this.#inspectPlan(plan, undefined, receipt.operation === 'destroy');
-    if (canonical(inspected.changes) !== canonical(receipt.changes) || inspected.noChanges !== receipt.noChanges)
+    if (canonical2(inspected.changes) !== canonical2(receipt.changes) || inspected.noChanges !== receipt.noChanges)
       throw new Error('Original owning resource plan inspection differs');
     const identityFields = [
       'id',
@@ -3743,8 +3925,8 @@ class TerraformRunner {
       'self_link',
     ];
     const resources = (plan.resource_changes === undefined ? [] : plan.resource_changes).map((input) => {
-      const row = object2(input),
-        change = object2(row.change);
+      const row = object3(input),
+        change = object3(row.change);
       if (
         typeof row.address !== 'string' ||
         typeof row.type !== 'string' ||
@@ -3753,7 +3935,7 @@ class TerraformRunner {
       )
         throw new Error('Exact original resource plan identity required');
       const phase = receipt.operation === 'destroy' ? 'before' : 'after';
-      const values = change[phase] === null || change[phase] === undefined ? {} : object2(change[phase]);
+      const values = change[phase] === null || change[phase] === undefined ? {} : object3(change[phase]);
       const sensitivity = change[`${phase}_sensitive`],
         unknown = change[`${phase}_unknown`];
       if (
@@ -3808,7 +3990,7 @@ class TerraformRunner {
         parentKeys.some((key) => parent[key] !== finalParent[key])
       )
         throw new Error('Original owning plan input changed during admission');
-      if (name === 'deployment.json' && canonical(decode(raw.toString())) !== canonical(manifest))
+      if (name === 'deployment.json' && canonical2(decode(raw.toString())) !== canonical2(manifest))
         throw new Error('Original owning deployment manifest changed');
       files[name] = {
         path,
@@ -3867,7 +4049,7 @@ class TerraformRunner {
       const journal = decode((await privateRead(join4(this.#state().directory, 'plan-receipt.json'))).toString());
       if (journal.state !== 'planned') throw new Error('Saved plan is consumed or requires reconciliation');
       if (
-        canonical(receipt) !== canonical(journal.receipt) ||
+        canonical2(receipt) !== canonical2(journal.receipt) ||
         receipt.engine !== 'terraform' ||
         receipt.deploymentId !== this.#state().manifest.deploymentId ||
         receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
@@ -3943,7 +4125,7 @@ var init_runner = __esm(() => {
 // plugins/terraform/src/installed-capture-context.ts
 import { isAbsolute as isAbsolute5, resolve as resolve4 } from 'node:path';
 
-function canonical2(path) {
+function canonical3(path) {
   return typeof path === 'string' && isAbsolute5(path) && resolve4(path) === path && !controls(path);
 }
 function freezeAdmittedCaptureInputs(input) {
@@ -3955,7 +4137,7 @@ function freezeAdmittedCaptureInputs(input) {
     const binding = input[name];
     if (
       !binding ||
-      !canonical2(binding.path) ||
+      !canonical3(binding.path) ||
       !/^[a-f0-9]{64}$/.test(binding.sha256) ||
       paths.has(binding.path) ||
       !binding.expectedIdentity ||
@@ -5339,7 +5521,7 @@ function matchesGcpOperationalPod(pod, mapping) {
   );
 }
 function qualifiedOperationalProfile(value, pinnedFingerprint) {
-  const p = object3(value);
+  const p = object4(value);
   if (
     !p ||
     !HASH.test(pinnedFingerprint) ||
@@ -5351,7 +5533,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   )
     return false;
   for (const field of ['sourceHashes', 'parserVersions', 'roles', 'qualification'])
-    if (!object3(p[field]) || !Object.keys(p[field]).length) return false;
+    if (!object4(p[field]) || !Object.keys(p[field]).length) return false;
   if (
     !Object.values(p.sourceHashes).every((hash) => typeof hash === 'string' && HASH.test(hash)) ||
     !Object.values(p.parserVersions).every(
@@ -5377,7 +5559,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   if (
     !Array.isArray(p.exclusions) ||
     p.exclusions.some((raw) => {
-      const e = object3(raw);
+      const e = object4(raw);
       return (
         !e ||
         !GCP_OPERATIONAL_AUXILIARIES.includes(e.service) ||
@@ -5390,7 +5572,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   )
     return false;
   for (const [name, raw] of Object.entries(p.roles)) {
-    const role = object3(raw);
+    const role = object4(raw);
     if (
       !NAME2.test(name) ||
       !role ||
@@ -5401,7 +5583,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
     )
       return false;
     if (role.runtimeRole !== undefined && !names([role.runtimeRole])) return false;
-    const containers = role.containers.map(object3);
+    const containers = role.containers.map(object4);
     if (
       containers.some(
         (c) =>
@@ -5443,7 +5625,7 @@ function qualifiedOperationalProfile(value, pinnedFingerprint) {
   for (const service of GCP_OPERATIONAL_CORE_SEED)
     if (!declaredRoles.some((role) => role.components.includes(service))) return false;
   if (p.placementCounts !== undefined) {
-    const counts = object3(p.placementCounts);
+    const counts = object4(p.placementCounts);
     const required = new Set([
       ...p.inventoryServices,
       ...declaredRoles.flatMap((role) => role.containers.map((c) => c.service)),
@@ -5479,7 +5661,7 @@ function hasGcpOperationalPlacementCoverage(profile, roles) {
 }
 function validBinding(value) {
   if (
-    !object3(value) ||
+    !object4(value) ||
     !NAME2.test(value.siteName) ||
     ![
       value.contextFingerprint,
@@ -5494,7 +5676,7 @@ function validBinding(value) {
   return (
     value.nodes.every(
       (node) =>
-        object3(node) &&
+        object4(node) &&
         NAME2.test(node.nodeName) &&
         /^\d+$/.test(node.instanceId) &&
         NAME2.test(node.role) &&
@@ -5514,7 +5696,7 @@ function validBinding(value) {
 function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFingerprint, now = Date.now()) {
   const reasons = new Set();
   const profile = qualifiedOperationalProfile(profileValue, pinnedFingerprint) ? profileValue : undefined;
-  const c = object3(value);
+  const c = object4(value);
   if (!profile) reasons.add('operational-contract-unqualified');
   if (!validBinding(expected)) reasons.add('invalid-original-binding');
   if (
@@ -5554,23 +5736,23 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
   const finish = typeof c?.finishedAt === 'string' ? Date.parse(c.finishedAt) : NaN;
   if (![start, finish, now].every(Number.isFinite) || start > finish || finish > now || now - start > 300000)
     reasons.add('stale-or-malformed-observation');
-  const rawNodes = Array.isArray(c?.nodes) ? c.nodes.map(object3) : [];
+  const rawNodes = Array.isArray(c?.nodes) ? c.nodes.map(object4) : [];
   const expectedNodes = Array.isArray(expected.nodes) ? expected.nodes : [];
   if (
     rawNodes.length !== 3 ||
-    rawNodes.some((row) => !row || !expectedNodes.some((node) => object3(node) && node.nodeName === row.nodeName)) ||
+    rawNodes.some((row) => !row || !expectedNodes.some((node) => object4(node) && node.nodeName === row.nodeName)) ||
     new Set(rawNodes.map((row) => row?.nodeName)).size !== 3
   )
     reasons.add('invalid-observed-node-set');
   const nodes = expectedNodes
-    .filter((node) => object3(node))
+    .filter((node) => object4(node))
     .map((node) => {
       const row = rawNodes.find((row) => row?.nodeName === node.nodeName);
       const checks = [];
       const check = (name, state, reasonCode) =>
         checks.push({ check: name, state, ...(state !== 'healthy' && reasonCode ? { reasonCode } : {}) });
       const read = (key) => {
-        const r = object3(row?.[key]);
+        const r = object4(row?.[key]);
         const at = typeof r?.observedAt === 'string' ? Date.parse(r.observedAt) : NaN;
         if (
           r?.available !== true ||
@@ -5591,7 +5773,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
         return r.projection;
       };
       const registrationValue = read('registration');
-      const registration = object3(registrationValue);
+      const registration = object4(registrationValue);
       if (registrationValue !== undefined && !registration)
         check('registration', 'unknown', 'required-projection-malformed');
       if (registration)
@@ -5620,7 +5802,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       const role = profile?.roles[node.role];
       if (!role) check('role', 'unknown', 'role-requalification-required');
       const siteValue = read('siteStatus');
-      const site = object3(siteValue);
+      const site = object4(siteValue);
       if (siteValue !== undefined && !site) check('siteStatus', 'unknown', 'required-projection-malformed');
       if (site) {
         if (role?.runtimeRole)
@@ -5661,7 +5843,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       }
       const components = read('components');
       if (components !== undefined) {
-        const rows = Array.isArray(components) ? components.map(object3) : [];
+        const rows = Array.isArray(components) ? components.map(object4) : [];
         if (
           !rows.length ||
           rows.some((r) => !r || typeof r.name !== 'string' || typeof r.state !== 'string') ||
@@ -5688,7 +5870,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       const inventory = read('inventory');
       let repeatedReferences = 0;
       if (inventory !== undefined) {
-        const rows = Array.isArray(inventory) ? inventory.map(object3) : [];
+        const rows = Array.isArray(inventory) ? inventory.map(object4) : [];
         const identities = new Map();
         let invalid = !rows.length;
         for (const r of rows) {
@@ -5721,7 +5903,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
       }
       const runtime = read('runtime');
       if (runtime !== undefined) {
-        const envelope = object3(runtime);
+        const envelope = object4(runtime);
         if (profile?.placementCounts)
           check(
             'runtime-placement',
@@ -5729,7 +5911,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
             'runtime-placement-requalification-required',
           );
         const entries = profile?.placementCounts ? envelope?.containers : runtime;
-        const rows = Array.isArray(entries) ? entries.map(object3) : [];
+        const rows = Array.isArray(entries) ? entries.map(object4) : [];
         if (
           !rows.length ||
           rows.some(
@@ -5761,7 +5943,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
           }
       }
       const diagnosticsValue = read('diagnostics');
-      const diagnostics = object3(diagnosticsValue);
+      const diagnostics = object4(diagnosticsValue);
       if (diagnosticsValue !== undefined && !diagnostics)
         check('diagnostics', 'unknown', 'required-projection-malformed');
       if (diagnostics) {
@@ -5775,7 +5957,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
         )
           check('peers', 'unknown', 'diagnostic-peer-join-mismatch');
         for (const name of role?.diagnostics ?? []) {
-          const state = object3(diagnostics.checks)?.[name];
+          const state = object4(diagnostics.checks)?.[name];
           check(
             `diagnostic:${name}`,
             state === 'pass' ? 'healthy' : state === 'fail' ? 'degraded' : 'unknown',
@@ -5830,7 +6012,7 @@ function evaluateGcpOperationalHealth(value, expected, profileValue, pinnedFinge
   return { ...projection, projectionFingerprint: fingerprint(projection) };
 }
 function qualifiedOperationalRelease(value, pinnedReceiptFingerprint, contractFingerprint) {
-  const receipt = object3(value);
+  const receipt = object4(value);
   return (
     !!receipt &&
     HASH.test(pinnedReceiptFingerprint) &&
@@ -5856,7 +6038,7 @@ var GCP_OPERATIONAL_CORE_SEED,
   GCP_OPERATIONAL_AUXILIARIES,
   HASH,
   NAME2,
-  object3 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined),
+  object4 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined),
   names = (value) =>
     Array.isArray(value) &&
     value.length > 0 &&
@@ -12002,14 +12184,14 @@ var GCP_CE_POLICY_URL =
 var init_policy = () => {};
 
 // plugins/gcloud/src/ce/preflight.ts
-function object4(value) {
+function object5(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed preflight source');
   return value;
 }
 function quota(value, metric, required) {
-  const rows = object4(value).quotas;
+  const rows = object5(value).quotas;
   if (!Array.isArray(rows)) return false;
-  const matches = rows.map(object4).filter((row) => row.metric === metric);
+  const matches = rows.map(object5).filter((row) => row.metric === metric);
   return (
     matches.length === 1 &&
     typeof matches[0].limit === 'number' &&
@@ -12021,14 +12203,14 @@ function quota(value, metric, required) {
   );
 }
 function unconditional(value, field, expected) {
-  const spec = object4(object4(value).spec),
+  const spec = object5(object5(value).spec),
     rules = spec.rules;
   return (
     !spec.reset &&
     Array.isArray(rules) &&
     rules.length === 1 &&
-    !object4(rules[0]).condition &&
-    object4(rules[0])[field] === expected
+    !object5(rules[0]).condition &&
+    object5(rules[0])[field] === expected
   );
 }
 function supportsGcpLaunchPreflight(intent) {
@@ -12064,7 +12246,7 @@ async function collectGcpLaunchPreflight(intent, port, signal) {
     const value = await fn();
     signal?.throwIfAborted();
     receipts.push({ source, observedAt: new Date().toISOString(), sha256: fingerprint(value) });
-    return object4(value);
+    return object5(value);
   };
   const attempt = async (fn) => {
     try {
@@ -15063,7 +15245,7 @@ var init_gcp_http_capture = __esm(() => {
 // plugins/platform/src/ce/gcp-bootstrap-evidence.ts
 import { createHash as createHash19 } from 'node:crypto';
 
-function object5(value) {
+function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original bootstrap ownership object required');
   return value;
@@ -15099,9 +15281,9 @@ async function original(body, path, owner) {
   return decodeEvidenceObject(body.bytes);
 }
 function metadata2(value, expectedName, expectedUid, binding, node) {
-  const meta = object5(required(value, 'metadata')),
-    labels = object5(required(meta, 'labels')),
-    system = object5(required(value, 'system_metadata'));
+  const meta = object6(required(value, 'metadata')),
+    labels = object6(required(meta, 'labels')),
+    system = object6(required(value, 'system_metadata'));
   if (
     required(meta, 'name') !== expectedName ||
     required(meta, 'namespace') !== 'system' ||
@@ -15166,7 +15348,7 @@ async function inspectOriginalGcpBootstrap(site, token, input) {
     throw new Error('Original bootstrap recorder context differs');
   metadata2(siteValue, binding.siteName, binding.siteUid, binding);
   metadata2(tokenValue, binding.tokenName, binding.tokenUid, binding, binding.nodeName);
-  const spec = object5(required(tokenValue, 'spec'));
+  const spec = object6(required(tokenValue, 'spec'));
   if (required(spec, 'site_name') !== binding.siteName || ![1, 'JWT'].includes(required(spec, 'type')))
     throw new Error('Original bootstrap token ownership differs');
   const material = jwt(required(spec, 'content'));
@@ -15282,15 +15464,15 @@ var init_gcp_lifecycle = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/interface-identity.ts
-function object6(value) {
+function object7(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed GCP interface identity evidence');
   return value;
 }
 function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue, configurationValue) {
-  const cloud = object6(cloudValue),
-    registration = object6(registrationValue),
-    configuration = object6(configurationValue);
+  const cloud = object7(cloudValue),
+    registration = object7(registrationValue),
+    configuration = object7(configurationValue);
   if (
     !/^\d+$/.test(expected.instanceId) ||
     cloud.id !== expected.instanceId ||
@@ -15298,13 +15480,13 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     cloud.zone !== `https://www.googleapis.com/compute/v1/projects/${expected.project}/zones/${expected.zone}`
   )
     throw new Error('Owned GCP VM identity mismatch');
-  const metadata = object6(configuration.metadata);
+  const metadata = object7(configuration.metadata);
   if (metadata.name !== expected.siteName || metadata.namespace !== 'system')
     throw new Error('Exact GCP site configuration identity required');
-  const spec = object6(registration.get_spec),
-    infra = object6(spec.infra),
-    passport = object6(spec.passport);
-  const status = object6(object6(registration.object).status);
+  const spec = object7(registration.get_spec),
+    infra = object7(spec.infra),
+    passport = object7(spec.passport);
+  const status = object7(object7(registration.object).status);
   if (
     infra.provider !== 'GOOGLE' ||
     String(infra.instance_id) !== expected.instanceId ||
@@ -15314,12 +15496,12 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     status.current_state !== 'ONLINE'
   )
     throw new Error('Registration is not ONLINE for the exact owned GCP node');
-  const nodes = object6(object6(object6(configuration.spec).gcp).not_managed).node_list;
+  const nodes = object7(object7(object7(configuration.spec).gcp).not_managed).node_list;
   if (!Array.isArray(nodes)) throw new Error('Missing configured GCP node inventory');
-  const matches = nodes.map(object6).filter((node) => node.hostname === expected.nodeName);
+  const matches = nodes.map(object7).filter((node) => node.hostname === expected.nodeName);
   if (matches.length !== 1) throw new Error('Exact configured GCP node must be unique');
   const configured = matches[0].interface_list;
-  const hardware = object6(infra.hw_info).network;
+  const hardware = object7(infra.hw_info).network;
   const cloudNics = cloud.networkInterfaces;
   if (
     !Array.isArray(configured) ||
@@ -15333,9 +15515,9 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
   const macs = new Set();
   return configured
     .map((value) => {
-      const nic = object6(value),
-        ethernet = object6(nic.ethernet_interface),
-        option = object6(nic.network_option);
+      const nic = object7(value),
+        ethernet = object7(nic.ethernet_interface),
+        option = object7(nic.network_option);
       if (
         typeof ethernet.device !== 'string' ||
         !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device) ||
@@ -15347,7 +15529,7 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
       if (macs.has(mac)) throw new Error('Duplicate configured MAC');
       macs.add(mac);
       const hw = hardware
-        .map(object6)
+        .map(object7)
         .filter(
           (item) =>
             item.name === ethernet.device &&
@@ -15357,11 +15539,11 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
       if (hw.length !== 1 || !Array.isArray(hw[0].ip_address)) throw new Error('Device/MAC hardware join is ambiguous');
       const addresses = hw[0].ip_address.map((address) => (typeof address === 'string' ? address.split('/')[0] : ''));
       const indices = cloudNics
-        .map(object6)
+        .map(object7)
         .flatMap((cloudNic, index) => (addresses.includes(String(cloudNic.networkIP)) ? [index] : []));
       if (indices.length !== 1 || used.has(indices[0])) throw new Error('Cloud address/NIC join is ambiguous');
       const index = indices[0],
-        cloudNic = object6(cloudNics[index]);
+        cloudNic = object7(cloudNics[index]);
       const wanted = expected.nics.find((item) => item.index === index);
       if (
         !wanted ||
@@ -16076,7 +16258,7 @@ var init_health = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/status.ts
-function object7(value) {
+function object8(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed status observation');
   return value;
 }
@@ -16105,7 +16287,7 @@ async function observeGcpSiteStatus(expected, engine, source, signal) {
     const value = await fn();
     signal?.throwIfAborted();
     evidence.sourceReceipts.push({ source: name, sha256: fingerprint(value) });
-    return object7(value);
+    return object8(value);
   };
   let cloud;
   try {
@@ -16124,7 +16306,7 @@ async function observeGcpSiteStatus(expected, engine, source, signal) {
   let configuration, registration;
   try {
     configuration = await read('xc-site-configuration', () => source.configuration(expected.siteName, signal));
-    const metadata = object7(configuration.metadata);
+    const metadata = object8(configuration.metadata);
     if (metadata.name !== expected.siteName || metadata.namespace !== 'system') return evidence;
     const response = await read('xc-site-registrations', () => source.registrations(expected.siteName, signal));
     if (
@@ -16134,16 +16316,16 @@ async function observeGcpSiteStatus(expected, engine, source, signal) {
       response.continue
     )
       return evidence;
-    const matches = response.items.map(object7).filter((item) => {
-      const spec = object7(item.get_spec),
-        infra = object7(spec.infra),
-        passport = object7(spec.passport);
+    const matches = response.items.map(object8).filter((item) => {
+      const spec = object8(item.get_spec),
+        infra = object8(spec.infra),
+        passport = object8(spec.passport);
       return infra.hostname === expected.nodeName && passport.cluster_name === expected.siteName;
     });
     if (matches.length !== 1) return evidence;
     registration = matches[0];
-    const infra = object7(object7(registration.get_spec).infra);
-    const state = object7(object7(registration.object).status).current_state;
+    const infra = object8(object8(registration.get_spec).infra);
+    const state = object8(object8(registration.object).status).current_state;
     if (
       infra.provider !== 'GOOGLE' ||
       String(infra.instance_id) !== expected.instanceId ||

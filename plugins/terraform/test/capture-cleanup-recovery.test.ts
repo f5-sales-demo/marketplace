@@ -557,3 +557,116 @@ test('read-only completed cleanup cannot admit owned resources that still remain
   ).rejects.toThrow();
   expect(f.calls).toHaveLength(0);
 });
+
+async function reviewedInspectionFixture() {
+  const f = await inspectionFixture();
+  const data = {
+    address: 'data.google_compute_image.observer',
+    mode: 'data',
+    type: 'google_compute_image',
+    name: 'observer',
+    provider_name: 'registry.terraform.io/hashicorp/google',
+    schema_version: 0,
+    values: {
+      project: 'ubuntu-os-cloud',
+      name: 'ubuntu-2404-noble-amd64-v20261021',
+      image_id: '4996011480491275419',
+      id: 'projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20261021',
+    },
+    sensitive_values: {},
+  };
+  const configuration = JSON.stringify({
+    data: { google_compute_image: { observer: { project: data.values.project, name: data.values.name } } },
+  });
+  await writeFile(join(f.dir, 'main.tf.json'), configuration, { mode: 0o600 });
+  const manifest = JSON.parse(await readFile(join(f.dir, 'deployment.json'), 'utf8'));
+  manifest.configurationSha256 = hash(configuration);
+  await writeFile(join(f.dir, 'deployment.json'), JSON.stringify(manifest), { mode: 0o600 });
+  f.input.receipt.configurationSha256 = manifest.configurationSha256;
+  await writeFile(join(f.dir, 'plan-receipt.json'), JSON.stringify({ state: 'applying', receipt: f.input.receipt }), {
+    mode: 0o600,
+  });
+  const raw = JSON.parse(await readFile(join(f.dir, 'terraform.tfstate'), 'utf8'));
+  raw.resources.push({
+    mode: 'data',
+    type: data.type,
+    name: data.name,
+    provider: 'provider["registry.terraform.io/hashicorp/google"]',
+    instances: [{ schema_version: 0, attributes: data.values, sensitive_attributes: [] }],
+  });
+  await writeFile(join(f.dir, 'terraform.tfstate'), JSON.stringify(raw), { mode: 0o600 });
+  for (const name of ['main.tf.json', 'deployment.json', 'plan-receipt.json', 'terraform.tfstate'])
+    f.input.inputs[name] = await f.binding(join(f.dir, name));
+  const rendered = {
+    ...f.rendered,
+    values: { root_module: { resources: [...f.rendered.values.root_module.resources, data] } },
+  };
+  const plan = { format_version: '1.2', terraform_version: manifest.terraformVersion, planned_values: rendered.values };
+  f.input.execute = async (request) => {
+    f.calls.push(request.args);
+    return {
+      code: 0,
+      stdout: JSON.stringify(
+        request.args[0] === 'version'
+          ? { terraform_version: manifest.terraformVersion }
+          : request.args[2] === 'saved.tfplan'
+            ? plan
+            : rendered,
+      ),
+    };
+  };
+  return { ...f, plan, originalRaw: JSON.stringify(raw) };
+}
+
+test('original interrupted reader joins declared data to its saved plan while preserving failed locks', async () => {
+  const f = await reviewedInspectionFixture();
+  const failed = await readFile(join(f.lock, 'capture-unresolved.json'));
+  const result = await readCaptureCleanupAttemptResourceFields(f.input);
+  expect(result.resources).toEqual({ 'terraform_data.one': { id: 'example-owned-id' } });
+  expect(f.calls).toEqual([
+    ['version', '-json'],
+    ['show', '-json', 'terraform.tfstate'],
+    ['show', '-json', 'saved.tfplan'],
+  ]);
+  expect(await readFile(join(f.lock, 'capture-unresolved.json'))).toEqual(failed);
+  expect(await readFile(join(f.dir, 'terraform.tfstate'), 'utf8')).toBe(f.originalRaw);
+});
+
+for (const mode of ['wrong-image', 'wrong-plan-version', 'plan-replaced', 'state-replaced', 'closure-changed'] as const)
+  test(`locked image inspection refuses ${mode} without reclaiming original locks`, async () => {
+    const f = await reviewedInspectionFixture();
+    const originalExecute = f.input.execute;
+    const failed = await readFile(join(f.lock, 'capture-unresolved.json'));
+    f.input.execute = async (request) => {
+      const result = await originalExecute(request);
+      if (request.args[2] === 'saved.tfplan') {
+        if (mode === 'wrong-image') {
+          const plan = JSON.parse(result.stdout);
+          plan.planned_values.root_module.resources[1].values.image_id = '123';
+          return { ...result, stdout: JSON.stringify(plan) };
+        }
+        if (mode === 'wrong-plan-version')
+          return { ...result, stdout: JSON.stringify({ ...f.plan, terraform_version: '0.0.0' }) };
+        if (mode === 'plan-replaced' || mode === 'state-replaced') {
+          const path = join(f.dir, mode === 'plan-replaced' ? 'saved.tfplan' : 'terraform.tfstate');
+          const bytes = await readFile(path);
+          await rename(path, `${path}.original`);
+          await writeFile(path, bytes, { mode: 0o600 });
+        }
+        if (mode === 'closure-changed')
+          f.input.assertIndependentClosure = async () => {
+            throw new Error('Foreign closure');
+          };
+      }
+      return result;
+    };
+    // The inspection snapshots this closure function, so model a changed closure
+    // through its captured implementation rather than replacing the method.
+    if (mode === 'closure-changed')
+      f.input.assertIndependentClosure = async () => {
+        if (f.calls.some((call) => call[2] === 'saved.tfplan')) throw new Error('Foreign closure');
+      };
+    await expect(readCaptureCleanupAttemptResourceFields(f.input)).rejects.toThrow();
+    expect(f.calls.map((call) => call[0])).toEqual(['version', 'show', 'show']);
+    expect(await readFile(join(f.lock, 'capture-unresolved.json'))).toEqual(failed);
+  });

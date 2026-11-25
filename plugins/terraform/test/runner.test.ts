@@ -1595,3 +1595,61 @@ test('original state projection accounts for reviewed data sources without expor
   resources[1].mode = 'managed';
   await expect(runner.readAppliedResourceFields(receipt, selections, {})).rejects.toThrow(/identity/);
 });
+
+test('ordinary state reader verifies a declared image lookup from the exact saved plan', async () => {
+  const data = {
+    address: 'data.google_compute_image.observer',
+    mode: 'data',
+    type: 'google_compute_image',
+    name: 'observer',
+    provider_name: 'registry.terraform.io/hashicorp/google',
+    schema_version: 0,
+    values: {
+      project: 'ubuntu-os-cloud',
+      name: 'ubuntu-2404-noble-amd64-v20261021',
+      image_id: '4996011480491275419',
+      id: 'projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20261021',
+    },
+    sensitive_values: {},
+  };
+  const managed = {
+    address: 'terraform_data.ce',
+    mode: 'managed',
+    type: 'terraform_data',
+    values: { id: 'owned-ce' },
+    sensitive_values: {},
+  };
+  const config = JSON.stringify({
+    data: { google_compute_image: { observer: { project: data.values.project, name: data.values.name } } },
+  });
+  const f = await fixture({ planned_values: { root_module: { resources: [data, managed] } } }, {}, config, undefined, {
+    values: { root_module: { resources: [data, managed] } },
+  });
+  const receipt = await f.runner.plan({});
+  await f.runner.apply(receipt, {});
+  const raw = {
+    version: 4,
+    terraform_version: '1.14.0',
+    lineage: 'fixture-lineage',
+    serial: 1,
+    resources: [
+      {
+        mode: 'data',
+        type: data.type,
+        name: data.name,
+        provider: 'provider["registry.terraform.io/hashicorp/google"]',
+        instances: [{ schema_version: 0, attributes: data.values }],
+      },
+    ],
+  };
+  await writeFile(join(f.root, 'ce-test', 'terraform.tfstate'), JSON.stringify(raw), { mode: 0o600 });
+  const start = f.calls.length;
+  expect((await f.runner.readAppliedResourceFields(receipt, { 'terraform_data.ce': ['id'] }, {})).resources).toEqual({
+    'terraform_data.ce': { id: 'owned-ce' },
+  });
+  expect(f.calls.slice(start).map((call) => call.args)).toEqual([
+    ['version', '-json'],
+    ['show', '-json', 'terraform.tfstate'],
+    ['show', '-json', 'saved.tfplan'],
+  ]);
+});

@@ -2355,6 +2355,160 @@ class TerraformCommandError extends Error {
   }
 }
 
+// plugins/terraform/src/reviewed-data-sources.ts
+function object2(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Reviewed Terraform data object required');
+  return value;
+}
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+function nonsensitive(value) {
+  if (value === false) return true;
+  return value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive);
+}
+function moduleResources(values) {
+  const module = object2(object2(values).root_module ?? {});
+  if (module.child_modules !== undefined && (!Array.isArray(module.child_modules) || module.child_modules.length))
+    throw new Error('Nested Terraform data requires a verified mapping');
+  const rows = module.resources ?? [];
+  if (!Array.isArray(rows)) throw new Error('Reviewed Terraform data inventory required');
+  return rows.map(object2);
+}
+function hasReviewedDataSources(identity, state, selectedAddresses = []) {
+  const selected = new Set(selectedAddresses);
+  const raw = object2(identity).resources;
+  const rows = [
+    ...(Array.isArray(raw) ? raw.map(object2).map((row) => ({ ...row, address: `data.${row.type}.${row.name}` })) : []),
+    ...moduleResources(object2(state).values ?? {}),
+  ].filter((row) => row.mode === 'data' && !selected.has(String(row.address)));
+  if (rows.some((row) => row.type !== 'google_compute_image'))
+    throw new Error('Foreign state data requires a verified read-only mapping');
+  return rows.length > 0;
+}
+function projectReviewedDataSources(
+  configuration,
+  plan,
+  identity,
+  state,
+  terraformVersion,
+  operation,
+  selectedAddresses = [],
+) {
+  const config = object2(configuration),
+    saved = object2(plan),
+    raw = object2(identity),
+    rendered = object2(state);
+  if (
+    saved.terraform_version !== terraformVersion ||
+    typeof saved.format_version !== 'string' ||
+    !/^1\.\d+$/.test(saved.format_version) ||
+    rendered.terraform_version !== terraformVersion ||
+    rendered.format_version !== '1.0' ||
+    (raw.terraform_version !== undefined && raw.terraform_version !== terraformVersion)
+  )
+    throw new Error('Reviewed Terraform data format or version changed');
+  const selected = new Set(selectedAddresses);
+  const declarations = new Map();
+  for (const [type, names] of Object.entries(object2(config.data ?? {}))) {
+    for (const [name, value] of Object.entries(object2(names))) {
+      if (selected.has(`data.${type}.${name}`)) continue;
+      if (type !== 'google_compute_image')
+        throw new Error('Foreign Terraform data type lacks a verified read-only mapping');
+      const declaration = object2(value);
+      if (
+        !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) ||
+        canonical(Object.keys(declaration).sort()) !== canonical(['name', 'project']) ||
+        typeof declaration.project !== 'string' ||
+        !/^[a-z][a-z0-9-]*[a-z0-9]$/.test(declaration.project) ||
+        typeof declaration.name !== 'string' ||
+        !/^[a-z][a-z0-9-]*[a-z0-9]$/.test(declaration.name)
+      )
+        throw new Error('Exact static Google image declaration required');
+      declarations.set(`data.${type}.${name}`, declaration);
+    }
+  }
+  const planned = moduleResources(
+    operation === 'destroy' ? object2(saved.prior_state).values : saved.planned_values,
+  ).filter((row) => row.mode === 'data' && !selected.has(String(row.address)));
+  const observed = moduleResources(rendered.values).filter(
+    (row) => row.mode === 'data' && !selected.has(String(row.address)),
+  );
+  if (!Array.isArray(raw.resources)) throw new Error('Raw Terraform data inventory unavailable');
+  const rawData = raw.resources
+    .map(object2)
+    .filter((row) => row.mode === 'data' && !selected.has(`data.${row.type}.${row.name}`));
+  if (
+    !declarations.size ||
+    planned.length !== declarations.size ||
+    observed.length !== declarations.size ||
+    rawData.length !== declarations.size
+  )
+    throw new Error('Reviewed Terraform data inventories differ');
+  for (const [address, declaration] of declarations) {
+    const matches = (rows) => rows.filter((row) => row.address === address);
+    const planRows = matches(planned),
+      stateRows = matches(observed);
+    const rawRows = rawData.filter((row) => `data.${row.type}.${row.name}` === address);
+    if (planRows.length !== 1 || stateRows.length !== 1 || rawRows.length !== 1)
+      throw new Error('Reviewed Terraform data identity is missing or ambiguous');
+    const source = rawRows[0];
+    if (
+      source.module !== undefined ||
+      source.provider !== 'provider["registry.terraform.io/hashicorp/google"]' ||
+      !Array.isArray(source.instances) ||
+      source.instances.length !== 1
+    )
+      throw new Error('Reviewed Terraform data provider or instance differs');
+    const instance = object2(source.instances[0]);
+    if (
+      instance.schema_version !== 0 ||
+      instance.index_key !== undefined ||
+      instance.deposed !== undefined ||
+      (instance.sensitive_attributes !== undefined &&
+        (!Array.isArray(instance.sensitive_attributes) || instance.sensitive_attributes.length))
+    )
+      throw new Error('Reviewed raw Terraform data is ambiguous or sensitive');
+    const attributes = object2(instance.attributes);
+    for (const row of [planRows[0], stateRows[0]]) {
+      const values = object2(row.values);
+      if (
+        row.type !== 'google_compute_image' ||
+        row.name !== source.name ||
+        row.schema_version !== 0 ||
+        row.provider_name !== 'registry.terraform.io/hashicorp/google' ||
+        !nonsensitive(row.sensitive_values) ||
+        values.project !== declaration.project ||
+        values.name !== declaration.name ||
+        typeof values.image_id !== 'string' ||
+        !/^[1-9][0-9]*$/.test(values.image_id) ||
+        values.id !== `projects/${declaration.project}/global/images/${declaration.name}` ||
+        canonical(values) !== canonical(attributes)
+      )
+        throw new Error('Reviewed Terraform image identity, sensitivity or values changed');
+    }
+  }
+  const values = object2(rendered.values),
+    module = object2(values.root_module);
+  return {
+    ...rendered,
+    values: {
+      ...values,
+      root_module: {
+        ...module,
+        resources: moduleResources(values).filter((row) => row.mode !== 'data' || selected.has(String(row.address))),
+      },
+    },
+  };
+}
+
 // plugins/terraform/src/runner.ts
 var originalPlanSources = new WeakMap();
 var originalPlanProjections = new WeakMap();
@@ -2389,7 +2543,7 @@ async function readOriginalTerraformPlanSource(source, expected) {
     expected.scope?.cloud !== 'gcp' ||
     value.directory !== expected.directory ||
     value.receipt.deploymentId !== expected.deploymentId ||
-    canonical(value.scope) !== canonical(expected.scope) ||
+    canonical2(value.scope) !== canonical2(expected.scope) ||
     value.terraformVersion !== expected.terraformVersion ||
     value.receipt.backendIdentity !== expected.backendIdentity
   )
@@ -2406,14 +2560,14 @@ var cliConfig = `provider_installation {
 disable_checkpoint = true
 `;
 var digest2 = (value) => createHash6('sha256').update(value).digest('hex');
-function object2(value) {
+function object3(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Terraform JSON object is malformed');
   return value;
 }
 function decode2(value) {
   try {
-    return object2(
+    return object3(
       JSON.parse(value, (_key, parsed, context) => {
         if (typeof parsed === 'number' && Number.isInteger(parsed) && !Number.isSafeInteger(parsed)) {
           if (!context?.source || !/^-?\d+$/.test(context.source))
@@ -2428,12 +2582,12 @@ function decode2(value) {
   }
 }
 var safeId = /^[a-z][a-z0-9-]{0,62}$/;
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+function canonical2(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical2).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.entries(value)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical2(item)}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
@@ -2475,16 +2629,16 @@ function inspectActionInvocations(plan, expected) {
   )
     throw new Error('Terraform actions are unrequested, missing, duplicated or deferred');
   if (!expected) return [];
-  const action = object2(invocations[0]);
+  const action = object3(invocations[0]);
   if (
     action.address !== expected.address ||
     action.type !== expected.type ||
     action.provider_name !== expected.providerName ||
     action.lifecycle_action_trigger !== undefined ||
-    Object.keys(object2(action.invoke_action_trigger)).length ||
+    Object.keys(object3(action.invoke_action_trigger)).length ||
     !allFalse(action.config_unknown) ||
     !allFalse(action.config_sensitive) ||
-    digest2(canonical(object2(action.config_values))) !== expected.configValuesSha256
+    digest2(canonical2(object3(action.config_values))) !== expected.configValuesSha256
   )
     throw new Error('Terraform action identity, trigger or configuration differs');
   return [{ ...expected }];
@@ -2786,13 +2940,13 @@ function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt,
     Object.keys(identity.outputs).length === 0;
   if (state.format_version !== '1.0' || (state.terraform_version !== terraformVersion && !minimalEmptyState))
     throw new Error('Terraform state format or version changed');
-  const module = object2(object2(state.values ?? {}).root_module ?? {});
+  const module = object3(object3(state.values ?? {}).root_module ?? {});
   const resources = module.resources ?? [];
   if (!Array.isArray(resources)) throw new Error('Terraform state resource identities unavailable');
   if (
     (Array.isArray(module.child_modules) && module.child_modules.length) ||
     resources
-      .map(object2)
+      .map(object3)
       .some((resource) => typeof resource.address !== 'string' || !Object.hasOwn(selections, resource.address))
   )
     throw new Error('Foreign state resource requires reconciliation');
@@ -2800,7 +2954,7 @@ function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt,
   for (const [address, fields] of Object.entries(selections)) {
     const reviewed = receipt.changes.filter((change) => change.address === address);
     if (reviewed.length !== 1) throw new Error('Terraform state resource is outside the reviewed plan');
-    const matches = resources.map(object2).filter((resource) => resource.address === address);
+    const matches = resources.map(object3).filter((resource) => resource.address === address);
     if (matches.length > 1) throw new Error('Terraform state resource identity is ambiguous');
     if (!matches.length) {
       result[address] = null;
@@ -2814,7 +2968,7 @@ function projectAppliedStateSnapshot(state, identity, terraformVersion, receipt,
     )
       throw new Error('Terraform state resource differs from reviewed identity');
     if (!Object.hasOwn(resource, 'sensitive_values')) throw new Error('Terraform state sensitivity unavailable');
-    result[address] = projectResourceFields(object2(resource.values), resource.sensitive_values, fields);
+    result[address] = projectResourceFields(object3(resource.values), resource.sensitive_values, fields);
   }
   return result;
 }
@@ -2842,7 +2996,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
     !isAbsolute3(directory) ||
     resolve3(directory) !== directory ||
     execute === executeTerraform ||
-    canonical(Object.keys(bindings).sort()) !== canonical(required.sort()) ||
+    canonical2(Object.keys(bindings).sort()) !== canonical2(required.sort()) ||
     required.some((name) => {
       const expected = name.startsWith('lock:')
         ? join3(directory, '.terraform-executor-lock', name.slice(5))
@@ -2860,7 +3014,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
     !Array.isArray(receipt.changes) ||
     receipt.changes.length !== Object.keys(selections).length ||
     receipt.changes.some(
-      (row) => !row || !Object.hasOwn(selections, row.address) || canonical(row.actions) !== canonical(['create']),
+      (row) => !row || !Object.hasOwn(selections, row.address) || canonical2(row.actions) !== canonical2(['create']),
     ) ||
     new Set(receipt.changes.map((row) => row.address)).size !== receipt.changes.length
   )
@@ -2897,7 +3051,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
       digest2(raw('.terraform.lock.hcl')) !== receipt.providerLockSha256 ||
       digest2(raw('deployment.tfrc')) !== digest2(cliConfig) ||
       digest2(raw('saved.tfplan')) !== receipt.planSha256 ||
-      canonical(checkpoint.receipt) !== canonical(receipt) ||
+      canonical2(checkpoint.receipt) !== canonical2(receipt) ||
       !['applying', 'applied'].includes(String(checkpoint.state)) ||
       identity.version !== 4 ||
       typeof identity.lineage !== 'string' ||
@@ -2909,7 +3063,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
       throw new Error('Original interrupted create or state binding differs');
     const seen = new Set();
     for (const value of identity.resources) {
-      const row = object2(value);
+      const row = object3(value);
       if (row.mode === 'data') continue;
       const address = `${row.type}.${row.name}`;
       if (
@@ -2919,8 +3073,8 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
         seen.has(address) ||
         !Array.isArray(row.instances) ||
         row.instances.length !== 1 ||
-        object2(row.instances[0]).deposed !== undefined ||
-        object2(row.instances[0]).index_key !== undefined
+        object3(row.instances[0]).deposed !== undefined ||
+        object3(row.instances[0]).index_key !== undefined
       )
         throw new Error('Original interrupted state resource is ambiguous or foreign');
       seen.add(address);
@@ -2936,7 +3090,17 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
     const version = await run(['version', '-json']);
     if (typeof manifest.terraformVersion !== 'string' || version.terraform_version !== manifest.terraformVersion)
       throw new Error('Original capture inspection Terraform version changed');
-    const state = await run(['show', '-json', 'terraform.tfstate']);
+    let state = await run(['show', '-json', 'terraform.tfstate']);
+    if (hasReviewedDataSources(identity, state, Object.keys(selections))) {
+      const plan = await run(['show', '-json', 'saved.tfplan']);
+      state = projectReviewedDataSources(
+        decode2(raw('main.tf.json').toString()),
+        plan,
+        identity,
+        state,
+        manifest.terraformVersion,
+      );
+    }
     const resources = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
     await assertClosed();
     return {
@@ -2955,7 +3119,7 @@ async function readCaptureCleanupAttemptResourceFields(input, signal) {
 var executeTerraform = terraformExecutor(undefined, true);
 async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
   const proof = scope.emptyOriginal;
-  const owner = object2(manifest);
+  const owner = object3(manifest);
   const prefix = `${join3(directory, 'capture-cleanup-verification')}/`;
   if (
     !proof ||
@@ -2977,7 +3141,7 @@ async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
     const state = decode2(bytes.toString());
     if (
       !['applying', 'applied'].includes(String(row.state)) ||
-      canonical(row.receipt) !== canonical(receipt) ||
+      canonical2(row.receipt) !== canonical2(receipt) ||
       receipt.schemaVersion !== 1 ||
       receipt.engine !== 'terraform' ||
       receipt.operation !== undefined ||
@@ -2991,7 +3155,7 @@ async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
       receipt.providerLockSha256 !== owner.providerLockSha256 ||
       !Array.isArray(receipt.changes) ||
       !receipt.changes.length ||
-      receipt.changes.some((change) => canonical(change.actions) !== canonical(['create'])) ||
+      receipt.changes.some((change) => canonical2(change.actions) !== canonical2(['create'])) ||
       digest2(await privateRead(proof.savedPlan.path)) !== receipt.planSha256 ||
       digest2(bytes) !== scope.state.sha256 ||
       state.version !== 4 ||
@@ -3113,8 +3277,8 @@ class TerraformRunner {
       throw new Error('Exact Terraform version and provider lock are required');
     const configuration = decode2(deployment.configuration);
     if (
-      object2(configuration.terraform ?? {}).backend ||
-      object2(configuration.terraform ?? {}).cloud ||
+      object3(configuration.terraform ?? {}).backend ||
+      object3(configuration.terraform ?? {}).cloud ||
       deployment.backendIdentity !==
         `local:${deployment.deploymentId}${deployment.stage ? `:stage:${deployment.stage}` : ''}`
     )
@@ -3161,7 +3325,7 @@ class TerraformRunner {
       const journal = decode2((await privateRead(join3(directory, 'plan-receipt.json'))).toString());
       if (
         !['applying', 'applied'].includes(String(journal.state)) ||
-        canonical(receipt) !== canonical(journal.receipt) ||
+        canonical2(receipt) !== canonical2(journal.receipt) ||
         receipt.engine !== 'terraform' ||
         receipt.deploymentId !== manifest.deploymentId ||
         receipt.backendIdentity !== manifest.backendIdentity ||
@@ -3207,12 +3371,12 @@ class TerraformRunner {
   }
   #validateRevision(configuration, previousConfiguration) {
     const next = decode2(configuration);
-    const terraform = object2(next.terraform ?? {});
+    const terraform = object3(next.terraform ?? {});
     if (terraform.backend || terraform.cloud) throw new Error('Terraform configuration revision cannot change backend');
     if (previousConfiguration !== undefined) {
       const previous = decode2(previousConfiguration);
       for (const key of ['terraform', 'provider'])
-        if (canonical(previous[key] ?? {}) !== canonical(next[key] ?? {}))
+        if (canonical2(previous[key] ?? {}) !== canonical2(next[key] ?? {}))
           throw new Error('Terraform configuration revision cannot change provider or execution identity');
     }
   }
@@ -3230,14 +3394,14 @@ class TerraformRunner {
       if (error.code === 'ENOENT') return;
       throw error;
     }
-    const previous = object2(transition.previous);
-    const next = object2(transition.next);
+    const previous = object3(transition.previous);
+    const next = object3(transition.next);
     if (
       typeof transition.configuration !== 'string' ||
       typeof transition.archiveId !== 'string' ||
       !/^[0-9a-f-]{36}$/.test(transition.archiveId) ||
       !/^[0-9a-f]{64}$/.test(previous.configurationSha256) ||
-      canonical({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical(next) ||
+      canonical2({ ...previous, configurationSha256: next.configurationSha256 }) !== canonical2(next) ||
       next.configurationSha256 !== digest2(transition.configuration)
     )
       throw new Error('Terraform configuration transition is malformed');
@@ -3245,7 +3409,7 @@ class TerraformRunner {
     const owner = decode2((await privateRead(join3(directory, 'deployment.json'))).toString());
     const current = await privateRead(join3(directory, 'main.tf.json'));
     if (
-      ![canonical(previous), canonical(next)].includes(canonical(owner)) ||
+      ![canonical2(previous), canonical2(next)].includes(canonical2(owner)) ||
       ![previous.configurationSha256, next.configurationSha256].includes(digest2(current)) ||
       digest2(await privateRead(join3(directory, '.terraform.lock.hcl'))) !== previous.providerLockSha256 ||
       digest2(await privateRead(join3(directory, 'deployment.tfrc'))) !== digest2(cliConfig)
@@ -3298,7 +3462,7 @@ class TerraformRunner {
           configurationMode === 'current' ? recoveredManifest.configurationSha256 : digest2(configuration),
         providerLockSha256: digest2(providerLock),
       };
-      if (canonical(recoveredManifest) !== canonical(expectedManifest))
+      if (canonical2(recoveredManifest) !== canonical2(expectedManifest))
         throw new Error('Terraform deployment differs from the requested identity or configuration');
       if (configurationMode === 'current')
         this.#validateRevision((await privateRead(join3(directory, 'main.tf.json'))).toString(), configuration);
@@ -3333,7 +3497,7 @@ class TerraformRunner {
         Object.fromEntries(
           ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].map((key) => [key, String(value[key])]),
         );
-      if (canonical(identity(first)) !== canonical(identity(second)))
+      if (canonical2(identity(first)) !== canonical2(identity(second)))
         throw new Error('Original cleanup inspection inputs changed');
       snapshots.set(name, raw);
       inputs[`inspection:${name}`] = {
@@ -3365,7 +3529,7 @@ class TerraformRunner {
       const owner = decode2(raw('deployment.json').toString()),
         state = decode2(raw('terraform.tfstate').toString());
       const checkpoint = decode2(raw('plan-receipt.json').toString()),
-        receipt = object2(checkpoint.receipt);
+        receipt = object3(checkpoint.receipt);
       if (scope.emptyOriginal) await verifyEmptyOriginalCaptureCleanup(scope, directory, owner);
       if (
         digest2(raw('deployment.json')) !== scope.deploymentManifestSha256 ||
@@ -3428,7 +3592,7 @@ class TerraformRunner {
       if (error.code !== 'ENOENT') throw error;
     }
     const owner = decode2((await privateRead(join3(this.#directory, 'deployment.json'))).toString());
-    if (canonical(owner) !== canonical(this.#manifest) || owner.engine !== 'terraform')
+    if (canonical2(owner) !== canonical2(this.#manifest) || owner.engine !== 'terraform')
       throw new Error('Terraform deployment ownership changed');
     for (const [file, expected] of [
       ['main.tf.json', this.#manifest.configurationSha256],
@@ -3527,7 +3691,7 @@ class TerraformRunner {
       this.#verificationMonitor ??= await monitorOriginalInputs({ checkpoint: verification.checkpoint });
       await this.#verificationMonitor.assertOriginal();
       const checkpoint = decode2((await privateRead(verification.checkpoint.path)).toString());
-      const receipt = object2(checkpoint.receipt);
+      const receipt = object3(checkpoint.receipt);
       const changes = receipt.changes;
       if (
         checkpoint.state !== 'applied' ||
@@ -3544,24 +3708,24 @@ class TerraformRunner {
         !changes.length ||
         changes.some(
           (change) =>
-            object2(change).actions === undefined || canonical(object2(change).actions) !== canonical(['delete']),
+            object3(change).actions === undefined || canonical2(object3(change).actions) !== canonical2(['delete']),
         ) ||
-        canonical(changes.map((change) => object2(change).address).sort()) !==
-          canonical(scope.resources.map((resource) => resource.address).sort())
+        canonical2(changes.map((change) => object3(change).address).sort()) !==
+          canonical2(scope.resources.map((resource) => resource.address).sort())
       )
         throw new Error('Original applied destroy checkpoint required for cleanup verification');
       await this.#verificationMonitor.assertOriginal();
       this.#cleanupEmpty = true;
     }
-    const resources = state.resources.map(object2);
+    const resources = state.resources.map(object3);
     const actual = resources
       .filter((r) => r.mode === 'managed')
       .flatMap((r) => {
         if (typeof r.type !== 'string' || typeof r.name !== 'string' || !Array.isArray(r.instances))
           throw new Error('Original cleanup state resource malformed');
         return r.instances.map((instance) => {
-          const row = object2(instance),
-            attributes = object2(row.attributes);
+          const row = object3(instance),
+            attributes = object3(row.attributes);
           const prefix = typeof r.module === 'string' ? `${r.module}.` : '';
           const suffix = row.index_key === undefined ? '' : `[${JSON.stringify(row.index_key)}]`;
           return { address: `${prefix}${r.type}.${r.name}${suffix}`, id: attributes.id };
@@ -3571,8 +3735,8 @@ class TerraformRunner {
       if (actual.length) throw new Error('Owned cleanup resources remain');
     } else if (
       digest2(raw) !== scope.state.sha256 ||
-      canonical(actual.sort((a, b) => a.address.localeCompare(b.address))) !==
-        canonical([...scope.resources].sort((a, b) => a.address.localeCompare(b.address)))
+      canonical2(actual.sort((a, b) => a.address.localeCompare(b.address))) !==
+        canonical2([...scope.resources].sort((a, b) => a.address.localeCompare(b.address)))
     )
       throw new Error('Original reviewed cleanup state or owned resources changed');
     await assertExecutorProcessGroupAbsent(lock);
@@ -3646,8 +3810,8 @@ class TerraformRunner {
     const actionInvocations = inspectActionInvocations(plan, action);
     const changes = [];
     for (const value of plan.resource_changes ?? []) {
-      const resource = object2(value);
-      const actions = changeActions(object2(resource.change).actions);
+      const resource = object3(value);
+      const actions = changeActions(object3(resource.change).actions);
       if (
         typeof resource.address !== 'string' ||
         typeof resource.type !== 'string' ||
@@ -3656,8 +3820,8 @@ class TerraformRunner {
         throw new Error('Terraform resource change is malformed');
       changes.push({ address: resource.address, type: resource.type, actions });
     }
-    const outputs = Object.values(object2(plan.output_changes ?? {})).map((output) =>
-      changeActions(object2(output).actions, true),
+    const outputs = Object.values(object3(plan.output_changes ?? {})).map((output) =>
+      changeActions(object3(output).actions, true),
     );
     const resourcesUnchanged =
       changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
@@ -3740,7 +3904,7 @@ class TerraformRunner {
       throw error;
     }
     if (!['applying', 'applied'].includes(String(journal.state))) return;
-    const actions = object2(journal.receipt).actionInvocations;
+    const actions = object3(journal.receipt).actionInvocations;
     if (!Array.isArray(actions) || actions.length === 0) return;
     try {
       await privateRead(join3(directory, 'action-attempt.json'));
@@ -3765,7 +3929,7 @@ class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       const journal = decode2((await privateRead(join3(directory, 'plan-receipt.json'))).toString());
-      const receipt = object2(journal.receipt);
+      const receipt = object3(journal.receipt);
       if (
         !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
@@ -3777,7 +3941,7 @@ class TerraformRunner {
       const outputs = decode2(await this.#run(['output', '-json'], env, signal));
       const selected = {};
       for (const name of names) {
-        const output = object2(outputs[name]);
+        const output = object3(outputs[name]);
         if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
           throw new Error('Requested Terraform output is unavailable, malformed or sensitive');
         selected[name] = output.value;
@@ -3793,7 +3957,7 @@ class TerraformRunner {
       const journal = decode2((await privateRead(join3(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'applied' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
+        canonical2(journal.receipt) !== canonical2(receipt) ||
         receipt.deploymentId !== manifest.deploymentId ||
         receipt.engine !== 'terraform' ||
         receipt.backendIdentity !== manifest.backendIdentity ||
@@ -3836,7 +4000,7 @@ class TerraformRunner {
       const journal = decode2((await privateRead(join3(directory, 'plan-receipt.json'))).toString());
       if (
         journal.state !== 'planned' ||
-        canonical(journal.receipt) !== canonical(receipt) ||
+        canonical2(journal.receipt) !== canonical2(receipt) ||
         receipt.configurationSha256 !== manifest.configurationSha256 ||
         receipt.planSha256 !== digest2(await privateRead(join3(directory, 'saved.tfplan')))
       )
@@ -3848,24 +4012,24 @@ class TerraformRunner {
       if (!Array.isArray(changes)) throw new Error('Terraform plan resource identities unavailable');
       const result = {};
       for (const [address, fields] of Object.entries(selections)) {
-        const matches = changes.map(object2).filter((resource) => resource.address === address);
+        const matches = changes.map(object3).filter((resource) => resource.address === address);
         if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
         if (!matches.length) {
           result[address] = null;
           continue;
         }
-        const change = object2(matches[0].change);
+        const change = object3(matches[0].change);
         if (change.before === null || change.before === undefined) {
           result[address] = null;
           continue;
         }
-        const before = object2(change.before);
+        const before = object3(change.before);
         const sensitivity =
           change.before_sensitive === undefined || change.before_sensitive === false
             ? {}
             : change.before_sensitive === true
               ? true
-              : object2(change.before_sensitive);
+              : object3(change.before_sensitive);
         const selected = projectResourceFields(before, sensitivity, fields);
         result[address] = selected;
       }
@@ -3920,7 +4084,7 @@ class TerraformRunner {
       const journalBytes = await privateRead(journalPath),
         planBytes = await privateRead(planPath);
       const journal = decode2(journalBytes.toString()),
-        stored = object2(journal.receipt);
+        stored = object3(journal.receipt);
       if (journal.state !== 'planned' || (stored.operation && stored.operation !== 'destroy'))
         throw new Error('Current resource plan is consumed or requires reconciliation');
       const version = decode2(await this.#run(['version', '-json'], env, signal));
@@ -3942,7 +4106,7 @@ class TerraformRunner {
         noChanges,
         ...(stored.operation === 'destroy' ? { operation: 'destroy' } : {}),
       };
-      if (canonical(stored) !== canonical(receipt))
+      if (canonical2(stored) !== canonical2(receipt))
         throw new Error('Current resource receipt differs from saved binary plan');
       const state = await this.#verifyApplyReceipt(receipt, ['planned']);
       if (
@@ -3967,7 +4131,7 @@ class TerraformRunner {
     const state = journal.state;
     if (
       !states.includes(state) ||
-      canonical(journal.receipt) !== canonical(receipt) ||
+      canonical2(journal.receipt) !== canonical2(receipt) ||
       receipt.engine !== 'terraform' ||
       receipt.deploymentId !== manifest.deploymentId ||
       receipt.backendIdentity !== manifest.backendIdentity ||
@@ -3998,7 +4162,25 @@ class TerraformRunner {
         throw new Error('Terraform state identity is malformed');
       const version = decode2(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
-      const state = decode2(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      let state = decode2(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      if (hasReviewedDataSources(identity, state, Object.keys(selections))) {
+        const configuration = await privateRead(join3(directory, 'main.tf.json'));
+        const planBytes = await privateRead(join3(directory, 'saved.tfplan'));
+        if (digest2(configuration) !== receipt.configurationSha256 || digest2(planBytes) !== receipt.planSha256)
+          throw new Error('Reviewed Terraform data inputs changed before inspection');
+        const plan = decode2(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+        if (digest2(planBytes) !== digest2(await privateRead(join3(directory, 'saved.tfplan'))))
+          throw new Error('Reviewed Terraform data plan changed during inspection');
+        state = projectReviewedDataSources(
+          decode2(configuration.toString()),
+          plan,
+          identity,
+          state,
+          manifest.terraformVersion,
+          receipt.operation,
+          Object.keys(selections),
+        );
+      }
       const result = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
       if (digest2(snapshot) !== digest2(await privateRead(statePath)))
         throw new Error('Terraform state changed during identity inspection');
@@ -4023,7 +4205,7 @@ class TerraformRunner {
     if (!this.#busy || manifest.scope.cloud !== 'gcp' || receipt.actionInvocations?.length)
       throw new Error('Original GCP resource-only plan producer required');
     const inspected = this.#inspectPlan(plan, undefined, receipt.operation === 'destroy');
-    if (canonical(inspected.changes) !== canonical(receipt.changes) || inspected.noChanges !== receipt.noChanges)
+    if (canonical2(inspected.changes) !== canonical2(receipt.changes) || inspected.noChanges !== receipt.noChanges)
       throw new Error('Original owning resource plan inspection differs');
     const identityFields = [
       'id',
@@ -4037,8 +4219,8 @@ class TerraformRunner {
       'self_link',
     ];
     const resources = (plan.resource_changes === undefined ? [] : plan.resource_changes).map((input) => {
-      const row = object2(input),
-        change = object2(row.change);
+      const row = object3(input),
+        change = object3(row.change);
       if (
         typeof row.address !== 'string' ||
         typeof row.type !== 'string' ||
@@ -4047,7 +4229,7 @@ class TerraformRunner {
       )
         throw new Error('Exact original resource plan identity required');
       const phase = receipt.operation === 'destroy' ? 'before' : 'after';
-      const values = change[phase] === null || change[phase] === undefined ? {} : object2(change[phase]);
+      const values = change[phase] === null || change[phase] === undefined ? {} : object3(change[phase]);
       const sensitivity = change[`${phase}_sensitive`],
         unknown = change[`${phase}_unknown`];
       if (
@@ -4102,7 +4284,7 @@ class TerraformRunner {
         parentKeys.some((key) => parent[key] !== finalParent[key])
       )
         throw new Error('Original owning plan input changed during admission');
-      if (name === 'deployment.json' && canonical(decode2(raw.toString())) !== canonical(manifest))
+      if (name === 'deployment.json' && canonical2(decode2(raw.toString())) !== canonical2(manifest))
         throw new Error('Original owning deployment manifest changed');
       files[name] = {
         path,
@@ -4161,7 +4343,7 @@ class TerraformRunner {
       const journal = decode2((await privateRead(join3(this.#state().directory, 'plan-receipt.json'))).toString());
       if (journal.state !== 'planned') throw new Error('Saved plan is consumed or requires reconciliation');
       if (
-        canonical(receipt) !== canonical(journal.receipt) ||
+        canonical2(receipt) !== canonical2(journal.receipt) ||
         receipt.engine !== 'terraform' ||
         receipt.deploymentId !== this.#state().manifest.deploymentId ||
         receipt.configurationSha256 !== this.#state().manifest.configurationSha256 ||
@@ -4219,7 +4401,7 @@ var fileKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeN
 var parentKeys3 = ['dev', 'ino', 'uid', 'mode'];
 var controls = (value) =>
   Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127);
-function canonical2(path) {
+function canonical3(path) {
   return typeof path === 'string' && isAbsolute4(path) && resolve4(path) === path && !controls(path);
 }
 function freezeAdmittedCaptureInputs(input) {
@@ -4231,7 +4413,7 @@ function freezeAdmittedCaptureInputs(input) {
     const binding = input[name];
     if (
       !binding ||
-      !canonical2(binding.path) ||
+      !canonical3(binding.path) ||
       !/^[a-f0-9]{64}$/.test(binding.sha256) ||
       paths.has(binding.path) ||
       !binding.expectedIdentity ||
@@ -4262,7 +4444,7 @@ function createInstalledCaptureContext(admission) {
   if (
     admission?.owner?.provider !== 'gcp' ||
     admission.owner.engine !== 'terraform' ||
-    !canonical2(admission.executionDirectory) ||
+    !canonical3(admission.executionDirectory) ||
     !Number.isSafeInteger(admission.budget?.start) ||
     admission.budget.start < 0 ||
     !Number.isSafeInteger(admission.budget.deadline) ||
@@ -5849,7 +6031,7 @@ var returnedOperationName = /^[a-z][a-z0-9-]{0,254}$/;
 var offset2 = /^(?:0|[1-9][0-9]{0,19})$/;
 var serialOffset2 = (value) =>
   typeof value === 'string' && offset2.test(value) && BigInt(value) <= 9223372036854775807n;
-var object3 = (v) => {
+var object4 = (v) => {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('Malformed original cloud response');
   return v;
 };
@@ -6003,11 +6185,11 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
       const value = decode3(response.raw);
       if (response.status === 404) {
         const error =
-          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object3(value.error) : {};
+          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object4(value.error) : {};
         if (
           error.code !== 404 ||
           !Array.isArray(error.errors) ||
-          !error.errors.some((v) => object3(v).reason === 'notFound')
+          !error.errors.some((v) => object4(v).reason === 'notFound')
         )
           throw new Error('Attributed original cloud absence required');
         return issue(Object.freeze({ ...evidence, present: false }));
@@ -6223,10 +6405,10 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
         if (value.entries !== undefined && !Array.isArray(value.entries))
           throw new Error('Original audit entries malformed');
         for (const raw of value.entries ?? []) {
-          const entry = object3(raw),
-            payload = object3(entry.protoPayload),
-            resource = object3(entry.resource),
-            labels = object3(resource.labels);
+          const entry = object4(raw),
+            payload = object4(entry.protoPayload),
+            resource = object4(entry.resource),
+            labels = object4(resource.labels);
           if (
             entry.split !== undefined ||
             typeof entry.insertId !== 'string' ||
@@ -6332,11 +6514,11 @@ async function openGcpCloudSerialReader(input, signal, fetcher = fetch) {
       let result;
       if (response.status === 404) {
         const error =
-          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object3(value.error) : {};
+          value.error && typeof value.error === 'object' && !Array.isArray(value.error) ? object4(value.error) : {};
         if (
           error.code !== 404 ||
           !Array.isArray(error.errors) ||
-          !error.errors.some((entry) => object3(entry).reason === 'notFound')
+          !error.errors.some((entry) => object4(entry).reason === 'notFound')
         )
           throw new Error('Attributed original inventory absence required');
         result = Object.freeze({ ...base, present: false });
@@ -8158,7 +8340,7 @@ async function openInitialInventory(input, options = {}) {
 
 // plugins/terraform/src/gcp-observer-insert-evidence.ts
 var hash7 = (value) => createHash12('sha256').update(value).digest('hex');
-var object4 = (value) => {
+var object5 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Original observer object required');
   return value;
 };
@@ -8170,7 +8352,7 @@ var link = (value, path) =>
     value,
   );
 function metadata2(value, allowFingerprint = false) {
-  const raw = object4(value),
+  const raw = object5(value),
     entries = Object.create(null);
   if (
     !Array.isArray(raw.items) ||
@@ -8180,7 +8362,7 @@ function metadata2(value, allowFingerprint = false) {
   )
     throw new Error('Original observer insertion metadata required');
   for (const item of raw.items) {
-    const row = object4(item);
+    const row = object5(item);
     if (
       Object.keys(row).sort().join(',') !== 'key,value' ||
       typeof row.key !== 'string' ||
@@ -8257,8 +8439,8 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
     throw new Error('Original observer owning plan and configuration differ');
   await assertOriginalTerraformPlanProjection(plan);
   const configuration = decodeEvidenceObject(configInput.bytes);
-  const providers = object4(configuration.provider).google;
-  const provider = object4(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
+  const providers = object5(configuration.provider).google;
+  const provider = object5(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
   if (
     provider.project !== intent.project ||
     provider.region !== intent.region ||
@@ -8281,18 +8463,18 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
   const observer = gcpTerraformObserverIdentity(intent),
     key = observer.key,
     firewallKey = observer.firewallName.replaceAll('-', '_');
-  const resource = object4(configuration.resource),
-    wantedResource = object4(expected.configuration.resource);
+  const resource = object5(configuration.resource),
+    wantedResource = object5(expected.configuration.resource);
   for (const [type, id] of [
     ['google_compute_instance', key],
     ['google_compute_disk', key],
     ['google_compute_firewall', firewallKey],
   ])
-    if (fingerprint(object4(object4(resource[type])[id])) !== fingerprint(object4(object4(wantedResource[type])[id])))
+    if (fingerprint(object5(object5(resource[type])[id])) !== fingerprint(object5(object5(wantedResource[type])[id])))
       throw new Error('Original declared observer resource configuration differs');
   if (
-    fingerprint(object4(object4(configuration.data).google_compute_image)[key]) !==
-    fingerprint(object4(object4(expected.configuration.data).google_compute_image)[key])
+    fingerprint(object5(object5(configuration.data).google_compute_image)[key]) !==
+    fingerprint(object5(object5(expected.configuration.data).google_compute_image)[key])
   )
     throw new Error('Original observer image declaration differs');
   const originalImage = await readOriginalGcpObserverImageEvidence(imageReader, image);
@@ -8361,9 +8543,9 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
         throw new Error('Original observer insertion producer, plan or HTTP scope differs');
       const request = decodeEvidenceObject(Buffer.from(response.requestBody)),
         op = decodeEvidenceObject(Buffer.from(response.responseBody));
-      const expectedMetadata = object4(object4(object4(wantedResource.google_compute_instance)[key]).metadata);
-      const labels = object4(request.labels),
-        wantedLabels = object4(object4(object4(wantedResource.google_compute_instance)[key]).labels);
+      const expectedMetadata = object5(object5(object5(wantedResource.google_compute_instance)[key]).metadata);
+      const labels = object5(request.labels),
+        wantedLabels = object5(object5(object5(wantedResource.google_compute_instance)[key]).labels);
       if (
         request.name !== observer.name ||
         request.canIpForward !== false ||
@@ -8375,7 +8557,7 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
             !Object.hasOwn(wantedLabels, name) && !(name === 'goog-terraform-provisioned' && labels[name] === 'true'),
         ) ||
         fingerprint(metadata2(request.metadata)) !== fingerprint(expectedMetadata) ||
-        fingerprint(object4(request.tags).items) !== fingerprint([observer.name]) ||
+        fingerprint(object5(request.tags).items) !== fingerprint([observer.name]) ||
         (request.serviceAccounts !== undefined &&
           (!Array.isArray(request.serviceAccounts) || request.serviceAccounts.length))
       )
@@ -8383,8 +8565,8 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
       const { disks, networkInterfaces: nics } = request;
       if (!Array.isArray(disks) || disks.length !== 1 || !Array.isArray(nics) || nics.length !== 1)
         throw new Error('Original observer single disk and interface required');
-      const disk = object4(disks[0]),
-        nic = object4(nics[0]);
+      const disk = object5(disks[0]),
+        nic = object5(nics[0]);
       if (
         disk.boot !== true ||
         (disk.autoDelete !== undefined && disk.autoDelete !== false) ||
@@ -8394,10 +8576,10 @@ async function collectOriginalGcpObserverInsertIdentity(input) {
         !link(nic.subnetwork, `projects/${intent.project}/regions/${intent.region}/subnetworks/${observer.subnet}`) ||
         !Array.isArray(nic.accessConfigs) ||
         nic.accessConfigs.length !== 1 ||
-        object4(nic.accessConfigs[0]).type !== 'ONE_TO_ONE_NAT' ||
-        (object4(nic.accessConfigs[0]).networkTier !== undefined &&
-          object4(nic.accessConfigs[0]).networkTier !== 'PREMIUM') ||
-        object4(nic.accessConfigs[0]).natIP !== undefined ||
+        object5(nic.accessConfigs[0]).type !== 'ONE_TO_ONE_NAT' ||
+        (object5(nic.accessConfigs[0]).networkTier !== undefined &&
+          object5(nic.accessConfigs[0]).networkTier !== 'PREMIUM') ||
+        object5(nic.accessConfigs[0]).natIP !== undefined ||
         (nic.networkIP !== undefined && nic.networkIP !== '') ||
         nic.aliasIpRanges !== undefined
       )
@@ -8578,7 +8760,7 @@ async function collectOriginalGcpObserverVmEvidence(input) {
       const zonePath = `projects/${identity.project}/zones/${identity.zone}`,
         diskPath = `${zonePath}/disks/${identity.name}`,
         vmPath = `${zonePath}/instances/${identity.name}`;
-      const labels = object4(request.labels);
+      const labels = object5(request.labels);
       if (
         operation.operationId !== identity.operationId ||
         operation.operationName !== identity.operationName ||
@@ -8599,15 +8781,15 @@ async function collectOriginalGcpObserverVmEvidence(input) {
         vm.deletionProtection !== false ||
         !link(vm.machineType, `${zonePath}/machineTypes/e2-micro`) ||
         (vm.serviceAccounts !== undefined && (!Array.isArray(vm.serviceAccounts) || vm.serviceAccounts.length)) ||
-        fingerprint(object4(vm.labels)) !== fingerprint(labels) ||
+        fingerprint(object5(vm.labels)) !== fingerprint(labels) ||
         fingerprint(metadata2(vm.metadata, true)) !== fingerprint(metadata2(request.metadata)) ||
-        fingerprint(object4(vm.tags).items) !== fingerprint([identity.name]) ||
+        fingerprint(object5(vm.tags).items) !== fingerprint([identity.name]) ||
         !uint642(d.id) ||
         d.sourceImageId !== GCP_OBSERVER_IMAGE_PIN.id ||
         !link(d.sourceImage, GCP_OBSERVER_IMAGE_PIN.selfLink.replace('https://www.googleapis.com/compute/v1/', '')) ||
         d.sizeGb !== '20' ||
         !link(d.type, `${zonePath}/diskTypes/pd-balanced`) ||
-        fingerprint(object4(d.labels)) !== fingerprint(labels) ||
+        fingerprint(object5(d.labels)) !== fingerprint(labels) ||
         !link(d.zone, zonePath) ||
         !link(d.selfLink, diskPath) ||
         d.sourceSnapshotId !== undefined ||
@@ -8619,9 +8801,9 @@ async function collectOriginalGcpObserverVmEvidence(input) {
       const { networkInterfaces: nics, disks } = vm;
       if (!Array.isArray(nics) || nics.length !== 1 || !Array.isArray(disks) || disks.length !== 1)
         throw new Error('Original observer single disk and NIC required');
-      const nic = object4(nics[0]),
-        boot = object4(disks[0]),
-        wanted = object4(request.networkInterfaces[0]);
+      const nic = object5(nics[0]),
+        boot = object5(disks[0]),
+        wanted = object5(request.networkInterfaces[0]);
       if (
         nic.name !== 'nic0' ||
         !Array.isArray(nic.accessConfigs) ||
@@ -8635,7 +8817,7 @@ async function collectOriginalGcpObserverVmEvidence(input) {
         !link(boot.source, diskPath)
       )
         throw new Error('Original observer VM disk/NIC mapping differs');
-      const external = object4(nic.accessConfigs[0]);
+      const external = object5(nic.accessConfigs[0]);
       if (
         external.type !== 'ONE_TO_ONE_NAT' ||
         external.networkTier !== 'PREMIUM' ||
@@ -8757,8 +8939,8 @@ async function readOriginalGcpObserverAuditSource(identity, callback, baseline) 
   const configuration = await owned(binding.path);
   assertSameOriginalInput(binding, configuration.binding);
   const decoded = decodeEvidenceObject(configuration.bytes);
-  const providers = object4(decoded.provider).google;
-  const provider = object4(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
+  const providers = object5(decoded.provider).google;
+  const provider = object5(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
   if (typeof provider.request_reason !== 'string') throw new Error('Original observer request reason required');
   return Object.freeze({
     value,
@@ -9903,7 +10085,7 @@ import { createHash as createHash15 } from 'node:crypto';
 var hash10 = (raw) => createHash15('sha256').update(raw).digest('hex');
 var integer = (value) => typeof value === 'number' && Number.isSafeInteger(value);
 var exact = (value, keys) => Object.keys(value).sort().join(',') === [...keys].sort().join(',');
-var object5 = (value) => {
+var object6 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original observer guest object framing differs');
   return value;
@@ -9918,8 +10100,8 @@ function output(value, channel) {
   return raw;
 }
 function inspectGcpObserverGuestProcess(item, request, mapping, window) {
-  const row = object5(item),
-    identity = object5(row.identity);
+  const row = object6(item),
+    identity = object6(row.identity);
   if (
     !exact(row, [
       'client',
@@ -11436,7 +11618,7 @@ var equalIdentity = (value, original) => {
     ['pid', 'group', 'start', 'boot'].every((key) => row[key] === original[key])
   );
 };
-var object6 = (value) => {
+var object7 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed original provider reader result');
   return value;
@@ -11817,7 +11999,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
             throw new Error('Original provider result attribution differs');
           const seen = new Set();
           const candidateFrom = (rawCandidate) => {
-            const candidate = object6(rawCandidate);
+            const candidate = object7(rawCandidate);
             if (
               Object.keys(candidate).sort().join(',') !== 'boot,executable_sha256,group,parent,pid,start' ||
               !Number.isSafeInteger(candidate.pid) ||
@@ -11879,7 +12061,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
               throw new Error('Original provider window incomplete or premature');
             const ready = windowReady;
             const observations = value.observations.map((rawObservation) => {
-              const observation = object6(rawObservation);
+              const observation = object7(rawObservation);
               if (
                 Object.keys(observation).sort().join(',') !==
                   'candidate,firstObservedMs,lastObservedMs,presentAtLastSample,stderr' ||
@@ -11893,7 +12075,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
               )
                 throw new Error('Original provider window observation differs');
               const candidate = candidateFrom(observation.candidate),
-                pipe = object6(observation.stderr);
+                pipe = object7(observation.stderr);
               if (
                 Object.keys(pipe).sort().join(',') !== 'device,inode,parentFd,parentFlags,providerFd,providerFlags' ||
                 pipe.providerFd !== 2 ||
@@ -12246,7 +12428,7 @@ var ordinaryMessages = new Set([
   'refresh_start',
   'refresh_complete',
 ]);
-var object7 = (value) => {
+var object8 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed Terraform UI object');
   return value;
 };
@@ -12264,18 +12446,18 @@ function reviewedProvisioners(plan, configuration) {
   const config = decodeEvidenceObject(Buffer.from(configuration));
   const result = new Map();
   if (config.module !== undefined) throw new Error('Module provisioner configuration mapping is unavailable');
-  for (const [type, resources] of Object.entries(object7(config.resource ?? {}))) {
+  for (const [type, resources] of Object.entries(object8(config.resource ?? {}))) {
     if (!identifier.test(type)) throw new Error('Reviewed resource declaration required');
-    for (const [name, value] of Object.entries(object7(resources))) {
+    for (const [name, value] of Object.entries(object8(resources))) {
       if (!identifier.test(name)) throw new Error('Reviewed resource name required');
-      const entries = object7(value).provisioner ?? [];
+      const entries = object8(value).provisioner ?? [];
       if (!Array.isArray(entries)) throw new Error('Ordered reviewed provisioner declarations required');
       const provisioners = entries.map((entry) => {
-        const declaration = object7(entry),
+        const declaration = object8(entry),
           keys = Object.keys(declaration);
         if (keys.length !== 1 || !['local-exec', 'remote-exec', 'file'].includes(keys[0]))
           throw new Error('Supported unambiguous reviewed provisioner required');
-        const block = object7(declaration[keys[0]]),
+        const block = object8(declaration[keys[0]]),
           when = block.when ?? 'create';
         if (!['create', 'destroy'].includes(String(when)) || typeof when !== 'string')
           throw new Error('Reviewed provisioner phase required');
@@ -12456,7 +12638,7 @@ class TerraformApplyHookParser {
       return;
     }
     if (ordinaryMessages.has(type)) {
-      if (type === 'diagnostic' && object7(event.diagnostic).severity === 'error') this.#successful = false;
+      if (type === 'diagnostic' && object8(event.diagnostic).severity === 'error') this.#successful = false;
       return;
     }
     if (
@@ -12472,8 +12654,8 @@ class TerraformApplyHookParser {
       ].includes(type)
     )
       throw new Error('Unsupported original Terraform UI event');
-    const hook = object7(event.hook),
-      resource = object7(hook.resource);
+    const hook = object8(event.hook),
+      resource = object8(hook.resource);
     const address = text3(resource.addr),
       reviewed = this.#reviewed.get(address);
     if (!reviewed || resource.resource_type !== reviewed.type || !identifier.test(text3(resource.resource_name)))
@@ -12667,17 +12849,17 @@ var hash15 = (value) => createHash22('sha256').update(value).digest('hex');
 var name3 = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 var uint643 = (value) =>
   typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value) && BigInt(value) <= 18446744073709551615n;
-var object8 = (value) => {
+var object9 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original Compute insert object required');
   return value;
 };
-function canonical3(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical3).join(',')}]`;
+function canonical4(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical4).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.keys(value)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical3(value[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${canonical4(value[key])}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
@@ -12706,7 +12888,7 @@ function scopedResource(value, prefix) {
   return path.startsWith(prefix) && name3.test(path.slice(prefix.length));
 }
 function metadata3(request) {
-  const value = object8(request.metadata);
+  const value = object9(request.metadata);
   if (
     Object.keys(value).some((key) => !['items', 'fingerprint'].includes(key)) ||
     (value.fingerprint !== undefined && value.fingerprint !== '') ||
@@ -12716,7 +12898,7 @@ function metadata3(request) {
   const entries = Object.create(null);
   let bytes = 0;
   for (const raw of value.items) {
-    const item = object8(raw);
+    const item = object9(raw);
     if (
       Object.keys(item).sort().join(',') !== 'key,value' ||
       typeof item.key !== 'string' ||
@@ -12731,7 +12913,7 @@ function metadata3(request) {
   }
   if (bytes >= 512 * 1024 || !entries['user-data'] || entries.VmDnsSetting !== 'ZonePreferred')
     throw new Error('Original node bootstrap and DNS metadata required');
-  return { bootstrapSha256: hash15(entries['user-data']), metadataSha256: hash15(canonical3(entries)) };
+  return { bootstrapSha256: hash15(entries['user-data']), metadataSha256: hash15(canonical4(entries)) };
 }
 function projectOriginalComputeInsert(input, binding) {
   const profile = resolveInstalledGcpVersionProfile(binding);
@@ -12765,7 +12947,7 @@ function projectOriginalComputeInsert(input, binding) {
   const nodeName = request.name;
   if (!scopedResource(request.machineType, `projects/${project}/zones/${zone}/machineTypes/`))
     throw new Error('Original machine type zone and project required');
-  const labels = object8(request.labels);
+  const labels = object9(request.labels);
   if (
     labels['xcsh-engine'] !== 'terraform' ||
     labels['xcsh-node'] !== nodeName ||
@@ -12789,7 +12971,7 @@ function projectOriginalComputeInsert(input, binding) {
   )
     throw new Error('Original ordered interfaces and disks required');
   for (const raw of request.networkInterfaces) {
-    const nic = object8(raw);
+    const nic = object9(raw);
     if (
       !scopedResource(nic.network, `projects/${project}/global/networks/`) ||
       !scopedResource(nic.subnetwork, `projects/${project}/regions/${zone.slice(0, -2)}/subnetworks/`)
@@ -12827,10 +13009,10 @@ function projectOriginalComputeInsert(input, binding) {
     receivedRecordSha256: input.receivedRecordSha256,
     requestReasonSha256: input.requestReasonSha256,
     ...metadata3(request),
-    labelsSha256: hash15(canonical3(labels)),
-    interfacesSha256: hash15(canonical3(request.networkInterfaces)),
-    disksSha256: hash15(canonical3(request.disks)),
-    requestProjectionSha256: hash15(canonical3(request)),
+    labelsSha256: hash15(canonical4(labels)),
+    interfacesSha256: hash15(canonical4(request.networkInterfaces)),
+    disksSha256: hash15(canonical4(request.disks)),
+    requestProjectionSha256: hash15(canonical4(request)),
     serviceAccountsRequested: false,
     applyRpcQualified: false,
     originalInsertQualified: false,
@@ -12989,9 +13171,9 @@ function joinOriginalGcpInsertSource(input) {
     completed.idValue !== `projects/${insert.project}/zones/${insert.zone}/instances/${insert.nodeName}`
   )
     throw new Error('Original declared create action and completed resource identity required');
-  const resource = object8(object8(object8(configuration.resource).google_compute_instance)[address[1]]);
-  const expectedLabels = object8(resource.labels),
-    labels = object8(decodeEvidenceObject(Buffer.from(bodies.requestBody)).labels);
+  const resource = object9(object9(object9(configuration.resource).google_compute_instance)[address[1]]);
+  const expectedLabels = object9(resource.labels),
+    labels = object9(decodeEvidenceObject(Buffer.from(bodies.requestBody)).labels);
   if (
     resource.name !== insert.nodeName ||
     resource.project !== insert.project ||
@@ -13012,8 +13194,8 @@ function joinOriginalGcpInsertSource(input) {
     Object.entries(expectedLabels).some(([key, value]) => typeof value !== 'string' || labels[key] !== value)
   )
     throw new Error('Original declared request resource fields differ');
-  const providers = object8(configuration.provider).google;
-  const provider = object8(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
+  const providers = object9(configuration.provider).google;
+  const provider = object9(Array.isArray(providers) && providers.length === 1 ? providers[0] : providers);
   if (
     provider.project !== insert.project ||
     provider.alias !== undefined ||
@@ -13268,26 +13450,26 @@ async function collectOriginalGcpInsertWitnesses(input) {
 
 // plugins/terraform/src/gcp-vm-evidence.ts
 var hash16 = (value) => createHash23('sha256').update(value).digest('hex');
-var object9 = (value) => {
+var object10 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original VM evidence object required');
   return value;
 };
-function canonical4(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical4).join(',')}]`;
+function canonical5(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.keys(value)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical4(value[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${canonical5(value[key])}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
 function metadata4(value) {
   const entries = Object.create(null);
-  const raw = object9(value);
+  const raw = object10(value);
   if (!Array.isArray(raw.items)) throw new Error('Original VM metadata items required');
   for (const item of raw.items) {
-    const pair = object9(item);
+    const pair = object10(item);
     if (
       typeof pair.key !== 'string' ||
       !/^[a-zA-Z0-9_-]{1,127}$/.test(pair.key) ||
@@ -13344,12 +13526,12 @@ function corroborateVmBodies(source, requestBody, absent, absentRaw, operation, 
   const initial = decodeEvidenceObject(absentRaw),
     op = decodeEvidenceObject(opRaw),
     vm = decodeEvidenceObject(vmRaw);
-  const absentError = object9(initial.error);
+  const absentError = object10(initial.error);
   if (
     absent.present !== false ||
     absentError.code !== 404 ||
     !Array.isArray(absentError.errors) ||
-    !absentError.errors.some((value) => object9(value).reason === 'notFound') ||
+    !absentError.errors.some((value) => object10(value).reason === 'notFound') ||
     absent.finishedAt > operation.startedAt ||
     operation.operationId !== source.operationId ||
     operation.operationName !== source.operationName ||
@@ -13382,18 +13564,18 @@ function corroborateVmBodies(source, requestBody, absent, absentRaw, operation, 
     throw new Error('Original reviewed VM machine type or forwarding capability differs');
   const items = metadata4(vm.metadata);
   if (
-    hash16(canonical4(items)) !== source.metadataSha256 ||
+    hash16(canonical5(items)) !== source.metadataSha256 ||
     !items['user-data'] ||
     hash16(items['user-data']) !== source.bootstrapSha256 ||
-    hash16(canonical4(object9(vm.labels))) !== source.labelsSha256 ||
+    hash16(canonical5(object10(vm.labels))) !== source.labelsSha256 ||
     !Array.isArray(vm.networkInterfaces) ||
     !Array.isArray(request.networkInterfaces) ||
     vm.networkInterfaces.length !== request.networkInterfaces.length
   )
     throw new Error('Original VM bootstrap metadata, ownership labels or interfaces differ');
   const interfaces = vm.networkInterfaces.map((raw, index) => {
-    const actual = object9(raw),
-      wanted = object9(request.networkInterfaces[index]);
+    const actual = object10(raw),
+      wanted = object10(request.networkInterfaces[index]);
     if (
       actual.name !== `nic${index}` ||
       resourceLink(actual.network) !== resourceLink(wanted.network) ||
@@ -13412,8 +13594,8 @@ function corroborateVmBodies(source, requestBody, absent, absentRaw, operation, 
     )
       throw new Error('Original interface egress configuration differs');
     for (const [i, rawRequested] of requestedAccess.entries()) {
-      const expected = object9(rawRequested),
-        observed = object9(actualAccess[i]);
+      const expected = object10(rawRequested),
+        observed = object10(actualAccess[i]);
       for (const key of ['type', 'networkTier', 'natIP'])
         if (expected[key] !== undefined && expected[key] !== '' && expected[key] !== observed[key])
           throw new Error('Original requested interface access configuration differs');
@@ -13458,7 +13640,7 @@ async function joinOriginalGcpVmEvidence(input) {
       if (rows.length !== 1) throw new Error('Original declared VM absence required');
       const row = rows[0];
       if (
-        object9(decodeEvidenceObject(Buffer.from(bodies.requestBody)).labels)['xcsh-deployment'] !==
+        object10(decodeEvidenceObject(Buffer.from(bodies.requestBody)).labels)['xcsh-deployment'] !==
         view.owner.deploymentId
       )
         throw new Error('Original VM deployment ownership differs');
@@ -13672,7 +13854,7 @@ async function collectOriginalEarlyGcpVmEvidence(input) {
     if (matches.length !== 1) throw new Error('Original declared VM absence required');
     const bodies = await readOriginalEarlyGcpInsertBodies(identity);
     const request = decodeEvidenceObject(Buffer.from(bodies.requestBody));
-    if (object9(request.labels)['xcsh-deployment'] !== view.owner.deploymentId)
+    if (object10(request.labels)['xcsh-deployment'] !== view.owner.deploymentId)
       throw new Error('Original VM deployment ownership differs');
     await assertOriginalApplyGcpInventoryCallback(baseline, callback);
     await assertOriginalInstalledGcpCloudReader(reader, callback.original);
@@ -17902,14 +18084,14 @@ async function collectInstalledOriginalXcshReaderClosures(value) {
   if (!collect) throw new Error('Original source-issued installed xcsh reader required');
   return collect();
 }
-var object10 = (value) => {
+var object11 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original xcsh evidence');
   return value;
 };
 var sameKeys = (value, keys) => Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 var sameActor = (value, actor) => {
   if (!value || typeof value !== 'object' || !actor) return false;
-  const row = object10(value);
+  const row = object11(value);
   return (
     sameKeys(row, ['pid', 'group', 'start', 'boot']) &&
     ['pid', 'group', 'start', 'boot'].every((key) => row[key] === actor[key])
@@ -18121,9 +18303,9 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
     const identities = new Set(),
       nonces = new Set();
     for (const raw of values) {
-      const receipt = object10(raw),
-        target = object10(receipt.target),
-        actor = object10(receipt.process);
+      const receipt = object11(raw),
+        target = object11(receipt.target),
+        actor = object11(receipt.process);
       const key = JSON.stringify([target.type_name, target.namespace, target.name]);
       if (
         !sameKeys(receipt, [
@@ -18432,8 +18614,8 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
           )
             throw new Error('Original private xcsh target evidence required');
           inspectBase(value, readerActor, ready);
-          const receipt = object10(value.receipt),
-            actual = object10(receipt.target);
+          const receipt = object11(value.receipt),
+            actual = object11(receipt.target);
           if (JSON.stringify([actual.type_name, actual.namespace, actual.name]) !== key)
             throw new Error('Original xcsh target file scope differs');
           const retained = retainedTargets.get(key);
@@ -18448,13 +18630,13 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
         await guard();
         for (const row of currentFiles) {
           if (retainedTargets.has(row.key)) continue;
-          const receipt = object10(row.value.receipt);
+          const receipt = object11(row.value.receipt);
           const evidence = Object.freeze({
             kind: 'original-xcsh-target-creation-evidence',
             requestSha256: requestHash,
             executor: admission.identity,
             reader: ready.reader,
-            target: Object.freeze({ ...object10(receipt.target) }),
+            target: Object.freeze({ ...object11(receipt.target) }),
             creationIdentitySha256: receipt.creation_identity_sha256,
             complete: false,
             executionAuthorized: false,
@@ -18552,7 +18734,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
 
 // plugins/terraform/src/xcsh-creation-body.ts
 var hash23 = (bytes) => createHash32('sha256').update(bytes).digest('hex');
-var object11 = (value) => {
+var object12 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Original creation object required');
   return value;
 };
@@ -18629,8 +18811,8 @@ async function joinCreationBody(input, final) {
           : !result.complete || creation.complete !== true || !Array.isArray(creation.receipts))
       )
         throw new Error('Original complete creation receipt required');
-      const receipts = (early ? [creation.receipt] : creation.receipts).map(object11).filter((row) => {
-        const actual = object11(row.target);
+      const receipts = (early ? [creation.receipt] : creation.receipts).map(object12).filter((row) => {
+        const actual = object12(row.target);
         return (
           actual.type_name === target.type_name && actual.name === target.name && actual.namespace === target.namespace
         );
@@ -18666,8 +18848,8 @@ async function joinCreationBody(input, final) {
         throw new Error('Original creation body freshness required');
       if (final && began < final.requestedAt) throw new Error('Original final creation GET preceded callback');
       const value = decodeEvidenceObject(body.bytes),
-        metadata = object11(value.metadata),
-        system = object11(value.system_metadata);
+        metadata = object12(value.metadata),
+        system = object12(value.system_metadata);
       if (
         metadata.name !== target.name ||
         metadata.namespace !== target.namespace ||
@@ -18733,7 +18915,7 @@ async function readOriginalXcshCreationBodyProviderProfile(evidence) {
 }
 
 // plugins/terraform/src/gcp-preapply-bootstrap.ts
-var object12 = (value) => {
+var object13 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original preapply bootstrap object required');
   return value;
@@ -18764,7 +18946,7 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
   )
     throw new Error('Original joint Site and Token creation scope required');
   const labels = (value, node) => {
-    const declared = object12(object12(value.metadata).labels);
+    const declared = object13(object13(value.metadata).labels);
     const expected = {
       'xcsh-deployment': binding.deploymentName,
       'xcsh-engine': 'terraform',
@@ -18785,16 +18967,16 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
       tokenValue = decodeEvidenceObject(tokenBody.bytes);
     labels(siteValue);
     labels(tokenValue, binding.nodeName);
-    const gcp = object12(object12(siteValue.spec).gcp),
-      notManaged = object12(gcp.not_managed);
+    const gcp = object13(object13(siteValue.spec).gcp),
+      notManaged = object13(gcp.not_managed);
     if (
       Object.keys(gcp).join(',') !== 'not_managed' ||
       Object.keys(notManaged).join(',') !== 'node_list' ||
       !Array.isArray(notManaged.node_list)
     )
       throw new Error('Original preapply GCP not-managed mapping required');
-    const siteUid = object12(siteValue.system_metadata).uid,
-      tokenUid = object12(tokenValue.system_metadata).uid;
+    const siteUid = object13(siteValue.system_metadata).uid,
+      tokenUid = object13(tokenValue.system_metadata).uid;
     if (typeof siteUid !== 'string' || typeof tokenUid !== 'string') throw new Error('Original creation UIDs required');
     const bootstrap = await platform.inspect(siteBody, tokenBody, { ...binding, siteUid, tokenUid });
     await readOriginalXcshCreationBody(site);
@@ -18870,11 +19052,11 @@ async function collectOriginalGcpPreapplyBootstrap(input) {
       if (!expected) throw new Error('Original Site SSH configuration unavailable');
       const body = await readOriginalXcshCreationBody(site);
       const source = decodeEvidenceObject(body.bytes),
-        spec = object12(source.spec);
+        spec = object13(source.spec);
       const observed = { admin_user_credentials: spec.admin_user_credentials, blocked_services: spec.blocked_services };
       if (
         fingerprint(observed) !== fingerprint(expected) ||
-        object12(source.system_metadata).uid !== value.bootstrap.siteUid
+        object13(source.system_metadata).uid !== value.bootstrap.siteUid
       )
         throw new Error('Original Site SSH key or SLI-only settings differ from reviewed intent');
       await readOriginalGcpPreapplyBootstrapJwt(value);
@@ -21119,15 +21301,15 @@ import { createHash as createHash37 } from 'node:crypto';
 var hash27 = (value) => createHash37('sha256').update(value).digest('hex');
 var sha256 = /^[a-f0-9]{64}$/;
 var name4 = /^[a-z][a-z0-9-]{0,62}$/;
-var object13 = (value, context = 'Terraform bootstrap creation') => {
+var object14 = (value, context = 'Terraform bootstrap creation') => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error(`Original ${context} object required`);
   return value;
 };
 var issued5 = new WeakMap();
 function labels(state, api, expected, site) {
-  const declared = object13(state.labels),
-    actual = object13(object13(api.metadata).labels);
+  const declared = object14(state.labels),
+    actual = object14(object14(api.metadata).labels);
   if (
     Object.keys(declared).length !== Object.keys(expected).length ||
     Object.entries(expected).some(([key, value]) => declared[key] !== value || actual[key] !== value) ||
@@ -21137,8 +21319,8 @@ function labels(state, api, expected, site) {
     throw new Error('Original Terraform bootstrap owned labels or Google provider marker differ');
 }
 function creation(state, api, expectedName) {
-  const metadata = object13(api.metadata),
-    uid = object13(api.system_metadata).uid;
+  const metadata = object14(api.metadata),
+    uid = object14(api.system_metadata).uid;
   if (
     typeof uid !== 'string' ||
     !uid ||
@@ -21227,15 +21409,15 @@ async function collectBootstrap(input, providerVersion) {
     throw new Error('Original Terraform bootstrap applied state snapshot differs');
   const site = decodeEvidenceObject(input.site.bytes),
     token = decodeEvidenceObject(input.token.bytes);
-  const siteState = object13(state.resources[siteAddress]),
-    tokenState = object13(state.resources[tokenAddress]);
+  const siteState = object14(state.resources[siteAddress]),
+    tokenState = object14(state.resources[tokenAddress]);
   const siteUid = creation(siteState, site, binding.siteName),
     tokenUid = creation(tokenState, token, binding.tokenName);
   const declared = { 'xcsh-deployment': binding.deploymentName, 'xcsh-engine': 'terraform' };
   labels(siteState, site, declared, true);
   labels(tokenState, token, { ...declared, 'xcsh-node': binding.nodeName }, false);
-  const gcp = object13(object13(site.spec, 'GCP Site').gcp, 'GCP'),
-    notManaged = object13(gcp.not_managed, 'GCP not-managed');
+  const gcp = object14(object14(site.spec, 'GCP Site').gcp, 'GCP'),
+    notManaged = object14(gcp.not_managed, 'GCP not-managed');
   if (
     Object.keys(gcp).join(',') !== 'not_managed' ||
     Object.keys(notManaged).join(',') !== 'node_list' ||
@@ -21291,17 +21473,17 @@ async function readOriginalGcpTerraformBootstrapJwt(value) {
 import { createHash as createHash38, createHash as createHash39 } from 'node:crypto';
 
 var hash28 = (value) => createHash38('sha256').update(value).digest('hex');
-function object14(value) {
+function object15(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original insert audit object required');
   return value;
 }
-function canonical5(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
+function canonical6(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical6).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.keys(value)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical5(value[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${canonical6(value[key])}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
@@ -21325,17 +21507,17 @@ function computeLink(value) {
 }
 function requestAttributes(payload) {
   if (payload.requestMetadata === undefined) return {};
-  const attributes = object14(payload.requestMetadata).requestAttributes;
-  return attributes === undefined ? {} : object14(attributes);
+  const attributes = object15(payload.requestMetadata).requestAttributes;
+  return attributes === undefined ? {} : object15(attributes);
 }
 function matchOriginalAuditPair(entries, source, vm, audit, account, canIpForward) {
   const [first, last] = entries;
   for (const [index, entry] of entries.entries()) {
-    const payload = object14(entry.protoPayload),
-      operation = object14(entry.operation);
-    const labels = object14(object14(entry.resource).labels);
-    const status = object14(payload.status);
-    const auth = object14(payload.authenticationInfo);
+    const payload = object15(entry.protoPayload),
+      operation = object15(entry.operation);
+    const labels = object15(object15(entry.resource).labels);
+    const status = object15(payload.status);
+    const auth = object15(payload.authenticationInfo);
     if (
       labels.instance_id !== vm.instanceId ||
       operation.id !== source.operationName ||
@@ -21357,7 +21539,7 @@ function matchOriginalAuditPair(entries, source, vm, audit, account, canIpForwar
   }
   if (Date.parse(first.timestamp) > Date.parse(last.timestamp))
     throw new Error('Original audit first/last chronology differs');
-  const payload = object14(first.protoPayload);
+  const payload = object15(first.protoPayload);
   const attributes = requestAttributes(payload);
   if (
     typeof attributes.reason !== 'string' ||
@@ -21365,17 +21547,17 @@ function matchOriginalAuditPair(entries, source, vm, audit, account, canIpForwar
     hash28(attributes.reason) !== source.requestReasonSha256
   )
     throw new Error('Original audit request reason is unavailable or differs');
-  const lastMetadata = object14(last.protoPayload).requestMetadata;
+  const lastMetadata = object15(last.protoPayload).requestMetadata;
   if (lastMetadata !== undefined) {
-    const attributes = requestAttributes(object14(last.protoPayload));
+    const attributes = requestAttributes(object15(last.protoPayload));
     if (
       attributes.reason !== undefined &&
       (typeof attributes.reason !== 'string' || hash28(attributes.reason) !== source.requestReasonSha256)
     )
       throw new Error('Original final audit request reason differs');
   }
-  const response = object14(payload.response),
-    request = object14(payload.request);
+  const response = object15(payload.response),
+    request = object15(payload.request);
   if (
     response.id !== source.operationId ||
     response.name !== source.operationName ||
@@ -21390,10 +21572,10 @@ function matchOriginalAuditPair(entries, source, vm, audit, account, canIpForwar
     !['PENDING', 'RUNNING', 'DONE'].includes(response.status) ||
     request.name !== source.nodeName ||
     request.canIpForward !== canIpForward ||
-    hash28(canonical5(object14(request.labels))) !== source.labelsSha256
+    hash28(canonical6(object15(request.labels))) !== source.labelsSha256
   )
     throw new Error('Original audit response or requested ownership differs');
-  return { firstSha256: hash28(canonical5(first)), lastSha256: hash28(canonical5(last)) };
+  return { firstSha256: hash28(canonical6(first)), lastSha256: hash28(canonical6(last)) };
 }
 async function joinOriginalGcpInsertAuditEvidence(input) {
   const { reader, source, audit } = input;
@@ -21420,7 +21602,7 @@ async function joinOriginalGcpInsertAuditEvidence(input) {
       const decoded = decodeEvidenceObject(page.raw);
       return decoded.entries ?? [];
     })
-    .map(object14);
+    .map(object15);
   if (entries.length !== 2) throw new Error('One unambiguous original insert audit first/last pair required');
   const vm = await joinOriginalGcpVmEvidence(input);
   const account = retained.pages[0].authentication.accountSha256;
@@ -21494,7 +21676,7 @@ async function collectInstalledOriginalObserverAudit(input) {
     operationId: original.value.operationId,
     operationName: original.value.operationName,
     requestReasonSha256: original.requestReasonSha256,
-    labelsSha256: hash28(canonical5(object14(decodeEvidenceObject(Buffer.from(original.requestBody)).labels))),
+    labelsSha256: hash28(canonical6(object15(decodeEvidenceObject(Buffer.from(original.requestBody)).labels))),
   };
   const inventory = await readOriginalApplyGcpInventory(baseline, callback);
   const rows = inventory.cloud.filter(
@@ -21538,7 +21720,7 @@ async function collectInstalledOriginalObserverAudit(input) {
       const value = decodeEvidenceObject(page.raw);
       return value.entries ?? [];
     })
-    .map(object14);
+    .map(object15);
   if (entries.length !== 2) throw new Error('One original observer audit first/last pair required');
   const pair = matchOriginalAuditPair(
     entries,
@@ -21579,7 +21761,7 @@ async function collectInstalledOriginalObserverAudit(input) {
 
 // plugins/terraform/src/gcp-bootstrap-vm-binding.ts
 var hash29 = (value) => createHash39('sha256').update(value).digest('hex');
-var object15 = (value) => {
+var object16 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original bootstrap VM object required');
   return value;
@@ -21607,10 +21789,10 @@ async function joinOriginalGcpBootstrapVm(input) {
     throw new Error('Original bootstrap creation and insert scope or parent differs');
   const bodies = readOriginalGcpInsertSourceBodies(source);
   const request = decodeEvidenceObject(Buffer.from(bodies.requestBody)),
-    metadata = object15(request.metadata),
-    labels = object15(request.labels);
+    metadata = object16(request.metadata),
+    labels = object16(request.labels);
   if (!Array.isArray(metadata.items)) throw new Error('Original VM metadata required');
-  const userdata = metadata.items.map(object15).filter((row) => row.key === 'user-data');
+  const userdata = metadata.items.map(object16).filter((row) => row.key === 'user-data');
   if (
     userdata.length !== 1 ||
     typeof userdata[0].value !== 'string' ||
@@ -21620,7 +21802,7 @@ async function joinOriginalGcpBootstrapVm(input) {
   const jwt = await readOriginalGcpPreapplyBootstrapJwt(bootstrap);
   let config;
   try {
-    config = object15(Bun.YAML.parse(userdata[0].value));
+    config = object16(Bun.YAML.parse(userdata[0].value));
   } catch {
     throw new Error('Original token-only cloud-init required');
   }
@@ -21631,7 +21813,7 @@ async function joinOriginalGcpBootstrapVm(input) {
     config.write_files.length !== 1
   )
     throw new Error('Original token-only cloud-init required');
-  const file = object15(config.write_files[0]);
+  const file = object16(config.write_files[0]);
   if (
     Object.keys(file).sort().join(',') !== 'content,owner,path,permissions' ||
     file.path !== '/etc/vpm/user_data' ||
@@ -22281,7 +22463,7 @@ async function readOriginalInstalledGcpObserverAccess(value, callback) {
 var inputNames = ['observer_key', 'ce_key', 'observer_hosts', 'ce_hosts'];
 var core = (binding) =>
   fingerprint(Object.fromEntries(Object.entries(binding).filter(([name]) => !inputNames.includes(name))));
-var canonical6 = (value) => fingerprint(value);
+var canonical7 = (value) => fingerprint(value);
 function assertOriginalGuestBindingTransfer(before, after, original, current) {
   if (core(before) !== core(after))
     throw new Error('Original guest source transfer changed identity/token/NIC ownership');
@@ -22363,7 +22545,7 @@ async function openInstalledGcpGuestBinding(initial) {
   let sources = Object.freeze({ ...initial });
   const original = await readSources(sources);
   const binding = Object.freeze({ ...original.binding });
-  const anchor = canonical6(binding),
+  const anchor = canonical7(binding),
     identity = core(binding);
   const context = original.context;
   const monitor = await monitorOriginalInputs(original.inputs);
@@ -22395,7 +22577,7 @@ async function openInstalledGcpGuestBinding(initial) {
     busy = true;
     try {
       await lease(full);
-      if (value && canonical6(value) !== anchor) throw new Error('Original immutable guest binding differs');
+      if (value && canonical7(value) !== anchor) throw new Error('Original immutable guest binding differs');
       const current = await readSources(sources);
       sameInputs(current);
       await lease(full);
@@ -22418,7 +22600,7 @@ async function openInstalledGcpGuestBinding(initial) {
         busy = true;
         try {
           if (role !== 'observer' && role !== 'ce') throw new Error('Original guest trust role required');
-          if (canonical6(value) !== anchor) throw new Error('Original immutable guest trust binding differs');
+          if (canonical7(value) !== anchor) throw new Error('Original immutable guest trust binding differs');
           await lease(false);
           const callback = sources.callback;
           const view =
@@ -22509,7 +22691,7 @@ import { dirname as dirname18, join as join36 } from 'node:path';
 
 // plugins/terraform/src/guest-capture-round.ts
 var sha2562 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-var object16 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+var object17 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 var scopeCommands = {
   root: ['health', 'diagnosis', 'status', 'execcli'],
   status: ['vpm'],
@@ -22598,7 +22780,7 @@ async function runOriginalGuestCaptureRound(supplied, original, deadline, monoto
       (anchor !== undefined && result.anchor !== anchor) ||
       !Number.isSafeInteger(result.id) ||
       Number(result.id) <= 0 ||
-      !object16(evidence) ||
+      !object17(evidence) ||
       evidence.schemaVersion !== 1 ||
       evidence.kind !== kind ||
       evidence.truncated !== false ||
@@ -22743,7 +22925,7 @@ import { dirname as dirname17, isAbsolute as isAbsolute20, join as join35, resol
 // plugins/terraform/src/original-guest-control.ts
 var maximumFrame = 65536;
 var maximumSequence = 2 ** 31 - 1;
-var object17 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+var object18 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 var integer5 = (value) => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= maximumSequence;
 function jsonValue(value, depth = 0, ancestors = new Set()) {
   if (depth >= 64) throw new Error('Original guest control JSON nesting exceeds bound');
@@ -22802,7 +22984,7 @@ class OriginalGuestControlFrames {
   encode(message) {
     this.active();
     try {
-      if (!object17(message) || !integer5(this.sent + 1)) throw new Error('Original guest control message required');
+      if (!object18(message) || !integer5(this.sent + 1)) throw new Error('Original guest control message required');
       jsonValue(message);
       const raw = Buffer.from(
         JSON.stringify({
@@ -22847,7 +23029,7 @@ class OriginalGuestControlFrames {
           value.session !== this.session ||
           !integer5(value.sequence) ||
           value.sequence !== this.received + 1 ||
-          !object17(value.message)
+          !object18(value.message)
         )
           throw new Error('Original guest control attribution differs');
         this.received++;
@@ -23122,20 +23304,20 @@ var discoveries = new Set([
   'docker-logs',
 ]);
 var requiredGuards = ['inputs', 'original', 'trust:observer', 'trust:ce'];
-var object18 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+var object19 = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 var integer6 = (value) => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 2 ** 31 - 1;
 var keys3 = (value, expected) => Object.keys(value).sort().join(',') === [...expected].sort().join(',');
 function frozen(value) {
   if (Array.isArray(value)) return Object.freeze(value.map(frozen));
-  if (object18(value))
+  if (object19(value))
     return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, frozen(item)])));
   return value;
 }
-function canonical7(value) {
+function canonical8(value) {
   const sorted = (item) =>
     Array.isArray(item)
       ? item.map(sorted)
-      : object18(item)
+      : object19(item)
         ? Object.fromEntries(
             Object.keys(item)
               .sort()
@@ -23197,7 +23379,7 @@ class OriginalGuestControlParent {
     assertOriginalGuestJson(admission.binding);
     const binding = admission.binding;
     if (
-      !object18(binding) ||
+      !object19(binding) ||
       !keys3(binding, bindingKeys) ||
       bindingKeys
         .filter((key) => !['original_interfaces', 'token_expires'].includes(key))
@@ -23269,7 +23451,7 @@ class OriginalGuestControlParent {
     const value = await this.peer.receive(deadline);
     await this.check(deadline);
     assertOriginalGuestJson(value);
-    if (!object18(value)) throw new Error('Original guest control message required');
+    if (!object19(value)) throw new Error('Original guest control message required');
     return value;
   }
   async run(operation, deadline) {
@@ -23376,7 +23558,7 @@ class OriginalGuestControlParent {
         bound.requestSha256 !== this.requestSha256 ||
         typeof bound.anchor !== 'string' ||
         !/^[a-f0-9]{64}$/.test(bound.anchor) ||
-        canonical7(bound.binding) !== canonical7(this.binding)
+        canonical8(bound.binding) !== canonical8(this.binding)
       )
         throw new Error('Original guest worker binding differs');
       this.anchor = bound.anchor;
@@ -23424,7 +23606,7 @@ class OriginalGuestControlParent {
           typeof result.errorType !== 'string' ||
           !/^[A-Za-z_][A-Za-z_0-9]{0,79}$/.test(result.errorType) ||
           !Array.isArray(result.evidence) ||
-          result.evidence.some((value) => !object18(value))
+          result.evidence.some((value) => !object19(value))
         )
           throw new Error('Original guest command failure attribution differs');
         throw new OriginalGuestCaptureFailure(result, [...this.guardDenials]);
@@ -23446,7 +23628,7 @@ class OriginalGuestControlParent {
         result.anchor !== this.anchor ||
         result.guestAcceptanceComplete !== false ||
         !Array.isArray(result.evidence) ||
-        result.evidence.some((value) => !object18(value)) ||
+        result.evidence.some((value) => !object19(value)) ||
         (closing && typeof result.closed !== 'boolean')
       )
         throw new Error('Original guest command result attribution differs');

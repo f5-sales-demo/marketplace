@@ -5,6 +5,7 @@ import { acquireProcessLock, assertExecutorProcessGroupAbsent } from '../../plat
 import { TerraformCommandError, type TerraformFailureCategory, terraformFailureCategories } from './failure';
 import { freezeAdmittedCaptureInputs } from './installed-capture-context';
 import { monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import { hasReviewedDataSources, projectReviewedDataSources } from './reviewed-data-sources';
 
 export interface OriginalTerraformPlanSource {
   readonly schemaVersion: 1;
@@ -759,7 +760,17 @@ export async function readCaptureCleanupAttemptResourceFields(
     const version = await run(['version', '-json']);
     if (typeof manifest.terraformVersion !== 'string' || version.terraform_version !== manifest.terraformVersion)
       throw new Error('Original capture inspection Terraform version changed');
-    const state = await run(['show', '-json', 'terraform.tfstate']);
+    let state = await run(['show', '-json', 'terraform.tfstate']);
+    if (hasReviewedDataSources(identity, state, Object.keys(selections))) {
+      const plan = await run(['show', '-json', 'saved.tfplan']);
+      state = projectReviewedDataSources(
+        decode(raw('main.tf.json').toString()),
+        plan,
+        identity,
+        state,
+        manifest.terraformVersion,
+      );
+    }
     const resources = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
     await assertClosed();
     return {
@@ -1963,7 +1974,25 @@ export class TerraformRunner {
         throw new Error('Terraform state identity is malformed');
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
-      const state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      let state = decode(await this.#run(['show', '-json', 'terraform.tfstate'], env, signal));
+      if (hasReviewedDataSources(identity, state, Object.keys(selections))) {
+        const configuration = await privateRead(join(directory, 'main.tf.json'));
+        const planBytes = await privateRead(join(directory, 'saved.tfplan'));
+        if (digest(configuration) !== receipt.configurationSha256 || digest(planBytes) !== receipt.planSha256)
+          throw new Error('Reviewed Terraform data inputs changed before inspection');
+        const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+        if (digest(planBytes) !== digest(await privateRead(join(directory, 'saved.tfplan'))))
+          throw new Error('Reviewed Terraform data plan changed during inspection');
+        state = projectReviewedDataSources(
+          decode(configuration.toString()),
+          plan,
+          identity,
+          state,
+          manifest.terraformVersion,
+          receipt.operation,
+          Object.keys(selections),
+        );
+      }
       const result = projectAppliedStateSnapshot(state, identity, manifest.terraformVersion, receipt, selections);
       if (digest(snapshot) !== digest(await privateRead(statePath)))
         throw new Error('Terraform state changed during identity inspection');
