@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { assertAbsentProcessGroup } from './bounded-process-group-scan';
 import { readLinuxProcessGroupRecord } from './linux-process-group';
 
 interface Claim {
@@ -123,14 +124,7 @@ export async function assertRecordedProcessGroupAbsent(identity: RecordedProcess
 }
 
 async function assertPhysicalProcessGroupAbsent(group: number): Promise<void> {
-  for (const name of await readdir('/proc')) {
-    if (!/^\d+$/.test(name)) continue;
-    try {
-      if ((await processGroup(Number(name))) === group) throw new Error('Original executor process group remains live');
-    } catch (error) {
-      if (!vanishedProcess(error)) throw error;
-    }
-  }
+  await assertAbsentProcessGroup(group, () => readdir('/proc'), processGroup);
 }
 
 /** Physical closure of a source-verified worker that may be a group member.

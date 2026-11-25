@@ -1733,11 +1733,38 @@ function bindAwsCloudInit(response, jwt) {
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
 // plugins/platform/src/ce/process-lock.ts
-// plugins/platform/src/ce/linux-process-group.ts
-import { createHash as createHash3, createHash as createHash4, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash4, randomUUID as randomUUID2 } from 'node:crypto';
 import { lstat as lstat2, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { isIP as isIP3 } from 'node:net';
 import { basename, dirname, join as join2, join as join3 } from 'node:path';
+
+// plugins/platform/src/ce/bounded-process-group-scan.ts
+async function assertAbsentProcessGroup(group, listNames, readGroup) {
+  if (!Number.isSafeInteger(group) || group < 1) throw new Error('Original process group required');
+  const pids = (await listNames())
+    .filter((name) => /^\d+$/.test(name))
+    .map((name) => {
+      const pid = Number(name);
+      if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original process identifier required');
+      return pid;
+    });
+  for (let start = 0; start < pids.length; start += 32) {
+    const results = await Promise.allSettled(
+      pids.slice(start, start + 32).map(async (pid) => {
+        try {
+          if ((await readGroup(pid)) === group) throw new Error('Original executor process group remains live');
+        } catch (error) {
+          const code = error?.code;
+          if (code !== 'ENOENT' && code !== 'ESRCH') throw error;
+        }
+      }),
+    );
+    for (const result of results) if (result.status === 'rejected') throw result.reason;
+  }
+}
+
+// plugins/platform/src/ce/linux-process-group.ts
+import { createHash as createHash3 } from 'node:crypto';
 
 async function readLinuxProcessGroupRecord(pid, readRecord) {
   if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
@@ -1859,14 +1886,7 @@ async function assertRecordedProcessGroupAbsent(identity) {
   }
 }
 async function assertPhysicalProcessGroupAbsent(group) {
-  for (const name of await readdir('/proc')) {
-    if (!/^\d+$/.test(name)) continue;
-    try {
-      if ((await processGroup(Number(name))) === group) throw new Error('Original executor process group remains live');
-    } catch (error) {
-      if (!vanishedProcess(error)) throw error;
-    }
-  }
+  await assertAbsentProcessGroup(group, () => readdir('/proc'), processGroup);
 }
 var tokenPattern = /^[a-f0-9-]{36}$/;
 var bootPattern = /^[a-f0-9-]{36}$/;
