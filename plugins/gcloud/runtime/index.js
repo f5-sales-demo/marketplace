@@ -5635,7 +5635,8 @@ var init_gcp_observer_image = __esm(() => {
 
 // plugins/gcloud/src/ce/bounded-cleanup-observations.ts
 function bindCleanupObservationConcurrency(api, concurrency) {
-  if (concurrency !== 1 && concurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+  if (concurrency !== 1 && concurrency !== 3 && concurrency !== 6)
+    throw new Error('Qualified cleanup read concurrency required');
   readConcurrency.set(api, concurrency);
   return api;
 }
@@ -5643,7 +5644,8 @@ function readCleanupObservationConcurrency(api) {
   return api !== null && (typeof api === 'object' || typeof api === 'function') ? (readConcurrency.get(api) ?? 1) : 1;
 }
 async function mapCleanupObservations(values, observe, signal, concurrency = 1) {
-  if (concurrency !== 1 && concurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+  if (concurrency !== 1 && concurrency !== 3 && concurrency !== 6)
+    throw new Error('Qualified cleanup read concurrency required');
   const original = [...values];
   const result = [];
   signal?.throwIfAborted();
@@ -18563,7 +18565,8 @@ async function readCleanupStderr(path) {
 }
 function createGcpCaptureCleanupCli(options) {
   const readConcurrency = options.readConcurrency ?? 1;
-  if (readConcurrency !== 1 && readConcurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+  if (readConcurrency !== 1 && readConcurrency !== 3 && readConcurrency !== 6)
+    throw new Error('Qualified cleanup read concurrency required');
   const intent = structuredClone(options.intent);
   const allowed = new Set(gcpCaptureCleanupReadCommands(intent).map((args) => JSON.stringify(args)));
   const { directory, diagnosticsDirectory } = options;

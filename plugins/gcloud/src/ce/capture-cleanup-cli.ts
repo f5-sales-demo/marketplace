@@ -11,7 +11,7 @@ import {
   signalFreeTerraformExecutor,
 } from '../../../terraform/src/signal-free-executor';
 import type { GcloudExecApi } from '../gcloud/exec';
-import { bindCleanupObservationConcurrency } from './bounded-cleanup-observations';
+import { bindCleanupObservationConcurrency, type CleanupObservationConcurrency } from './bounded-cleanup-observations';
 import { gcpTeardownResourceObservationArgs } from './deployment-teardown';
 import {
   gcpFirewallInsertObservationArgs,
@@ -31,7 +31,7 @@ interface GcpCaptureCleanupCliOptions {
   readonly configuration: string;
   readonly environment: Record<string, string | undefined>;
   /** Compiled guards over pinned CLI, original selected account and configuration. */
-  readonly readConcurrency?: 1 | 3;
+  readonly readConcurrency?: CleanupObservationConcurrency;
   assertInputs(): Promise<void>;
   /** Continuous identity checks over the same admitted inputs between full byte boundaries. */
   assertInputIdentity?(): Promise<void>;
@@ -92,7 +92,8 @@ async function readCleanupStderr(path: string): Promise<string> {
  * claims, original scope and natural child completion without process signals. */
 export function createGcpCaptureCleanupCli(options: GcpCaptureCleanupCliOptions): GcloudExecApi {
   const readConcurrency = options.readConcurrency ?? 1;
-  if (readConcurrency !== 1 && readConcurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+  if (readConcurrency !== 1 && readConcurrency !== 3 && readConcurrency !== 6)
+    throw new Error('Qualified cleanup read concurrency required');
   const intent = structuredClone(options.intent);
   const allowed = new Set(gcpCaptureCleanupReadCommands(intent).map((args) => JSON.stringify(args)));
   const directory = options.directory,

@@ -278,3 +278,55 @@ test('native transport rejects unsupported read concurrency before creating obse
   const f = await fixture();
   expect(() => createGcpCaptureCleanupCli({ ...f.options, readConcurrency: 2 as 1 | 3 })).toThrow('read concurrency');
 });
+
+test('native cleanup transport permits exactly six qualified independent reads with one original budget', async () => {
+  const f = await fixture();
+  const api = createGcpCaptureCleanupCli({ ...f.options, readConcurrency: 6 });
+  expect(readCleanupObservationConcurrency(api)).toBe(6);
+  expect(readCleanupObservationConcurrency({ ...api })).toBe(1);
+  const args = gcpCaptureCleanupReadCommands(f.intent).slice(0, 6);
+  const results = await Promise.all(args.map((argv) => api.exec('gcloud', [...argv])));
+  expect(results.map((r) => r.exitCode)).toEqual([0, 0, 0, 0, 0, 0]);
+  const files = await Array.fromAsync(
+    new Bun.Glob('**/cleanup-observation-final.private.json').scan({ cwd: f.diagnosticsDirectory }),
+  );
+  expect(files).toHaveLength(6);
+  const rows = await Promise.all(
+    files.map(async (p) => JSON.parse(await readFile(join(f.diagnosticsDirectory, p), 'utf8'))),
+  );
+  expect(new Set(rows.map((r) => r.originalDeadlineMs)).size).toBe(1);
+  expect(new Set(rows.map((r) => r.identity.group)).size).toBe(6);
+  for (const row of rows) {
+    expect(row.signalsSent).toBe(false);
+    expect(row.originalGroupClosed).toBe(true);
+    expect(row.finalDeadlineMs - row.finalStartedMs).toBe(300000);
+  }
+  expect(await readFile(f.retained, 'utf8')).toBe('original-failed-capture');
+});
+test('bounded native transport refuses a seventh read without retiring the six admitted reads', async () => {
+  const f = await fixture();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  let started = 0;
+  let began: () => void = () => {};
+  const admission = new Promise<void>((r) => {
+    began = r;
+  });
+  const api = createGcpCaptureCleanupCli({
+    ...f.options,
+    readConcurrency: 6,
+    assertInputs: async () => {
+      if (++started === 6) began();
+      await gate;
+      await f.options.assertInputs();
+    },
+  });
+  const args = gcpCaptureCleanupReadCommands(f.intent)[0];
+  const pending = Array.from({ length: 6 }, () => api.exec('gcloud', [...args]));
+  await admission;
+  await expect(api.exec('gcloud', [...args])).rejects.toThrow('active or retired');
+  release();
+  expect((await Promise.all(pending)).map((r) => r.exitCode)).toEqual([0, 0, 0, 0, 0, 0]);
+});

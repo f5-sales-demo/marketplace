@@ -1,12 +1,17 @@
 /** Only compiled native producers issue read concurrency. Tool arguments,
  * receipts and copied API payloads cannot manufacture this capability. */
-const readConcurrency = new WeakMap<object, 1 | 3>();
-export function bindCleanupObservationConcurrency<T extends object>(api: T, concurrency: 1 | 3): T {
-  if (concurrency !== 1 && concurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+export type CleanupObservationConcurrency = 1 | 3 | 6;
+const readConcurrency = new WeakMap<object, CleanupObservationConcurrency>();
+export function bindCleanupObservationConcurrency<T extends object>(
+  api: T,
+  concurrency: CleanupObservationConcurrency,
+): T {
+  if (concurrency !== 1 && concurrency !== 3 && concurrency !== 6)
+    throw new Error('Qualified cleanup read concurrency required');
   readConcurrency.set(api, concurrency);
   return api;
 }
-export function readCleanupObservationConcurrency(api: unknown): 1 | 3 {
+export function readCleanupObservationConcurrency(api: unknown): CleanupObservationConcurrency {
   return api !== null && (typeof api === 'object' || typeof api === 'function') ? (readConcurrency.get(api) ?? 1) : 1;
 }
 /** Preserve order and drain each started batch before any refusal. The original
@@ -15,9 +20,10 @@ export async function mapCleanupObservations<T, R>(
   values: readonly T[],
   observe: (value: T, index: number) => Promise<R>,
   signal?: AbortSignal,
-  concurrency: 1 | 3 = 1,
+  concurrency: CleanupObservationConcurrency = 1,
 ): Promise<R[]> {
-  if (concurrency !== 1 && concurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+  if (concurrency !== 1 && concurrency !== 3 && concurrency !== 6)
+    throw new Error('Qualified cleanup read concurrency required');
   const original = [...values];
   const result: R[] = [];
   signal?.throwIfAborted();
