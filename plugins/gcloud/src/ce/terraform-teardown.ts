@@ -4,6 +4,7 @@ import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { GcloudExecApi } from '../gcloud/exec';
+import type { GcpAppliedSourceTeardownOrigin } from './applied-source-teardown-origin';
 import type { GcpCapturedTeardownOrigin } from './captured-teardown-origin';
 import type { GcpCeContractBoundary } from './contract';
 import {
@@ -23,6 +24,7 @@ type Observation = Awaited<ReturnType<NonNullable<GcpPlatformObservations['teard
 export interface GcpTerraformTeardownRuntime {
   /** Compiled source-issued provenance only; never a tool argument or public deploy receipt. */
   readonly capturedTeardownOrigin?: GcpCapturedTeardownOrigin;
+  readonly appliedSourceTeardownOrigin?: GcpAppliedSourceTeardownOrigin;
   store: GcpOperationStore & { directory: string };
   session: TerraformSession;
   api: GcloudExecApi;

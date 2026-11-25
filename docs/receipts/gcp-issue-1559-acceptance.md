@@ -2541,3 +2541,13 @@ normal Platform and shared Terraform session composition, original-file loading,
 input mutation guards and 834 passing affected cases. The original failed claim
 and create receipt stay intact. Actual worker/reader/client bindings, successful
 source-campaign cleanup and all original live/delivery gates remain unfinished.
+
+## Successful source cleanup and fresh preflight
+
+The [successful source receipt](gcp-applied-source-cleanup-20261125.md) records
+original authorization, shared applied attestation and complete stable ownership
+without fabricated capture flags or public journals. The new path passed its
+failing-first cases, 855 affected cases, typechecks, builds and lint. Real installed
+SDK reads and a separate original-provider/Platform review proved all 21 initial
+absences. No apply was submitted; actual worker composition, live cleanup and
+every original networking, lifecycle, runtime and delivery gate remain open.

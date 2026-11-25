@@ -12,6 +12,15 @@ export function publicTerraformContextHash(intent: GcpCeIntent, apiUrl: string |
 }
 
 export async function assertPublicTerraformContext(runtime: GcpTerraformTeardownRuntime, intent: GcpCeIntent) {
+  if (runtime.capturedTeardownOrigin !== undefined && runtime.appliedSourceTeardownOrigin !== undefined)
+    throw new Error('Ambiguous original Terraform source origins');
+  if (runtime.appliedSourceTeardownOrigin !== undefined) {
+    const { readGcpAppliedSourceTeardownOrigin } = await import('./applied-source-teardown-origin');
+    const original = await readGcpAppliedSourceTeardownOrigin(runtime.appliedSourceTeardownOrigin, intent);
+    if (original.contextHash !== publicTerraformContextHash(intent, runtime.environment.XCSH_API_URL))
+      throw new Error('Original applied source Terraform context endpoint changed');
+    return original.contextHash;
+  }
   if (runtime.capturedTeardownOrigin !== undefined) {
     const { readGcpCapturedTeardownOrigin } = await import('./captured-teardown-origin');
     const original = await readGcpCapturedTeardownOrigin(runtime.capturedTeardownOrigin, intent);

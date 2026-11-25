@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { PlanReceipt } from '../../../terraform/src/runner';
+import { readGcpAppliedSourceTeardownOrigin } from './applied-source-teardown-origin';
 import { readGcpCapturedTeardownOrigin } from './captured-teardown-origin';
 import type { GcpCeContractBoundary } from './contract';
 import {
@@ -77,6 +78,10 @@ async function stableState(runtime: GcpTerraformTeardownRuntime) {
   return runtime.session.readStateIdentity();
 }
 export async function readPublicTerraformCleanupOwnership(runtime: GcpTerraformTeardownRuntime, intent: GcpCeIntent) {
+  if (runtime.capturedTeardownOrigin !== undefined && runtime.appliedSourceTeardownOrigin !== undefined)
+    throw new Error('Ambiguous original Terraform source origins');
+  if (runtime.appliedSourceTeardownOrigin !== undefined)
+    return readGcpAppliedSourceTeardownOrigin(runtime.appliedSourceTeardownOrigin, intent);
   if (runtime.capturedTeardownOrigin !== undefined)
     return readGcpCapturedTeardownOrigin(runtime.capturedTeardownOrigin, intent);
   const original = (await runtime.store.read('gcp-tf-deploy-original-authorization.json')) as {
