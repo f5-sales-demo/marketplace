@@ -4457,8 +4457,12 @@ class InstalledCaptureInvocations {
     return record;
   }
   find(finished) {
-    if (!finished.identity || finished.pid !== finished.identity.pid)
-      throw new Error('Original final capture identity unavailable');
+    if (!finished.identity || finished.pid !== finished.identity.pid) {
+      const reason = ['startup', 'deadline', 'cancelled', 'input-changed', 'output-limit'].find(
+        (candidate) => candidate === finished.reason,
+      );
+      throw new Error(`Original final capture identity unavailable${reason ? ` after native ${reason} refusal` : ''}`);
+    }
     const record = this.records.get(key(finished.identity));
     if (!record) throw new Error('Original final capture invocation unavailable');
     return record;
@@ -16394,6 +16398,7 @@ function originalExecutor(input, reserve) {
     try {
       generatedInputs = await monitorOriginalInputs(generatedBindings);
       await generatedInputs.assertOriginal();
+      const nativeStartupStartedMs = now();
       child = Bun.spawn([policy.python.path, '-I', '-B', script, bootstrap, policy.executable.path, ...args], {
         cwd,
         env: { ...env },
@@ -16404,7 +16409,7 @@ function originalExecutor(input, reserve) {
       const childDone = child.exited.then((code) => {
         actualExitCode = code;
       });
-      const startupDeadline = Math.min(began + startup, executionDeadline);
+      const startupDeadline = Math.min(nativeStartupStartedMs + startup, began + timeout, executionDeadline);
       while (!(await Bun.file(bootstrap).exists()) && actualExitCode === null && !reason) {
         await check();
         if (now() >= startupDeadline) fail('startup');

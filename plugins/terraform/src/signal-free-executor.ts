@@ -998,6 +998,9 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
     try {
       generatedInputs = await monitorOriginalInputs(generatedBindings);
       await generatedInputs.assertOriginal();
+      // Preflight and pinning consume the original command/operation budgets.
+      // Native startup begins with this spawn attempt and stays bounded by both.
+      const nativeStartupStartedMs = now();
       child = Bun.spawn([policy.python.path, '-I', '-B', script, bootstrap, policy.executable.path, ...args], {
         cwd,
         env: { ...env },
@@ -1008,7 +1011,7 @@ function originalExecutor(input: SignalFreeExecutionPolicy, reserve?: FinalReade
       const childDone = child.exited.then((code) => {
         actualExitCode = code;
       });
-      const startupDeadline = Math.min(began + startup, executionDeadline);
+      const startupDeadline = Math.min(nativeStartupStartedMs + startup, began + timeout, executionDeadline);
       while (!(await Bun.file(bootstrap).exists()) && actualExitCode === null && !reason) {
         await check();
         if (now() >= startupDeadline) fail('startup');

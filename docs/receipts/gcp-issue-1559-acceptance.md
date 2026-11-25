@@ -2433,3 +2433,15 @@ wrong-engine failure. The source repair passes three failing-first cases,
 configured lint. Fresh changed-candidate runtime and authentication checks,
 actual guest/expiry coverage and all original feature/live/delivery gates remain
 open. The complete capture factory remains inactive.
+
+## Current ordinary runtime and native startup refusal
+
+The [startup receipt](gcp-native-startup-accounting-20261125.md) records verified
+ordinary Ubuntu native-default/explicit-Terraform, concrete engine refusal and
+isolated authentication behavior. The next source worker failed native startup
+before submission; independent review verified 21 absences and 14 native group
+absences while preserving its consumed checkpoint and failed capture flags.
+Failing-first startup and safe final-reason repairs passed native/shared tests,
+strict types, normal build and configured lint. Full changed-source startup,
+actual guest/expiry and every original feature/live/delivery gate remain open.
+The complete factory stays inactive.

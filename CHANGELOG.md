@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.172 preserves original final inventory after genuine
+- **`terraform`** v2.4.173 preserves original final inventory after genuine
   before-phase retirement. Exact callback, ownership, original absence bytes,
   source integrity and final-reserve checks remain enforced. Complete factory,
   live qualification and publication remain held (#1559).

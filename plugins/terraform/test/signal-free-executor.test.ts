@@ -683,3 +683,31 @@ test('failed full final digest keeps final capture evidence and an unresolved fl
   expect(run.captures).toHaveLength(1);
   expect(await Bun.file(join(run.root, '.terraform-executor-lock/capture-unresolved.json')).exists()).toBe(true);
 });
+
+test('native startup starts after preflight while command and original operation deadlines remain fixed', async () => {
+  let startupDeadline = 0;
+  let before = true;
+  const run = await fixture('print("original-preflight-complete")\n', {
+    startupTimeoutMs: 1000,
+    timeoutMs: 10000,
+    beforeRelease: async (admission) => {
+      startupDeadline = admission.startupDeadlineMs;
+      expect(admission.originalStartMs).toBe(run.started);
+      expect(admission.originalDeadlineMs).toBe(run.started + 7200000);
+    },
+  });
+  run.checks.push(async () => {
+    if (before) {
+      before = false;
+      await Bun.sleep(1500);
+    }
+  });
+  const result = await run.executor({ cwd: run.root, args: [run.script], env: {} });
+  expect(result.code).toBe(0);
+  expect(run.captures[0].submitted).toBe(true);
+  expect(startupDeadline).toBeGreaterThan(run.captures[0].invocationStartedMs + 1500);
+  expect(startupDeadline).toBeLessThanOrEqual(run.captures[0].invocationStartedMs + 10000);
+  expect(run.captures[0].originalDeadlineMs).toBe(run.started + 7200000);
+  expect(run.captures[0].finalDeadlineMs).toBe(run.captures[0].finalStartedMs + 300000);
+  expect(run.captures[0].signalsSent).toBe(false);
+});

@@ -59,8 +59,14 @@ export class InstalledCaptureInvocations {
     return record;
   }
   find(finished: FinalExecutionCapture) {
-    if (!finished.identity || finished.pid !== finished.identity.pid)
-      throw new Error('Original final capture identity unavailable');
+    if (!finished.identity || finished.pid !== finished.identity.pid) {
+      // A refused startup has no invocation authority. Preserve its known
+      // native reason without adopting an identity or echoing arbitrary input.
+      const reason = ['startup', 'deadline', 'cancelled', 'input-changed', 'output-limit'].find(
+        (candidate) => candidate === finished.reason,
+      );
+      throw new Error(`Original final capture identity unavailable${reason ? ` after native ${reason} refusal` : ''}`);
+    }
     const record = this.records.get(key(finished.identity));
     if (!record) throw new Error('Original final capture invocation unavailable');
     return record;
