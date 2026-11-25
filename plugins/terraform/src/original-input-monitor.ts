@@ -123,7 +123,7 @@ export async function monitorOriginalInputs(
       latch('watcher-error');
     });
   };
-  const inspectOriginal = async (verifyBytes: boolean) => {
+  const inspectOriginalOnce = async (verifyBytes: boolean) => {
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
       const results = await Promise.allSettled(
@@ -156,10 +156,25 @@ export async function monitorOriginalInputs(
         }),
       );
       for (const result of results) if (result.status === 'rejected') throw result.reason;
+      if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     } catch (error) {
       throw latch(error instanceof OriginalInputMonitorError ? error.reason : 'filesystem-read-unavailable');
     }
   };
+  // Share only work that is still running for this exact immutable input set.
+  // Digest and identity scans remain separate; completion never caches a verdict.
+  const inspections = new Map<boolean, Promise<void>>();
+  const inspectOriginal = (verifyBytes: boolean): Promise<void> => {
+    if (refused || closed) return Promise.reject(latch(closed ? 'monitor-closed' : 'watcher-event'));
+    const pending = inspections.get(verifyBytes);
+    if (pending) return pending;
+    const inspection = inspectOriginalOnce(verifyBytes).finally(() => {
+      if (inspections.get(verifyBytes) === inspection) inspections.delete(verifyBytes);
+    });
+    inspections.set(verifyBytes, inspection);
+    return inspection;
+  };
+
   try {
     for (const binding of bindings) {
       if (

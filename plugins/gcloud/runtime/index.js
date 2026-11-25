@@ -1492,7 +1492,7 @@ async function monitorOriginalInputs(input, options = {}) {
       latch('watcher-error');
     });
   };
-  const inspectOriginal = async (verifyBytes) => {
+  const inspectOriginalOnce = async (verifyBytes) => {
     if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     try {
       const results = await Promise.allSettled(
@@ -1525,9 +1525,21 @@ async function monitorOriginalInputs(input, options = {}) {
         }),
       );
       for (const result of results) if (result.status === 'rejected') throw result.reason;
+      if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
     } catch (error) {
       throw latch(error instanceof OriginalInputMonitorError ? error.reason : 'filesystem-read-unavailable');
     }
+  };
+  const inspections = new Map();
+  const inspectOriginal = (verifyBytes) => {
+    if (refused || closed) return Promise.reject(latch(closed ? 'monitor-closed' : 'watcher-event'));
+    const pending = inspections.get(verifyBytes);
+    if (pending) return pending;
+    const inspection = inspectOriginalOnce(verifyBytes).finally(() => {
+      if (inspections.get(verifyBytes) === inspection) inspections.delete(verifyBytes);
+    });
+    inspections.set(verifyBytes, inspection);
+    return inspection;
   };
   try {
     for (const binding of bindings) {
