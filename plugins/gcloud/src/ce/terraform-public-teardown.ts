@@ -7,13 +7,12 @@ import { readGcpCapturedTeardownOrigin } from './captured-teardown-origin';
 import type { GcpCeContractBoundary } from './contract';
 import {
   assertGcpTeardownPolicyFresh,
-  assertGcpTeardownProfile,
   observeGcpTeardownResource,
+  resolveGcpTerraformTeardownLifecycle,
 } from './deployment-teardown';
 import { fingerprint } from './discovery';
 import type { GcpPolicyReceipt } from './policy';
 import { assertPublicTerraformContext } from './terraform-context';
-import { gcpDeploymentLifecycleFingerprint } from './terraform-ha-profile';
 import { type PublicTerraformJournal, readOptional } from './terraform-public';
 import {
   assertOriginalFirewallInsert,
@@ -202,7 +201,7 @@ export async function planPublicTerraformTeardown(
   policy: GcpPolicyReceipt,
   signal?: AbortSignal,
 ) {
-  assertGcpTeardownProfile(intent, contract, 'terraform');
+  const lifecycleFingerprint = await resolveGcpTerraformTeardownLifecycle(runtime, intent, contract);
   await assertPublicTerraformContext(runtime, intent);
   assertGcpTeardownPolicyFresh(policy);
   const release = await acquireProcessLock(join(runtime.store.directory, '.gcp-deployment-lock'));
@@ -224,9 +223,7 @@ export async function planPublicTerraformTeardown(
       engine: 'terraform' as const,
       intentFingerprint: fingerprint(intent),
       apiRelease: contract.release,
-      ...(intent.sites[0].nodes.length === 3
-        ? { lifecycleFingerprint: gcpDeploymentLifecycleFingerprint(intent, contract) }
-        : {}),
+      ...(intent.sites[0].nodes.length === 3 ? { lifecycleFingerprint } : {}),
       policyReceipt: policy,
       originalAuthorization: original,
       ownershipHash: fingerprint(owned),
@@ -252,7 +249,7 @@ export async function applyPublicTerraformTeardown(
   signal?: AbortSignal,
   onMutation?: () => void,
 ) {
-  assertGcpTeardownProfile(intent, contract, 'terraform');
+  const lifecycleFingerprint = await resolveGcpTerraformTeardownLifecycle(runtime, intent, contract);
   await assertPublicTerraformContext(runtime, intent);
   assertGcpTeardownPolicyFresh(policy);
   if (!/^sha256:[a-f0-9]{64}$/.test(approvedHash)) throw new Error('Exact cleanup review required');
@@ -270,8 +267,7 @@ export async function applyPublicTerraformTeardown(
       fingerprint(body) !== approvedHash ||
       plan.intentFingerprint !== fingerprint(intent) ||
       fingerprint(plan.apiRelease) !== fingerprint(contract.release) ||
-      plan.lifecycleFingerprint !==
-        (intent.sites[0].nodes.length === 3 ? gcpDeploymentLifecycleFingerprint(intent, contract) : undefined) ||
+      plan.lifecycleFingerprint !== lifecycleFingerprint ||
       plan.policyReceipt.normalizedSha256 !== policy.normalizedSha256
     )
       throw new Error('Reviewed cleanup binding changed');

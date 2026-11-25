@@ -1,8 +1,11 @@
+import { readGcpAppliedSourceTeardownOrigin } from './applied-source-teardown-origin';
+import { readGcpCapturedTeardownOrigin } from './captured-teardown-origin';
 import type { GcpCeContractBoundary } from './contract';
 import { fingerprint } from './discovery';
 import { GCP_TERRAFORM_OBSERVER_IMAGE, gcpTerraformObserverIdentity } from './observer-scope';
 import { qualifiedOperationalRelease } from './operational-health';
 import { assertGcpSiteAccessProfile, gcpSiteAccessFingerprint } from './site-access';
+import type { GcpTerraformTeardownRuntime } from './terraform-teardown';
 import type { GcpCeIntent } from './types';
 
 /** Sanitized lifecycle scope published with the independently qualified health receipt. */
@@ -43,7 +46,7 @@ export function qualifiedGcpTerraformHaProfile(value: unknown): value is GcpTerr
   );
 }
 /** Cleanup requires the immutable lifecycle scope, independently of any live health reads. */
-export function assertGcpTerraformHaProfile(intent: GcpCeIntent, boundary: GcpCeContractBoundary, deployment = false) {
+function assertGcpTerraformHaScope(intent: GcpCeIntent, boundary: GcpCeContractBoundary) {
   assertGcpSiteAccessProfile(intent);
   const p = boundary.terraformHaLifecycle;
   const contract = boundary.operationalHealthContract;
@@ -58,13 +61,19 @@ export function assertGcpTerraformHaProfile(intent: GcpCeIntent, boundary: GcpCe
     intent.region !== p.region ||
     intent.machineType !== p.machineType ||
     intent.diskGiB !== p.diskGiB ||
-    fingerprint(intent.image) !== p.imageIdentitySha256 ||
     fingerprint(intent.sites[0].nodes.map((n) => n.zone).sort()) !== fingerprint(p.zones) ||
     intent.sites[0].nodes.some(
       (n) => n.interfaces.length !== 2 || n.interfaces[0].role !== 'slo' || n.interfaces[1].role !== 'sli',
     )
   )
     throw new Error('Qualified immutable Terraform HA lifecycle scope required');
+  return p;
+}
+export function assertGcpTerraformHaProfile(intent: GcpCeIntent, boundary: GcpCeContractBoundary, deployment = false) {
+  const p = assertGcpTerraformHaScope(intent, boundary);
+  if (fingerprint(intent.image) !== p.imageIdentitySha256)
+    throw new Error('Qualified immutable Terraform HA lifecycle scope required');
+  const contract = boundary.operationalHealthContract;
   if (
     deployment &&
     (!contract ||
@@ -79,7 +88,13 @@ export function assertGcpTerraformHaProfile(intent: GcpCeIntent, boundary: GcpCe
 }
 export function gcpDeploymentLifecycleFingerprint(intent: GcpCeIntent, boundary: GcpCeContractBoundary) {
   if (intent.sites[0]?.nodes.length !== 3) return fingerprint(boundary.singleNodeLifecycle);
-  const profile = assertGcpTerraformHaProfile(intent, boundary);
+  return terraformHaLifecycleFingerprint(intent, boundary, assertGcpTerraformHaProfile(intent, boundary));
+}
+function terraformHaLifecycleFingerprint(
+  intent: GcpCeIntent,
+  boundary: GcpCeContractBoundary,
+  profile: GcpTerraformHaProfile,
+) {
   const siteAccessFingerprint = gcpSiteAccessFingerprint(intent);
   return fingerprint({
     profile,
@@ -96,5 +111,39 @@ export function gcpDeploymentLifecycleFingerprint(intent: GcpCeIntent, boundary:
     operationalQualificationFingerprint:
       boundary.operationalHealthContract?.qualificationFingerprint ??
       boundary.operationalHealthExpected?.qualificationFingerprint,
+  });
+}
+
+/** A current deployment image pin cannot adopt or rewrite an original owning
+ * intent. Historical cleanup instead requires the compiled source capability,
+ * its exact immutable intent and original creation receipt. Copies and tool
+ * metadata cannot issue this authority. All topology and release checks remain. */
+export async function gcpOwnedTerraformCleanupLifecycleFingerprint(
+  runtime: Pick<GcpTerraformTeardownRuntime, 'capturedTeardownOrigin' | 'appliedSourceTeardownOrigin'>,
+  intent: GcpCeIntent,
+  boundary: GcpCeContractBoundary,
+) {
+  if (fingerprint(intent.image) === boundary.terraformHaLifecycle?.imageIdentitySha256)
+    return gcpDeploymentLifecycleFingerprint(intent, boundary);
+  if (runtime.capturedTeardownOrigin && runtime.appliedSourceTeardownOrigin)
+    throw new Error('Ambiguous original Terraform source origins');
+  const source = runtime.capturedTeardownOrigin
+    ? await readGcpCapturedTeardownOrigin(runtime.capturedTeardownOrigin, intent)
+    : runtime.appliedSourceTeardownOrigin
+      ? await readGcpAppliedSourceTeardownOrigin(runtime.appliedSourceTeardownOrigin, intent)
+      : undefined;
+  if (
+    !source ||
+    source.original.intentFingerprint !== fingerprint(intent) ||
+    source.owned.intentFingerprint !== fingerprint(intent)
+  )
+    throw new Error('Source-issued original cleanup image required');
+  const profile = assertGcpTerraformHaScope(intent, boundary);
+  return fingerprint({
+    schemaVersion: 1,
+    kind: 'original-owned-terraform-ha-cleanup',
+    qualifiedLifecycleFingerprint: terraformHaLifecycleFingerprint(intent, boundary, profile),
+    originalImageIdentitySha256: fingerprint(intent.image),
+    originalAuthorizationFingerprint: fingerprint(source.original),
   });
 }

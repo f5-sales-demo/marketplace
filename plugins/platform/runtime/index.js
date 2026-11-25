@@ -12,6 +12,40 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
+// plugins/platform/src/ce/evidence-json.ts
+function decodeEvidenceObject(raw) {
+  const source = new TextDecoder('utf8', { fatal: true }).decode(raw);
+  const value = object(JSON.parse(source));
+  const scopes = [];
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    if (char === '{' || char === '[') {
+      if (scopes.length >= 64) throw new Error('Original JSON nesting exceeded');
+      scopes.push(char === '{' ? new Set() : null);
+    } else if (char === '}' || char === ']') scopes.pop();
+    else if (char === '"') {
+      const start = i++;
+      while (i < source.length && source[i] !== '"') {
+        if (source[i] === '\\') i++;
+        i++;
+      }
+      let next = i + 1;
+      while (/\s/.test(source[next] ?? '') && next < source.length) next++;
+      if (source[next] === ':') {
+        const key = JSON.parse(source.slice(start, i + 1));
+        const keys = scopes.at(-1);
+        if (!keys || keys.has(key)) throw new Error('Duplicate original JSON identity');
+        keys.add(key);
+      }
+    }
+  }
+  return value;
+}
+var object = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
+  return value;
+};
+
 // plugins/platform/src/ce/security.ts
 function containsControlCharacters(value) {
   return Array.from(value).some((character) => {
@@ -68,6 +102,371 @@ var init_security = __esm(() => {
   FORBIDDEN_KEY = /(?:^|_)(?:token|secret|password|credential|private_?key|custom_?data|user_?data)(?:$|_)/i;
   SENSITIVE_VALUE = /(?:APIToken|Bearer)\s+\S+|f5xc-ce:\/\//i;
   PublicCeError = class PublicCeError extends Error {};
+});
+
+// plugins/platform/src/ce/bounded-process-group-scan.ts
+async function assertAbsentProcessGroup(group, listNames, readGroup) {
+  if (!Number.isSafeInteger(group) || group < 1) throw new Error('Original process group required');
+  const pids = (await listNames())
+    .filter((name) => /^\d+$/.test(name))
+    .map((name) => {
+      const pid = Number(name);
+      if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original process identifier required');
+      return pid;
+    });
+  for (let start = 0; start < pids.length; start += 32) {
+    const results = await Promise.allSettled(
+      pids.slice(start, start + 32).map(async (pid) => {
+        try {
+          if ((await readGroup(pid)) === group) throw new Error('Original executor process group remains live');
+        } catch (error) {
+          const code = error?.code;
+          if (code !== 'ENOENT' && code !== 'ESRCH') throw error;
+        }
+      }),
+    );
+    for (const result of results) if (result.status === 'rejected') throw result.reason;
+  }
+}
+
+// plugins/platform/src/ce/linux-process-group.ts
+import { createHash as createHash3 } from 'node:crypto';
+
+function splitProcessRecord(text) {
+  const end = text.lastIndexOf(') ');
+  const header = text.match(/^([1-9][0-9]*) \(/);
+  const fields =
+    end < 0
+      ? []
+      : text
+          .slice(end + 2)
+          .trim()
+          .split(/\s+/);
+  return { end, header, fields };
+}
+async function readLinuxProcessGroupRecord(pid, readRecord) {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
+  let text = await readRecord();
+  const initialEmptyRead = text.length === 0;
+  let parsed = splitProcessRecord(text);
+  const deadTask =
+    parsed.header?.[1] === String(pid) &&
+    parsed.end >= (parsed.header?.[0].length ?? 0) &&
+    parsed.fields[0] === 'X' &&
+    parsed.fields[1] === '0' &&
+    parsed.fields[2] === '-1' &&
+    parsed.fields[3] === '-1' &&
+    /^[0-9]+$/.test(parsed.fields[19] ?? '');
+  if (initialEmptyRead || deadTask) {
+    text = await readRecord();
+    parsed = splitProcessRecord(text);
+  }
+  const { end, header, fields } = parsed;
+  const group = Number(fields[2]);
+  const validation = Object.freeze({
+    headerMatches: header?.[1] === String(pid),
+    delimiterValid: end >= (header?.[0].length ?? 0),
+    stateValid: /^[RSDZTtXxKWPI]$/.test(fields[0] ?? ''),
+    startValid: /^[0-9]+$/.test(fields[19] ?? ''),
+    groupNumeric: /^[0-9]+$/.test(fields[2] ?? ''),
+    groupSafe: Number.isSafeInteger(group) && group >= 0,
+  });
+  if (Object.values(validation).some((valid) => !valid)) {
+    const bytes = Buffer.from(text, 'utf8');
+    const sha256 = createHash3('sha256').update(bytes).digest('hex');
+    const error = new Error(
+      `Original executor group is unavailable (pid=${pid}, bytes=${bytes.length}, sha256=${sha256})`,
+    );
+    rejectedRecords.set(
+      error,
+      Object.freeze({
+        schemaVersion: 1,
+        kind: 'rejected-decoded-linux-process-record',
+        pid,
+        bytes: bytes.length,
+        sha256,
+        recordUtf8Base64: bytes.subarray(0, 16384).toString('base64'),
+        truncated: bytes.length > 16384,
+        initialEmptyRead,
+        validation,
+      }),
+    );
+    throw error;
+  }
+  return group;
+}
+var rejectedRecords;
+var init_linux_process_group = __esm(() => {
+  rejectedRecords = new WeakMap();
+});
+
+// plugins/platform/src/ce/process-lock.ts
+import { randomUUID as randomUUID2 } from 'node:crypto';
+import { lstat as lstat2, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join as join2 } from 'node:path';
+
+function vanishedProcess(error) {
+  const code = error.code;
+  return code === 'ENOENT' || code === 'ESRCH';
+}
+async function processGroup(pid) {
+  if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
+  return readLinuxProcessGroupRecord(pid, () => readFile(`/proc/${pid}/stat`, 'utf8'));
+}
+async function readGroupLifetime(path, owner) {
+  const file = join2(path, 'lifetime.json');
+  let metadata;
+  try {
+    metadata = await lstat2(file);
+  } catch (error) {
+    if (error.code === 'ENOENT' && owner.schemaVersion === 1) return;
+    throw error;
+  }
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.nlink !== 1 ||
+    metadata.uid !== process.getuid?.() ||
+    (metadata.mode & 511) !== 256
+  )
+    throw new Error('Original executor lifetime evidence is invalid');
+  const raw = await readFile(file, 'utf8');
+  const row = JSON.parse(raw);
+  if (
+    !row ||
+    Object.keys(row).sort().join(',') !== 'bootId,group,pid,processStartTicks,schemaVersion,token' ||
+    row.schemaVersion !== owner.schemaVersion ||
+    row.token !== owner.token ||
+    row.pid !== owner.pid ||
+    row.bootId !== owner.bootId ||
+    row.processStartTicks !== owner.processStartTicks ||
+    row.group !== owner.pid
+  )
+    throw new Error('Original executor lifetime does not join its owner');
+  return { row, raw, metadata };
+}
+async function requireGroupClosed(path, owner) {
+  try {
+    await lstat2(join2(path, 'capture-unresolved.json'));
+    throw new Error('Original executor capture closure remains unresolved');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  await requirePhysicalGroupClosed(path, owner);
+}
+async function requirePhysicalGroupClosed(path, owner) {
+  const original = await readGroupLifetime(path, owner);
+  if (!original) return;
+  await assertRecordedProcessGroupAbsent({
+    pid: original.row.pid,
+    group: original.row.group,
+    start: original.row.processStartTicks,
+    boot: original.row.bootId,
+  });
+  const current = await readGroupLifetime(path, owner);
+  if (
+    !current ||
+    current.raw !== original.raw ||
+    current.metadata.dev !== original.metadata.dev ||
+    current.metadata.ino !== original.metadata.ino ||
+    current.metadata.ctimeMs !== original.metadata.ctimeMs ||
+    current.metadata.mtimeMs !== original.metadata.mtimeMs
+  )
+    throw new Error('Original executor lifetime changed during closure inspection');
+}
+async function assertRecordedProcessGroupAbsent(identity) {
+  if (
+    !identity ||
+    Object.keys(identity).sort().join(',') !== 'boot,group,pid,start' ||
+    !Number.isSafeInteger(identity.pid) ||
+    identity.pid < 1 ||
+    identity.group !== identity.pid ||
+    typeof identity.start !== 'string' ||
+    !/^[0-9]+$/.test(identity.start) ||
+    typeof identity.boot !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(identity.boot)
+  )
+    throw new Error('Original recorded process group identity required');
+  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
+  if ((await bootId()) === identity.boot) {
+    await assertPhysicalProcessGroupAbsent(identity.group);
+  }
+}
+async function assertPhysicalProcessGroupAbsent(group) {
+  await assertAbsentProcessGroup(group, () => readdir('/proc'), processGroup);
+}
+async function bootId() {
+  let value;
+  if (process.platform === 'darwin') {
+    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
+    value = (await new Response(child.stdout).text()).trim().toLowerCase();
+    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
+  } else {
+    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  }
+  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
+  return value;
+}
+async function processStartTicks(pid) {
+  if (process.platform === 'darwin') {
+    const script = `import ctypes, sys
+class Info(ctypes.Structure):
+ _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
+lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
+info=Info()
+result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
+if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
+elif result==0 and ctypes.get_errno()==3: sys.exit(3)
+else: sys.exit(2)
+`;
+    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
+    const start = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+    if (code === 3) return;
+    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
+    return start;
+  }
+  try {
+    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
+    const end = value.lastIndexOf(') ');
+    const fields =
+      end < 0
+        ? []
+        : value
+            .slice(end + 2)
+            .trim()
+            .split(/\s+/);
+    const start = fields[19];
+    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
+    return start;
+  } catch (error) {
+    if (vanishedProcess(error)) return;
+    throw error;
+  }
+}
+function claim(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(',') !==
+      (value.schemaVersion === 2
+        ? 'bootId,group,pid,processStartTicks,schemaVersion,token'
+        : 'bootId,pid,processStartTicks,schemaVersion,token')
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  const row = value;
+  if (
+    (row.schemaVersion !== 1 && row.schemaVersion !== 2) ||
+    (row.schemaVersion === 2 && row.group !== row.pid) ||
+    typeof row.token !== 'string' ||
+    !tokenPattern.test(row.token) ||
+    !Number.isSafeInteger(row.pid) ||
+    Number(row.pid) < 1 ||
+    typeof row.bootId !== 'string' ||
+    !bootPattern.test(row.bootId) ||
+    typeof row.processStartTicks !== 'string' ||
+    !/^\d+$/.test(row.processStartTicks)
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  return row;
+}
+async function readClaim(path) {
+  const stat = await lstat2(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
+    throw new Error('Operation lock evidence cannot be reconciled');
+  try {
+    const claimPath = join2(path, 'claim.json');
+    const claimStat = await lstat2(claimPath);
+    if (
+      !claimStat.isFile() ||
+      claimStat.isSymbolicLink() ||
+      claimStat.nlink !== 1 ||
+      claimStat.uid !== process.getuid?.() ||
+      (claimStat.mode & 63) !== 0
+    )
+      throw new Error('Operation lock evidence cannot be reconciled');
+    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
+  } catch (error) {
+    if (error instanceof SyntaxError || error.code === 'ENOENT')
+      throw new Error('Operation lock evidence cannot be reconciled');
+    throw error;
+  }
+}
+async function acquireProcessLock(path, ownerPid = process.pid, options = {}) {
+  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
+    throw new Error('Invalid operation lock path');
+  const currentBootId = await bootId();
+  if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
+  const currentStart = await processStartTicks(ownerPid);
+  if (!currentStart) throw new Error('Current process identity is unavailable');
+  const trackGroup = options.trackProcessGroup ?? false;
+  if (typeof trackGroup !== 'boolean') throw new Error('Explicit process group tracking option required');
+  const group = trackGroup ? await processGroup(ownerPid) : undefined;
+  const mine = {
+    schemaVersion: trackGroup ? 2 : 1,
+    token: randomUUID2(),
+    pid: ownerPid,
+    bootId: currentBootId,
+    processStartTicks: currentStart,
+    ...(group === undefined ? {} : { group }),
+  };
+  const lifetime = group === undefined ? undefined : { ...mine, group };
+  if (lifetime && lifetime.group !== ownerPid) throw new Error('Executor must own a dedicated original process group');
+  const parent = dirname(path);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const candidate = join2(parent, `${basename(path)}.claim-${mine.token}`);
+    await mkdir(candidate, { mode: 448 });
+    await writeFile(join2(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
+    if (lifetime)
+      await writeFile(join2(candidate, 'lifetime.json'), JSON.stringify(lifetime), { mode: 256, flag: 'wx' });
+    try {
+      await rename(candidate, path);
+      return async () => {
+        const owned = await readClaim(path);
+        if (
+          owned.token !== mine.token ||
+          owned.pid !== mine.pid ||
+          owned.schemaVersion !== mine.schemaVersion ||
+          owned.bootId !== mine.bootId ||
+          owned.processStartTicks !== mine.processStartTicks ||
+          owned.group !== mine.group
+        )
+          throw new Error('Operation lock ownership changed');
+        await requireGroupClosed(path, owned);
+        await rm(path, { recursive: true });
+      };
+    } catch (error) {
+      await rm(candidate, { recursive: true });
+      if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
+    }
+    let existing;
+    try {
+      existing = await readClaim(path);
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
+    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
+      throw new Error('Operation lock is held by a live process');
+    await requireGroupClosed(path, existing);
+    const stale = join2(parent, `${basename(path)}.stale-${randomUUID2()}`);
+    try {
+      await rename(path, stale);
+      await rm(stale, { recursive: true });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  throw new Error('Operation lock could not be acquired');
+}
+var tokenPattern, bootPattern;
+var init_process_lock = __esm(() => {
+  init_linux_process_group();
+  tokenPattern = /^[a-f0-9-]{36}$/;
+  bootPattern = /^[a-f0-9-]{36}$/;
 });
 
 // plugins/platform/src/ce/release-contract.ts
@@ -544,6 +943,3328 @@ var init_driver = __esm(() => {
     }
   };
 });
+// plugins/gcloud/src/gcloud/exec.ts
+var init_exec = () => {};
+
+// plugins/gcloud/src/ce/types.ts
+var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public',
+  GCP_CE_OPERATIONS;
+var init_types = __esm(() => {
+  GCP_CE_OPERATIONS = [
+    'deploy',
+    'reconcile',
+    'start',
+    'stop',
+    'resize',
+    'update-network',
+    'replace-node',
+    'repair',
+    'upgrade',
+    'failover',
+    'teardown',
+  ];
+});
+
+// plugins/gcloud/src/gcloud/types.ts
+var PROJECT_ID_PATTERN;
+var init_types2 = __esm(() => {
+  PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+});
+
+// plugins/gcloud/src/ce/site-access.ts
+function validateGcpSiteAccess(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
+  const access = value;
+  if (
+    Object.keys(value).sort().join(',') !== 'profile,publicKey,schemaVersion' ||
+    access.schemaVersion !== 1 ||
+    access.profile !== 'site-ssh-sli' ||
+    typeof access.publicKey !== 'string' ||
+    access.publicKey.length > 8192
+  )
+    throw new Error('Site SSH access requires the versioned SLI-only public-key profile');
+  const match = /^ssh-ed25519 ([A-Za-z0-9+/]+={0,2})$/.exec(access.publicKey);
+  if (!match) throw new Error('Site SSH requires one Ed25519 public key without options or comments');
+  const bytes = Buffer.from(match[1], 'base64');
+  if (
+    bytes.length !== 51 ||
+    bytes.toString('base64') !== match[1] ||
+    bytes.readUInt32BE(0) !== 11 ||
+    !bytes.subarray(4, 15).equals(Buffer.from('ssh-ed25519')) ||
+    bytes.readUInt32BE(15) !== 32
+  )
+    throw new Error('Site SSH public key wire format differs');
+}
+function assertGcpSiteAccessProfile(intent) {
+  if (intent.initialAccess === undefined) return;
+  validateGcpSiteAccess(intent.initialAccess);
+  if (
+    intent.engine !== 'terraform' ||
+    intent.sites.length !== 1 ||
+    intent.sites[0].nodes.length !== 3 ||
+    intent.sites[0].nodes.some(
+      (node) => node.interfaces.length !== 2 || node.interfaces[0].role !== 'slo' || node.interfaces[1].role !== 'sli',
+    ) ||
+    intent.egress.mode !== 'external-ip' ||
+    intent.ingress.profile !== 'none' ||
+    intent.routing.profile !== 'static-insertion' ||
+    intent.routing.destinationCidrs.length !== 0
+  )
+    throw new GcpSiteAccessMappingUnavailable();
+}
+var GCP_SITE_ACCESS_MAPPING,
+  _GCP_CURRENT_SITE_ACCESS_MAPPING,
+  _GCP_XCSH15162_SITE_ACCESS_MAPPING,
+  _GCP_PUBLISHED_SITE_ACCESS_MAPPING,
+  _GCP_XCSH15176_SITE_ACCESS_MAPPING,
+  _GCP_XCSH15178_SITE_ACCESS_MAPPING,
+  GcpSiteAccessMappingUnavailable;
+var init_site_access = __esm(() => {
+  init_discovery();
+  GCP_SITE_ACCESS_MAPPING = Object.freeze({
+    schemaVersion: 1,
+    provider: 'f5-sales-demo/xcsh',
+    version: '15.13.0',
+    credentials: 'admin_user_credentials.ssh_key',
+    blockedServices: 'blocked_services.blocked_service',
+    sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
+    user: 'admin',
+  });
+  _GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.15.7',
+    sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
+  });
+  _GCP_XCSH15162_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.16.2',
+    sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
+  });
+  _GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.17.3',
+    sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
+  });
+  _GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.17.6',
+    sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
+  });
+  _GCP_XCSH15178_SITE_ACCESS_MAPPING = Object.freeze({
+    ...GCP_SITE_ACCESS_MAPPING,
+    version: '15.17.8',
+    sourceSchemaSha256: '0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30',
+  });
+  GcpSiteAccessMappingUnavailable = class GcpSiteAccessMappingUnavailable extends Error {
+    constructor() {
+      super(
+        'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3, 15.17.6 or 15.17.8 mapping',
+      );
+    }
+  };
+});
+
+// plugins/gcloud/src/ce/observer-scope.ts
+function assertGcpTerraformObserverScope(scope, intent) {
+  if (
+    !scope ||
+    typeof scope !== 'object' ||
+    Array.isArray(scope) ||
+    Object.keys(scope).sort().join(',') !== 'profile,publicKey,schemaVersion,sshSourceCidr' ||
+    scope.schemaVersion !== 1 ||
+    scope.profile !== 'original-ha-observer'
+  )
+    throw new Error('Exact versioned original observer scope required');
+  validateGcpSiteAccess({ schemaVersion: 1, profile: 'site-ssh-sli', publicKey: scope.publicKey });
+  assertGcpSiteAccessProfile(intent);
+  if (!intent.initialAccess || intent.initialAccess.publicKey === scope.publicKey)
+    throw new Error('Distinct observer and CE campaign public keys required');
+  if (typeof scope.sshSourceCidr !== 'string') throw new Error('One exact observer SSH source required');
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/32$/.exec(scope.sshSourceCidr);
+  if (
+    !match ||
+    match[0] !== scope.sshSourceCidr ||
+    match.slice(1).some((part) => Number(part) > 255 || String(Number(part)) !== part) ||
+    [0, 127].includes(Number(match[1])) ||
+    Number(match[1]) >= 224 ||
+    (Number(match[1]) === 169 && Number(match[2]) === 254)
+  )
+    throw new Error('Observer SSH requires one canonical unicast IPv4 /32 source');
+}
+function gcpTerraformObserverIdentity(intent) {
+  if (intent.schemaVersion !== 2 || !intent.observer) throw new Error('Versioned observer intent required');
+  assertGcpTerraformObserverScope(intent.observer, intent);
+  const name = `${intent.deploymentName}-observer`,
+    firewallName = `${name}-ssh`;
+  if (firewallName.length > 63 || intent.sites[0].nodes.some((node) => node.name === name))
+    throw new Error('Derived observer identities collide or exceed GCP name limits');
+  const sli = intent.sites[0].nodes[0].interfaces[1];
+  return {
+    name,
+    key: name.replaceAll('-', '_'),
+    firewallName,
+    firewallKey: firewallName.replaceAll('-', '_'),
+    zone: intent.sites[0].nodes[0].zone,
+    network: sli.network,
+    subnet: sli.subnet,
+  };
+}
+var _GCP_TERRAFORM_OBSERVER_IMAGE;
+var init_observer_scope = __esm(() => {
+  init_site_access();
+  _GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
+    project: 'ubuntu-os-cloud',
+    name: 'ubuntu-2404-noble-amd64-v20261021',
+    id: '4996011480491275419',
+  });
+});
+
+// plugins/gcloud/src/ce/validation.ts
+function validateScope(project, region) {
+  if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
+  if (region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(region)) throw new Error('Invalid GCP region');
+}
+function name4(value) {
+  if (typeof value !== 'string' || !NAME.test(value)) throw new Error('Invalid GCP resource name');
+}
+function ipv4Range(cidr) {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(cidr);
+  if (!match) throw new Error('Invalid IPv4 CIDR');
+  const octets = match.slice(1, 5).map(Number);
+  const prefix = Number(match[5]);
+  if (octets.some((value) => value > 255) || prefix > 32) throw new Error('Invalid IPv4 CIDR');
+  const ip = octets.reduce((value, octet) => value * 256 + octet, 0);
+  const size = 2 ** (32 - prefix);
+  if (ip % size !== 0) throw new Error('CIDR must use a network boundary');
+  return [ip, ip + size - 1];
+}
+function validateImage(image) {
+  name4(image.name);
+  if (!/^f5xc-ce(?:-crt|crt)-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
+  const expected = `https://www.googleapis.com/compute/v1/projects/${GCP_CE_IMAGE_PROJECT}/global/images/${image.name}`;
+  if (
+    !/^\d+$/.test(image.id) ||
+    image.selfLink !== expected ||
+    image.status !== 'READY' ||
+    image.architecture !== 'X86_64'
+  )
+    throw new Error('Image must pin an exact ready x86 F5-owned image identity');
+  if (
+    !Array.isArray(image.licenses) ||
+    image.licenses.length === 0 ||
+    image.licenses.some(
+      (license) =>
+        !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/[a-z][a-z0-9-]+\/global\/licenses\/[a-z0-9-]+$/.test(
+          license,
+        ),
+    )
+  )
+    throw new Error('Image must pin its exact license identities');
+}
+function keys(value, allowed) {
+  if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
+}
+function validateIntent(intent) {
+  if (intent?.schemaVersion !== 1 && intent?.schemaVersion !== 2) throw new Error('Unsupported GCP CE intent version');
+  if (
+    (intent.schemaVersion === 1 && Object.hasOwn(intent, 'observer')) ||
+    (intent.schemaVersion === 2 && !intent.observer)
+  )
+    throw new Error('Observer scope requires its complete version2 intent');
+  keys(intent, [
+    'schemaVersion',
+    'project',
+    'region',
+    'deploymentName',
+    'platformContext',
+    'engine',
+    'operation',
+    'sites',
+    'machineType',
+    'diskGiB',
+    'image',
+    'ipForwarding',
+    'initialVersions',
+    'initialAccess',
+    ...(intent.schemaVersion === 2 ? ['observer'] : []),
+    'egress',
+    'ingress',
+    'routing',
+  ]);
+  keys(intent.image, ['id', 'name', 'selfLink', 'licenses', 'architecture', 'status']);
+  keys(intent.egress, ['mode', 'resource']);
+  keys(intent.ingress, ['profile']);
+  keys(intent.routing, ['profile', 'destinationCidrs']);
+  validateScope(intent.project, intent.region);
+  name4(intent.deploymentName);
+  name4(intent.machineType);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(intent.platformContext)) throw new Error('Explicit F5 context required');
+  if (!['native', 'terraform'].includes(intent.engine)) throw new Error('Explicit owning engine required');
+  if (!GCP_CE_OPERATIONS.includes(intent.operation)) throw new Error('Unsupported CE operation');
+  if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
+  if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
+  validateImage(intent.image);
+  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
+  if (intent.initialVersions) {
+    keys(intent.initialVersions, ['software', 'os']);
+    if (
+      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
+      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
+    )
+      throw new Error('Explicit initial software/OS version pair required');
+  }
+  if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
+    throw new Error('Unsupported egress');
+  if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
+    throw new Error('Explicit egress resource required');
+  if (!['none', 'internal-passthrough-lb'].includes(intent.ingress.profile)) throw new Error('Unsupported ingress');
+  if (!['static-insertion', 'ilb-next-hop', 'ncc-router-appliance'].includes(intent.routing.profile))
+    throw new Error('Unsupported routing');
+  for (const cidr of intent.routing.destinationCidrs) ipv4Range(cidr);
+  if (!Array.isArray(intent.sites) || !intent.sites.length) throw new Error('Explicitly named sites required');
+  const sites = new Set();
+  const nodes = new Set();
+  for (const site of intent.sites) {
+    keys(site, ['name', 'nodes']);
+    name4(site.name);
+    if (sites.has(site.name)) throw new Error('Independent sites require unique names');
+    sites.add(site.name);
+    if (![1, 3].includes(site.nodes.length)) throw new Error('Sites require one node or three HA nodes');
+    let shape;
+    for (const node of site.nodes) {
+      keys(node, ['name', 'zone', 'interfaces']);
+      name4(node.name);
+      if (nodes.has(node.name)) throw new Error('Node names must be unique');
+      nodes.add(node.name);
+      if (!new RegExp(`^${intent.region}-[a-z]$`).test(node.zone))
+        throw new Error('Node zone must belong to the explicit region');
+      if (!node.interfaces.length || node.interfaces.length > 8)
+        throw new Error('CE requires 1-8 interfaces; machine limit remains a separate gate');
+      const networks = new Set();
+      const ranges = [];
+      for (const [index, nic] of node.interfaces.entries()) {
+        keys(nic, ['index', 'role', 'vrf', 'network', 'subnet', 'cidr']);
+        if (nic.index !== index || (index === 0 && nic.role !== 'slo'))
+          throw new Error('Contiguous NIC order must start with SLO');
+        if (!['slo', 'sli', 'management'].includes(nic.role) || (index > 0 && nic.role === 'slo'))
+          throw new Error('Invalid NIC role');
+        name4(nic.vrf);
+        name4(nic.network);
+        name4(nic.subnet);
+        if (networks.has(nic.network)) throw new Error('Each NIC requires a distinct VPC');
+        networks.add(nic.network);
+        const range = ipv4Range(nic.cidr);
+        if (ranges.some(([start, end]) => range[0] <= end && start <= range[1]))
+          throw new Error('NIC subnets must not overlap');
+        ranges.push(range);
+      }
+      const current = JSON.stringify(
+        node.interfaces.map(({ index, role, vrf, network, subnet, cidr }) => [index, role, vrf, network, subnet, cidr]),
+      );
+      if (shape !== undefined && shape !== current)
+        throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
+      shape = current;
+    }
+  }
+  if (intent.schemaVersion === 2) {
+    const observer = intent.observer;
+    if (!observer) throw new Error('Versioned observer scope required');
+    assertGcpTerraformObserverScope(observer, intent);
+    gcpTerraformObserverIdentity(intent);
+  }
+}
+var NAME;
+var init_validation = __esm(() => {
+  init_types2();
+  init_observer_scope();
+  init_site_access();
+  init_types();
+  NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
+});
+
+// plugins/gcloud/src/ce/discovery.ts
+import { createHash as createHash9 } from 'node:crypto';
+
+function fingerprint(value) {
+  const stable = (item) =>
+    Array.isArray(item)
+      ? item.map(stable)
+      : item && typeof item === 'object'
+        ? Object.fromEntries(
+            Object.entries(item)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => [k, stable(v)]),
+          )
+        : item;
+  return `sha256:${createHash9('sha256')
+    .update(JSON.stringify(stable(value)))
+    .digest('hex')}`;
+}
+var init_discovery = __esm(() => {
+  init_exec();
+  init_types();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/operational-health.ts
+function safeFingerprint(value) {
+  try {
+    return fingerprint(value);
+  } catch {
+    return;
+  }
+}
+function matchesGcpOperationalPod(pod, mapping) {
+  if (!pod.startsWith(mapping.podPrefix)) return false;
+  const suffix = pod.slice(mapping.podPrefix.length);
+  return (
+    mapping.podShape === undefined ||
+    (mapping.podShape === 'daemon' && /^[a-z0-9]{5}$/.test(suffix)) ||
+    (mapping.podShape === 'deployment' && /^[a-z0-9]{8,10}-[a-z0-9]{5}$/.test(suffix)) ||
+    (mapping.podShape === 'stateful' && /^[0-9]+$/.test(suffix))
+  );
+}
+function qualifiedOperationalProfile(value, pinnedFingerprint) {
+  const p = object14(value);
+  if (
+    !p ||
+    !HASH.test(pinnedFingerprint) ||
+    safeFingerprint(p) !== pinnedFingerprint ||
+    p.schemaVersion !== 2 ||
+    p.scope !== 'original-three-node-operational-health' ||
+    p.maximumAgeMs !== 300000 ||
+    p.minimumRoundIntervalMs !== 45000
+  )
+    return false;
+  for (const field of ['sourceHashes', 'parserVersions', 'roles', 'qualification'])
+    if (!object14(p[field]) || !Object.keys(p[field]).length) return false;
+  if (
+    !Object.values(p.sourceHashes).every((hash) => typeof hash === 'string' && HASH.test(hash)) ||
+    !Object.values(p.parserVersions).every(
+      (version) => typeof version === 'string' && /^[a-z0-9/-]+\/v[1-9][0-9]*$/.test(version),
+    )
+  )
+    return false;
+  const qualification = p.qualification;
+  if (
+    Object.keys(qualification).sort().join(',') !== 'discoveryCleanupSha256,evidenceSha256' ||
+    !Object.values(qualification).every((hash) => typeof hash === 'string' && HASH.test(hash))
+  )
+    return false;
+  if (
+    !names(p.inventoryServices) ||
+    !GCP_OPERATIONAL_CORE_SEED.every((name) => p.inventoryServices.includes(name)) ||
+    !Array.isArray(p.verRunningStates) ||
+    !p.verRunningStates.length ||
+    !p.verRunningStates.every((state) => typeof state === 'string' && /^[A-Za-z][A-Za-z0-9_/-]{0,62}$/.test(state)) ||
+    new Set(p.verRunningStates).size !== p.verRunningStates.length
+  )
+    return false;
+  if (
+    !Array.isArray(p.exclusions) ||
+    p.exclusions.some((raw) => {
+      const e = object14(raw);
+      return (
+        !e ||
+        !GCP_OPERATIONAL_AUXILIARIES.includes(e.service) ||
+        e.reason !== 'auxiliary-outside-operational-scope' ||
+        typeof e.evidenceSha256 !== 'string' ||
+        !HASH.test(e.evidenceSha256)
+      );
+    }) ||
+    new Set(p.exclusions.map((e) => e.service)).size !== p.exclusions.length
+  )
+    return false;
+  for (const [name, raw] of Object.entries(p.roles)) {
+    const role = object14(raw);
+    if (
+      !NAME2.test(name) ||
+      !role ||
+      !names(role.components) ||
+      !names(role.diagnostics) ||
+      !Array.isArray(role.containers) ||
+      !role.containers.length
+    )
+      return false;
+    if (role.runtimeRole !== undefined && !names([role.runtimeRole])) return false;
+    const containers = role.containers.map(object14);
+    if (
+      containers.some(
+        (c) =>
+          !c ||
+          !names([c.service]) ||
+          !names([c.name]) ||
+          !names([c.namespace]) ||
+          !['daemon', 'deployment', 'stateful'].includes(String(c.podShape)) ||
+          typeof c.podPrefix !== 'string' ||
+          !/^[a-z][a-z0-9-]{0,251}$/.test(c.podPrefix),
+      )
+    )
+      return false;
+    const services = containers.map((c) => c?.service);
+    if (
+      new Set(containers.map((c) => `${c?.namespace}:${c?.name}:${c?.podPrefix}:${c?.podShape}`)).size !==
+        containers.length ||
+      !GCP_OPERATIONAL_DEPENDENCIES.every((dependency) => services.includes(dependency))
+    )
+      return false;
+    if (!['peer-connectivity', 'required-domains'].every((check) => role.diagnostics.includes(check))) return false;
+    for (const service of role.components) if (!services.includes(service)) return false;
+    if (role.components.some((component) => !p.inventoryServices.includes(component))) return false;
+  }
+  const declaredRoles = Object.values(p.roles);
+  for (const auxiliary of GCP_OPERATIONAL_AUXILIARIES)
+    if (
+      !p.exclusions.some((e) => e.service === auxiliary) &&
+      !declaredRoles.some((role) => role.containers.some((c) => c.service === auxiliary))
+    )
+      return false;
+  for (const service of p.inventoryServices)
+    if (
+      !declaredRoles.some(
+        (role) => role.components.includes(service) || role.containers.some((c) => c.service === service),
+      )
+    )
+      return false;
+  for (const service of GCP_OPERATIONAL_CORE_SEED)
+    if (!declaredRoles.some((role) => role.components.includes(service))) return false;
+  if (p.placementCounts !== undefined) {
+    const counts = object14(p.placementCounts);
+    const required = new Set([
+      ...p.inventoryServices,
+      ...declaredRoles.flatMap((role) => role.containers.map((c) => c.service)),
+    ]);
+    if (
+      !counts ||
+      Object.keys(counts).length !== required.size ||
+      [...required].some(
+        (service) => !Number.isInteger(counts[service]) || Number(counts[service]) < 1 || Number(counts[service]) > 3,
+      ) ||
+      declaredRoles.some(
+        (role) => !role.runtimeRole || !GCP_OPERATIONAL_CORE_SEED.every((service) => role.components.includes(service)),
+      ) ||
+      [...GCP_OPERATIONAL_CORE_SEED, ...GCP_OPERATIONAL_DEPENDENCIES].some((service) => counts[service] !== 3)
+    )
+      return false;
+  }
+  return true;
+}
+function hasGcpOperationalPlacementCoverage(profile, roles) {
+  return (
+    roles.length === 3 &&
+    roles.every((name) => !!profile.roles[name]) &&
+    Object.entries(profile.placementCounts ?? {}).every(
+      ([service, count]) =>
+        roles.filter(
+          (name) =>
+            profile.roles[name].components.includes(service) ||
+            profile.roles[name].containers.some((c) => c.service === service),
+        ).length === count,
+    )
+  );
+}
+function qualifiedOperationalRelease(value, pinnedReceiptFingerprint, contractFingerprint) {
+  const receipt = object14(value);
+  return (
+    !!receipt &&
+    HASH.test(pinnedReceiptFingerprint) &&
+    safeFingerprint(receipt) === pinnedReceiptFingerprint &&
+    receipt.schemaVersion === 2 &&
+    receipt.contractFingerprint === contractFingerprint &&
+    HASH.test(contractFingerprint) &&
+    ['bindingFingerprint', 'evidenceSha256', 'campaignCleanupSha256'].every(
+      (key) => typeof receipt[key] === 'string' && HASH.test(receipt[key]),
+    ) &&
+    Array.isArray(receipt.healthyRoundFingerprints) &&
+    receipt.healthyRoundFingerprints.length === 2 &&
+    receipt.healthyRoundFingerprints.every((hash) => typeof hash === 'string' && HASH.test(hash)) &&
+    receipt.healthyRoundFingerprints[0] !== receipt.healthyRoundFingerprints[1] &&
+    receipt.objectsAbsent === 18 &&
+    receipt.emptyDestroy === true &&
+    receipt.stableState === true &&
+    receipt.repeatedResumeNoSubmission === true
+  );
+}
+var GCP_OPERATIONAL_CORE_SEED,
+  GCP_OPERATIONAL_DEPENDENCIES,
+  GCP_OPERATIONAL_AUXILIARIES,
+  HASH,
+  NAME2,
+  object14 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined),
+  names = (value) =>
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((name) => typeof name === 'string' && NAME2.test(name)) &&
+    new Set(value).size === value.length;
+var init_operational_health = __esm(() => {
+  init_discovery();
+  GCP_OPERATIONAL_CORE_SEED = [
+    'argo',
+    'asaf',
+    'aspen',
+    'bdbewaf',
+    'clank',
+    'envoy',
+    'etcd',
+    'frr',
+    'gubernator',
+    'ike',
+    'keepalived',
+    'komodo',
+    'obelix',
+    'openvpn',
+    'opera',
+    'pmtud',
+    'ver',
+  ];
+  GCP_OPERATIONAL_DEPENDENCIES = ['coredns', 'kube-proxy', 'kube-multus-ds'];
+  GCP_OPERATIONAL_AUXILIARIES = ['vector-agent', 'voucher', 'kube-state-metrics'];
+  HASH = /^sha256:[a-f0-9]{64}$/;
+  NAME2 = /^[a-z][a-z0-9-]{0,62}$/;
+});
+
+// plugins/gcloud/src/ce/operational-source-hashes.json
+var operational_source_hashes_default;
+var init_operational_source_hashes = __esm(() => {
+  operational_source_hashes_default = {
+    'gcp-operational-source': 'sha256:1405b6d0bcdf5d92c9aa4b9e14ca96660b9fdf5872f0d126dc6f5dc903739ad9',
+    'gcp-operational-command': 'sha256:e73c188a7b416750834edf33b95ddba931c35cecdee1b885e8c2e88ff53c0846',
+    'gcp-runtime-diagnostics': 'sha256:ec63c271c73991b8373d81397fe0077ee5569934afa0d288b17ddb1c49a7a2f8',
+    'gcp-operational-diagnosis': 'sha256:30645976567fdae118487ad3d2ee67283a240717bcdbfef5c0e70e629a9ca0e1',
+    'gcp-operational-site-status': 'sha256:b753c42c382440aaab47084ef4dab39b2466c5fc0a0a6431f3c2c932483de87d',
+    'gcp-operational-observation': 'sha256:af188452e9691f4a937de9f4a0431dffc0a953c02328d318c03dbe9cc41f44ec',
+    'gcp-operational-runtime': 'sha256:4dabd5a9ccbd264e2e578c0c64a0473d07ecc3821072eca74a43f3dd09a01825',
+    'gcp-operational-binding': 'sha256:5241e6662bcad89e4ef3048b60005dbcfb333c692877b73348e3f3dcdf086a16',
+    'gcp-operational-placement': 'sha256:6bdda37171ee119261cbe88a6959ebdd84bb21c5fd2aceb110de895016347e5f',
+    evaluator: 'sha256:4f1d71527a8a2b9d91806744c4db47879827fc52ffdb803201a070403fe39b39',
+  };
+});
+
+// plugins/gcloud/src/ce/release-fetch.ts
+function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
+  return async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const metadata =
+      url.protocol === 'https:' &&
+      url.hostname === 'api.github.com' &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      /^\/repos\/f5-sales-demo\/api-specs-enriched\/(?:releases\/tags\/v12\.(?:1\.3|3\.1)|git\/ref\/tags\/v12\.3\.1|git\/tags\/[a-f0-9]{40})$/.test(
+        url.pathname,
+      );
+    if (!metadata) return fetcher(input, init);
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    if (
+      method !== 'GET' ||
+      init?.body != null ||
+      (input instanceof Request && input.body !== null) ||
+      headers.has('Authorization')
+    )
+      throw new Error('Exact unauthenticated metadata GET required');
+    const token = env.GH_TOKEN ?? env.GITHUB_TOKEN;
+    if (token !== undefined) {
+      if (!/^[A-Za-z0-9_]{16,8192}$/.test(token)) throw new Error('Invalid GitHub read credential');
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    const caller = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const timeout = AbortSignal.timeout(60000);
+    const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
+    signal.throwIfAborted();
+    return fetcher(input, { ...init, headers, redirect: 'error', signal });
+  };
+}
+var fetchGcpRelease = async (input, init) => createGcpReleaseFetch()(input, init);
+
+// plugins/platform/src/ce/deployment-store.ts
+import { createHash as createHash10, randomUUID as randomUUID3 } from 'node:crypto';
+import { constants as constants2 } from 'node:fs';
+import {
+  chmod,
+  lstat as lstat3,
+  mkdir as mkdir2,
+  open as open2,
+  readFile as readFile2,
+  realpath as realpath2,
+  rename as rename2,
+  rm as rm2,
+  writeFile as writeFile2,
+} from 'node:fs/promises';
+import { dirname as dirname2, isAbsolute as isAbsolute2, join as join4 } from 'node:path';
+
+async function immutableMetadata(path) {
+  return lstat3(path, { bigint: true });
+}
+function key(owner) {
+  return createHash10('sha256')
+    .update(JSON.stringify([owner.provider, owner.account, owner.region, owner.deploymentId]))
+    .digest('hex');
+}
+function sameOwner(a, b) {
+  return ['deploymentId', 'engine', 'provider', 'account', 'region'].every((field) => a[field] === b[field]);
+}
+async function directory2(path) {
+  await mkdir2(path, { recursive: true, mode: 448 });
+  const stat = await lstat3(path);
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== process.getuid?.() ||
+    (await realpath2(path)) !== path
+  )
+    throw new Error('CE deployment storage ownership is invalid');
+  await chmod(path, 448);
+}
+async function syncDirectory(path) {
+  const handle = await open2(path, 'r');
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+class CeDeploymentStore {
+  directory;
+  owner;
+  constructor(directory, owner) {
+    this.directory = directory;
+    this.owner = owner;
+  }
+  static async open(root, owner) {
+    if (
+      !isAbsolute2(root) ||
+      !['native', 'terraform'].includes(owner.engine) ||
+      !['aws', 'azure', 'gcp'].includes(owner.provider) ||
+      [owner.account, owner.region, owner.deploymentId].some((value) => !value || /[\r\n]/.test(value))
+    )
+      throw new Error('Invalid CE storage binding');
+    await directory2(root);
+    const path = join4(root, key(owner));
+    await directory2(path);
+    const store = new CeDeploymentStore(path, structuredClone(owner));
+    try {
+      await writeFile2(join4(path, 'owner.json'), JSON.stringify({ schemaVersion: 2, owner }), {
+        flag: 'wx',
+        mode: 384,
+      });
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
+    const manifest = await open2(join4(path, 'owner.json'), 'r');
+    try {
+      await manifest.sync();
+    } finally {
+      await manifest.close();
+    }
+    await syncDirectory(path);
+    await syncDirectory(root);
+    await syncDirectory(dirname2(root));
+    await store.verify();
+    return store;
+  }
+  #path(name) {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(name)) throw new Error('Invalid CE storage item');
+    return join4(this.directory, name);
+  }
+  async #read(name) {
+    const path = this.#path(name);
+    const stat = await lstat3(path);
+    if (
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.nlink !== 1 ||
+      stat.uid !== process.getuid?.() ||
+      (stat.mode & 63) !== 0
+    )
+      throw new Error('CE storage item ownership is invalid');
+    return readFile2(path);
+  }
+  async verify() {
+    let manifest;
+    try {
+      manifest = JSON.parse((await this.#read('owner.json')).toString());
+    } catch {
+      throw new Error('CE owner manifest is unavailable');
+    }
+    if (manifest.schemaVersion !== 2 || !sameOwner(manifest.owner, this.owner))
+      throw new Error('CE deployment belongs to another execution engine or scope');
+  }
+  async write(name, value) {
+    if (name === 'owner.json' || name.startsWith('immutable-'))
+      throw new Error('CE deployment storage item is immutable');
+    await this.verify();
+    const temporary = this.#path(`tmp-${randomUUID3()}`);
+    try {
+      const handle = await open2(temporary, 'wx', 384);
+      try {
+        await handle.writeFile(JSON.stringify(value));
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await rename2(temporary, this.#path(name));
+      await syncDirectory(this.directory);
+    } finally {
+      await rm2(temporary, { force: true });
+    }
+  }
+  async read(name) {
+    await this.verify();
+    return JSON.parse((await this.#read(name)).toString());
+  }
+  async writeImmutableBytes(name, input) {
+    if (!name.startsWith('immutable-')) throw new Error('Reserved immutable CE record name required');
+    const path = this.#path(name);
+    const bytes = Buffer.from(input);
+    if (bytes.byteLength > 256 * 1024 * 1024) throw new Error('Immutable CE record exceeds byte limit');
+    await this.verify();
+    const parent = await immutableMetadata(this.directory);
+    const handle = await open2(
+      path,
+      constants2.O_WRONLY | constants2.O_CREAT | constants2.O_EXCL | constants2.O_NOFOLLOW,
+      256,
+    );
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await syncDirectory(this.directory);
+    const file = await immutableMetadata(path);
+    const currentParent = await immutableMetadata(this.directory);
+    if (
+      file.uid !== BigInt(process.getuid?.() ?? -1) ||
+      !file.isFile() ||
+      file.isSymbolicLink() ||
+      file.nlink !== 1n ||
+      (file.mode & 0o777n) !== 0o400n ||
+      !parent.isDirectory() ||
+      currentParent.isSymbolicLink() ||
+      ['dev', 'ino', 'uid', 'mode'].some((key) => String(parent[key]) !== String(currentParent[key])) ||
+      (await realpath2(path)) !== path ||
+      immutableHash(await readFile2(path)) !== immutableHash(bytes)
+    )
+      throw new Error('Original immutable CE publication identity changed');
+    return Object.freeze({
+      schemaVersion: 1,
+      kind: 'ce-immutable-file',
+      name,
+      binding: Object.freeze({
+        path,
+        sha256: immutableHash(bytes),
+        expectedIdentity: Object.freeze(immutableIdentity(file)),
+        expectedParentIdentity: Object.freeze({
+          dev: String(parent.dev),
+          ino: String(parent.ino),
+          uid: String(parent.uid),
+          mode: String(parent.mode),
+        }),
+      }),
+    });
+  }
+  async readImmutableBytes(input) {
+    const record = structuredClone(input);
+    await this.verify();
+    const binding = record.binding;
+    if (
+      record.schemaVersion !== 1 ||
+      record.kind !== 'ce-immutable-file' ||
+      !record.name.startsWith('immutable-') ||
+      binding.path !== this.#path(record.name) ||
+      !/^[a-f0-9]{64}$/.test(binding.sha256) ||
+      !binding.expectedIdentity ||
+      !binding.expectedParentIdentity
+    )
+      throw new Error('Original immutable CE record binding required');
+    const inspect = async () => {
+      const file = await immutableMetadata(binding.path),
+        parent = await immutableMetadata(this.directory);
+      if (
+        !file.isFile() ||
+        file.isSymbolicLink() ||
+        file.nlink !== 1n ||
+        file.uid !== BigInt(process.getuid?.() ?? -1) ||
+        (file.mode & 0o777n) !== 0o400n ||
+        !parent.isDirectory() ||
+        parent.isSymbolicLink() ||
+        immutableIdentityKeys.some((key) => String(file[key]) !== binding.expectedIdentity[key]) ||
+        ['dev', 'ino', 'uid', 'mode'].some((key) => String(parent[key]) !== binding.expectedParentIdentity[key]) ||
+        (await realpath2(binding.path)) !== binding.path
+      )
+        throw new Error('Original immutable CE record identity changed');
+      return file;
+    };
+    await inspect();
+    const handle = await open2(binding.path, constants2.O_RDONLY | constants2.O_NOFOLLOW);
+    try {
+      const opened = await handle.stat({ bigint: true });
+      if (immutableIdentityKeys.some((key) => String(opened[key]) !== binding.expectedIdentity[key]))
+        throw new Error('Original immutable CE open identity changed');
+      const bytes = await handle.readFile();
+      if (immutableHash(bytes) !== binding.sha256) throw new Error('Original immutable CE bytes changed');
+      await inspect();
+      return bytes;
+    } finally {
+      await handle.close();
+    }
+  }
+  async remove(name) {
+    if (name === 'owner.json' || name.startsWith('immutable-'))
+      throw new Error('CE deployment storage item is immutable');
+    await this.verify();
+    await rm2(this.#path(name), { force: true });
+  }
+}
+var immutableIdentityKeys,
+  immutableHash = (bytes) => createHash10('sha256').update(bytes).digest('hex'),
+  immutableIdentity = (metadata) =>
+    Object.fromEntries(immutableIdentityKeys.map((key) => [key, String(metadata[key])]));
+var init_deployment_store = __esm(() => {
+  immutableIdentityKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
+});
+
+// plugins/terraform/src/evidence-json.ts
+var init_evidence_json = () => {};
+
+// plugins/terraform/src/gcp-capture-source-pins.json
+var init_gcp_capture_source_pins = () => {};
+
+// plugins/terraform/src/gcp-insert-audit-query.ts
+var init_gcp_insert_audit_query = () => {};
+// plugins/terraform/src/gcp-observer-image-pin.ts
+var _GCP_OBSERVER_IMAGE_PIN;
+var init_gcp_observer_image_pin = __esm(() => {
+  _GCP_OBSERVER_IMAGE_PIN = Object.freeze({
+    project: 'ubuntu-os-cloud',
+    name: 'ubuntu-2404-noble-amd64-v20261021',
+    id: '4996011480491275419',
+    architecture: 'X86_64',
+    status: 'READY',
+    selfLink:
+      'https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20261021',
+  });
+});
+
+// plugins/terraform/src/google-adc-authentication.ts
+var _computeMaximum;
+var init_google_adc_authentication = __esm(() => {
+  init_evidence_json();
+  init_gcp_insert_audit_query();
+  init_gcp_observer_image_pin();
+  _computeMaximum = 4 * 1024 * 1024;
+});
+
+// plugins/terraform/src/linux-clock.ts
+var init_linux_clock = () => {};
+
+// plugins/terraform/src/original-input-monitor.ts
+var _maximum;
+var init_original_input_monitor = __esm(() => {
+  _maximum = 256n * 1024n * 1024n;
+});
+
+// plugins/terraform/src/original-output-stream.ts
+var _maximumRetention, _prefixOrigins, _prefixReaders, _closedOutputInputs, _chunkOrigins, _completionOrigins;
+var init_original_output_stream = __esm(() => {
+  init_linux_clock();
+  _maximumRetention = 64 * 1024 * 1024;
+  _prefixOrigins = new WeakMap();
+  _prefixReaders = new WeakMap();
+  _closedOutputInputs = new WeakMap();
+  _chunkOrigins = new WeakMap();
+  _completionOrigins = new WeakMap();
+});
+
+// plugins/terraform/src/reader-final-reserve.ts
+var _admissions, _originalWindows;
+var init_reader_final_reserve = __esm(() => {
+  init_linux_clock();
+  _admissions = new WeakMap();
+  _originalWindows = new Map();
+});
+
+// plugins/terraform/src/installed-apply-controller.ts
+var _callbacks, _lifetimes, _operationExpiries, _operationRetirements, _groupClosures, _groupClosureChecks;
+var init_installed_apply_controller = __esm(() => {
+  init_linux_clock();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_reader_final_reserve();
+  _callbacks = new WeakMap();
+  _lifetimes = new WeakMap();
+  _operationExpiries = new WeakMap();
+  _operationRetirements = new WeakMap();
+  _groupClosures = new WeakMap();
+  _groupClosureChecks = new WeakMap();
+});
+
+// plugins/terraform/src/failure.ts
+function terraformFailureCategories(text) {
+  const plain = Bun.stripANSI(text);
+  return patterns.filter(([, pattern]) => pattern.test(plain)).map(([category]) => category);
+}
+var patterns;
+var init_failure = __esm(() => {
+  patterns = [
+    ['capacity', /\bInsufficientInstanceCapacity\b/],
+    ['quota', /\bVpcLimitExceeded\b/],
+    ['authorization', /\b(?:AccessDenied|AccessDeniedException|UnauthorizedOperation|AuthorizationFailed)\b/],
+    ['expired', /\b(?:ExpiredToken|ExpiredTokenException|AuthenticationTokenExpired)\b/],
+    ['throttled', /\b(?:Throttling|ThrottlingException|RequestLimitExceeded|TooManyRequests)\b/],
+    [
+      'configuration',
+      /(?:Error: (?:Missing block label|Unsupported argument|Invalid expression|Invalid reference)|"summary"\s*:\s*"(?:Missing block label|Unsupported argument|Invalid expression|Invalid reference)")/,
+    ],
+    ['state-lock', /Error (?:acquiring|releasing) the state lock/],
+  ];
+});
+
+// plugins/terraform/src/runner.ts
+import { createHash as createHash11, randomUUID as randomUUID4 } from 'node:crypto';
+import {
+  chmod as chmod2,
+  lstat as lstat4,
+  mkdir as mkdir3,
+  readFile as readFile3,
+  realpath as realpath3,
+  rename as rename3,
+  writeFile as writeFile3,
+} from 'node:fs/promises';
+import { join as join5 } from 'node:path';
+
+async function privateDirectory(path) {
+  await mkdir3(path, { recursive: true, mode: 448 });
+  const stat = await lstat4(path);
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== process.getuid?.() ||
+    (await realpath3(path)) !== path
+  )
+    throw new Error('Terraform storage ownership is invalid');
+  await chmod2(path, 448);
+}
+async function privateRead(path) {
+  const stat = await lstat4(path);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1 ||
+    stat.uid !== process.getuid?.() ||
+    (stat.mode & 63) !== 0
+  )
+    throw new Error('Terraform artifact ownership is invalid');
+  return readFile3(path);
+}
+async function persist(path, value) {
+  const temporary = `${path}.new`;
+  await writeFile3(temporary, JSON.stringify(value), { mode: 384, flag: 'wx' });
+  await rename3(temporary, path);
+}
+async function startTerraformGate(child, acquire, timeoutMs = 15000, killAfterMs = 5000, transition = async () => {}) {
+  let stopped = false;
+  let failed = false;
+  let release;
+  let releasing;
+  const releaseOnce = () => (releasing ??= release?.());
+  let timer;
+  const startup = (async () => {
+    await transition('identity-pending');
+    release = await acquire();
+    if (failed) {
+      if (stopped) await releaseOnce();
+      throw new Error('Terraform executor gate startup deadline exceeded');
+    }
+    await transition('identity-persisted');
+    if (failed) throw new Error('Terraform executor gate startup deadline exceeded');
+    child.stdin.write(`go
+`);
+    await child.stdin.flush();
+    await child.stdin.end();
+    await transition('gate-released');
+    return release;
+  })();
+  try {
+    return await Promise.race([
+      startup,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Terraform executor gate startup deadline exceeded')), timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    failed = true;
+    try {
+      child.kill('SIGKILL');
+    } catch {}
+    let exitTimer;
+    try {
+      await Promise.race([
+        child.exited,
+        new Promise((_, reject) => {
+          exitTimer = setTimeout(
+            () => reject(new Error('Terraform executor stop unresolved; recovery remains blocked')),
+            killAfterMs,
+          );
+        }),
+      ]);
+      stopped = true;
+      if (release) await releaseOnce();
+      await transition('startup-failed-child-exited');
+    } finally {
+      if (exitTimer) clearTimeout(exitTimer);
+    }
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+function terraformExecutor(
+  limits = {
+    timeoutMs: 900000,
+    applyTimeoutMs: 3600000,
+    maxOutputBytes: 64 * 1024 * 1024,
+    killAfterMs: 5000,
+    startupTimeoutMs: 15000,
+  },
+  retainFailure = false,
+) {
+  return async ({ cwd, args, env, signal }) => {
+    signal?.throwIfAborted();
+    const child = Bun.spawn(
+      [
+        '/bin/sh',
+        '-c',
+        'umask 077; IFS= read -r gate && test "$gate" = go && exec "$@"',
+        'ce-terraform',
+        'terraform',
+        ...args,
+      ],
+      {
+        cwd,
+        env,
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    const invocationId = randomUUID4();
+    const transition = async (phase) => {
+      if (!retainFailure) return;
+      const directory = join5(cwd, 'executor-diagnostics');
+      await privateDirectory(directory);
+      const claim = await privateRead(join5(cwd, '.terraform-executor-lock', 'claim.json')).then(
+        (bytes) => JSON.parse(bytes.toString('utf8')),
+        () => {
+          return;
+        },
+      );
+      const executable = Bun.which('terraform', { cwd, PATH: env.PATH });
+      await persist(join5(directory, `${invocationId}-${phase}.json`), {
+        schemaVersion: 1,
+        invocationId,
+        phase,
+        observedAt: new Date().toISOString(),
+        pid: child.pid,
+        operation: args[0],
+        launcher: '/bin/sh',
+        executable,
+        executableSha256: executable ? digest2(await readFile3(executable)) : undefined,
+        executorIdentity: claim?.pid === child.pid ? claim : undefined,
+      });
+    };
+    const releaseExecutor = await startTerraformGate(
+      child,
+      () => acquireProcessLock(join5(cwd, '.terraform-executor-lock'), child.pid),
+      limits.startupTimeoutMs ?? 15000,
+      limits.killAfterMs,
+      transition,
+    );
+    let failure;
+    let escalation;
+    const stop = (reason) => {
+      if (failure) return;
+      failure = reason;
+      child.kill('SIGTERM');
+      escalation = setTimeout(() => child.kill('SIGKILL'), limits.killAfterMs);
+    };
+    const abort = () => stop('Terraform operation cancelled');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    const timeoutMs = args[0] === 'apply' ? limits.applyTimeoutMs : limits.timeoutMs;
+    const timer = setTimeout(() => stop('Terraform operation deadline exceeded'), timeoutMs);
+    const categories = new Set();
+    const collect = async (stream, retain, classify = false) => {
+      const reader = stream.getReader();
+      const chunks = [];
+      let size = 0;
+      let tail = '';
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > limits.maxOutputBytes) stop('Terraform response exceeded size limit');
+          if (retain && !failure) chunks.push(value);
+          if (classify && !failure) {
+            const text = tail + Buffer.from(value).toString('utf8');
+            for (const category of terraformFailureCategories(text)) categories.add(category);
+            tail = text.slice(-512);
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      return retain && !failure ? Buffer.concat(chunks).toString('utf8') : '';
+    };
+    try {
+      const [stdout, stderr, code] = await Promise.all([
+        collect(child.stdout, true),
+        collect(child.stderr, retainFailure, true),
+        child.exited,
+      ]);
+      if (failure) throw new Error(failure);
+      if (code !== 0 && args[0] === 'validate') {
+        try {
+          const diagnostics = JSON.parse(stdout).diagnostics;
+          if (Array.isArray(diagnostics)) {
+            for (const item of diagnostics)
+              if (item?.severity === 'error' && typeof item.summary === 'string')
+                for (const category of terraformFailureCategories(`Error: ${item.summary}`)) categories.add(category);
+          }
+        } catch {}
+      }
+      const failureCategory = categories.size === 1 ? [...categories][0] : 'unknown';
+      if (code !== 0 && retainFailure) {
+        await privateDirectory(cwd);
+        const directory = join5(cwd, 'failure-diagnostics');
+        await privateDirectory(directory);
+        await persist(join5(directory, `${randomUUID4()}.json`), {
+          schemaVersion: 1,
+          observedAt: new Date().toISOString(),
+          operation: args[0],
+          exitCode: code,
+          category: failureCategory,
+          stdout,
+          stderr,
+        });
+      }
+      return code === 0 ? { code, stdout } : { code, stdout: '', failureCategory };
+    } catch {
+      stop('Terraform process failed');
+      await child.exited;
+      throw new Error(failure ?? 'Terraform process failed');
+    } finally {
+      clearTimeout(timer);
+      if (escalation) clearTimeout(escalation);
+      signal?.removeEventListener('abort', abort);
+      await releaseExecutor?.();
+    }
+  };
+}
+var _originalPlanSources,
+  _originalPlanProjections,
+  digest2 = (value) => createHash11('sha256').update(value).digest('hex'),
+  _executeTerraform;
+var init_runner = __esm(() => {
+  init_process_lock();
+  init_failure();
+  init_installed_capture_context();
+  init_original_input_monitor();
+  _originalPlanSources = new WeakMap();
+  _originalPlanProjections = new WeakMap();
+  _executeTerraform = terraformExecutor(undefined, true);
+});
+
+// plugins/terraform/src/installed-capture-context.ts
+var init_installed_capture_context = __esm(() => {
+  init_runner();
+});
+// plugins/terraform/src/installed-final-capture.ts
+var init_installed_final_capture = __esm(() => {
+  init_installed_capture_context();
+  init_reader_final_reserve();
+});
+
+// plugins/terraform/src/google-adc-session.ts
+var _googleCredentialAlternatives;
+var init_google_adc_session = __esm(() => {
+  _googleCredentialAlternatives = Object.freeze([
+    'GOOGLE_OAUTH_ACCESS_TOKEN',
+    'GOOGLE_ACCESS_TOKEN',
+    'GOOGLE_CREDENTIALS',
+    'GOOGLE_IMPERSONATE_SERVICE_ACCOUNT',
+    'GOOGLE_IMPERSONATE_SERVICE_ACCOUNT_DELEGATES',
+    'GCLOUD_KEYFILE_JSON',
+    'GOOGLE_CLOUD_KEYFILE_JSON',
+  ]);
+});
+
+// plugins/terraform/src/installed-runtime-pins.json
+var init_installed_runtime_pins = () => {};
+
+// plugins/gcloud/src/ce/request-reason.ts
+var init_request_reason = __esm(() => {
+  init_discovery();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/compute-plan.ts
+var init_compute_plan = __esm(() => {
+  init_discovery();
+  init_request_reason();
+  init_site_access();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/terraform-public-artifacts.ts
+var GCP_LEGACY_TERRAFORM_ARTIFACTS,
+  GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
+  GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
+  GCP_TERRAFORM1171_ARTIFACTS,
+  GCP_XCSH15157_TERRAFORM1172_ARTIFACTS,
+  GCP_XCSH15157_OBSERVER_ARTIFACTS,
+  GCP_XCSH15162_TERRAFORM_ARTIFACTS,
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15162_OBSERVER_ARTIFACTS,
+  GCP_OBSERVER_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15176_OBSERVER_ARTIFACTS,
+  GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15178_OBSERVER_ARTIFACTS,
+  packagedProfiles;
+var init_terraform_public_artifacts = __esm(() => {
+  GCP_LEGACY_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: {
+      terraform: '1.16.6',
+      google: '8.7.0',
+      xcsh: '15.13.0',
+    },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.13.0"
+  constraints = "15.13.0"
+  hashes = [
+    "h1:CfB9Clvh4C1I4QucrCtv6YqlvX9Z6E5P3V6iBT2W9uE=",
+    "h1:jFFVz1Mu+WqOMqYT48AcDSfm2MdFOkb78bJA86Sc/+c=",
+    "zh:14f1155c9403858e0b158d44f318ec44863060c9d5db7559cbcceef5d006a424",
+    "zh:1c5c910f9f307811dc89467e1abd8bb377daabb096718a9f6e85e03592bbfe58",
+    "zh:3b24ef444843b72c3eaf9837a45705a3fbc0aad16e7fa86391f7e9ea7bc4dbb9",
+    "zh:3bff1de417cf0509b5c25588f87ecce347d85cd5e05cd1a4ce2ba5ec4f259df7",
+    "zh:52d065e9f92683a7bf6e8233f6fd0723af8a40264e57d9e35f58b1b46e44eb4b",
+    "zh:575471e9607e67bb6c923c070ae9995ddd497ff8ae9730fad4974e0c1f095f5b",
+    "zh:604a529d3df49d8488b998ee2480ef1db711ca7fccb9b99235d49e63410f9853",
+    "zh:81fccfac3658c324c36b5102d5c5e18389f957ef2b50c841a59cb42fb5d48f43",
+    "zh:9386d0ec3d5b0c4ab63f6c27e791bb24578f8ead9e8fe66f51b8c384acab3fed",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:c21b6380b084455a5e47040e5ec3df6cc0ae51cfd502e7b22038d4925b970697",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.7.0"
+  constraints = "8.7.0"
+  hashes = [
+    "h1:r0evOKSNhYYj04qb6VCTVtm7/uWr67jMZ2TsgLubk6o=",
+    "h1:vCPO1IbM2/WfU4R3QYtzxIyM5ZLYL0pgDS8bmap20hI=",
+    "zh:087771b1c22126084ec1ac26272f7e0bce1030bedd9d692b6eef38e6baf5db2e",
+    "zh:4e075872421717124f1a059f80a9cd2a742e868e94ee74546e52494a02f656d2",
+    "zh:5024e53d378a551d354244db25085c2db530dfdd7bdbd3a3df03abdc957a8a20",
+    "zh:52dd649ad0c39f51bf39218e896ced370d4c56d65876715b6c12e2ac17f16f71",
+    "zh:70d6c8f5371a354f8265fe4f2c279e0c2f6a06054538dbe2d92e428692192439",
+    "zh:7aceb5fe517d2dbd270644663a2b237fc3be3e06577a40d2009983b5a5088fcd",
+    "zh:bb3a6fd8f472080f3199e57e61cbbdd253c8210b2b70e6c4e30e06b08c39e7de",
+    "zh:cbd1a1de219397ba98f17203751300433766f5c36953e6aece4a1fb1817638a9",
+    "zh:d12886e54a30e3b6f174f879777616401f8749466443bc6db870eddd42985fa7",
+    "zh:d58a84d3a387c78e8ac58b200ceb51a3e332105a11420f33e03aa69b3ec4449f",
+    "zh:ed11511bc8ee66fbe2d0e6b59f694c127f140cba7ea9654e332c3ebfbdf8bea9",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
+  };
+  GCP_PREVIOUS_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: {
+      terraform: '1.17.1',
+      google: '8.10.0',
+      xcsh: '15.15.6',
+    },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.15.6"
+  constraints = "15.15.6"
+  hashes = [
+    "h1:CPKzMmsKIFJo0WlCPSK0Fs9zWX2Flzxy13nXP47RS90=",
+    "h1:IxWHLGlJLqsSVH3KzpVZZPjYPO5r3sserw9KF6E2ep0=",
+    "zh:0dc77e240b08b5035d2f3367182a8c3c9df8c5ac6120f790df947ff22772afcf",
+    "zh:1457c6fd18390af39bca641484708f34f10eed8bfe5e6432b0d430faf3d97f19",
+    "zh:261a74243fafb9cf540c4d90e4b67f4a8c824ccc833b0debfdd631ff8f53350d",
+    "zh:6e1a68c483696d233692983bd5a24d12419923deb76c1f66e5fe8dd2f04344f4",
+    "zh:826048a87330885105b3bf6a96f240e1b46a2f725b1802d0ad11f0ce36a52b25",
+    "zh:8c8ed7352568f853a9db71157363080dfa951c432dc59a4011c7599bc92894b9",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:a068f359b095fc5daef787a8bda25cffb31406d0de4ae7b02441b78777c80b12",
+    "zh:a46205d26f225341679d1adff61eabbce24825e520da288ea54f687852cb6220",
+    "zh:c3bdabf172003c874b894fbcdc615c8b5502b0ed16407c5b95bfce9f5d3a1ca5",
+    "zh:e7814c97afa4fce5a795ac69ee286aa367b494e9afd3cf587203a1ea7aa12750",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.10.0"
+  constraints = "8.10.0"
+  hashes = [
+    "h1:KK+bSy5WlYDU1ikIxpXhdSw1E/tv1DHKWc5PwOe1RrQ=",
+    "h1:y/h4PR7S15y5Nv55/6tfQ40YuHr6T+U8h/dbxiMMllc=",
+    "zh:0dbda00be503fb47cebbb67011fa6c49bb00a3bbc3491ec0e9d4e14b1ce1b0dc",
+    "zh:22e291cb672fd02af19a9269de4c30abd51448fd1373554844921b5bad32f94a",
+    "zh:46e589f030ff42d55dc6fc865de5df2b9d1ce54ea244df5ce927034cc5ff897f",
+    "zh:4c54ccd68260d01338a86a618ec33e97e83df6b1c5bd94e528c7a779e8fcabdf",
+    "zh:715a5f898ff0557966d7ceac23da2bf7d521d37b989ce6788de8666c8125f8c4",
+    "zh:7201f7c897afc32f85f61b0f2f02dd9cc58ad0d939b30382b49bad0e752c442d",
+    "zh:7656d49394d9a2e8ec7a1cc7bd732bff110e63e0667598533c4645ec90862440",
+    "zh:8b3166f24ffd12225fffd71102ea7690b6a4d703d67bfc9a425c3c08c41f48f0",
+    "zh:a9a1730a087ded8366adc73cc87ed88160c6d700b8836cecdd5c1c181adf396f",
+    "zh:d7dca048608213e6a8510051720bccc9d2e235fb87f3d67d4f7d8afbcdfc4bd6",
+    "zh:db82d70bcf064b848fb78009ec9bd616cba3d50abe100014e0ade885e5ed8c15",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+  };
+  GCP_GOOGLE810_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.1', google: '8.10.0', xcsh: '15.15.7' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.15.7"
+  constraints = "15.15.7"
+  hashes = [
+    "h1:ZzVyH47TI2iuDchgBC8rfK1mERE5Zx1OZd92/GfwxdY=",
+    "h1:me9KdbvJMPVojT5jh/skY9pCpbLxfl6qGQPUeykbr5c=",
+    "zh:1d5d72740ffda5b14fd92b51c5078bd2d7f48eff71e876e34c2d6c73fdf7f3ca",
+    "zh:2581a16c4f4997818f23e02336e730cfe005e7b935c5236490fea4bec27afe37",
+    "zh:2d20771e496cd467ee684d43b4ed10fb7844c5c8de1562def63e02ce20890b79",
+    "zh:632fbf84bc600b3657d2fa0a0cf6cef9511d0b8a219ed4a6e8b5be8acfb40a63",
+    "zh:6402187ed75dbb5c010405617a4cbe62a1146c2604859144e9779004dcfd023c",
+    "zh:71d6e5d3855d382f30f76a74bb392d97f483e1758feb56da374ae22ceeeeb726",
+    "zh:87df39d0a5db723c36cfcb57c6f6e3df18aaca0e8a555a541abe4714883b72c1",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:c14d573d0659a32c56a93746b0d7da121b40b2d0c46a86a4c1b5dea50b002845",
+    "zh:cf70fee6a41250ac91aff9d9f3b56b0b332952f3037c1651959151f085c559fa",
+    "zh:f4c3d62299b5ddd49937f9bcd31adea4a2ac00988c1db7a670102957c24fa6f3",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.10.0"
+  constraints = "8.10.0"
+  hashes = [
+    "h1:KK+bSy5WlYDU1ikIxpXhdSw1E/tv1DHKWc5PwOe1RrQ=",
+    "h1:y/h4PR7S15y5Nv55/6tfQ40YuHr6T+U8h/dbxiMMllc=",
+    "zh:0dbda00be503fb47cebbb67011fa6c49bb00a3bbc3491ec0e9d4e14b1ce1b0dc",
+    "zh:22e291cb672fd02af19a9269de4c30abd51448fd1373554844921b5bad32f94a",
+    "zh:46e589f030ff42d55dc6fc865de5df2b9d1ce54ea244df5ce927034cc5ff897f",
+    "zh:4c54ccd68260d01338a86a618ec33e97e83df6b1c5bd94e528c7a779e8fcabdf",
+    "zh:715a5f898ff0557966d7ceac23da2bf7d521d37b989ce6788de8666c8125f8c4",
+    "zh:7201f7c897afc32f85f61b0f2f02dd9cc58ad0d939b30382b49bad0e752c442d",
+    "zh:7656d49394d9a2e8ec7a1cc7bd732bff110e63e0667598533c4645ec90862440",
+    "zh:8b3166f24ffd12225fffd71102ea7690b6a4d703d67bfc9a425c3c08c41f48f0",
+    "zh:a9a1730a087ded8366adc73cc87ed88160c6d700b8836cecdd5c1c181adf396f",
+    "zh:d7dca048608213e6a8510051720bccc9d2e235fb87f3d67d4f7d8afbcdfc4bd6",
+    "zh:db82d70bcf064b848fb78009ec9bd616cba3d50abe100014e0ade885e5ed8c15",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
+  };
+  GCP_TERRAFORM1171_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.1', google: '8.11.0', xcsh: '15.15.7' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.15.7"
+  constraints = "15.15.7"
+  hashes = [
+    "h1:ZzVyH47TI2iuDchgBC8rfK1mERE5Zx1OZd92/GfwxdY=",
+    "h1:me9KdbvJMPVojT5jh/skY9pCpbLxfl6qGQPUeykbr5c=",
+    "zh:1d5d72740ffda5b14fd92b51c5078bd2d7f48eff71e876e34c2d6c73fdf7f3ca",
+    "zh:2581a16c4f4997818f23e02336e730cfe005e7b935c5236490fea4bec27afe37",
+    "zh:2d20771e496cd467ee684d43b4ed10fb7844c5c8de1562def63e02ce20890b79",
+    "zh:632fbf84bc600b3657d2fa0a0cf6cef9511d0b8a219ed4a6e8b5be8acfb40a63",
+    "zh:6402187ed75dbb5c010405617a4cbe62a1146c2604859144e9779004dcfd023c",
+    "zh:71d6e5d3855d382f30f76a74bb392d97f483e1758feb56da374ae22ceeeeb726",
+    "zh:87df39d0a5db723c36cfcb57c6f6e3df18aaca0e8a555a541abe4714883b72c1",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:c14d573d0659a32c56a93746b0d7da121b40b2d0c46a86a4c1b5dea50b002845",
+    "zh:cf70fee6a41250ac91aff9d9f3b56b0b332952f3037c1651959151f085c559fa",
+    "zh:f4c3d62299b5ddd49937f9bcd31adea4a2ac00988c1db7a670102957c24fa6f3",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.11.0"
+  constraints = "8.11.0"
+  hashes = [
+    "h1:R1e8efd3fnpQeN17HzPLfvFAvBv4qTsQEVEEHDa+QXE=",
+    "h1:Wx0mcCg4BAModGKKRbKG0WCdeNc1atseaYCVI08Pu1c=",
+    "zh:06f745dab16e27e746335e1fea09b504dd6fc5ee5d490acdc1bf623b3758a3cb",
+    "zh:0e844d82d0194c769305afe8a109bbd02ed03d2e2fb7c2128a4f086571ae7412",
+    "zh:212c6a9f1f64ac7056e8e85a96de28f00906a8b87e9301611aa20da370753df3",
+    "zh:32aef908bdfd7a67ed10b04d9396d1cdcb11d5bb0baeb89f50fa567cf86c57fb",
+    "zh:47bdba00b1f59937ddb1c6232ee00b7e651d23cb34ad28c859a8da0e4b2277a6",
+    "zh:7b2bcc663e91f19f8ba9dba75037d7d58aa53ffbf4104a8bb952362b1aef0bf8",
+    "zh:7bdfabf1da462eacceb2d36a8331b35ce70a5f6e4538a14097c47d8958c4067d",
+    "zh:8e2017664ccf3fd6ee45c0e7e2b6351ca3c5e812387b3a679f1adc54d640ffef",
+    "zh:c8fbfb3de6f3ecbb44ece3bb05f232a8cf9cf8899a97ae9dd503a208c16d8552",
+    "zh:d9a36ee8b8b86cae8bcaf9034a254b701fec3a4cd53b5f50a7ccde4d4388e3b4",
+    "zh:e173cb16a4673a7a914531c64e7ff0716b27ed6b46e79c1507e50e1af928b4dd",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
+  };
+  GCP_XCSH15157_TERRAFORM1172_ARTIFACTS = GCP_TERRAFORM1171_ARTIFACTS && {
+    ...GCP_TERRAFORM1171_ARTIFACTS,
+    versions: { ...GCP_TERRAFORM1171_ARTIFACTS.versions, terraform: '1.17.2' },
+  };
+  GCP_XCSH15157_OBSERVER_ARTIFACTS = GCP_XCSH15157_TERRAFORM1172_ARTIFACTS && {
+    ...GCP_XCSH15157_TERRAFORM1172_ARTIFACTS,
+    configurationVersion: 3,
+  };
+  GCP_XCSH15162_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.2', google: '8.11.0', xcsh: '15.16.2' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.16.2"
+  constraints = "15.16.2"
+  hashes = [
+    "h1:cXFxYCm3XL+3hRt3o12gVahNXy+CFbfPi7kTkmAoGOc=",
+    "zh:0df781a1b339c1a117f1ea2f2cab9f1af9ff65b3ba01930e05fc2cce868ecf7e",
+    "zh:2f4ed2a942b409bac7c9701577fcf80ed5a1f0fbf0e464b261c0011516e5f32b",
+    "zh:559cb87e10546922686f598c0deaa0e0d618beffd808d45c4553b3cafcbbdca4",
+    "zh:814d4ba853499bc2dac9b1ae3fbcf3dc249d1458d1cd731179af6cba090e1f1b",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:ac2964d6843d403a3dc5487a0df357799396b5f43089126e9270dec297dd5e45",
+    "zh:b7bd9eb7bca47e3a3433ef68efa0196810caf73df73f55b6b62318142d6bb08c",
+    "zh:b8fad4ceed32add1f96904c626ec8fe3e737de4e51a9ebf6c01a5d04aa37bc31",
+    "zh:d3ca6ea4c7b61273475f86e684c637ff70d0458e46f24646842fa4f998dad256",
+    "zh:e3c3b7a35e971443bfc2a6854f9f70a9f3f39aaa02fef4d8c5ede931f523e8eb",
+    "zh:f6e88921032cc2bba91bd2769f9b31d4d11004698ce7fe0659d92fda24208aa2",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.11.0"
+  constraints = "8.11.0"
+  hashes = [
+    "h1:Wx0mcCg4BAModGKKRbKG0WCdeNc1atseaYCVI08Pu1c=",
+    "zh:06f745dab16e27e746335e1fea09b504dd6fc5ee5d490acdc1bf623b3758a3cb",
+    "zh:0e844d82d0194c769305afe8a109bbd02ed03d2e2fb7c2128a4f086571ae7412",
+    "zh:212c6a9f1f64ac7056e8e85a96de28f00906a8b87e9301611aa20da370753df3",
+    "zh:32aef908bdfd7a67ed10b04d9396d1cdcb11d5bb0baeb89f50fa567cf86c57fb",
+    "zh:47bdba00b1f59937ddb1c6232ee00b7e651d23cb34ad28c859a8da0e4b2277a6",
+    "zh:7b2bcc663e91f19f8ba9dba75037d7d58aa53ffbf4104a8bb952362b1aef0bf8",
+    "zh:7bdfabf1da462eacceb2d36a8331b35ce70a5f6e4538a14097c47d8958c4067d",
+    "zh:8e2017664ccf3fd6ee45c0e7e2b6351ca3c5e812387b3a679f1adc54d640ffef",
+    "zh:c8fbfb3de6f3ecbb44ece3bb05f232a8cf9cf8899a97ae9dd503a208c16d8552",
+    "zh:d9a36ee8b8b86cae8bcaf9034a254b701fec3a4cd53b5f50a7ccde4d4388e3b4",
+    "zh:e173cb16a4673a7a914531c64e7ff0716b27ed6b46e79c1507e50e1af928b4dd",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc',
+  };
+  GCP_PUBLIC_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.2', google: '8.11.0', xcsh: '15.17.3' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.17.3"
+  constraints = "15.17.3"
+  hashes = [
+    "h1:IbBBBaRzyjz4LWNl2b9LNlxJpF4Y+xvsPXCStCxT0K0=",
+    "zh:0341f888a0598010916e0ab605b3fb9c11209c7f4d30d146ee47c8fca1bb92ae",
+    "zh:1b643d818eb28dfcb494d74e065ddfe809786a7f72f0b5284336d29bb8086b40",
+    "zh:48c917ca9348ae815a2a4465eee949da0d2512a9562fc7ea94ec72d1e52c59e2",
+    "zh:69f4607c3f4e0816ffe9a625bbaa1533583940898ec5d322790b31f316c2597f",
+    "zh:72dd29cefcda936ddd205589a64b9229dee67e53f80d813b8aee615508ae47fa",
+    "zh:7fdfcf578b744dfb33d492baa556dfbe099a74a6ca5464dd37442768ebc20c6c",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:9763efa0afb34c8697342a3c22586479a66f870503a8a74039070a97de8134f2",
+    "zh:b07ddd557ae04d073492f9142425462dd680d0d65c8e15b020121a66e4a0cae9",
+    "zh:b1b128edeb49ca73b89cb6e11141a92795e14c18a6c4134b72a612d65adc96f7",
+    "zh:fefd73bbaa4e369d28c85d66ff43584f29094fc371a931e993cd872e8ffb70af",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.11.0"
+  constraints = "8.11.0"
+  hashes = [
+    "h1:Wx0mcCg4BAModGKKRbKG0WCdeNc1atseaYCVI08Pu1c=",
+    "zh:06f745dab16e27e746335e1fea09b504dd6fc5ee5d490acdc1bf623b3758a3cb",
+    "zh:0e844d82d0194c769305afe8a109bbd02ed03d2e2fb7c2128a4f086571ae7412",
+    "zh:212c6a9f1f64ac7056e8e85a96de28f00906a8b87e9301611aa20da370753df3",
+    "zh:32aef908bdfd7a67ed10b04d9396d1cdcb11d5bb0baeb89f50fa567cf86c57fb",
+    "zh:47bdba00b1f59937ddb1c6232ee00b7e651d23cb34ad28c859a8da0e4b2277a6",
+    "zh:7b2bcc663e91f19f8ba9dba75037d7d58aa53ffbf4104a8bb952362b1aef0bf8",
+    "zh:7bdfabf1da462eacceb2d36a8331b35ce70a5f6e4538a14097c47d8958c4067d",
+    "zh:8e2017664ccf3fd6ee45c0e7e2b6351ca3c5e812387b3a679f1adc54d640ffef",
+    "zh:c8fbfb3de6f3ecbb44ece3bb05f232a8cf9cf8899a97ae9dd503a208c16d8552",
+    "zh:d9a36ee8b8b86cae8bcaf9034a254b701fec3a4cd53b5f50a7ccde4d4388e3b4",
+    "zh:e173cb16a4673a7a914531c64e7ff0716b27ed6b46e79c1507e50e1af928b4dd",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+  };
+  GCP_XCSH15162_OBSERVER_ARTIFACTS = {
+    ...GCP_XCSH15162_TERRAFORM_ARTIFACTS,
+    configurationVersion: 3,
+  };
+  GCP_OBSERVER_TERRAFORM_ARTIFACTS = GCP_PUBLIC_TERRAFORM_ARTIFACTS && {
+    ...GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+    configurationVersion: 3,
+  };
+  GCP_XCSH15176_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.6' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.17.6"
+  constraints = "15.17.6"
+  hashes = [
+    "h1:ENO86u3HFmLllw/yPw/XIZm/LiRL4gq0PhbBcS3STbc=",
+    "h1:QDyAkSojvGnf4QMA0WS7FKToQf3Td55yrEoilTH3yZw=",
+    "zh:6454f368f2174f52f750c7349c6557496b38e247d6052c293ba786a0018989e8",
+    "zh:6c9a88a00b6e54e3f6b81aa01409735d18b16da676d448289c7e367182090262",
+    "zh:7682d1ab71255ffebd104e6cc2af623f3e8db539b64fc842a3166df0fd3ac6bf",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:b01f4c5071604cce7eb5ad0257a78b73e409110eebe2ff9dbd18abcce7827521",
+    "zh:bebac89299b264ac2720bd3720d586e4baf6c9104c88edd876c840d6e166547b",
+    "zh:c162efa3bb6e8f448ec2b35d0d5384b00a7b6c0cf1fb3103c468b56bde390fe4",
+    "zh:c1e8960bd6866206ec84434b2c7e0c168862900c2961c1512add57c302aefd50",
+    "zh:c46ddce355b575e84d6352b59b8d18abea43136768974651fc25b1b2cb178aa3",
+    "zh:d4450445b6b7ed9b4654b7e331a4afd17702ad5242bc3c53e860d429e650aadc",
+    "zh:deaff6041070605720bb9ab3a451cb5f37d3dcf366e50b6c691a395b87898300",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.12.0"
+  constraints = "8.12.0"
+  hashes = [
+    "h1:9d+FdGigXECjhHgs8RcW5JhsTTXVNga0X1Pd4O4QHjY=",
+    "h1:es4kOf5hndCahoF3bLHmsLKX93JpkeuThvKQ4Pnm6m8=",
+    "zh:0b486637c4f4a2ff260dcf98e0ab74aa2655884c27df909fc79de9c2829ea6ef",
+    "zh:0b9c04d4bb269389d799f6b871877172d13cd059571768c6c36b28cf297b6fba",
+    "zh:0c63d340b3fda4156bccbd4f02e8ef7d320bea75bd1706573a90851e00129c47",
+    "zh:20371948b3d7f0469f2ad99608d9626a816127c9eb1b4cd007f09e1f68878728",
+    "zh:2a6d9c60699366894da043e604ebe5fee9246bb01bef73ebd100d3dbaf3e5e34",
+    "zh:47aa133c201e1edd2d1eb789f2ef4ccc769fdb49d5000b042280c2ac37acf368",
+    "zh:58e2910ee0625ecd352c2e55050ed35771ed7860dd1e738ee4b53eab695a2ee8",
+    "zh:84a44faf0dc811e48a8590e244c02ffff4a6a10095a4bc869979e7b0e94ae46d",
+    "zh:b8f42d7d79776b54d37c93b51a3f10ae45425fb91fb182bcb2a966e1bd52bdad",
+    "zh:eddf30f53a99381388ff25702ed0c727586deb8c502cd5af395dc98afb217a49",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+    "zh:f79b40a9d29763535baed6de1cd0d42960059916a1723f8fb4af8a2801dd2f4c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+  };
+  GCP_XCSH15176_OBSERVER_ARTIFACTS = {
+    ...GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+    configurationVersion: 3,
+  };
+  GCP_XCSH15178_TERRAFORM_ARTIFACTS = {
+    configurationVersion: 2,
+    versions: { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.8' },
+    providerLock: `# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/f5-sales-demo/xcsh" {
+  version     = "15.17.8"
+  constraints = "15.17.8"
+  hashes = [
+    "h1:BDzdbsyeGRSL+69aYkK28Y32gOORRvpL/qo6TpoEho4=",
+    "h1:sdWqL1TklnHZRkFOOWmr9yFVOuRO93LG3jRMB/q0xyI=",
+    "zh:1d8f62ed772a35675fd8d22be5001b3e9160af99253cc3c24516b7b7defd76be",
+    "zh:22afbde3a99622921b5537a89436091465c8645dd140bf98fc0f1c6af3a151a4",
+    "zh:287c8ed6dde6f913dd218ec713dd17459587e9cf4bf197bc811c84deb65f16ed",
+    "zh:5519792b1dbd23ebb162546b43e68fd7a8c43c5aa69a95e745c0f48f556c593a",
+    "zh:6720c8d5bd97a3071dbf320c2f996bc9bc4d3b674d594e017d8e9d9e42403b99",
+    "zh:87f46dc4b4ca79f1d358e902705321770dfcf5ff2e2c1e8fadb41e67de7a5605",
+    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",
+    "zh:bee54896d0c9de3f95c08ea1794caf693c4bb85428fbac462ae159cc8f11dfb9",
+    "zh:d2ef28ceb07719d8830ba5d16057596344c8627303561c062541e7b99a52ab9f",
+    "zh:e302f36aa22111ef6bf42ad01a47c6ab92371efe8a712246c9ae348a4fa53641",
+    "zh:fdc9aa9390a34608f6434631706ef6756e8fce9fadacce5c6cd659bb129e6489",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/google" {
+  version     = "8.12.0"
+  constraints = "8.12.0"
+  hashes = [
+    "h1:9d+FdGigXECjhHgs8RcW5JhsTTXVNga0X1Pd4O4QHjY=",
+    "h1:es4kOf5hndCahoF3bLHmsLKX93JpkeuThvKQ4Pnm6m8=",
+    "zh:0b486637c4f4a2ff260dcf98e0ab74aa2655884c27df909fc79de9c2829ea6ef",
+    "zh:0b9c04d4bb269389d799f6b871877172d13cd059571768c6c36b28cf297b6fba",
+    "zh:0c63d340b3fda4156bccbd4f02e8ef7d320bea75bd1706573a90851e00129c47",
+    "zh:20371948b3d7f0469f2ad99608d9626a816127c9eb1b4cd007f09e1f68878728",
+    "zh:2a6d9c60699366894da043e604ebe5fee9246bb01bef73ebd100d3dbaf3e5e34",
+    "zh:47aa133c201e1edd2d1eb789f2ef4ccc769fdb49d5000b042280c2ac37acf368",
+    "zh:58e2910ee0625ecd352c2e55050ed35771ed7860dd1e738ee4b53eab695a2ee8",
+    "zh:84a44faf0dc811e48a8590e244c02ffff4a6a10095a4bc869979e7b0e94ae46d",
+    "zh:b8f42d7d79776b54d37c93b51a3f10ae45425fb91fb182bcb2a966e1bd52bdad",
+    "zh:eddf30f53a99381388ff25702ed0c727586deb8c502cd5af395dc98afb217a49",
+    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",
+    "zh:f79b40a9d29763535baed6de1cd0d42960059916a1723f8fb4af8a2801dd2f4c",
+  ]
+}
+`,
+    expectedLockSha256: 'sha256:74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
+  };
+  GCP_XCSH15178_OBSERVER_ARTIFACTS = {
+    ...GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+    configurationVersion: 3,
+  };
+  packagedProfiles = [
+    GCP_LEGACY_TERRAFORM_ARTIFACTS,
+    GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
+    GCP_GOOGLE810_TERRAFORM_ARTIFACTS,
+    GCP_TERRAFORM1171_ARTIFACTS,
+    GCP_XCSH15157_TERRAFORM1172_ARTIFACTS,
+    GCP_XCSH15157_OBSERVER_ARTIFACTS,
+    GCP_XCSH15162_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15162_OBSERVER_ARTIFACTS,
+    GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+    GCP_OBSERVER_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15176_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15176_OBSERVER_ARTIFACTS,
+    GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+    GCP_XCSH15178_OBSERVER_ARTIFACTS,
+  ].filter((profile) => profile !== undefined);
+  Object.freeze(packagedProfiles);
+  for (const profile of packagedProfiles) {
+    Object.freeze(profile.versions);
+    Object.freeze(profile);
+  }
+});
+
+// plugins/gcloud/src/ce/observer-plan.ts
+var init_observer_plan = __esm(() => {
+  init_compute_plan();
+  init_discovery();
+  init_observer_scope();
+  init_request_reason();
+  init_site_access();
+  init_terraform_public_artifacts();
+  init_validation();
+  init_observer_scope();
+});
+// plugins/terraform/src/gcp-cloud-serial-reader.ts
+var _cloudReaderOrigins, _installedReaderContexts, _installedReaderFinals;
+var init_gcp_cloud_serial_reader = __esm(() => {
+  init_discovery();
+  init_evidence_json();
+  init_gcp_insert_audit_query();
+  init_google_adc_authentication();
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_reader_final_reserve();
+  _cloudReaderOrigins = new WeakMap();
+  _installedReaderContexts = new WeakMap();
+  _installedReaderFinals = new WeakMap();
+});
+
+// plugins/terraform/src/installed-version-profile.ts
+var profiles;
+var init_installed_version_profile = __esm(() => {
+  profiles = [
+    {
+      terraformVersion: '1.17.2',
+      googleVersion: '8.11.0',
+      xcshVersion: '15.15.7',
+      providerLockSha256: 'c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
+      terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+      googleProviderSha256: 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
+      xcProviderSha256: 'd30f9a3921dc16262da4d278cd97bc62e9af73f21ded6d12480798da6d726dc7',
+    },
+    {
+      terraformVersion: '1.17.1',
+      googleVersion: '8.11.0',
+      xcshVersion: '15.15.7',
+      providerLockSha256: 'c3c6fb09abfd85ce60f31e91fb3ef14b5d30d2ae67680c499c7f4003fcbcaf14',
+      terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',
+      googleProviderSha256: 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
+      xcProviderSha256: 'd30f9a3921dc16262da4d278cd97bc62e9af73f21ded6d12480798da6d726dc7',
+    },
+    {
+      terraformVersion: '1.17.1',
+      googleVersion: '8.10.0',
+      xcshVersion: '15.15.7',
+      providerLockSha256: 'fafc5491583b367f9f3a915093e1b311171960cf909143fadc49acb0a862aeb0',
+      terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',
+      googleProviderSha256: 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
+      xcProviderSha256: 'd30f9a3921dc16262da4d278cd97bc62e9af73f21ded6d12480798da6d726dc7',
+    },
+    {
+      terraformVersion: '1.17.1',
+      googleVersion: '8.10.0',
+      xcshVersion: '15.15.6',
+      providerLockSha256: '2ff7b8d6b6c29f989ffbbb0ac39131b1ac33da0b6dcef9e4310204e605a5a034',
+      terraformSha256: '1eaecd79a92a0114d70017b5d5e274c12e5b4561d971ff0b5e24073cddd287dc',
+      googleProviderSha256: 'f792c2ebae7abfc9123e9506b641fa789335b8905caa34effd899595e93e40a9',
+      xcProviderSha256: '99173b9eb36d1deeeb3297374f5b86f4a37631b9ba88a9e9da82ced549ad35b3',
+    },
+    {
+      terraformVersion: '1.16.6',
+      googleVersion: '8.7.0',
+      xcshVersion: '15.13.0',
+      providerLockSha256: '6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
+      terraformSha256: '00a240950f88f51a03ad90975f1647737e40ddcd5df30a703fd840aa07dccced',
+      googleProviderSha256: '1c620693bca3fe61c3b8ce8d313f3c6dc35648f2246784e5d92fe3d22e0dfd9f',
+      xcProviderSha256: 'c25cc2562047d72ef3b10d2cd8319f13f8c5b6785aa62cc9006b6370ae68fd67',
+    },
+    {
+      terraformVersion: '1.17.2',
+      googleVersion: '8.11.0',
+      xcshVersion: '15.16.2',
+      providerLockSha256: '05b1685de902eec100da53ec973895b04f5faa5b81b3f5257de09caeace531bc',
+      terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+      googleProviderSha256: 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
+      xcProviderSha256: '542d99d1905fe03fadce8a889390751b3ad1531f367ef678cf03d97204ef7cc1',
+    },
+    {
+      terraformVersion: '1.17.2',
+      googleVersion: '8.11.0',
+      xcshVersion: '15.17.3',
+      providerLockSha256: 'ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615',
+      terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+      googleProviderSha256: 'f6c7080ca82f5ecc2f279f9b6edf152ec366890f76ab0a97a1667bdf17331ef5',
+      xcProviderSha256: '89a8011443732db8b64bb7fd44df21da15e4cf6183384e21e531d4533653edb0',
+    },
+    {
+      terraformVersion: '1.17.2',
+      googleVersion: '8.12.0',
+      xcshVersion: '15.17.6',
+      providerLockSha256: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
+      terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+      googleProviderSha256: '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0',
+      xcProviderSha256: '3c38dd6ceba946a199970effa34ce0bfcfd4348524b11ec51df3dd9124c5d65f',
+    },
+    {
+      terraformVersion: '1.17.2',
+      googleVersion: '8.12.0',
+      xcshVersion: '15.17.8',
+      providerLockSha256: '74834870028124a9006ab8d34d49517b71b7a7e3ea5a3c1004b3899dacca3b4b',
+      terraformSha256: 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
+      googleProviderSha256: '97cc25d78bb8fc4c4cccc0672af0cc776b1175e0f0a5cd6a67ba55f0380189f0',
+      xcProviderSha256: 'a480b2e2c07fb0bd890b94563fc0357538066c8d0a38dcb2349c3cd2555c4fc1',
+    },
+  ];
+  for (const profile of profiles) Object.freeze(profile);
+  Object.freeze(profiles);
+});
+
+// plugins/terraform/src/gcp-http-rpc-trace.ts
+var _responseOrigins, _bodyOrigins, _issuedBodies, _maximumLine, _maximumStream, _maximumDump;
+var init_gcp_http_rpc_trace = __esm(() => {
+  init_evidence_json();
+  init_installed_version_profile();
+  init_original_output_stream();
+  _responseOrigins = new WeakMap();
+  _bodyOrigins = new WeakMap();
+  _issuedBodies = new WeakSet();
+  _maximumLine = 1024 * 1024;
+  _maximumStream = 64 * 1024 * 1024;
+  _maximumDump = 4 * 1024 * 1024;
+});
+
+// plugins/terraform/src/gcp-observer-image.ts
+var _originalReaders, _installedImageScopes;
+var init_gcp_observer_image = __esm(() => {
+  init_evidence_json();
+  init_gcp_observer_image_pin();
+  init_google_adc_authentication();
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_original_input_monitor();
+  _originalReaders = new WeakMap();
+  _installedImageScopes = new WeakMap();
+});
+
+// plugins/gcloud/src/ce/bounded-cleanup-observations.ts
+var _readConcurrency;
+var init_bounded_cleanup_observations = __esm(() => {
+  _readConcurrency = new WeakMap();
+});
+
+// plugins/gcloud/src/ce/ownership.ts
+function validateGcpResourceIdentity(resource) {
+  if (
+    !resource ||
+    typeof resource !== 'object' ||
+    Array.isArray(resource) ||
+    Object.keys(resource).some(
+      (key) => !['id', 'selfLink', 'kind', 'project', 'deploymentName', 'siteName', 'nodeName', 'engine'].includes(key),
+    )
+  )
+    throw new Error('Unexpected GCP ownership identity fields');
+  if (
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
+    !/^\d+$/.test(resource.id) ||
+    !['native', 'terraform'].includes(resource.engine)
+  )
+    throw new Error('Invalid GCP resource identity');
+  for (const name of [resource.deploymentName, resource.siteName, resource.nodeName].filter((x) => x !== undefined))
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP ownership binding');
+  const collection = COLLECTIONS[resource.kind];
+  if (!collection) throw new Error('Unsupported GCP resource kind');
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${resource.project}/`;
+  const suffix = resource.selfLink.slice(prefix.length);
+  if (
+    !resource.selfLink.startsWith(prefix) ||
+    !new RegExp(
+      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
+    ).test(suffix)
+  )
+    throw new Error('Resource must have an exact scoped selfLink');
+}
+async function readGcpResourceInventory(store, scope) {
+  const ledger = await store.read('gcp-resources.json');
+  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, scope) || !Array.isArray(ledger.resources))
+    throw new Error('GCP ownership ledger is unavailable');
+  const links = new Set();
+  for (const resource of ledger.resources) {
+    validateGcpResourceIdentity(resource);
+    if (!sameScope(resource, scope) || links.has(resource.selfLink))
+      throw new Error('GCP ledger contains mixed ownership or duplicate identities');
+    links.add(resource.selfLink);
+  }
+  return structuredClone(ledger.resources);
+}
+function sameScope(a, b) {
+  return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
+}
+var COLLECTIONS;
+var init_ownership = __esm(() => {
+  init_discovery();
+  COLLECTIONS = {
+    instance: 'instances',
+    disk: 'disks',
+    network: 'networks',
+    subnetwork: 'subnetworks',
+    address: 'addresses',
+    firewall: 'firewalls',
+    router: 'routers',
+    route: 'routes',
+  };
+});
+
+// plugins/gcloud/src/ce/teardown-plan.ts
+var init_teardown_plan = __esm(() => {
+  init_discovery();
+  init_ownership();
+});
+
+// plugins/gcloud/src/ce/native-teardown.ts
+var init_native_teardown = __esm(() => {
+  init_discovery();
+  init_ownership();
+  init_teardown_plan();
+});
+
+// plugins/gcloud/src/ce/deployment-teardown.ts
+var init_deployment_teardown = __esm(() => {
+  init_process_lock();
+  init_compute_plan();
+  init_contract();
+  init_discovery();
+  init_native_teardown();
+  init_ownership();
+  init_teardown_plan();
+  init_terraform_ha_profile();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/terraform-public-ownership.ts
+function publicTerraformPlatformScope(intent) {
+  return intent.sites.flatMap((site) => [
+    { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
+    ...site.nodes.map((node) => ({
+      address: `xcsh_token.${node.name.replaceAll('-', '_')}`,
+      siteName: site.name,
+      tokenName: `${node.name}-token`,
+    })),
+  ]);
+}
+function publicTerraformAddresses(intent) {
+  return [
+    ...publicTerraformCloudScope(intent).map(
+      (resource) =>
+        `google_compute_${resource.kind}.${resource.selfLink.substring(resource.selfLink.lastIndexOf('/') + 1).replaceAll('-', '_')}`,
+    ),
+    ...publicTerraformPlatformScope(intent).map((resource) => resource.address),
+  ];
+}
+function publicTerraformCloudScope(intent) {
+  validateIntent(intent);
+  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
+  const resources = intent.sites.flatMap((site) =>
+    site.nodes.flatMap((node) => [
+      {
+        kind: 'instance',
+        selfLink: `${prefix}/zones/${node.zone}/instances/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      {
+        kind: 'disk',
+        selfLink: `${prefix}/zones/${node.zone}/disks/${node.name}`,
+        siteName: site.name,
+        nodeName: node.name,
+      },
+      ...node.interfaces.flatMap((nic) => [
+        { kind: 'network', selfLink: `${prefix}/global/networks/${nic.network}` },
+        { kind: 'subnetwork', selfLink: `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}` },
+      ]),
+    ]),
+  );
+  for (const site of intent.sites.filter((site) => site.nodes.length === 3))
+    for (const nic of site.nodes[0].interfaces)
+      for (const direction of ['ingress', 'egress'])
+        resources.push({
+          kind: 'firewall',
+          selfLink: `${prefix}/global/firewalls/${site.name}-ha-${nic.role}-${direction}`,
+        });
+  if (intent.schemaVersion === 2) {
+    const observer = gcpTerraformObserverIdentity(intent);
+    resources.push(
+      { kind: 'instance', selfLink: `${prefix}/zones/${observer.zone}/instances/${observer.name}` },
+      { kind: 'disk', selfLink: `${prefix}/zones/${observer.zone}/disks/${observer.name}` },
+      { kind: 'firewall', selfLink: `${prefix}/global/firewalls/${observer.firewallName}` },
+    );
+  }
+  return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
+    ...resource,
+    id: '0',
+    project: intent.project,
+    deploymentName: intent.deploymentName,
+    engine: 'terraform',
+  }));
+}
+var init_terraform_public_ownership = __esm(() => {
+  init_exec();
+  init_bounded_cleanup_observations();
+  init_deployment_teardown();
+  init_discovery();
+  init_observer_scope();
+  init_validation();
+});
+
+// plugins/terraform/src/original-gcp-inventory-scope.ts
+var _issued2, _pending;
+var init_original_gcp_inventory_scope = __esm(() => {
+  init_discovery();
+  init_observer_scope();
+  init_terraform_public_ownership();
+  init_validation();
+  init_evidence_json();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_runner();
+  _issued2 = new WeakMap();
+  _pending = new WeakMap();
+});
+
+// plugins/terraform/src/installed-initial-inventory.ts
+var _applyInventories, _applyInventoryCallbacks, _preparations;
+var init_installed_initial_inventory = __esm(() => {
+  init_evidence_json();
+  init_gcp_cloud_serial_reader();
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_gcp_inventory_scope();
+  init_original_input_monitor();
+  init_original_output_stream();
+  _applyInventories = new WeakMap();
+  _applyInventoryCallbacks = new WeakMap();
+  _preparations = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-insert-evidence.ts
+var _origins, _vmOrigins;
+var init_gcp_observer_insert_evidence = __esm(() => {
+  init_discovery();
+  init_observer_plan();
+  init_observer_scope();
+  init_validation();
+  init_evidence_json();
+  init_gcp_cloud_serial_reader();
+  init_gcp_http_rpc_trace();
+  init_gcp_observer_image();
+  init_gcp_observer_image_pin();
+  init_installed_apply_controller();
+  init_installed_initial_inventory();
+  init_installed_runtime();
+  init_installed_version_profile();
+  init_original_input_monitor();
+  init_runner();
+  _origins = new WeakMap();
+  _vmOrigins = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-ssh-client-pins.json
+var gcp_ssh_client_pins_default;
+var init_gcp_ssh_client_pins = __esm(() => {
+  gcp_ssh_client_pins_default = {
+    schemaVersion: 1,
+    kind: 'gcp-qualified-ssh-client-artifact',
+    version: '10.6p2',
+    platform: 'linux-amd64',
+    asset: 'openssh-10.6p2-linux-amd64.zip',
+    archiveSha256: '243b9555199a427ca90e939310d03917f380b470aaed14200c28101e797ec318',
+    files: {
+      ssh: {
+        sha256: 'f425fe4b88def329d36f44e37ab9418f944fbc5ed51e02c6518c844bd580f4c6',
+      },
+      'ssh-keyscan': {
+        sha256: '85c27d97c78b55dc763d673a68e3187c33fa6c072e0c6c682fe5fe4621b25546',
+      },
+      'ssh-keygen': {
+        sha256: 'f3647cdae087762de51a6dec3446f11348c5168dafbe666a70e7b1d9821cbb0a',
+      },
+    },
+    licenseSha256: '5bb5b160726ef5756e4f32fe95b35249c294962419650f48d05134b486d27ccb',
+    buildSha256: 'c6e9bb0f5623eb0e3d34a60732fd1d96b896115252099729e29fb2de51863e6a',
+    installerSha256: '21f5cae7e24ee27935c1d004f6fbeec495786ae2af66f633ec1e390d2e2a8de9',
+  };
+});
+
+// plugins/terraform/src/gcp-ssh-client-profile.ts
+var _defaultPins, _origins2;
+var init_gcp_ssh_client_profile = __esm(() => {
+  init_gcp_ssh_client_pins();
+  init_installed_runtime();
+  init_original_input_monitor();
+  _defaultPins = Object.freeze({
+    version: gcp_ssh_client_pins_default.version,
+    files: Object.freeze(
+      Object.fromEntries(
+        Object.entries(gcp_ssh_client_pins_default.files).map(([name, declaration]) => [name, declaration.sha256]),
+      ),
+    ),
+  });
+  _origins2 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-keyscan-command.ts
+var _origins3;
+var init_gcp_keyscan_command = __esm(() => {
+  init_gcp_observer_insert_evidence();
+  init_gcp_ssh_client_profile();
+  init_installed_apply_controller();
+  init_original_input_monitor();
+  _origins3 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-client-delivery-pins.json
+var init_gcp_observer_client_delivery_pins = () => {};
+
+// plugins/terraform/src/gcp-observer-client-payload.ts
+var _origins4;
+var init_gcp_observer_client_payload = __esm(() => {
+  init_gcp_ssh_client_pins();
+  init_gcp_ssh_client_profile();
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_original_input_monitor();
+  _origins4 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-campaign-access.ts
+var _magic;
+var init_gcp_campaign_access = __esm(() => {
+  init_original_input_monitor();
+  _magic = Buffer.from('openssh-key-v1\x00');
+});
+
+// plugins/terraform/src/gcp-observer-campaign-key.ts
+var _origins5;
+var init_gcp_observer_campaign_key = __esm(() => {
+  init_discovery();
+  init_evidence_json();
+  init_gcp_campaign_access();
+  init_gcp_observer_insert_evidence();
+  init_installed_runtime();
+  init_original_input_monitor();
+  _origins5 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-clock.ts
+var init_gcp_observer_clock = __esm(() => {
+  init_evidence_json();
+});
+
+// plugins/terraform/src/gcp-observer-client-abi-pins.json
+var init_gcp_observer_client_abi_pins = () => {};
+
+// plugins/terraform/src/original-access-reader-source.ts
+var _issued3, _ports, _collections, _collectionOpenings;
+var init_original_access_reader_source = __esm(() => {
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_original_reader_group_closure();
+  init_reader_final_reserve();
+  init_signal_free_executor();
+  _issued3 = new WeakMap();
+  _ports = new WeakMap();
+  _collections = new WeakMap();
+  _collectionOpenings = new WeakSet();
+});
+
+// plugins/terraform/src/gcp-observer-ssh-peer.ts
+var _origins6;
+var init_gcp_observer_ssh_peer = __esm(() => {
+  init_gcp_observer_clock();
+  init_gcp_observer_ssh_command();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_access_reader_source();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_signal_free_executor();
+  _origins6 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-client-delivery.ts
+var _installations, _origins7;
+var init_gcp_observer_client_delivery = __esm(() => {
+  init_evidence_json();
+  init_gcp_observer_client_delivery_command();
+  init_gcp_observer_ssh_peer();
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_original_access_reader_source();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_signal_free_executor();
+  _installations = new WeakMap();
+  _origins7 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-ssh-local-inputs.ts
+var init_gcp_observer_ssh_local_inputs = __esm(() => {
+  init_gcp_observer_ssh_command();
+  init_installed_capture_context();
+  init_installed_runtime();
+  init_original_input_monitor();
+});
+
+// plugins/terraform/src/gcp-observer-client-abi-command.ts
+var _origins8;
+var init_gcp_observer_client_abi_command = __esm(() => {
+  init_gcp_observer_client_abi_pins();
+  init_gcp_observer_client_delivery();
+  init_gcp_observer_client_delivery_command();
+  init_gcp_observer_ssh_command();
+  init_gcp_observer_ssh_local_inputs();
+  init_gcp_observer_ssh_peer();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_reader_final_reserve();
+  _origins8 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-guest-process.ts
+var init_gcp_observer_guest_process = __esm(() => {
+  init_gcp_ssh_client_pins();
+});
+
+// plugins/terraform/src/gcp-observer-client-abi.ts
+var _origins9;
+var init_gcp_observer_client_abi = __esm(() => {
+  init_evidence_json();
+  init_gcp_observer_client_abi_command();
+  init_gcp_observer_client_delivery();
+  init_gcp_observer_guest_process();
+  init_gcp_observer_ssh_peer();
+  init_gcp_ssh_client_pins();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_access_reader_source();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_signal_free_executor();
+  _origins9 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-client-abi-renewal-pins.json
+var init_gcp_observer_client_abi_renewal_pins = () => {};
+
+// plugins/terraform/src/gcp-observer-client-abi-renewal-command.ts
+var _origins10;
+var init_gcp_observer_client_abi_renewal_command = __esm(() => {
+  init_gcp_observer_client_abi_renewal_pins();
+  init_gcp_observer_client_delivery();
+  init_gcp_observer_client_delivery_command();
+  init_gcp_observer_ssh_command();
+  init_gcp_observer_ssh_local_inputs();
+  init_gcp_observer_ssh_peer();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_reader_final_reserve();
+  _origins10 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-client-abi-renewal.ts
+var _origins11;
+var init_gcp_observer_client_abi_renewal = __esm(() => {
+  init_evidence_json();
+  init_gcp_observer_client_abi_renewal_command();
+  init_gcp_observer_client_delivery();
+  init_gcp_observer_guest_process();
+  init_gcp_observer_ssh_peer();
+  init_gcp_ssh_client_pins();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_access_reader_source();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_signal_free_executor();
+  _origins11 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-qualified-clients.ts
+var init_gcp_observer_qualified_clients = __esm(() => {
+  init_gcp_observer_client_abi();
+  init_gcp_observer_client_abi_renewal();
+});
+
+// plugins/terraform/src/google-provider-lifecycle.ts
+var _rpcOrigins, _maximumLine2, _maximumStream2;
+var init_google_provider_lifecycle = __esm(() => {
+  init_evidence_json();
+  init_installed_version_profile();
+  init_original_output_stream();
+  _rpcOrigins = new WeakMap();
+  _maximumLine2 = 1024 * 1024;
+  _maximumStream2 = 64 * 1024 * 1024;
+});
+// plugins/terraform/src/installed-provider-reader.ts
+var _windowOrigins, _windowClockOrigins;
+var init_installed_provider_reader = __esm(() => {
+  init_evidence_json();
+  init_gcp_capture_source_pins();
+  init_installed_capture_context();
+  init_installed_runtime();
+  init_installed_runtime_pins();
+  init_installed_version_profile();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_original_reader_group_closure();
+  init_reader_final_reserve();
+  init_signal_free_executor();
+  _windowOrigins = new WeakMap();
+  _windowClockOrigins = new WeakMap();
+});
+
+// plugins/terraform/src/original-google-provider-source.ts
+var init_original_google_provider_source = __esm(() => {
+  init_google_provider_lifecycle();
+  init_installed_provider_reader();
+  init_installed_version_profile();
+});
+
+// plugins/terraform/src/terraform-apply-hooks.ts
+var _hookOrigins, _maxLineBytes, _maxStreamBytes, _ordinaryMessages;
+var init_terraform_apply_hooks = __esm(() => {
+  init_evidence_json();
+  init_installed_version_profile();
+  init_original_output_stream();
+  _hookOrigins = new WeakMap();
+  _maxLineBytes = 1024 * 1024;
+  _maxStreamBytes = 64 * 1024 * 1024;
+  _ordinaryMessages = new Set([
+    'log',
+    'diagnostic',
+    'planned_change',
+    'change_summary',
+    'outputs',
+    'refresh_start',
+    'refresh_complete',
+  ]);
+});
+
+// plugins/terraform/src/gcp-insert-evidence.ts
+var _sourceBodies, _insertOrigins, _earlyBodyOrigins, _earlyIdentityOrigins, _originalWitnesses;
+var init_gcp_insert_evidence = __esm(() => {
+  init_evidence_json();
+  init_gcp_http_rpc_trace();
+  init_google_provider_lifecycle();
+  init_installed_version_profile();
+  init_original_google_provider_source();
+  init_runner();
+  init_terraform_apply_hooks();
+  _sourceBodies = new WeakMap();
+  _insertOrigins = new WeakMap();
+  _earlyBodyOrigins = new WeakMap();
+  _earlyIdentityOrigins = new WeakMap();
+  _originalWitnesses = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-vm-evidence.ts
+var _earlyVmOrigins, _finalVmOrigins;
+var init_gcp_vm_evidence = __esm(() => {
+  init_evidence_json();
+  init_gcp_cloud_serial_reader();
+  init_gcp_insert_evidence();
+  init_installed_initial_inventory();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_reader_final_reserve();
+  _earlyVmOrigins = new WeakMap();
+  _finalVmOrigins = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-ce-sli-target.ts
+var _origins12, _qualifiedScans, _scans;
+var init_gcp_ce_sli_target = __esm(() => {
+  init_discovery();
+  init_observer_scope();
+  init_evidence_json();
+  init_gcp_observer_qualified_clients();
+  init_gcp_observer_ssh_peer();
+  init_gcp_vm_evidence();
+  init_installed_runtime();
+  init_original_input_monitor();
+  _origins12 = new WeakMap();
+  _qualifiedScans = new WeakMap();
+  _scans = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-ce-keyscan-pins.json
+var init_gcp_ce_keyscan_pins = () => {};
+
+// plugins/terraform/src/gcp-ce-keyscan-command.ts
+var _origins13;
+var init_gcp_ce_keyscan_command = __esm(() => {
+  init_gcp_ce_keyscan_pins();
+  init_gcp_ce_sli_target();
+  init_gcp_observer_client_delivery_command();
+  init_gcp_observer_ssh_command();
+  init_gcp_observer_ssh_local_inputs();
+  init_gcp_observer_ssh_peer();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_reader_final_reserve();
+  _origins13 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-wire-key.ts
+var init_gcp_wire_key = () => {};
+
+// plugins/terraform/src/gcp-ce-wire-key-reader.ts
+var _origins14;
+var init_gcp_ce_wire_key_reader = __esm(() => {
+  init_evidence_json();
+  init_gcp_ce_keyscan_command();
+  init_gcp_ce_sli_target();
+  init_gcp_observer_guest_process();
+  init_gcp_ssh_client_pins();
+  init_gcp_wire_key();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_access_reader_source();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_signal_free_executor();
+  _origins14 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-wire-key-reader.ts
+var _origins15;
+var init_gcp_observer_wire_key_reader = __esm(() => {
+  init_gcp_keyscan_command();
+  init_gcp_wire_key();
+  init_original_access_reader_source();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_signal_free_executor();
+  _origins15 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-trust-material.ts
+var _origins16;
+var init_gcp_observer_trust_material = __esm(() => {
+  init_gcp_ce_sli_target();
+  init_gcp_ce_wire_key_reader();
+  init_gcp_observer_insert_evidence();
+  init_gcp_observer_wire_key_reader();
+  _origins16 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-host-trust-reader.ts
+var _origins17;
+var init_gcp_observer_host_trust_reader = __esm(() => {
+  init_evidence_json();
+  init_gcp_capture_source_pins();
+  init_gcp_observer_trust_material();
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_original_access_reader_source();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_reader_final_reserve();
+  init_signal_free_executor();
+  _origins17 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-ssh-command.ts
+var _origins18;
+var init_gcp_observer_ssh_command = __esm(() => {
+  init_gcp_observer_campaign_key();
+  init_gcp_observer_clock();
+  init_gcp_observer_host_trust_reader();
+  init_gcp_ssh_client_profile();
+  init_installed_apply_controller();
+  init_installed_runtime();
+  init_original_input_monitor();
+  _origins18 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-observer-client-delivery-command.ts
+var _origins19;
+var init_gcp_observer_client_delivery_command = __esm(() => {
+  init_gcp_observer_client_delivery_pins();
+  init_gcp_observer_client_payload();
+  init_gcp_observer_ssh_command();
+  init_gcp_observer_ssh_local_inputs();
+  init_gcp_observer_ssh_peer();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_reader_final_reserve();
+  _origins19 = new WeakMap();
+});
+// plugins/terraform/src/signal-free-executor.ts
+var _unspawnedExecutors;
+var init_signal_free_executor = __esm(() => {
+  init_process_lock();
+  init_failure();
+  init_gcp_keyscan_command();
+  init_gcp_observer_client_delivery_command();
+  init_gcp_observer_ssh_command();
+  init_installed_capture_context();
+  init_installed_gcp_invocation();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_original_output_stream();
+  init_reader_final_reserve();
+  init_gcp_observer_client_abi_command();
+  init_gcp_observer_client_abi_renewal_command();
+  init_gcp_ce_keyscan_command();
+  _unspawnedExecutors = new WeakMap();
+});
+
+// plugins/terraform/src/original-reader-group-closure.ts
+var init_original_reader_group_closure = __esm(() => {
+  init_process_lock();
+  init_evidence_json();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_signal_free_executor();
+});
+
+// plugins/terraform/src/bootstrap-grant-publication.ts
+var _directories;
+var init_bootstrap_grant_publication = __esm(() => {
+  init_gcp_capture_source_pins();
+  init_installed_runtime();
+  init_installed_runtime_pins();
+  init_original_input_monitor();
+  init_original_reader_group_closure();
+  init_signal_free_executor();
+  _directories = new WeakMap();
+});
+
+// plugins/terraform/src/installed-xcsh-creation-reader.ts
+var _origins20, _openings, _targetOrigins, _readerClosures;
+var init_installed_xcsh_creation_reader = __esm(() => {
+  init_evidence_json();
+  init_gcp_capture_source_pins();
+  init_installed_capture_context();
+  init_installed_runtime();
+  init_installed_runtime_pins();
+  init_installed_version_profile();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_original_reader_group_closure();
+  init_prepared_creation_scope();
+  init_signal_free_executor();
+  _origins20 = new WeakMap();
+  _openings = new WeakSet();
+  _targetOrigins = new WeakMap();
+  _readerClosures = new WeakMap();
+});
+
+// plugins/terraform/src/xcsh-creation-body.ts
+var _issued4, _contexts, _providerProfiles, _callbacks2;
+var init_xcsh_creation_body = __esm(() => {
+  init_security();
+  init_installed_apply_controller();
+  init_installed_version_profile();
+  init_installed_xcsh_creation_reader();
+  init_linux_clock();
+  init_prepared_creation_scope();
+  _issued4 = new WeakMap();
+  _contexts = new WeakMap();
+  _providerProfiles = new WeakMap();
+  _callbacks2 = new WeakMap();
+});
+
+// plugins/terraform/src/gcp-preapply-bootstrap.ts
+var _issued5, _contextChecks, _callbackChecks, _siteAccessReads;
+var init_gcp_preapply_bootstrap = __esm(() => {
+  init_discovery();
+  init_site_access();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_xcsh_creation_body();
+  _issued5 = new WeakMap();
+  _contextChecks = new WeakMap();
+  _callbackChecks = new WeakMap();
+  _siteAccessReads = new WeakMap();
+});
+// plugins/gcloud/src/ce/bootstrap-checkout.ts
+var init_bootstrap_checkout = () => {};
+
+// plugins/terraform/src/gcp-preapply-checkout.ts
+var init_gcp_preapply_checkout = __esm(() => {
+  init_bootstrap_checkout();
+  init_process_lock();
+  init_gcp_preapply_bootstrap();
+});
+
+// plugins/terraform/src/original-plan-inputs.ts
+var init_original_plan_inputs = __esm(() => {
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_runner();
+});
+
+// plugins/terraform/src/prepared-creation-scope.ts
+var _preparations2, _leases;
+var init_prepared_creation_scope = __esm(() => {
+  init_process_lock();
+  init_bootstrap_grant_publication();
+  init_gcp_preapply_bootstrap();
+  init_gcp_preapply_checkout();
+  init_installed_xcsh_creation_reader();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_original_plan_inputs();
+  init_runner();
+  _preparations2 = new WeakMap();
+  _leases = new WeakMap();
+});
+
+// plugins/terraform/src/installed-gcp-invocation.ts
+var _originalLoaderAlternatives, _hostKeys;
+var init_installed_gcp_invocation = __esm(() => {
+  init_google_adc_session();
+  init_prepared_creation_scope();
+  _originalLoaderAlternatives = Object.freeze([
+    'PYTHONPATH',
+    'PYTHONHOME',
+    'PYTHONSTARTUP',
+    'PYTHONINSPECT',
+    'PYTHONUSERBASE',
+    'LD_PRELOAD',
+    'LD_LIBRARY_PATH',
+    'DYLD_INSERT_LIBRARIES',
+  ]);
+  _hostKeys = Object.freeze([
+    'PATH',
+    'HOME',
+    'LANG',
+    'LC_ALL',
+    'TMPDIR',
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'ALL_PROXY',
+    'NO_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'all_proxy',
+    'no_proxy',
+    'SSL_CERT_FILE',
+    'SSL_CERT_DIR',
+  ]);
+});
+
+// plugins/terraform/src/installed-reader-input-retention.ts
+var init_installed_reader_input_retention = __esm(() => {
+  init_discovery();
+  init_installed_capture_context();
+  init_installed_runtime();
+  init_original_input_monitor();
+});
+
+// plugins/terraform/src/installed-runtime-source-closure.ts
+var init_installed_runtime_source_closure = __esm(() => {
+  init_process_lock();
+  init_original_input_monitor();
+});
+
+// plugins/terraform/src/installed-terraform-executable.ts
+var init_installed_terraform_executable = __esm(() => {
+  init_installed_runtime();
+});
+
+// plugins/terraform/src/legacy-installed-executor.ts
+var _retained;
+var init_legacy_installed_executor = __esm(() => {
+  init_installed_capture_context();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_signal_free_executor();
+  _retained = new Map();
+});
+
+// plugins/terraform/src/provider-package.ts
+var init_provider_package = () => {};
+
+// plugins/terraform/src/installed-runtime.ts
+import { join as join6 } from 'node:path';
+
+var _installer, _retainedInspectionMonitors;
+var init_installed_runtime = __esm(() => {
+  init_discovery();
+  init_gcp_capture_source_pins();
+  init_google_adc_authentication();
+  init_installed_apply_controller();
+  init_installed_capture_context();
+  init_installed_final_capture();
+  init_installed_gcp_invocation();
+  init_installed_reader_input_retention();
+  init_installed_runtime_pins();
+  init_installed_runtime_source_closure();
+  init_installed_terraform_executable();
+  init_installed_version_profile();
+  init_legacy_installed_executor();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_prepared_creation_scope();
+  init_provider_package();
+  init_runner();
+  init_signal_free_executor();
+  _installer = join6(import.meta.dir, '../scripts/install_runtime.py');
+  _retainedInspectionMonitors = new Map();
+});
+
+// plugins/gcloud/src/ce/capture-cleanup-state.ts
+var init_capture_cleanup_state = __esm(() => {
+  init_evidence_json();
+  init_discovery();
+  init_terraform_public_ownership();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/terraform-context.ts
+var init_terraform_context = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/capture-cleanup-durable.ts
+var init_capture_cleanup_durable = __esm(() => {
+  init_deployment_store();
+  init_process_lock();
+  init_evidence_json();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_capture_cleanup_admission();
+  init_capture_cleanup_state();
+  init_discovery();
+  init_terraform_context();
+  init_terraform_public_teardown();
+});
+
+// plugins/gcloud/src/ce/source-campaign-evidence.ts
+var init_source_campaign_evidence = __esm(() => {
+  init_evidence_json();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_discovery();
+  init_observer_scope();
+  init_terraform_public_ownership();
+});
+
+// plugins/gcloud/src/ce/captured-teardown-origin.ts
+var _issued6;
+var init_captured_teardown_origin = __esm(() => {
+  init_capture_cleanup_durable();
+  init_discovery();
+  init_source_campaign_evidence();
+  init_terraform_context();
+  _issued6 = new WeakMap();
+});
+
+// plugins/gcloud/skills/gcp-ce/references/byol-vm-contract.json
+var init_byol_vm_contract = () => {};
+
+// plugins/gcloud/src/ce/corporate-funding.ts
+var init_corporate_funding = __esm(() => {
+  init_discovery();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/byol-terms.ts
+var init_byol_terms = __esm(() => {
+  init_byol_vm_contract();
+  init_contract();
+  init_corporate_funding();
+  init_discovery();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/native-operation.ts
+var init_native_operation = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/native-create-driver.ts
+var init_native_create_driver = __esm(() => {
+  init_compute_plan();
+  init_discovery();
+  init_native_operation();
+  init_ownership();
+});
+
+// plugins/gcloud/src/ce/bootstrap-issue.ts
+var init_bootstrap_issue = __esm(() => {
+  init_bootstrap_checkout();
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/native-create.ts
+var init_native_create = __esm(() => {
+  init_compute_plan();
+  init_discovery();
+  init_ownership();
+});
+
+// plugins/gcloud/src/ce/preflight-port.ts
+var init_preflight_port = __esm(() => {
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/qualification-gates.ts
+var init_qualification_gates = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/native-deploy.ts
+var init_native_deploy = __esm(() => {
+  init_process_lock();
+  init_bootstrap_checkout();
+  init_bootstrap_issue();
+  init_byol_terms();
+  init_compute_plan();
+  init_contract();
+  init_corporate_funding();
+  init_discovery();
+  init_native_create();
+  init_native_create_driver();
+  init_preflight_port();
+  init_qualification_gates();
+});
+
+// plugins/gcloud/src/ce/planner.ts
+var init_planner = __esm(() => {
+  init_contract();
+  init_corporate_funding();
+  init_discovery();
+  init_types();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/policy.ts
+var init_policy = () => {};
+
+// plugins/gcloud/src/ce/preflight.ts
+var init_preflight = __esm(() => {
+  init_discovery();
+  init_validation();
+});
+
+// plugins/gcloud/src/ce/deployment-review.ts
+var init_deployment_review = __esm(() => {
+  init_process_lock();
+  init_byol_terms();
+  init_compute_plan();
+  init_contract();
+  init_corporate_funding();
+  init_deployment_teardown();
+  init_discovery();
+  init_native_create_driver();
+  init_native_deploy();
+  init_planner();
+  init_policy();
+  init_preflight();
+  init_preflight_port();
+  init_site_access();
+  init_terraform_ha_profile();
+});
+
+// plugins/gcloud/src/ce/terraform-admission.ts
+var init_terraform_admission = __esm(() => {
+  init_discovery();
+});
+
+// plugins/gcloud/src/ce/terraform-teardown.ts
+var init_terraform_teardown = __esm(() => {
+  init_process_lock();
+  init_deployment_teardown();
+  init_discovery();
+  init_ownership();
+  init_terraform_admission();
+});
+
+// plugins/gcloud/src/ce/terraform-public.ts
+var init_terraform_public = __esm(() => {
+  init_process_lock();
+  init_deployment_review();
+  init_deployment_teardown();
+  init_discovery();
+  init_ownership();
+  init_terraform_context();
+  init_terraform_ha_profile();
+  init_terraform_public_ownership();
+  init_terraform_public_teardown();
+  init_terraform_teardown();
+});
+
+// plugins/gcloud/src/ce/terraform-public-teardown.ts
+var init_terraform_public_teardown = __esm(() => {
+  init_process_lock();
+  init_applied_source_teardown_origin();
+  init_bounded_cleanup_observations();
+  init_captured_teardown_origin();
+  init_deployment_teardown();
+  init_discovery();
+  init_terraform_context();
+  init_terraform_public();
+  init_terraform_public_ownership();
+  init_terraform_teardown();
+});
+
+// plugins/gcloud/src/ce/capture-cleanup-admission.ts
+var init_capture_cleanup_admission = __esm(() => {
+  init_process_lock();
+  init_evidence_json();
+  init_installed_runtime();
+  init_linux_clock();
+  init_original_input_monitor();
+  init_runner();
+  init_bounded_cleanup_observations();
+  init_capture_cleanup_state();
+  init_discovery();
+  init_terraform_public_ownership();
+  init_terraform_public_teardown();
+});
+
+// plugins/gcloud/src/ce/applied-source-cleanup-durable.ts
+var init_applied_source_cleanup_durable = __esm(() => {
+  init_deployment_store();
+  init_process_lock();
+  init_evidence_json();
+  init_installed_runtime();
+  init_original_input_monitor();
+  init_applied_source_teardown_origin();
+  init_capture_cleanup_admission();
+  init_capture_cleanup_state();
+  init_discovery();
+  init_source_campaign_evidence();
+  init_terraform_context();
+  init_terraform_public_ownership();
+  init_terraform_public_teardown();
+});
+
+// plugins/gcloud/src/ce/applied-source-teardown-origin.ts
+var _issued7;
+var init_applied_source_teardown_origin = __esm(() => {
+  init_applied_source_cleanup_durable();
+  init_discovery();
+  init_source_campaign_evidence();
+  init_terraform_context();
+  init_terraform_public_ownership();
+  init_terraform_teardown();
+  _issued7 = new WeakMap();
+});
+
+// plugins/gcloud/src/ce/terraform-ha-profile.ts
+function qualifiedGcpTerraformHaProfile(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const p = value;
+  return (
+    Object.keys(p).sort().join(',') ===
+      'diskGiB,imageIdentitySha256,lifecycleEvidenceSha256,machineType,operationalContractFingerprint,providerLockSha256,region,schemaVersion,scope,versions,zones' &&
+    Array.isArray(p.zones) &&
+    !!p.versions &&
+    typeof p.versions === 'object' &&
+    p.schemaVersion === 2 &&
+    p.scope === 'original-three-node-terraform-ha' &&
+    p.region === 'northamerica-northeast1' &&
+    fingerprint(p.zones) ===
+      fingerprint(['northamerica-northeast1-a', 'northamerica-northeast1-b', 'northamerica-northeast1-c']) &&
+    p.machineType === 'n2-standard-8' &&
+    p.diskGiB === 80 &&
+    fingerprint(p.versions) === fingerprint({ terraform: '1.16.6', google: '8.7.0', xcsh: '15.13.0' }) &&
+    [p.imageIdentitySha256, p.providerLockSha256, p.operationalContractFingerprint, p.lifecycleEvidenceSha256].every(
+      hash5,
+    )
+  );
+}
+var hash5 = (v) => typeof v === 'string' && /^sha256:[a-f0-9]{64}$/.test(v);
+var init_terraform_ha_profile = __esm(() => {
+  init_applied_source_teardown_origin();
+  init_captured_teardown_origin();
+  init_discovery();
+  init_observer_scope();
+  init_operational_health();
+  init_site_access();
+});
+
+// plugins/gcloud/src/ce/operational-release.ts
+import { createHash as createHash12 } from 'node:crypto';
+
+async function resolveGcpOperationalRelease(
+  fetcher = fetchGcpRelease,
+  signal,
+  pin = GCP_OPERATIONAL_RELEASE_PIN,
+  compiledSourceHashes = operational_source_hashes_default,
+) {
+  if (!pin) return;
+  if (
+    !/^v[0-9]+\.[0-9]+\.[0-9]+$/.test(pin.tag) ||
+    !/^[a-f0-9]{40}$/.test(pin.sourceCommit) ||
+    ![
+      pin.profileAssetDigest,
+      pin.contractFingerprint,
+      pin.qualificationAssetDigest,
+      pin.qualificationFingerprint,
+    ].every((value) => /^sha256:[a-f0-9]{64}$/.test(value))
+  )
+    throw new Error('Operational release pin malformed');
+  const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+  const read = async (url, maximum = 4 * 1024 * 1024) => {
+    bounded.throwIfAborted();
+    const response = await fetcher(url, { signal: bounded, headers: { Accept: 'application/vnd.github+json' } });
+    if (!response.ok || !response.body) throw new Error('Operational immutable asset unavailable');
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        bounded.throwIfAborted();
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maximum) throw new Error('Operational immutable asset exceeds bound');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    bounded.throwIfAborted();
+    return Buffer.concat(chunks);
+  };
+  const decode = (bytes) => {
+    const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new Error('Operational release JSON malformed');
+    return value;
+  };
+  const base = `https://api.github.com/repos/${repository}`;
+  const release = decode(await read(`${base}/releases/tags/${pin.tag}`));
+  if (
+    release.tag_name !== pin.tag ||
+    release.immutable !== true ||
+    release.draft !== false ||
+    release.prerelease !== false
+  )
+    throw new Error('Operational release is not final and immutable');
+  const reference = decode(await read(`${base}/git/ref/tags/${pin.tag}`));
+  let target = reference.object;
+  if (target?.type === 'tag' && typeof target.sha === 'string' && /^[a-f0-9]{40}$/.test(target.sha)) {
+    const tag = decode(await read(`${base}/git/tags/${target.sha}`));
+    target = tag.object;
+  }
+  if (target?.type !== 'commit' || target.sha !== pin.sourceCommit)
+    throw new Error('Operational release immutable source differs');
+  const asset = async (name, digest) => {
+    if (!Array.isArray(release.assets)) throw new Error('Operational release assets malformed');
+    const assets = release.assets.filter((value) => value && typeof value === 'object' && value.name === name);
+    const url = `https://github.com/${repository}/releases/download/${pin.tag}/${name}`;
+    if (assets.length !== 1 || assets[0].digest !== digest || assets[0].browser_download_url !== url)
+      throw new Error('Operational release asset identity differs');
+    const bytes = await read(url);
+    if (`sha256:${createHash12('sha256').update(bytes).digest('hex')}` !== digest)
+      throw new Error('Operational release asset bytes differ');
+    return decode(bytes);
+  };
+  const profile = await asset('gcp-operational-health-v2.json', pin.profileAssetDigest);
+  const qualification = await asset('gcp-operational-qualification-v2.json', pin.qualificationAssetDigest);
+  if (
+    !qualifiedOperationalProfile(profile, pin.contractFingerprint) ||
+    !qualifiedOperationalRelease(qualification, pin.qualificationFingerprint, pin.contractFingerprint)
+  )
+    throw new Error('Operational profile or qualification differs');
+  if (fingerprint(profile.sourceHashes) !== fingerprint(compiledSourceHashes))
+    throw new Error('Operational parser source drift requires explicit requalification');
+  if (
+    (pin.terraformHaLifecycle !== undefined || pin.terraformHaLifecycleFingerprint !== undefined) &&
+    (!qualifiedGcpTerraformHaProfile(pin.terraformHaLifecycle) ||
+      pin.terraformHaLifecycle.operationalContractFingerprint !== pin.contractFingerprint ||
+      fingerprint(pin.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint ||
+      fingerprint(qualification.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint)
+  )
+    throw new Error('Operational lifecycle qualification differs');
+  return {
+    profile,
+    contractFingerprint: pin.contractFingerprint,
+    qualification,
+    qualificationFingerprint: pin.qualificationFingerprint,
+    ...(pin.terraformHaLifecycle ? { terraformHaLifecycle: structuredClone(pin.terraformHaLifecycle) } : {}),
+  };
+}
+var GCP_OPERATIONAL_RELEASE_PIN,
+  repository = 'f5-sales-demo/api-specs-enriched';
+var init_operational_release = __esm(() => {
+  init_discovery();
+  init_operational_health();
+  init_operational_source_hashes();
+  init_terraform_ha_profile();
+  GCP_OPERATIONAL_RELEASE_PIN = {
+    tag: 'v12.3.1',
+    sourceCommit: '0f42f302f85e82675b2b8a4b8637cb89bb3636c3',
+    profileAssetDigest: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
+    contractFingerprint: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
+    qualificationAssetDigest: 'sha256:a908e8644fbc246382518f5632089cf44acffc1cbc147d0feb0c845345897b8b',
+    qualificationFingerprint: 'sha256:a908e8644fbc246382518f5632089cf44acffc1cbc147d0feb0c845345897b8b',
+    terraformHaLifecycle: {
+      diskGiB: 80,
+      imageIdentitySha256: 'sha256:c6e845dfd9bf978c2e86b4a07a8bcedc14b5a67a4d8199a4276209acb049a6cc',
+      lifecycleEvidenceSha256: 'sha256:7376537c6201d9bc9c04a8bdbb7692e0f5ed0e5ddc6f161e67dcc8f57ecf98a7',
+      machineType: 'n2-standard-8',
+      operationalContractFingerprint: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
+      providerLockSha256: 'sha256:6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
+      region: 'northamerica-northeast1',
+      schemaVersion: 2,
+      scope: 'original-three-node-terraform-ha',
+      versions: {
+        google: '8.7.0',
+        terraform: '1.16.6',
+        xcsh: '15.13.0',
+      },
+      zones: ['northamerica-northeast1-a', 'northamerica-northeast1-b', 'northamerica-northeast1-c'],
+    },
+    terraformHaLifecycleFingerprint: 'sha256:72253930d08afb1ff5d5205675ba8250a6fa43e1f2402732025e40de22e14e20',
+  };
+});
+
+// plugins/gcloud/src/ce/contract.ts
+import { createHash as createHash13 } from 'node:crypto';
+
+function qualifiedGcpHaObservationMappings(assets) {
+  if (!Array.isArray(assets)) return;
+  const matches = assets.filter((asset) => asset && asset.name === 'openapi.json');
+  if (
+    matches.length !== 1 ||
+    matches[0].digest !== 'sha256:3738c3267be63ec2c82716bdf197f7633b8845692ea7fe72e5a11bf2b8d10b77' ||
+    matches[0].browser_download_url !==
+      `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/openapi.json`
+  )
+    return;
+  return {
+    componentStatus: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false',
+    serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service',
+  };
+}
+async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
+  const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
+  const read = async (url, maximum = 1024 * 1024) => {
+    combined.throwIfAborted();
+    const response = await fetcher(url, {
+      signal: combined,
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) throw new Error(`Contract release unavailable: HTTP ${response.status}`);
+    if (!response.body) throw new Error('Contract response body unavailable');
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        combined.throwIfAborted();
+        const { done, value } = await reader.read();
+        combined.throwIfAborted();
+        if (done) break;
+        size += value.length;
+        if (size > maximum) throw new Error('Contract response exceeds size limit');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks);
+  };
+  const decode = (bytes) => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  const base = `https://api.github.com/repos/${GCP_CE_API_RELEASE.repository}`;
+  const release = decode(await read(`${base}/releases/tags/${GCP_CE_API_RELEASE.tag}`));
+  if (
+    release.tag_name !== GCP_CE_API_RELEASE.tag ||
+    release.immutable !== true ||
+    release.draft !== false ||
+    release.prerelease !== false
+  )
+    throw new Error('Contract release is not final and immutable');
+  const assets = release.assets;
+  if (!Array.isArray(assets)) throw new Error('Malformed contract release assets');
+  const matches = assets.filter((asset) => asset.name === 'smsv2-contract.json');
+  const expectedUrl = `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/smsv2-contract.json`;
+  if (
+    matches.length !== 1 ||
+    matches[0].digest !== GCP_CE_API_RELEASE.contractDigest ||
+    matches[0].browser_download_url !== expectedUrl
+  )
+    throw new Error('Contract asset identity mismatch');
+  const bytes = await read(expectedUrl, 4 * 1024 * 1024);
+  if (`sha256:${createHash13('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
+    throw new Error('Contract asset digest mismatch');
+  const contract = decode(bytes);
+  if (
+    contract.contract_id !== 'f5xc-smsv2-api/v1' ||
+    !contract.providers ||
+    typeof contract.providers !== 'object' ||
+    Array.isArray(contract.providers)
+  )
+    throw new Error('Malformed executable CE contract');
+  const gcp = contract.providers.gcp;
+  const observations =
+    gcp?.registration_observation?.availability === 'observational_read_only' &&
+    gcp.registration_observation.path === '/api/register/namespaces/system/registrations_by_site/{site_name}' &&
+    gcp.registration_observation.method === 'GET' &&
+    gcp.registration_observation.required_provider === 'GOOGLE' &&
+    gcp.physical_interface_observation?.availability === 'observational_read_only' &&
+    gcp.global_health_observation?.availability === 'observational_read_only' &&
+    gcp.global_health_observation.path === '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' &&
+    gcp.global_health_observation.method === 'GET' &&
+    gcp.global_health_observation.healthy_state === 'PROVISIONED' &&
+    gcp.global_health_observation.exact_node_join_required === true &&
+    fingerprint(gcp.global_health_observation.state_values) ===
+      fingerprint(['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'])
+      ? {
+          configuration: '/api/config/namespaces/system/securemesh_site_v2s/{site}',
+          registrations: '/api/register/namespaces/system/registrations_by_site/{site}',
+          health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health',
+        }
+      : undefined;
+  let operationalHealthContract;
+  if (observations) {
+    try {
+      operationalHealthContract = await resolveGcpOperationalRelease(fetcher, combined);
+    } catch {
+      signal?.throwIfAborted();
+    }
+  }
+  return {
+    release: GCP_CE_API_RELEASE,
+    fingerprint: fingerprint(contract),
+    availability: 'unavailable',
+    reason: Object.hasOwn(contract.providers, 'gcp')
+      ? 'gcp_provider_requires_consumer_qualification'
+      : 'gcp_provider_not_published',
+    ...(observations ? { observations } : {}),
+    ...(operationalHealthContract ? { operationalHealthContract } : {}),
+    ...(GCP_OPERATIONAL_RELEASE_PIN?.terraformHaLifecycle &&
+    qualifiedGcpTerraformHaProfile(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) &&
+    fingerprint(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) ===
+      GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycleFingerprint
+      ? { terraformHaLifecycle: structuredClone(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) }
+      : {}),
+    ...(GCP_OPERATIONAL_RELEASE_PIN
+      ? {
+          operationalHealthExpected: {
+            contractFingerprint: GCP_OPERATIONAL_RELEASE_PIN.contractFingerprint,
+            qualificationFingerprint: GCP_OPERATIONAL_RELEASE_PIN.qualificationFingerprint,
+          },
+        }
+      : {}),
+    ...(observations && qualifiedGcpHaObservationMappings(assets)
+      ? { haObservations: qualifiedGcpHaObservationMappings(assets) }
+      : {}),
+    ...(gcp?.single_node_lifecycle?.availability === 'evidence_backed_single_node' &&
+    gcp.single_node_lifecycle.node_count === 1 &&
+    gcp.single_node_lifecycle.interface_count === 2 &&
+    gcp.single_node_lifecycle.consumer_runtime_qualification_required === true
+      ? { singleNodeLifecycle: structuredClone(gcp.single_node_lifecycle) }
+      : {}),
+  };
+}
+var GCP_CE_API_RELEASE;
+var init_contract = __esm(() => {
+  init_discovery();
+  init_operational_release();
+  init_terraform_ha_profile();
+  GCP_CE_API_RELEASE = {
+    repository: 'f5-sales-demo/api-specs-enriched',
+    tag: 'v12.1.3',
+    contractDigest: 'sha256:ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc',
+  };
+});
 
 // plugins/platform/src/ce/site-config.ts
 import { isIP as isIP7 } from 'node:net';
@@ -647,7 +4368,7 @@ var init_site_config = __esm(() => {
 });
 
 // plugins/platform/src/tools/f5xc-ce-v2-site.ts
-import { createHash as createHash19, timingSafeEqual } from 'node:crypto';
+import { createHash as createHash20, timingSafeEqual } from 'node:crypto';
 
 function canonical5(value) {
   if (Array.isArray(value)) return `[${value.map(canonical5).join(',')}]`;
@@ -660,7 +4381,7 @@ function canonical5(value) {
   return JSON.stringify(value);
 }
 function hash7(value) {
-  return createHash19('sha256').update(canonical5(value)).digest('hex');
+  return createHash20('sha256').update(canonical5(value)).digest('hex');
 }
 function hashesEqual(left, right) {
   if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
@@ -819,39 +4540,39 @@ var init_f5xc_ce_v2_site = __esm(() => {
 });
 
 // plugins/platform/src/ce/token-store.ts
-import { createHash as createHash20, randomUUID as randomUUID5 } from 'node:crypto';
-import { chmod as chmod2, mkdir as mkdir3, writeFile as writeFile3 } from 'node:fs/promises';
+import { createHash as createHash21, randomUUID as randomUUID6 } from 'node:crypto';
+import { chmod as chmod3, mkdir as mkdir4, writeFile as writeFile4 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute as isAbsolute3, join as join6, resolve, sep } from 'node:path';
+import { isAbsolute as isAbsolute5, join as join8, resolve as resolve3, sep } from 'node:path';
 
 function defaultBootstrapRoot() {
-  return join6(tmpdir(), 'xcsh-f5xc-ce');
+  return join8(tmpdir(), 'xcsh-f5xc-ce');
 }
 function assertWithin(root, target) {
-  const base = resolve(root);
-  const candidate = resolve(target);
+  const base = resolve3(root);
+  const candidate = resolve3(target);
   if (candidate !== base && !candidate.startsWith(`${base}${sep}`))
     throw new Error('Bootstrap path escapes the secure root');
 }
 async function storeBootstrapToken(input) {
   const root = input.root ?? defaultBootstrapRoot();
-  if (!isAbsolute3(root)) throw new Error('Bootstrap root must be absolute');
+  if (!isAbsolute5(root)) throw new Error('Bootstrap root must be absolute');
   if (!SAFE_ID.test(input.sessionId)) throw new Error('Invalid session identifier for bootstrap storage');
   if (!input.token || Array.from(input.token).some((character) => [0, 10, 13].includes(character.charCodeAt(0))))
     throw new Error('Bootstrap token is empty or malformed');
   if (!Number.isInteger(input.expiresInSeconds) || input.expiresInSeconds < 1 || input.expiresInSeconds > 900)
     throw new Error('Bootstrap expiry must be between 1 and 900 seconds');
-  const id = randomUUID5();
-  const sessionDir = join6(root, input.sessionId);
-  const itemDir = join6(sessionDir, id);
+  const id = randomUUID6();
+  const sessionDir = join8(root, input.sessionId);
+  const itemDir = join8(sessionDir, id);
   for (const target of [sessionDir, itemDir]) assertWithin(root, target);
-  await mkdir3(root, { recursive: true, mode: 448 });
-  await chmod2(root, 448);
-  await mkdir3(sessionDir, { recursive: true, mode: 448 });
-  await chmod2(sessionDir, 448);
-  await mkdir3(itemDir, { mode: 448 });
+  await mkdir4(root, { recursive: true, mode: 448 });
+  await chmod3(root, 448);
+  await mkdir4(sessionDir, { recursive: true, mode: 448 });
+  await chmod3(sessionDir, 448);
+  await mkdir4(itemDir, { mode: 448 });
   const expiresAt = new Date(Date.now() + input.expiresInSeconds * 1000).toISOString();
-  const digest = createHash20('sha256').update(input.token, 'utf8').digest('hex');
+  const digest = createHash21('sha256').update(input.token, 'utf8').digest('hex');
   const metadata = {
     version: 1,
     session: input.sessionId,
@@ -861,8 +4582,8 @@ async function storeBootstrapToken(input) {
     expiresAt,
     consumed: false,
   };
-  await writeFile3(join6(itemDir, 'token'), input.token, { mode: 384, flag: 'wx' });
-  await writeFile3(join6(itemDir, 'metadata.json'), JSON.stringify(metadata), { mode: 384, flag: 'wx' });
+  await writeFile4(join8(itemDir, 'token'), input.token, { mode: 384, flag: 'wx' });
+  await writeFile4(join8(itemDir, 'metadata.json'), JSON.stringify(metadata), { mode: 384, flag: 'wx' });
   return { reference: `f5xc-ce://${input.sessionId}/${id}`, expiresAt };
 }
 var SAFE_ID;
@@ -1011,44 +4732,8 @@ var init_f5xc_ce_v2_capabilities = __esm(() => {
 });
 
 // plugins/platform/src/ce/gcp-bootstrap-evidence.ts
-import { createHash as createHash2 } from 'node:crypto';
-
-// plugins/platform/src/ce/evidence-json.ts
-var object = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed original JSON object');
-  return value;
-};
-function decodeEvidenceObject(raw) {
-  const source = new TextDecoder('utf8', { fatal: true }).decode(raw);
-  const value = object(JSON.parse(source));
-  const scopes = [];
-  for (let i = 0; i < source.length; i++) {
-    const char = source[i];
-    if (char === '{' || char === '[') {
-      if (scopes.length >= 64) throw new Error('Original JSON nesting exceeded');
-      scopes.push(char === '{' ? new Set() : null);
-    } else if (char === '}' || char === ']') scopes.pop();
-    else if (char === '"') {
-      const start = i++;
-      while (i < source.length && source[i] !== '"') {
-        if (source[i] === '\\') i++;
-        i++;
-      }
-      let next = i + 1;
-      while (/\s/.test(source[next] ?? '') && next < source.length) next++;
-      if (source[next] === ':') {
-        const key = JSON.parse(source.slice(start, i + 1));
-        const keys = scopes.at(-1);
-        if (!keys || keys.has(key)) throw new Error('Duplicate original JSON identity');
-        keys.add(key);
-      }
-    }
-  }
-  return value;
-}
-
 // plugins/platform/src/ce/gcp-http-capture.ts
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHash as createHash2, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -1732,367 +5417,12 @@ function bindAwsCloudInit(response, jwt) {
 }
 
 // plugins/platform/src/ce/ingress-lifecycle.ts
-// plugins/platform/src/ce/process-lock.ts
-import { createHash as createHash4, randomUUID as randomUUID2 } from 'node:crypto';
-import { lstat as lstat2, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+init_process_lock();
+
+import { createHash as createHash4 } from 'node:crypto';
 import { isIP as isIP3 } from 'node:net';
-import { basename, dirname, join as join2, join as join3 } from 'node:path';
+import { join as join3 } from 'node:path';
 
-// plugins/platform/src/ce/bounded-process-group-scan.ts
-async function assertAbsentProcessGroup(group, listNames, readGroup) {
-  if (!Number.isSafeInteger(group) || group < 1) throw new Error('Original process group required');
-  const pids = (await listNames())
-    .filter((name) => /^\d+$/.test(name))
-    .map((name) => {
-      const pid = Number(name);
-      if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original process identifier required');
-      return pid;
-    });
-  for (let start = 0; start < pids.length; start += 32) {
-    const results = await Promise.allSettled(
-      pids.slice(start, start + 32).map(async (pid) => {
-        try {
-          if ((await readGroup(pid)) === group) throw new Error('Original executor process group remains live');
-        } catch (error) {
-          const code = error?.code;
-          if (code !== 'ENOENT' && code !== 'ESRCH') throw error;
-        }
-      }),
-    );
-    for (const result of results) if (result.status === 'rejected') throw result.reason;
-  }
-}
-
-// plugins/platform/src/ce/linux-process-group.ts
-import { createHash as createHash3 } from 'node:crypto';
-
-var rejectedRecords = new WeakMap();
-function splitProcessRecord(text) {
-  const end = text.lastIndexOf(') ');
-  const header = text.match(/^([1-9][0-9]*) \(/);
-  const fields =
-    end < 0
-      ? []
-      : text
-          .slice(end + 2)
-          .trim()
-          .split(/\s+/);
-  return { end, header, fields };
-}
-async function readLinuxProcessGroupRecord(pid, readRecord) {
-  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
-  let text = await readRecord();
-  const initialEmptyRead = text.length === 0;
-  let parsed = splitProcessRecord(text);
-  const deadTask =
-    parsed.header?.[1] === String(pid) &&
-    parsed.end >= (parsed.header?.[0].length ?? 0) &&
-    parsed.fields[0] === 'X' &&
-    parsed.fields[1] === '0' &&
-    parsed.fields[2] === '-1' &&
-    parsed.fields[3] === '-1' &&
-    /^[0-9]+$/.test(parsed.fields[19] ?? '');
-  if (initialEmptyRead || deadTask) {
-    text = await readRecord();
-    parsed = splitProcessRecord(text);
-  }
-  const { end, header, fields } = parsed;
-  const group = Number(fields[2]);
-  const validation = Object.freeze({
-    headerMatches: header?.[1] === String(pid),
-    delimiterValid: end >= (header?.[0].length ?? 0),
-    stateValid: /^[RSDZTtXxKWPI]$/.test(fields[0] ?? ''),
-    startValid: /^[0-9]+$/.test(fields[19] ?? ''),
-    groupNumeric: /^[0-9]+$/.test(fields[2] ?? ''),
-    groupSafe: Number.isSafeInteger(group) && group >= 0,
-  });
-  if (Object.values(validation).some((valid) => !valid)) {
-    const bytes = Buffer.from(text, 'utf8');
-    const sha256 = createHash3('sha256').update(bytes).digest('hex');
-    const error = new Error(
-      `Original executor group is unavailable (pid=${pid}, bytes=${bytes.length}, sha256=${sha256})`,
-    );
-    rejectedRecords.set(
-      error,
-      Object.freeze({
-        schemaVersion: 1,
-        kind: 'rejected-decoded-linux-process-record',
-        pid,
-        bytes: bytes.length,
-        sha256,
-        recordUtf8Base64: bytes.subarray(0, 16384).toString('base64'),
-        truncated: bytes.length > 16384,
-        initialEmptyRead,
-        validation,
-      }),
-    );
-    throw error;
-  }
-  return group;
-}
-
-// plugins/platform/src/ce/process-lock.ts
-function vanishedProcess(error) {
-  const code = error.code;
-  return code === 'ENOENT' || code === 'ESRCH';
-}
-async function processGroup(pid) {
-  if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
-  return readLinuxProcessGroupRecord(pid, () => readFile(`/proc/${pid}/stat`, 'utf8'));
-}
-async function readGroupLifetime(path, owner) {
-  const file = join2(path, 'lifetime.json');
-  let metadata;
-  try {
-    metadata = await lstat2(file);
-  } catch (error) {
-    if (error.code === 'ENOENT' && owner.schemaVersion === 1) return;
-    throw error;
-  }
-  if (
-    !metadata.isFile() ||
-    metadata.isSymbolicLink() ||
-    metadata.nlink !== 1 ||
-    metadata.uid !== process.getuid?.() ||
-    (metadata.mode & 511) !== 256
-  )
-    throw new Error('Original executor lifetime evidence is invalid');
-  const raw = await readFile(file, 'utf8');
-  const row = JSON.parse(raw);
-  if (
-    !row ||
-    Object.keys(row).sort().join(',') !== 'bootId,group,pid,processStartTicks,schemaVersion,token' ||
-    row.schemaVersion !== owner.schemaVersion ||
-    row.token !== owner.token ||
-    row.pid !== owner.pid ||
-    row.bootId !== owner.bootId ||
-    row.processStartTicks !== owner.processStartTicks ||
-    row.group !== owner.pid
-  )
-    throw new Error('Original executor lifetime does not join its owner');
-  return { row, raw, metadata };
-}
-async function requireGroupClosed(path, owner) {
-  try {
-    await lstat2(join2(path, 'capture-unresolved.json'));
-    throw new Error('Original executor capture closure remains unresolved');
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
-  await requirePhysicalGroupClosed(path, owner);
-}
-async function requirePhysicalGroupClosed(path, owner) {
-  const original = await readGroupLifetime(path, owner);
-  if (!original) return;
-  await assertRecordedProcessGroupAbsent({
-    pid: original.row.pid,
-    group: original.row.group,
-    start: original.row.processStartTicks,
-    boot: original.row.bootId,
-  });
-  const current = await readGroupLifetime(path, owner);
-  if (
-    !current ||
-    current.raw !== original.raw ||
-    current.metadata.dev !== original.metadata.dev ||
-    current.metadata.ino !== original.metadata.ino ||
-    current.metadata.ctimeMs !== original.metadata.ctimeMs ||
-    current.metadata.mtimeMs !== original.metadata.mtimeMs
-  )
-    throw new Error('Original executor lifetime changed during closure inspection');
-}
-async function assertRecordedProcessGroupAbsent(identity) {
-  if (
-    !identity ||
-    Object.keys(identity).sort().join(',') !== 'boot,group,pid,start' ||
-    !Number.isSafeInteger(identity.pid) ||
-    identity.pid < 1 ||
-    identity.group !== identity.pid ||
-    typeof identity.start !== 'string' ||
-    !/^[0-9]+$/.test(identity.start) ||
-    typeof identity.boot !== 'string' ||
-    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(identity.boot)
-  )
-    throw new Error('Original recorded process group identity required');
-  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
-  if ((await bootId()) === identity.boot) {
-    await assertPhysicalProcessGroupAbsent(identity.group);
-  }
-}
-async function assertPhysicalProcessGroupAbsent(group) {
-  await assertAbsentProcessGroup(group, () => readdir('/proc'), processGroup);
-}
-var tokenPattern = /^[a-f0-9-]{36}$/;
-var bootPattern = /^[a-f0-9-]{36}$/;
-async function bootId() {
-  let value;
-  if (process.platform === 'darwin') {
-    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
-    value = (await new Response(child.stdout).text()).trim().toLowerCase();
-    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
-  } else {
-    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
-  }
-  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
-  return value;
-}
-async function processStartTicks(pid) {
-  if (process.platform === 'darwin') {
-    const script = `import ctypes, sys
-class Info(ctypes.Structure):
- _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
-lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
-lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
-info=Info()
-result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
-if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
-elif result==0 and ctypes.get_errno()==3: sys.exit(3)
-else: sys.exit(2)
-`;
-    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
-    const start = (await new Response(child.stdout).text()).trim();
-    const code = await child.exited;
-    if (code === 3) return;
-    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
-    return start;
-  }
-  try {
-    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
-    const end = value.lastIndexOf(') ');
-    const fields =
-      end < 0
-        ? []
-        : value
-            .slice(end + 2)
-            .trim()
-            .split(/\s+/);
-    const start = fields[19];
-    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
-    return start;
-  } catch (error) {
-    if (vanishedProcess(error)) return;
-    throw error;
-  }
-}
-function claim(value) {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    Object.keys(value).sort().join(',') !==
-      (value.schemaVersion === 2
-        ? 'bootId,group,pid,processStartTicks,schemaVersion,token'
-        : 'bootId,pid,processStartTicks,schemaVersion,token')
-  )
-    throw new Error('Operation lock evidence cannot be reconciled');
-  const row = value;
-  if (
-    (row.schemaVersion !== 1 && row.schemaVersion !== 2) ||
-    (row.schemaVersion === 2 && row.group !== row.pid) ||
-    typeof row.token !== 'string' ||
-    !tokenPattern.test(row.token) ||
-    !Number.isSafeInteger(row.pid) ||
-    Number(row.pid) < 1 ||
-    typeof row.bootId !== 'string' ||
-    !bootPattern.test(row.bootId) ||
-    typeof row.processStartTicks !== 'string' ||
-    !/^\d+$/.test(row.processStartTicks)
-  )
-    throw new Error('Operation lock evidence cannot be reconciled');
-  return row;
-}
-async function readClaim(path) {
-  const stat = await lstat2(path);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
-    throw new Error('Operation lock evidence cannot be reconciled');
-  try {
-    const claimPath = join2(path, 'claim.json');
-    const claimStat = await lstat2(claimPath);
-    if (
-      !claimStat.isFile() ||
-      claimStat.isSymbolicLink() ||
-      claimStat.nlink !== 1 ||
-      claimStat.uid !== process.getuid?.() ||
-      (claimStat.mode & 63) !== 0
-    )
-      throw new Error('Operation lock evidence cannot be reconciled');
-    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
-  } catch (error) {
-    if (error instanceof SyntaxError || error.code === 'ENOENT')
-      throw new Error('Operation lock evidence cannot be reconciled');
-    throw error;
-  }
-}
-async function acquireProcessLock(path, ownerPid = process.pid, options = {}) {
-  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
-    throw new Error('Invalid operation lock path');
-  const currentBootId = await bootId();
-  if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
-  const currentStart = await processStartTicks(ownerPid);
-  if (!currentStart) throw new Error('Current process identity is unavailable');
-  const trackGroup = options.trackProcessGroup ?? false;
-  if (typeof trackGroup !== 'boolean') throw new Error('Explicit process group tracking option required');
-  const group = trackGroup ? await processGroup(ownerPid) : undefined;
-  const mine = {
-    schemaVersion: trackGroup ? 2 : 1,
-    token: randomUUID2(),
-    pid: ownerPid,
-    bootId: currentBootId,
-    processStartTicks: currentStart,
-    ...(group === undefined ? {} : { group }),
-  };
-  const lifetime = group === undefined ? undefined : { ...mine, group };
-  if (lifetime && lifetime.group !== ownerPid) throw new Error('Executor must own a dedicated original process group');
-  const parent = dirname(path);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const candidate = join2(parent, `${basename(path)}.claim-${mine.token}`);
-    await mkdir(candidate, { mode: 448 });
-    await writeFile(join2(candidate, 'claim.json'), JSON.stringify(mine), { mode: 384, flag: 'wx' });
-    if (lifetime)
-      await writeFile(join2(candidate, 'lifetime.json'), JSON.stringify(lifetime), { mode: 256, flag: 'wx' });
-    try {
-      await rename(candidate, path);
-      return async () => {
-        const owned = await readClaim(path);
-        if (
-          owned.token !== mine.token ||
-          owned.pid !== mine.pid ||
-          owned.schemaVersion !== mine.schemaVersion ||
-          owned.bootId !== mine.bootId ||
-          owned.processStartTicks !== mine.processStartTicks ||
-          owned.group !== mine.group
-        )
-          throw new Error('Operation lock ownership changed');
-        await requireGroupClosed(path, owned);
-        await rm(path, { recursive: true });
-      };
-    } catch (error) {
-      await rm(candidate, { recursive: true });
-      if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
-    }
-    let existing;
-    try {
-      existing = await readClaim(path);
-    } catch (error) {
-      if (error.code === 'ENOENT') continue;
-      throw error;
-    }
-    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
-    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
-      throw new Error('Operation lock is held by a live process');
-    await requireGroupClosed(path, existing);
-    const stale = join2(parent, `${basename(path)}.stale-${randomUUID2()}`);
-    try {
-      await rename(path, stale);
-      await rm(stale, { recursive: true });
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-  }
-  throw new Error('Operation lock could not be acquired');
-}
-
-// plugins/platform/src/ce/ingress-lifecycle.ts
 function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed ingress evidence');
   return value;
@@ -5306,1149 +8636,19 @@ async function openOriginalGcpBootstrapObservation(input, options = {}) {
 init_driver();
 
 // plugins/platform/src/ce/service.ts
-// plugins/gcloud/src/ce/contract.ts
-// plugins/gcloud/src/ce/discovery.ts
-import { createHash as createHash9, createHash as createHash11, createHash as createHash18 } from 'node:crypto';
-import { readFile as readFile3 } from 'node:fs/promises';
+init_contract();
+init_discovery();
+init_deployment_store();
+
+import { createHash as createHash19 } from 'node:crypto';
+import { readFile as readFile4 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join as join5 } from 'node:path';
-
-// plugins/gcloud/src/ce/types.ts
-var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
-var GCP_CE_OPERATIONS = [
-  'deploy',
-  'reconcile',
-  'start',
-  'stop',
-  'resize',
-  'update-network',
-  'replace-node',
-  'repair',
-  'upgrade',
-  'failover',
-  'teardown',
-];
-
-// plugins/gcloud/src/gcloud/types.ts
-var PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-
-// plugins/gcloud/src/ce/site-access.ts
-var GCP_SITE_ACCESS_MAPPING = Object.freeze({
-  schemaVersion: 1,
-  provider: 'f5-sales-demo/xcsh',
-  version: '15.13.0',
-  credentials: 'admin_user_credentials.ssh_key',
-  blockedServices: 'blocked_services.blocked_service',
-  sshNetwork: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE',
-  user: 'admin',
-});
-var _GCP_CURRENT_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.15.7',
-  sourceSchemaSha256: 'f5f3daf876eb3489054cab23d68af266265ec7b1b6ec84d52117283ae70ed6e6',
-});
-var _GCP_XCSH15162_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.16.2',
-  sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
-});
-var _GCP_PUBLISHED_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.17.3',
-  sourceSchemaSha256: 'b09164cac44b715bf40fb5d26afc65b02c6d181cfb516ae54cf5b3e6c647af25',
-});
-var _GCP_XCSH15176_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.17.6',
-  sourceSchemaSha256: '8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799',
-});
-var _GCP_XCSH15178_SITE_ACCESS_MAPPING = Object.freeze({
-  ...GCP_SITE_ACCESS_MAPPING,
-  version: '15.17.8',
-  sourceSchemaSha256: '0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30',
-});
-class GcpSiteAccessMappingUnavailable extends Error {
-  constructor() {
-    super(
-      'Site SSH requires the two-interface external-IP Terraform HA profile and published XC 15.13.0, 15.15.7, 15.16.2, 15.17.3, 15.17.6 or 15.17.8 mapping',
-    );
-  }
-}
-function validateGcpSiteAccess(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Site SSH access object required');
-  const access = value;
-  if (
-    Object.keys(value).sort().join(',') !== 'profile,publicKey,schemaVersion' ||
-    access.schemaVersion !== 1 ||
-    access.profile !== 'site-ssh-sli' ||
-    typeof access.publicKey !== 'string' ||
-    access.publicKey.length > 8192
-  )
-    throw new Error('Site SSH access requires the versioned SLI-only public-key profile');
-  const match = /^ssh-ed25519 ([A-Za-z0-9+/]+={0,2})$/.exec(access.publicKey);
-  if (!match) throw new Error('Site SSH requires one Ed25519 public key without options or comments');
-  const bytes = Buffer.from(match[1], 'base64');
-  if (
-    bytes.length !== 51 ||
-    bytes.toString('base64') !== match[1] ||
-    bytes.readUInt32BE(0) !== 11 ||
-    !bytes.subarray(4, 15).equals(Buffer.from('ssh-ed25519')) ||
-    bytes.readUInt32BE(15) !== 32
-  )
-    throw new Error('Site SSH public key wire format differs');
-}
-function assertGcpSiteAccessProfile(intent) {
-  if (intent.initialAccess === undefined) return;
-  validateGcpSiteAccess(intent.initialAccess);
-  if (
-    intent.engine !== 'terraform' ||
-    intent.sites.length !== 1 ||
-    intent.sites[0].nodes.length !== 3 ||
-    intent.sites[0].nodes.some(
-      (node) => node.interfaces.length !== 2 || node.interfaces[0].role !== 'slo' || node.interfaces[1].role !== 'sli',
-    ) ||
-    intent.egress.mode !== 'external-ip' ||
-    intent.ingress.profile !== 'none' ||
-    intent.routing.profile !== 'static-insertion' ||
-    intent.routing.destinationCidrs.length !== 0
-  )
-    throw new GcpSiteAccessMappingUnavailable();
-}
-
-// plugins/gcloud/src/ce/observer-scope.ts
-var _GCP_TERRAFORM_OBSERVER_IMAGE = Object.freeze({
-  project: 'ubuntu-os-cloud',
-  name: 'ubuntu-2404-noble-amd64-v20261021',
-  id: '4996011480491275419',
-});
-function assertGcpTerraformObserverScope(scope, intent) {
-  if (
-    !scope ||
-    typeof scope !== 'object' ||
-    Array.isArray(scope) ||
-    Object.keys(scope).sort().join(',') !== 'profile,publicKey,schemaVersion,sshSourceCidr' ||
-    scope.schemaVersion !== 1 ||
-    scope.profile !== 'original-ha-observer'
-  )
-    throw new Error('Exact versioned original observer scope required');
-  validateGcpSiteAccess({ schemaVersion: 1, profile: 'site-ssh-sli', publicKey: scope.publicKey });
-  assertGcpSiteAccessProfile(intent);
-  if (!intent.initialAccess || intent.initialAccess.publicKey === scope.publicKey)
-    throw new Error('Distinct observer and CE campaign public keys required');
-  if (typeof scope.sshSourceCidr !== 'string') throw new Error('One exact observer SSH source required');
-  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/32$/.exec(scope.sshSourceCidr);
-  if (
-    !match ||
-    match[0] !== scope.sshSourceCidr ||
-    match.slice(1).some((part) => Number(part) > 255 || String(Number(part)) !== part) ||
-    [0, 127].includes(Number(match[1])) ||
-    Number(match[1]) >= 224 ||
-    (Number(match[1]) === 169 && Number(match[2]) === 254)
-  )
-    throw new Error('Observer SSH requires one canonical unicast IPv4 /32 source');
-}
-function gcpTerraformObserverIdentity(intent) {
-  if (intent.schemaVersion !== 2 || !intent.observer) throw new Error('Versioned observer intent required');
-  assertGcpTerraformObserverScope(intent.observer, intent);
-  const name = `${intent.deploymentName}-observer`,
-    firewallName = `${name}-ssh`;
-  if (firewallName.length > 63 || intent.sites[0].nodes.some((node) => node.name === name))
-    throw new Error('Derived observer identities collide or exceed GCP name limits');
-  const sli = intent.sites[0].nodes[0].interfaces[1];
-  return {
-    name,
-    key: name.replaceAll('-', '_'),
-    firewallName,
-    firewallKey: firewallName.replaceAll('-', '_'),
-    zone: intent.sites[0].nodes[0].zone,
-    network: sli.network,
-    subnet: sli.subnet,
-  };
-}
-
-// plugins/gcloud/src/ce/validation.ts
-var NAME = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/;
-function validateScope(project, region) {
-  if (!PROJECT_ID_PATTERN.test(project)) throw new Error('Invalid explicit GCP project');
-  if (region !== undefined && !/^[a-z]+(?:-[a-z]+)+\d$/.test(region)) throw new Error('Invalid GCP region');
-}
-function name4(value) {
-  if (typeof value !== 'string' || !NAME.test(value)) throw new Error('Invalid GCP resource name');
-}
-function ipv4Range(cidr) {
-  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(cidr);
-  if (!match) throw new Error('Invalid IPv4 CIDR');
-  const octets = match.slice(1, 5).map(Number);
-  const prefix = Number(match[5]);
-  if (octets.some((value) => value > 255) || prefix > 32) throw new Error('Invalid IPv4 CIDR');
-  const ip = octets.reduce((value, octet) => value * 256 + octet, 0);
-  const size = 2 ** (32 - prefix);
-  if (ip % size !== 0) throw new Error('CIDR must use a network boundary');
-  return [ip, ip + size - 1];
-}
-function validateImage(image) {
-  name4(image.name);
-  if (!/^f5xc-ce(?:-crt|crt)-[a-z0-9-]+$/.test(image.name)) throw new Error('Image is not an F5 CE image');
-  const expected = `https://www.googleapis.com/compute/v1/projects/${GCP_CE_IMAGE_PROJECT}/global/images/${image.name}`;
-  if (
-    !/^\d+$/.test(image.id) ||
-    image.selfLink !== expected ||
-    image.status !== 'READY' ||
-    image.architecture !== 'X86_64'
-  )
-    throw new Error('Image must pin an exact ready x86 F5-owned image identity');
-  if (
-    !Array.isArray(image.licenses) ||
-    image.licenses.length === 0 ||
-    image.licenses.some(
-      (license) =>
-        !/^https:\/\/www\.googleapis\.com\/compute\/v1\/projects\/[a-z][a-z0-9-]+\/global\/licenses\/[a-z0-9-]+$/.test(
-          license,
-        ),
-    )
-  )
-    throw new Error('Image must pin its exact license identities');
-}
-function keys(value, allowed) {
-  if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unsupported intent field');
-}
-function validateIntent(intent) {
-  if (intent?.schemaVersion !== 1 && intent?.schemaVersion !== 2) throw new Error('Unsupported GCP CE intent version');
-  if (
-    (intent.schemaVersion === 1 && Object.hasOwn(intent, 'observer')) ||
-    (intent.schemaVersion === 2 && !intent.observer)
-  )
-    throw new Error('Observer scope requires its complete version2 intent');
-  keys(intent, [
-    'schemaVersion',
-    'project',
-    'region',
-    'deploymentName',
-    'platformContext',
-    'engine',
-    'operation',
-    'sites',
-    'machineType',
-    'diskGiB',
-    'image',
-    'ipForwarding',
-    'initialVersions',
-    'initialAccess',
-    ...(intent.schemaVersion === 2 ? ['observer'] : []),
-    'egress',
-    'ingress',
-    'routing',
-  ]);
-  keys(intent.image, ['id', 'name', 'selfLink', 'licenses', 'architecture', 'status']);
-  keys(intent.egress, ['mode', 'resource']);
-  keys(intent.ingress, ['profile']);
-  keys(intent.routing, ['profile', 'destinationCidrs']);
-  validateScope(intent.project, intent.region);
-  name4(intent.deploymentName);
-  name4(intent.machineType);
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(intent.platformContext)) throw new Error('Explicit F5 context required');
-  if (!['native', 'terraform'].includes(intent.engine)) throw new Error('Explicit owning engine required');
-  if (!GCP_CE_OPERATIONS.includes(intent.operation)) throw new Error('Unsupported CE operation');
-  if (intent.ipForwarding !== true) throw new Error('CE requires IP forwarding');
-  if (!Number.isInteger(intent.diskGiB) || intent.diskGiB < 80) throw new Error('CE disk requires at least 80 GiB');
-  validateImage(intent.image);
-  if (intent.initialAccess !== undefined) validateGcpSiteAccess(intent.initialAccess);
-  if (intent.initialVersions) {
-    keys(intent.initialVersions, ['software', 'os']);
-    if (
-      !/^crt-\d{8}-\d{4}$/.test(intent.initialVersions.software) ||
-      !/^\d+\.\d{4}\.\d+$/.test(intent.initialVersions.os)
-    )
-      throw new Error('Explicit initial software/OS version pair required');
-  }
-  if (!['external-ip', 'cloud-nat', 'firewall', 'proxy'].includes(intent.egress.mode))
-    throw new Error('Unsupported egress');
-  if (['firewall', 'proxy'].includes(intent.egress.mode) && !intent.egress.resource)
-    throw new Error('Explicit egress resource required');
-  if (!['none', 'internal-passthrough-lb'].includes(intent.ingress.profile)) throw new Error('Unsupported ingress');
-  if (!['static-insertion', 'ilb-next-hop', 'ncc-router-appliance'].includes(intent.routing.profile))
-    throw new Error('Unsupported routing');
-  for (const cidr of intent.routing.destinationCidrs) ipv4Range(cidr);
-  if (!Array.isArray(intent.sites) || !intent.sites.length) throw new Error('Explicitly named sites required');
-  const sites = new Set();
-  const nodes = new Set();
-  for (const site of intent.sites) {
-    keys(site, ['name', 'nodes']);
-    name4(site.name);
-    if (sites.has(site.name)) throw new Error('Independent sites require unique names');
-    sites.add(site.name);
-    if (![1, 3].includes(site.nodes.length)) throw new Error('Sites require one node or three HA nodes');
-    let shape;
-    for (const node of site.nodes) {
-      keys(node, ['name', 'zone', 'interfaces']);
-      name4(node.name);
-      if (nodes.has(node.name)) throw new Error('Node names must be unique');
-      nodes.add(node.name);
-      if (!new RegExp(`^${intent.region}-[a-z]$`).test(node.zone))
-        throw new Error('Node zone must belong to the explicit region');
-      if (!node.interfaces.length || node.interfaces.length > 8)
-        throw new Error('CE requires 1-8 interfaces; machine limit remains a separate gate');
-      const networks = new Set();
-      const ranges = [];
-      for (const [index, nic] of node.interfaces.entries()) {
-        keys(nic, ['index', 'role', 'vrf', 'network', 'subnet', 'cidr']);
-        if (nic.index !== index || (index === 0 && nic.role !== 'slo'))
-          throw new Error('Contiguous NIC order must start with SLO');
-        if (!['slo', 'sli', 'management'].includes(nic.role) || (index > 0 && nic.role === 'slo'))
-          throw new Error('Invalid NIC role');
-        name4(nic.vrf);
-        name4(nic.network);
-        name4(nic.subnet);
-        if (networks.has(nic.network)) throw new Error('Each NIC requires a distinct VPC');
-        networks.add(nic.network);
-        const range = ipv4Range(nic.cidr);
-        if (ranges.some(([start, end]) => range[0] <= end && start <= range[1]))
-          throw new Error('NIC subnets must not overlap');
-        ranges.push(range);
-      }
-      const current = JSON.stringify(
-        node.interfaces.map(({ index, role, vrf, network, subnet, cidr }) => [index, role, vrf, network, subnet, cidr]),
-      );
-      if (shape !== undefined && shape !== current)
-        throw new Error('HA NIC order, networks, subnets and VRFs must be homogeneous');
-      shape = current;
-    }
-  }
-  if (intent.schemaVersion === 2) {
-    const observer = intent.observer;
-    if (!observer) throw new Error('Versioned observer scope required');
-    assertGcpTerraformObserverScope(observer, intent);
-    gcpTerraformObserverIdentity(intent);
-  }
-}
-
-// plugins/gcloud/src/ce/discovery.ts
-function fingerprint(value) {
-  const stable = (item) =>
-    Array.isArray(item)
-      ? item.map(stable)
-      : item && typeof item === 'object'
-        ? Object.fromEntries(
-            Object.entries(item)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([k, v]) => [k, stable(v)]),
-          )
-        : item;
-  return `sha256:${createHash9('sha256')
-    .update(JSON.stringify(stable(value)))
-    .digest('hex')}`;
-}
-
-// plugins/gcloud/src/ce/operational-release.ts
-import { createHash as createHash10 } from 'node:crypto';
-
-// plugins/gcloud/src/ce/operational-health.ts
-var GCP_OPERATIONAL_CORE_SEED = [
-  'argo',
-  'asaf',
-  'aspen',
-  'bdbewaf',
-  'clank',
-  'envoy',
-  'etcd',
-  'frr',
-  'gubernator',
-  'ike',
-  'keepalived',
-  'komodo',
-  'obelix',
-  'openvpn',
-  'opera',
-  'pmtud',
-  'ver',
-];
-var GCP_OPERATIONAL_DEPENDENCIES = ['coredns', 'kube-proxy', 'kube-multus-ds'];
-var GCP_OPERATIONAL_AUXILIARIES = ['vector-agent', 'voucher', 'kube-state-metrics'];
-var HASH = /^sha256:[a-f0-9]{64}$/;
-var NAME2 = /^[a-z][a-z0-9-]{0,62}$/;
-var object14 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
-var names = (value) =>
-  Array.isArray(value) &&
-  value.length > 0 &&
-  value.every((name) => typeof name === 'string' && NAME2.test(name)) &&
-  new Set(value).size === value.length;
-function safeFingerprint(value) {
-  try {
-    return fingerprint(value);
-  } catch {
-    return;
-  }
-}
-function matchesGcpOperationalPod(pod, mapping) {
-  if (!pod.startsWith(mapping.podPrefix)) return false;
-  const suffix = pod.slice(mapping.podPrefix.length);
-  return (
-    mapping.podShape === undefined ||
-    (mapping.podShape === 'daemon' && /^[a-z0-9]{5}$/.test(suffix)) ||
-    (mapping.podShape === 'deployment' && /^[a-z0-9]{8,10}-[a-z0-9]{5}$/.test(suffix)) ||
-    (mapping.podShape === 'stateful' && /^[0-9]+$/.test(suffix))
-  );
-}
-function qualifiedOperationalProfile(value, pinnedFingerprint) {
-  const p = object14(value);
-  if (
-    !p ||
-    !HASH.test(pinnedFingerprint) ||
-    safeFingerprint(p) !== pinnedFingerprint ||
-    p.schemaVersion !== 2 ||
-    p.scope !== 'original-three-node-operational-health' ||
-    p.maximumAgeMs !== 300000 ||
-    p.minimumRoundIntervalMs !== 45000
-  )
-    return false;
-  for (const field of ['sourceHashes', 'parserVersions', 'roles', 'qualification'])
-    if (!object14(p[field]) || !Object.keys(p[field]).length) return false;
-  if (
-    !Object.values(p.sourceHashes).every((hash) => typeof hash === 'string' && HASH.test(hash)) ||
-    !Object.values(p.parserVersions).every(
-      (version) => typeof version === 'string' && /^[a-z0-9/-]+\/v[1-9][0-9]*$/.test(version),
-    )
-  )
-    return false;
-  const qualification = p.qualification;
-  if (
-    Object.keys(qualification).sort().join(',') !== 'discoveryCleanupSha256,evidenceSha256' ||
-    !Object.values(qualification).every((hash) => typeof hash === 'string' && HASH.test(hash))
-  )
-    return false;
-  if (
-    !names(p.inventoryServices) ||
-    !GCP_OPERATIONAL_CORE_SEED.every((name) => p.inventoryServices.includes(name)) ||
-    !Array.isArray(p.verRunningStates) ||
-    !p.verRunningStates.length ||
-    !p.verRunningStates.every((state) => typeof state === 'string' && /^[A-Za-z][A-Za-z0-9_/-]{0,62}$/.test(state)) ||
-    new Set(p.verRunningStates).size !== p.verRunningStates.length
-  )
-    return false;
-  if (
-    !Array.isArray(p.exclusions) ||
-    p.exclusions.some((raw) => {
-      const e = object14(raw);
-      return (
-        !e ||
-        !GCP_OPERATIONAL_AUXILIARIES.includes(e.service) ||
-        e.reason !== 'auxiliary-outside-operational-scope' ||
-        typeof e.evidenceSha256 !== 'string' ||
-        !HASH.test(e.evidenceSha256)
-      );
-    }) ||
-    new Set(p.exclusions.map((e) => e.service)).size !== p.exclusions.length
-  )
-    return false;
-  for (const [name, raw] of Object.entries(p.roles)) {
-    const role = object14(raw);
-    if (
-      !NAME2.test(name) ||
-      !role ||
-      !names(role.components) ||
-      !names(role.diagnostics) ||
-      !Array.isArray(role.containers) ||
-      !role.containers.length
-    )
-      return false;
-    if (role.runtimeRole !== undefined && !names([role.runtimeRole])) return false;
-    const containers = role.containers.map(object14);
-    if (
-      containers.some(
-        (c) =>
-          !c ||
-          !names([c.service]) ||
-          !names([c.name]) ||
-          !names([c.namespace]) ||
-          !['daemon', 'deployment', 'stateful'].includes(String(c.podShape)) ||
-          typeof c.podPrefix !== 'string' ||
-          !/^[a-z][a-z0-9-]{0,251}$/.test(c.podPrefix),
-      )
-    )
-      return false;
-    const services = containers.map((c) => c?.service);
-    if (
-      new Set(containers.map((c) => `${c?.namespace}:${c?.name}:${c?.podPrefix}:${c?.podShape}`)).size !==
-        containers.length ||
-      !GCP_OPERATIONAL_DEPENDENCIES.every((dependency) => services.includes(dependency))
-    )
-      return false;
-    if (!['peer-connectivity', 'required-domains'].every((check) => role.diagnostics.includes(check))) return false;
-    for (const service of role.components) if (!services.includes(service)) return false;
-    if (role.components.some((component) => !p.inventoryServices.includes(component))) return false;
-  }
-  const declaredRoles = Object.values(p.roles);
-  for (const auxiliary of GCP_OPERATIONAL_AUXILIARIES)
-    if (
-      !p.exclusions.some((e) => e.service === auxiliary) &&
-      !declaredRoles.some((role) => role.containers.some((c) => c.service === auxiliary))
-    )
-      return false;
-  for (const service of p.inventoryServices)
-    if (
-      !declaredRoles.some(
-        (role) => role.components.includes(service) || role.containers.some((c) => c.service === service),
-      )
-    )
-      return false;
-  for (const service of GCP_OPERATIONAL_CORE_SEED)
-    if (!declaredRoles.some((role) => role.components.includes(service))) return false;
-  if (p.placementCounts !== undefined) {
-    const counts = object14(p.placementCounts);
-    const required = new Set([
-      ...p.inventoryServices,
-      ...declaredRoles.flatMap((role) => role.containers.map((c) => c.service)),
-    ]);
-    if (
-      !counts ||
-      Object.keys(counts).length !== required.size ||
-      [...required].some(
-        (service) => !Number.isInteger(counts[service]) || Number(counts[service]) < 1 || Number(counts[service]) > 3,
-      ) ||
-      declaredRoles.some(
-        (role) => !role.runtimeRole || !GCP_OPERATIONAL_CORE_SEED.every((service) => role.components.includes(service)),
-      ) ||
-      [...GCP_OPERATIONAL_CORE_SEED, ...GCP_OPERATIONAL_DEPENDENCIES].some((service) => counts[service] !== 3)
-    )
-      return false;
-  }
-  return true;
-}
-function hasGcpOperationalPlacementCoverage(profile, roles) {
-  return (
-    roles.length === 3 &&
-    roles.every((name) => !!profile.roles[name]) &&
-    Object.entries(profile.placementCounts ?? {}).every(
-      ([service, count]) =>
-        roles.filter(
-          (name) =>
-            profile.roles[name].components.includes(service) ||
-            profile.roles[name].containers.some((c) => c.service === service),
-        ).length === count,
-    )
-  );
-}
-function qualifiedOperationalRelease(value, pinnedReceiptFingerprint, contractFingerprint) {
-  const receipt = object14(value);
-  return (
-    !!receipt &&
-    HASH.test(pinnedReceiptFingerprint) &&
-    safeFingerprint(receipt) === pinnedReceiptFingerprint &&
-    receipt.schemaVersion === 2 &&
-    receipt.contractFingerprint === contractFingerprint &&
-    HASH.test(contractFingerprint) &&
-    ['bindingFingerprint', 'evidenceSha256', 'campaignCleanupSha256'].every(
-      (key) => typeof receipt[key] === 'string' && HASH.test(receipt[key]),
-    ) &&
-    Array.isArray(receipt.healthyRoundFingerprints) &&
-    receipt.healthyRoundFingerprints.length === 2 &&
-    receipt.healthyRoundFingerprints.every((hash) => typeof hash === 'string' && HASH.test(hash)) &&
-    receipt.healthyRoundFingerprints[0] !== receipt.healthyRoundFingerprints[1] &&
-    receipt.objectsAbsent === 18 &&
-    receipt.emptyDestroy === true &&
-    receipt.stableState === true &&
-    receipt.repeatedResumeNoSubmission === true
-  );
-}
-// plugins/gcloud/src/ce/operational-source-hashes.json
-var operational_source_hashes_default = {
-  'gcp-operational-source': 'sha256:1405b6d0bcdf5d92c9aa4b9e14ca96660b9fdf5872f0d126dc6f5dc903739ad9',
-  'gcp-operational-command': 'sha256:e73c188a7b416750834edf33b95ddba931c35cecdee1b885e8c2e88ff53c0846',
-  'gcp-runtime-diagnostics': 'sha256:ec63c271c73991b8373d81397fe0077ee5569934afa0d288b17ddb1c49a7a2f8',
-  'gcp-operational-diagnosis': 'sha256:30645976567fdae118487ad3d2ee67283a240717bcdbfef5c0e70e629a9ca0e1',
-  'gcp-operational-site-status': 'sha256:b753c42c382440aaab47084ef4dab39b2466c5fc0a0a6431f3c2c932483de87d',
-  'gcp-operational-observation': 'sha256:af188452e9691f4a937de9f4a0431dffc0a953c02328d318c03dbe9cc41f44ec',
-  'gcp-operational-runtime': 'sha256:4dabd5a9ccbd264e2e578c0c64a0473d07ecc3821072eca74a43f3dd09a01825',
-  'gcp-operational-binding': 'sha256:5241e6662bcad89e4ef3048b60005dbcfb333c692877b73348e3f3dcdf086a16',
-  'gcp-operational-placement': 'sha256:6bdda37171ee119261cbe88a6959ebdd84bb21c5fd2aceb110de895016347e5f',
-  evaluator: 'sha256:4f1d71527a8a2b9d91806744c4db47879827fc52ffdb803201a070403fe39b39',
-};
-
-// plugins/gcloud/src/ce/release-fetch.ts
-function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
-  return async (input, init) => {
-    const url = new URL(input instanceof Request ? input.url : String(input));
-    const metadata =
-      url.protocol === 'https:' &&
-      url.hostname === 'api.github.com' &&
-      !url.port &&
-      !url.username &&
-      !url.password &&
-      !url.search &&
-      !url.hash &&
-      /^\/repos\/f5-sales-demo\/api-specs-enriched\/(?:releases\/tags\/v12\.(?:1\.3|3\.1)|git\/ref\/tags\/v12\.3\.1|git\/tags\/[a-f0-9]{40})$/.test(
-        url.pathname,
-      );
-    if (!metadata) return fetcher(input, init);
-    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-    if (
-      method !== 'GET' ||
-      init?.body != null ||
-      (input instanceof Request && input.body !== null) ||
-      headers.has('Authorization')
-    )
-      throw new Error('Exact unauthenticated metadata GET required');
-    const token = env.GH_TOKEN ?? env.GITHUB_TOKEN;
-    if (token !== undefined) {
-      if (!/^[A-Za-z0-9_]{16,8192}$/.test(token)) throw new Error('Invalid GitHub read credential');
-      headers.set('Authorization', `Bearer ${token}`);
-    }
-    const caller = init?.signal ?? (input instanceof Request ? input.signal : undefined);
-    const timeout = AbortSignal.timeout(60000);
-    const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
-    signal.throwIfAborted();
-    return fetcher(input, { ...init, headers, redirect: 'error', signal });
-  };
-}
-var fetchGcpRelease = async (input, init) => createGcpReleaseFetch()(input, init);
-
-// plugins/gcloud/src/ce/terraform-ha-profile.ts
-var hash5 = (v) => typeof v === 'string' && /^sha256:[a-f0-9]{64}$/.test(v);
-function qualifiedGcpTerraformHaProfile(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const p = value;
-  return (
-    Object.keys(p).sort().join(',') ===
-      'diskGiB,imageIdentitySha256,lifecycleEvidenceSha256,machineType,operationalContractFingerprint,providerLockSha256,region,schemaVersion,scope,versions,zones' &&
-    Array.isArray(p.zones) &&
-    !!p.versions &&
-    typeof p.versions === 'object' &&
-    p.schemaVersion === 2 &&
-    p.scope === 'original-three-node-terraform-ha' &&
-    p.region === 'northamerica-northeast1' &&
-    fingerprint(p.zones) ===
-      fingerprint(['northamerica-northeast1-a', 'northamerica-northeast1-b', 'northamerica-northeast1-c']) &&
-    p.machineType === 'n2-standard-8' &&
-    p.diskGiB === 80 &&
-    fingerprint(p.versions) === fingerprint({ terraform: '1.16.6', google: '8.7.0', xcsh: '15.13.0' }) &&
-    [p.imageIdentitySha256, p.providerLockSha256, p.operationalContractFingerprint, p.lifecycleEvidenceSha256].every(
-      hash5,
-    )
-  );
-}
-
-// plugins/gcloud/src/ce/operational-release.ts
-var GCP_OPERATIONAL_RELEASE_PIN = {
-  tag: 'v12.3.1',
-  sourceCommit: '0f42f302f85e82675b2b8a4b8637cb89bb3636c3',
-  profileAssetDigest: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
-  contractFingerprint: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
-  qualificationAssetDigest: 'sha256:a908e8644fbc246382518f5632089cf44acffc1cbc147d0feb0c845345897b8b',
-  qualificationFingerprint: 'sha256:a908e8644fbc246382518f5632089cf44acffc1cbc147d0feb0c845345897b8b',
-  terraformHaLifecycle: {
-    diskGiB: 80,
-    imageIdentitySha256: 'sha256:c6e845dfd9bf978c2e86b4a07a8bcedc14b5a67a4d8199a4276209acb049a6cc',
-    lifecycleEvidenceSha256: 'sha256:7376537c6201d9bc9c04a8bdbb7692e0f5ed0e5ddc6f161e67dcc8f57ecf98a7',
-    machineType: 'n2-standard-8',
-    operationalContractFingerprint: 'sha256:3fe0708d3a602a2b8fc5c73aaa636e6843fd3ab755e500c44b80f2fd9d414f0e',
-    providerLockSha256: 'sha256:6d7c7b6c9f2d2c0ca301e7c845b893b07722149b0bc6853f6058d5f27a28050a',
-    region: 'northamerica-northeast1',
-    schemaVersion: 2,
-    scope: 'original-three-node-terraform-ha',
-    versions: {
-      google: '8.7.0',
-      terraform: '1.16.6',
-      xcsh: '15.13.0',
-    },
-    zones: ['northamerica-northeast1-a', 'northamerica-northeast1-b', 'northamerica-northeast1-c'],
-  },
-  terraformHaLifecycleFingerprint: 'sha256:72253930d08afb1ff5d5205675ba8250a6fa43e1f2402732025e40de22e14e20',
-};
-var repository = 'f5-sales-demo/api-specs-enriched';
-async function resolveGcpOperationalRelease(
-  fetcher = fetchGcpRelease,
-  signal,
-  pin = GCP_OPERATIONAL_RELEASE_PIN,
-  compiledSourceHashes = operational_source_hashes_default,
-) {
-  if (!pin) return;
-  if (
-    !/^v[0-9]+\.[0-9]+\.[0-9]+$/.test(pin.tag) ||
-    !/^[a-f0-9]{40}$/.test(pin.sourceCommit) ||
-    ![
-      pin.profileAssetDigest,
-      pin.contractFingerprint,
-      pin.qualificationAssetDigest,
-      pin.qualificationFingerprint,
-    ].every((value) => /^sha256:[a-f0-9]{64}$/.test(value))
-  )
-    throw new Error('Operational release pin malformed');
-  const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
-  const read = async (url, maximum = 4 * 1024 * 1024) => {
-    bounded.throwIfAborted();
-    const response = await fetcher(url, { signal: bounded, headers: { Accept: 'application/vnd.github+json' } });
-    if (!response.ok || !response.body) throw new Error('Operational immutable asset unavailable');
-    const reader = response.body.getReader();
-    const chunks = [];
-    let size = 0;
-    try {
-      for (;;) {
-        bounded.throwIfAborted();
-        const { value, done } = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        if (size > maximum) throw new Error('Operational immutable asset exceeds bound');
-        chunks.push(value);
-      }
-    } finally {
-      await reader.cancel();
-      reader.releaseLock();
-    }
-    bounded.throwIfAborted();
-    return Buffer.concat(chunks);
-  };
-  const decode = (bytes) => {
-    const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-    if (!value || typeof value !== 'object' || Array.isArray(value))
-      throw new Error('Operational release JSON malformed');
-    return value;
-  };
-  const base = `https://api.github.com/repos/${repository}`;
-  const release = decode(await read(`${base}/releases/tags/${pin.tag}`));
-  if (
-    release.tag_name !== pin.tag ||
-    release.immutable !== true ||
-    release.draft !== false ||
-    release.prerelease !== false
-  )
-    throw new Error('Operational release is not final and immutable');
-  const reference = decode(await read(`${base}/git/ref/tags/${pin.tag}`));
-  let target = reference.object;
-  if (target?.type === 'tag' && typeof target.sha === 'string' && /^[a-f0-9]{40}$/.test(target.sha)) {
-    const tag = decode(await read(`${base}/git/tags/${target.sha}`));
-    target = tag.object;
-  }
-  if (target?.type !== 'commit' || target.sha !== pin.sourceCommit)
-    throw new Error('Operational release immutable source differs');
-  const asset = async (name, digest) => {
-    if (!Array.isArray(release.assets)) throw new Error('Operational release assets malformed');
-    const assets = release.assets.filter((value) => value && typeof value === 'object' && value.name === name);
-    const url = `https://github.com/${repository}/releases/download/${pin.tag}/${name}`;
-    if (assets.length !== 1 || assets[0].digest !== digest || assets[0].browser_download_url !== url)
-      throw new Error('Operational release asset identity differs');
-    const bytes = await read(url);
-    if (`sha256:${createHash10('sha256').update(bytes).digest('hex')}` !== digest)
-      throw new Error('Operational release asset bytes differ');
-    return decode(bytes);
-  };
-  const profile = await asset('gcp-operational-health-v2.json', pin.profileAssetDigest);
-  const qualification = await asset('gcp-operational-qualification-v2.json', pin.qualificationAssetDigest);
-  if (
-    !qualifiedOperationalProfile(profile, pin.contractFingerprint) ||
-    !qualifiedOperationalRelease(qualification, pin.qualificationFingerprint, pin.contractFingerprint)
-  )
-    throw new Error('Operational profile or qualification differs');
-  if (fingerprint(profile.sourceHashes) !== fingerprint(compiledSourceHashes))
-    throw new Error('Operational parser source drift requires explicit requalification');
-  if (
-    (pin.terraformHaLifecycle !== undefined || pin.terraformHaLifecycleFingerprint !== undefined) &&
-    (!qualifiedGcpTerraformHaProfile(pin.terraformHaLifecycle) ||
-      pin.terraformHaLifecycle.operationalContractFingerprint !== pin.contractFingerprint ||
-      fingerprint(pin.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint ||
-      fingerprint(qualification.terraformHaLifecycle) !== pin.terraformHaLifecycleFingerprint)
-  )
-    throw new Error('Operational lifecycle qualification differs');
-  return {
-    profile,
-    contractFingerprint: pin.contractFingerprint,
-    qualification,
-    qualificationFingerprint: pin.qualificationFingerprint,
-    ...(pin.terraformHaLifecycle ? { terraformHaLifecycle: structuredClone(pin.terraformHaLifecycle) } : {}),
-  };
-}
-
-// plugins/gcloud/src/ce/contract.ts
-var GCP_CE_API_RELEASE = {
-  repository: 'f5-sales-demo/api-specs-enriched',
-  tag: 'v12.1.3',
-  contractDigest: 'sha256:ae71bf8f1d69bb248f21a664bfec974c322188b6e17755c245d20d24e1e0e6bc',
-};
-function qualifiedGcpHaObservationMappings(assets) {
-  if (!Array.isArray(assets)) return;
-  const matches = assets.filter((asset) => asset && asset.name === 'openapi.json');
-  if (
-    matches.length !== 1 ||
-    matches[0].digest !== 'sha256:3738c3267be63ec2c82716bdf197f7633b8845692ea7fe72e5a11bf2b8d10b77' ||
-    matches[0].browser_download_url !==
-      `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/openapi.json`
-  )
-    return;
-  return {
-    componentStatus: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/ves-system/status?cached=false',
-    serviceInventory: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/list-service',
-  };
-}
-async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
-  const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000);
-  const read = async (url, maximum = 1024 * 1024) => {
-    combined.throwIfAborted();
-    const response = await fetcher(url, {
-      signal: combined,
-      headers: { Accept: 'application/vnd.github+json' },
-    });
-    if (!response.ok) throw new Error(`Contract release unavailable: HTTP ${response.status}`);
-    if (!response.body) throw new Error('Contract response body unavailable');
-    const reader = response.body.getReader();
-    const chunks = [];
-    let size = 0;
-    try {
-      for (;;) {
-        combined.throwIfAborted();
-        const { done, value } = await reader.read();
-        combined.throwIfAborted();
-        if (done) break;
-        size += value.length;
-        if (size > maximum) throw new Error('Contract response exceeds size limit');
-        chunks.push(value);
-      }
-    } finally {
-      await reader.cancel();
-      reader.releaseLock();
-    }
-    return Buffer.concat(chunks);
-  };
-  const decode = (bytes) => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  const base = `https://api.github.com/repos/${GCP_CE_API_RELEASE.repository}`;
-  const release = decode(await read(`${base}/releases/tags/${GCP_CE_API_RELEASE.tag}`));
-  if (
-    release.tag_name !== GCP_CE_API_RELEASE.tag ||
-    release.immutable !== true ||
-    release.draft !== false ||
-    release.prerelease !== false
-  )
-    throw new Error('Contract release is not final and immutable');
-  const assets = release.assets;
-  if (!Array.isArray(assets)) throw new Error('Malformed contract release assets');
-  const matches = assets.filter((asset) => asset.name === 'smsv2-contract.json');
-  const expectedUrl = `https://github.com/${GCP_CE_API_RELEASE.repository}/releases/download/${GCP_CE_API_RELEASE.tag}/smsv2-contract.json`;
-  if (
-    matches.length !== 1 ||
-    matches[0].digest !== GCP_CE_API_RELEASE.contractDigest ||
-    matches[0].browser_download_url !== expectedUrl
-  )
-    throw new Error('Contract asset identity mismatch');
-  const bytes = await read(expectedUrl, 4 * 1024 * 1024);
-  if (`sha256:${createHash11('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
-    throw new Error('Contract asset digest mismatch');
-  const contract = decode(bytes);
-  if (
-    contract.contract_id !== 'f5xc-smsv2-api/v1' ||
-    !contract.providers ||
-    typeof contract.providers !== 'object' ||
-    Array.isArray(contract.providers)
-  )
-    throw new Error('Malformed executable CE contract');
-  const gcp = contract.providers.gcp;
-  const observations =
-    gcp?.registration_observation?.availability === 'observational_read_only' &&
-    gcp.registration_observation.path === '/api/register/namespaces/system/registrations_by_site/{site_name}' &&
-    gcp.registration_observation.method === 'GET' &&
-    gcp.registration_observation.required_provider === 'GOOGLE' &&
-    gcp.physical_interface_observation?.availability === 'observational_read_only' &&
-    gcp.global_health_observation?.availability === 'observational_read_only' &&
-    gcp.global_health_observation.path === '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health' &&
-    gcp.global_health_observation.method === 'GET' &&
-    gcp.global_health_observation.healthy_state === 'PROVISIONED' &&
-    gcp.global_health_observation.exact_node_join_required === true &&
-    fingerprint(gcp.global_health_observation.state_values) ===
-      fingerprint(['WAITING_FOR_CONFIG', 'WAITING_FOR_APPROVAL', 'PROVISIONING', 'PROVISIONED', 'FAILED', 'RESETTING'])
-      ? {
-          configuration: '/api/config/namespaces/system/securemesh_site_v2s/{site}',
-          registrations: '/api/register/namespaces/system/registrations_by_site/{site}',
-          health: '/api/operate/namespaces/system/sites/{site}/vpm/debug/global/health',
-        }
-      : undefined;
-  let operationalHealthContract;
-  if (observations) {
-    try {
-      operationalHealthContract = await resolveGcpOperationalRelease(fetcher, combined);
-    } catch {
-      signal?.throwIfAborted();
-    }
-  }
-  return {
-    release: GCP_CE_API_RELEASE,
-    fingerprint: fingerprint(contract),
-    availability: 'unavailable',
-    reason: Object.hasOwn(contract.providers, 'gcp')
-      ? 'gcp_provider_requires_consumer_qualification'
-      : 'gcp_provider_not_published',
-    ...(observations ? { observations } : {}),
-    ...(operationalHealthContract ? { operationalHealthContract } : {}),
-    ...(GCP_OPERATIONAL_RELEASE_PIN?.terraformHaLifecycle &&
-    qualifiedGcpTerraformHaProfile(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) &&
-    fingerprint(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) ===
-      GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycleFingerprint
-      ? { terraformHaLifecycle: structuredClone(GCP_OPERATIONAL_RELEASE_PIN.terraformHaLifecycle) }
-      : {}),
-    ...(GCP_OPERATIONAL_RELEASE_PIN
-      ? {
-          operationalHealthExpected: {
-            contractFingerprint: GCP_OPERATIONAL_RELEASE_PIN.contractFingerprint,
-            qualificationFingerprint: GCP_OPERATIONAL_RELEASE_PIN.qualificationFingerprint,
-          },
-        }
-      : {}),
-    ...(observations && qualifiedGcpHaObservationMappings(assets)
-      ? { haObservations: qualifiedGcpHaObservationMappings(assets) }
-      : {}),
-    ...(gcp?.single_node_lifecycle?.availability === 'evidence_backed_single_node' &&
-    gcp.single_node_lifecycle.node_count === 1 &&
-    gcp.single_node_lifecycle.interface_count === 2 &&
-    gcp.single_node_lifecycle.consumer_runtime_qualification_required === true
-      ? { singleNodeLifecycle: structuredClone(gcp.single_node_lifecycle) }
-      : {}),
-  };
-}
-
-// plugins/platform/src/ce/deployment-store.ts
-import { createHash as createHash12, randomUUID as randomUUID3 } from 'node:crypto';
-import { constants as constants2 } from 'node:fs';
-import {
-  chmod,
-  lstat as lstat3,
-  mkdir as mkdir2,
-  open as open2,
-  readFile as readFile2,
-  realpath as realpath2,
-  rename as rename2,
-  rm as rm2,
-  writeFile as writeFile2,
-} from 'node:fs/promises';
-import { dirname as dirname2, isAbsolute as isAbsolute2, join as join4 } from 'node:path';
-
-var immutableIdentityKeys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
-var immutableHash = (bytes) => createHash12('sha256').update(bytes).digest('hex');
-var immutableIdentity = (metadata) =>
-  Object.fromEntries(immutableIdentityKeys.map((key) => [key, String(metadata[key])]));
-async function immutableMetadata(path) {
-  return lstat3(path, { bigint: true });
-}
-function key(owner) {
-  return createHash12('sha256')
-    .update(JSON.stringify([owner.provider, owner.account, owner.region, owner.deploymentId]))
-    .digest('hex');
-}
-function sameOwner(a, b) {
-  return ['deploymentId', 'engine', 'provider', 'account', 'region'].every((field) => a[field] === b[field]);
-}
-async function directory2(path) {
-  await mkdir2(path, { recursive: true, mode: 448 });
-  const stat = await lstat3(path);
-  if (
-    !stat.isDirectory() ||
-    stat.isSymbolicLink() ||
-    stat.uid !== process.getuid?.() ||
-    (await realpath2(path)) !== path
-  )
-    throw new Error('CE deployment storage ownership is invalid');
-  await chmod(path, 448);
-}
-async function syncDirectory(path) {
-  const handle = await open2(path, 'r');
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-
-class CeDeploymentStore {
-  directory;
-  owner;
-  constructor(directory, owner) {
-    this.directory = directory;
-    this.owner = owner;
-  }
-  static async open(root, owner) {
-    if (
-      !isAbsolute2(root) ||
-      !['native', 'terraform'].includes(owner.engine) ||
-      !['aws', 'azure', 'gcp'].includes(owner.provider) ||
-      [owner.account, owner.region, owner.deploymentId].some((value) => !value || /[\r\n]/.test(value))
-    )
-      throw new Error('Invalid CE storage binding');
-    await directory2(root);
-    const path = join4(root, key(owner));
-    await directory2(path);
-    const store = new CeDeploymentStore(path, structuredClone(owner));
-    try {
-      await writeFile2(join4(path, 'owner.json'), JSON.stringify({ schemaVersion: 2, owner }), {
-        flag: 'wx',
-        mode: 384,
-      });
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-    }
-    const manifest = await open2(join4(path, 'owner.json'), 'r');
-    try {
-      await manifest.sync();
-    } finally {
-      await manifest.close();
-    }
-    await syncDirectory(path);
-    await syncDirectory(root);
-    await syncDirectory(dirname2(root));
-    await store.verify();
-    return store;
-  }
-  #path(name) {
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(name)) throw new Error('Invalid CE storage item');
-    return join4(this.directory, name);
-  }
-  async #read(name) {
-    const path = this.#path(name);
-    const stat = await lstat3(path);
-    if (
-      !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      stat.nlink !== 1 ||
-      stat.uid !== process.getuid?.() ||
-      (stat.mode & 63) !== 0
-    )
-      throw new Error('CE storage item ownership is invalid');
-    return readFile2(path);
-  }
-  async verify() {
-    let manifest;
-    try {
-      manifest = JSON.parse((await this.#read('owner.json')).toString());
-    } catch {
-      throw new Error('CE owner manifest is unavailable');
-    }
-    if (manifest.schemaVersion !== 2 || !sameOwner(manifest.owner, this.owner))
-      throw new Error('CE deployment belongs to another execution engine or scope');
-  }
-  async write(name, value) {
-    if (name === 'owner.json' || name.startsWith('immutable-'))
-      throw new Error('CE deployment storage item is immutable');
-    await this.verify();
-    const temporary = this.#path(`tmp-${randomUUID3()}`);
-    try {
-      const handle = await open2(temporary, 'wx', 384);
-      try {
-        await handle.writeFile(JSON.stringify(value));
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      await rename2(temporary, this.#path(name));
-      await syncDirectory(this.directory);
-    } finally {
-      await rm2(temporary, { force: true });
-    }
-  }
-  async read(name) {
-    await this.verify();
-    return JSON.parse((await this.#read(name)).toString());
-  }
-  async writeImmutableBytes(name, input) {
-    if (!name.startsWith('immutable-')) throw new Error('Reserved immutable CE record name required');
-    const path = this.#path(name);
-    const bytes = Buffer.from(input);
-    if (bytes.byteLength > 256 * 1024 * 1024) throw new Error('Immutable CE record exceeds byte limit');
-    await this.verify();
-    const parent = await immutableMetadata(this.directory);
-    const handle = await open2(
-      path,
-      constants2.O_WRONLY | constants2.O_CREAT | constants2.O_EXCL | constants2.O_NOFOLLOW,
-      256,
-    );
-    try {
-      await handle.writeFile(bytes);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    await syncDirectory(this.directory);
-    const file = await immutableMetadata(path);
-    const currentParent = await immutableMetadata(this.directory);
-    if (
-      file.uid !== BigInt(process.getuid?.() ?? -1) ||
-      !file.isFile() ||
-      file.isSymbolicLink() ||
-      file.nlink !== 1n ||
-      (file.mode & 0o777n) !== 0o400n ||
-      !parent.isDirectory() ||
-      currentParent.isSymbolicLink() ||
-      ['dev', 'ino', 'uid', 'mode'].some((key) => String(parent[key]) !== String(currentParent[key])) ||
-      (await realpath2(path)) !== path ||
-      immutableHash(await readFile2(path)) !== immutableHash(bytes)
-    )
-      throw new Error('Original immutable CE publication identity changed');
-    return Object.freeze({
-      schemaVersion: 1,
-      kind: 'ce-immutable-file',
-      name,
-      binding: Object.freeze({
-        path,
-        sha256: immutableHash(bytes),
-        expectedIdentity: Object.freeze(immutableIdentity(file)),
-        expectedParentIdentity: Object.freeze({
-          dev: String(parent.dev),
-          ino: String(parent.ino),
-          uid: String(parent.uid),
-          mode: String(parent.mode),
-        }),
-      }),
-    });
-  }
-  async readImmutableBytes(input) {
-    const record = structuredClone(input);
-    await this.verify();
-    const binding = record.binding;
-    if (
-      record.schemaVersion !== 1 ||
-      record.kind !== 'ce-immutable-file' ||
-      !record.name.startsWith('immutable-') ||
-      binding.path !== this.#path(record.name) ||
-      !/^[a-f0-9]{64}$/.test(binding.sha256) ||
-      !binding.expectedIdentity ||
-      !binding.expectedParentIdentity
-    )
-      throw new Error('Original immutable CE record binding required');
-    const inspect = async () => {
-      const file = await immutableMetadata(binding.path),
-        parent = await immutableMetadata(this.directory);
-      if (
-        !file.isFile() ||
-        file.isSymbolicLink() ||
-        file.nlink !== 1n ||
-        file.uid !== BigInt(process.getuid?.() ?? -1) ||
-        (file.mode & 0o777n) !== 0o400n ||
-        !parent.isDirectory() ||
-        parent.isSymbolicLink() ||
-        immutableIdentityKeys.some((key) => String(file[key]) !== binding.expectedIdentity[key]) ||
-        ['dev', 'ino', 'uid', 'mode'].some((key) => String(parent[key]) !== binding.expectedParentIdentity[key]) ||
-        (await realpath2(binding.path)) !== binding.path
-      )
-        throw new Error('Original immutable CE record identity changed');
-      return file;
-    };
-    await inspect();
-    const handle = await open2(binding.path, constants2.O_RDONLY | constants2.O_NOFOLLOW);
-    try {
-      const opened = await handle.stat({ bigint: true });
-      if (immutableIdentityKeys.some((key) => String(opened[key]) !== binding.expectedIdentity[key]))
-        throw new Error('Original immutable CE open identity changed');
-      const bytes = await handle.readFile();
-      if (immutableHash(bytes) !== binding.sha256) throw new Error('Original immutable CE bytes changed');
-      await inspect();
-      return bytes;
-    } finally {
-      await handle.close();
-    }
-  }
-  async remove(name) {
-    if (name === 'owner.json' || name.startsWith('immutable-'))
-      throw new Error('CE deployment storage item is immutable');
-    await this.verify();
-    await rm2(this.#path(name), { force: true });
-  }
-}
+import { join as join7 } from 'node:path';
 
 // plugins/platform/src/ce/gcp-lifecycle.ts
+init_discovery();
+init_site_access();
+init_validation();
 class GcpPlatformLifecycle {
   store;
   intent;
@@ -6694,68 +8894,16 @@ class GcpPlatformLifecycle {
 }
 
 // plugins/platform/src/ce/gcp-observation.ts
-import { createHash as createHash15 } from 'node:crypto';
+init_discovery();
+init_operational_health();
+init_ownership();
 
-// plugins/gcloud/src/ce/ownership.ts
-var COLLECTIONS = {
-  instance: 'instances',
-  disk: 'disks',
-  network: 'networks',
-  subnetwork: 'subnetworks',
-  address: 'addresses',
-  firewall: 'firewalls',
-  router: 'routers',
-  route: 'routes',
-};
-function validateGcpResourceIdentity(resource) {
-  if (
-    !resource ||
-    typeof resource !== 'object' ||
-    Array.isArray(resource) ||
-    Object.keys(resource).some(
-      (key) => !['id', 'selfLink', 'kind', 'project', 'deploymentName', 'siteName', 'nodeName', 'engine'].includes(key),
-    )
-  )
-    throw new Error('Unexpected GCP ownership identity fields');
-  if (
-    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(resource.project) ||
-    !/^\d+$/.test(resource.id) ||
-    !['native', 'terraform'].includes(resource.engine)
-  )
-    throw new Error('Invalid GCP resource identity');
-  for (const name of [resource.deploymentName, resource.siteName, resource.nodeName].filter((x) => x !== undefined))
-    if (!/^[a-z][a-z0-9-]{0,62}$/.test(name)) throw new Error('Invalid GCP ownership binding');
-  const collection = COLLECTIONS[resource.kind];
-  if (!collection) throw new Error('Unsupported GCP resource kind');
-  const prefix = `https://www.googleapis.com/compute/v1/projects/${resource.project}/`;
-  const suffix = resource.selfLink.slice(prefix.length);
-  if (
-    !resource.selfLink.startsWith(prefix) ||
-    !new RegExp(
-      `^${resource.kind === 'instance' || resource.kind === 'disk' ? 'zones/[a-z]+(?:-[a-z]+)+[0-9]-[a-z]' : resource.kind === 'subnetwork' || resource.kind === 'router' ? 'regions/[a-z]+(?:-[a-z]+)+[0-9]' : resource.kind === 'address' ? '(?:global|regions/[a-z]+(?:-[a-z]+)+[0-9])' : 'global'}/${collection}/[a-z][a-z0-9-]{0,62}$`,
-    ).test(suffix)
-  )
-    throw new Error('Resource must have an exact scoped selfLink');
-}
-async function readGcpResourceInventory(store, scope) {
-  const ledger = await store.read('gcp-resources.json');
-  if (ledger?.schemaVersion !== 1 || !sameScope(ledger, scope) || !Array.isArray(ledger.resources))
-    throw new Error('GCP ownership ledger is unavailable');
-  const links = new Set();
-  for (const resource of ledger.resources) {
-    validateGcpResourceIdentity(resource);
-    if (!sameScope(resource, scope) || links.has(resource.selfLink))
-      throw new Error('GCP ledger contains mixed ownership or duplicate identities');
-    links.add(resource.selfLink);
-  }
-  return structuredClone(ledger.resources);
-}
-function sameScope(a, b) {
-  return a.project === b.project && a.deploymentName === b.deploymentName && a.engine === b.engine;
-}
+import { createHash as createHash16 } from 'node:crypto';
 
 // plugins/platform/src/ce/gcp-owned-operational.ts
-import { createHash as createHash14, randomUUID as randomUUID4 } from 'node:crypto';
+init_discovery();
+
+import { createHash as createHash15, randomUUID as randomUUID5 } from 'node:crypto';
 
 // plugins/gcloud/src/ce/interface-identity.ts
 function object15(value) {
@@ -6867,78 +9015,15 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
 }
 
-// plugins/gcloud/src/ce/bounded-cleanup-observations.ts
-var _readConcurrency = new WeakMap();
-
-// plugins/gcloud/src/ce/terraform-public-ownership.ts
-function publicTerraformPlatformScope(intent) {
-  return intent.sites.flatMap((site) => [
-    { address: `xcsh_securemesh_site_v2.${site.name.replaceAll('-', '_')}`, siteName: site.name },
-    ...site.nodes.map((node) => ({
-      address: `xcsh_token.${node.name.replaceAll('-', '_')}`,
-      siteName: site.name,
-      tokenName: `${node.name}-token`,
-    })),
-  ]);
-}
-function publicTerraformAddresses(intent) {
-  return [
-    ...publicTerraformCloudScope(intent).map(
-      (resource) =>
-        `google_compute_${resource.kind}.${resource.selfLink.substring(resource.selfLink.lastIndexOf('/') + 1).replaceAll('-', '_')}`,
-    ),
-    ...publicTerraformPlatformScope(intent).map((resource) => resource.address),
-  ];
-}
-function publicTerraformCloudScope(intent) {
-  validateIntent(intent);
-  const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
-  const resources = intent.sites.flatMap((site) =>
-    site.nodes.flatMap((node) => [
-      {
-        kind: 'instance',
-        selfLink: `${prefix}/zones/${node.zone}/instances/${node.name}`,
-        siteName: site.name,
-        nodeName: node.name,
-      },
-      {
-        kind: 'disk',
-        selfLink: `${prefix}/zones/${node.zone}/disks/${node.name}`,
-        siteName: site.name,
-        nodeName: node.name,
-      },
-      ...node.interfaces.flatMap((nic) => [
-        { kind: 'network', selfLink: `${prefix}/global/networks/${nic.network}` },
-        { kind: 'subnetwork', selfLink: `${prefix}/regions/${intent.region}/subnetworks/${nic.subnet}` },
-      ]),
-    ]),
-  );
-  for (const site of intent.sites.filter((site) => site.nodes.length === 3))
-    for (const nic of site.nodes[0].interfaces)
-      for (const direction of ['ingress', 'egress'])
-        resources.push({
-          kind: 'firewall',
-          selfLink: `${prefix}/global/firewalls/${site.name}-ha-${nic.role}-${direction}`,
-        });
-  if (intent.schemaVersion === 2) {
-    const observer = gcpTerraformObserverIdentity(intent);
-    resources.push(
-      { kind: 'instance', selfLink: `${prefix}/zones/${observer.zone}/instances/${observer.name}` },
-      { kind: 'disk', selfLink: `${prefix}/zones/${observer.zone}/disks/${observer.name}` },
-      { kind: 'firewall', selfLink: `${prefix}/global/firewalls/${observer.firewallName}` },
-    );
-  }
-  return [...new Map(resources.map((resource) => [resource.selfLink, resource])).values()].map((resource) => ({
-    ...resource,
-    id: '0',
-    project: intent.project,
-    deploymentName: intent.deploymentName,
-    engine: 'terraform',
-  }));
-}
+// plugins/platform/src/ce/gcp-owned-operational.ts
+init_operational_health();
+init_ownership();
+init_terraform_public_ownership();
 
 // plugins/platform/src/ce/gcp-operational-binding.ts
-import { createHash as createHash13 } from 'node:crypto';
+init_discovery();
+
+import { createHash as createHash14 } from 'node:crypto';
 
 var object16 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational binding malformed');
@@ -6964,7 +9049,7 @@ async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sour
     metadata.name !== expected.siteName ||
     metadata.namespace !== 'system' ||
     typeof uid !== 'string' ||
-    `sha256:${createHash13('sha256').update(uid).digest('hex')}` !== expected.configurationIdentitySha256
+    `sha256:${createHash14('sha256').update(uid).digest('hex')}` !== expected.configurationIdentitySha256
   )
     throw new Error('Original operational configuration identity differs');
   const runtime = object16(await port.runtimeSite(signal));
@@ -7016,7 +9101,7 @@ async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sour
     const tokenMetadata = object16(token.metadata);
     if (
       typeof tokenUid !== 'string' ||
-      `sha256:${createHash13('sha256').update(tokenUid).digest('hex')}` !== node.tokenIdentitySha256 ||
+      `sha256:${createHash14('sha256').update(tokenUid).digest('hex')}` !== node.tokenIdentitySha256 ||
       tokenMetadata.name !== `${node.nodeName}-token` ||
       tokenMetadata.namespace !== 'system' ||
       object16(token.spec).site_name !== expected.siteName ||
@@ -7049,7 +9134,11 @@ async function verifyGcpOperationalBinding(port, expected, cloudIdentities, sour
   return expected;
 }
 
+// plugins/platform/src/ce/gcp-operational-command.ts
+init_discovery();
+
 // plugins/platform/src/ce/gcp-runtime-diagnostics.ts
+init_discovery();
 var ID = /^[a-f0-9]{12,64}$/;
 var NAME3 = /^[a-z0-9][a-z0-9_.-]{0,252}$/;
 var NAMESPACE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -7303,6 +9392,7 @@ function createGcpOperationalCommandPort(expected, apiUrl, credential, binding, 
 }
 
 // plugins/platform/src/ce/gcp-operational-placement.ts
+init_operational_health();
 function resolveGcpOperationalPlacement(profile, pinnedFingerprint, originals, observations) {
   if (!qualifiedOperationalProfile(profile, pinnedFingerprint) || !profile.placementCounts)
     throw new Error('Frozen placement contract required');
@@ -7389,6 +9479,9 @@ function resolveGcpOperationalPlacement(profile, pinnedFingerprint, originals, o
     throw new Error('Required cluster placement counts differ');
   return selected;
 }
+
+// plugins/platform/src/ce/gcp-operational-source.ts
+init_discovery();
 
 // plugins/platform/src/ce/gcp-operational-diagnosis.ts
 var GCP_REQUIRED_OPERATIONAL_DOMAINS = [
@@ -7495,6 +9588,8 @@ function projectGcpOperationalDiagnosis(value, node, originals) {
 }
 
 // plugins/platform/src/ce/gcp-operational-observation.ts
+init_discovery();
+init_operational_health();
 var CHECKS = ['registration', 'interfaces', 'siteStatus', 'components', 'inventory', 'runtime', 'diagnostics'];
 async function collectGcpOperationalHealth(port, expected, profile, pinnedFingerprint, signal) {
   if (!qualifiedOperationalProfile(profile, pinnedFingerprint)) throw new Error('Frozen operational profile required');
@@ -7556,6 +9651,7 @@ async function collectGcpOperationalHealth(port, expected, profile, pinnedFinger
 }
 
 // plugins/platform/src/ce/gcp-operational-runtime.ts
+init_operational_health();
 async function collectGcpOperationalRuntimeListing(commands, node, ownershipFingerprint, signal) {
   signal?.throwIfAborted();
   node = structuredClone(node);
@@ -7649,6 +9745,7 @@ async function collectGcpOperationalRuntime(...args) {
 var collectGcpOperationalRuntimeEvidence = collectRuntimeEvidence;
 
 // plugins/platform/src/ce/gcp-operational-site-status.ts
+init_discovery();
 var object18 = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
 function projectGcpOperationalSiteStatus(value, expected) {
   const site = object18(value);
@@ -7898,6 +9995,7 @@ function createGcpOperationalSource(
 }
 
 // plugins/platform/src/ce/gcp-owned-operational.ts
+init_process_lock();
 var object20 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Operational ownership malformed');
   return value;
@@ -7907,7 +10005,7 @@ var uid2 = (value) => {
   if (typeof identity !== 'string' || !identity) throw new Error('Original operational identity unavailable');
   return identity;
 };
-var identityHash = (value) => `sha256:${createHash14('sha256').update(uid2(value)).digest('hex')}`;
+var identityHash = (value) => `sha256:${createHash15('sha256').update(uid2(value)).digest('hex')}`;
 async function collectGcpOwnedOperationalHealth(
   store,
   intent,
@@ -7992,7 +10090,7 @@ async function collectGcpOwnedOperationalHealth(
         }),
       };
     });
-    const capture = (entry) => store.write(`operational-http-${randomUUID4()}.json`, entry);
+    const capture = (entry) => store.write(`operational-http-${randomUUID5()}.json`, entry);
     const read = async (kind, nodeName, readSignal) => {
       if (kind === 'token' && !identities.some((node) => node.nodeName === nodeName))
         throw new Error('Original operational token node required');
@@ -8209,7 +10307,7 @@ async function collectGcpOwnedOperationalHealth(
       for (const node of saved.binding.nodes) node.role = roles[node.nodeName];
       await verifyGcpOperationalBinding(port, saved.binding, identities, sourceIdentities, signal);
       if (Date.now() - startedAt > profile.maximumAgeMs) throw new Error('Initial operational placement stale');
-      await store.write(`operational-placement-${randomUUID4()}.json`, {
+      await store.write(`operational-placement-${randomUUID5()}.json`, {
         startedAt,
         finishedAt: Date.now(),
         roles,
@@ -8236,7 +10334,7 @@ async function collectGcpOwnedOperationalHealth(
           return original.binding;
         },
         capture,
-        captureProjection: (entry) => store.write(`operational-projection-${randomUUID4()}.json`, entry),
+        captureProjection: (entry) => store.write(`operational-projection-${randomUUID5()}.json`, entry),
       },
       fetcher,
     );
@@ -8497,7 +10595,7 @@ async function createGcpPlatformObservations(
               const uid = configuration.system_metadata?.uid;
               if (
                 typeof uid !== 'string' ||
-                `sha256:${createHash15('sha256').update(uid).digest('hex')}` !== siteIdentitySha256
+                `sha256:${createHash16('sha256').update(uid).digest('hex')}` !== siteIdentitySha256
               )
                 throw new Error('HA original site identity differs');
             };
@@ -8627,7 +10725,7 @@ async function createGcpPlatformObservations(
         const labels = token.metadata.labels;
         if (labels['xcsh-node'] !== node.name || token.spec?.site_name !== site)
           throw new Error('GCP teardown observation token binding differs');
-        tokenIdentitySha256 = `sha256:${createHash15('sha256').update(uid).digest('hex')}`;
+        tokenIdentitySha256 = `sha256:${createHash16('sha256').update(uid).digest('hex')}`;
         tokenIdentityHash = fingerprint({ name: tokenName, uid, siteName: site, nodeName: node.name });
       }
       if (fingerprint(await loadIntent()) !== fingerprint(original))
@@ -8640,7 +10738,7 @@ async function createGcpPlatformObservations(
         ...(store.owner.engine === 'terraform'
           ? {
               siteIdentitySha256: siteUid
-                ? `sha256:${createHash15('sha256').update(siteUid).digest('hex')}`
+                ? `sha256:${createHash16('sha256').update(siteUid).digest('hex')}`
                 : undefined,
               tokenIdentitySha256,
             }
@@ -8652,14 +10750,17 @@ async function createGcpPlatformObservations(
   };
 }
 
+// plugins/platform/src/ce/service.ts
+init_process_lock();
+
 // plugins/platform/src/ce/verified-contract.ts
 // plugins/platform/src/ce/verified-api-release.ts
-import { createHash as createHash16, createHash as createHash17 } from 'node:crypto';
+import { createHash as createHash17, createHash as createHash18 } from 'node:crypto';
 
 var repository2 = 'f5-sales-demo/api-specs-enriched';
 var tag = 'v7.0.1';
 var commit = '2513fe498149c98fb737ff2ab207704b8a86fec6';
-var digest2 = 'sha256:48863c0a2e6c6a6fde050f4f8f5a6966b02872851fa1acb7830f26ef2e143cd9';
+var digest3 = 'sha256:48863c0a2e6c6a6fde050f4f8f5a6966b02872851fa1acb7830f26ef2e143cd9';
 var assetUrl = `https://github.com/${repository2}/releases/download/${tag}/openapi.json`;
 function object21(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed CE API contract');
@@ -8672,7 +10773,7 @@ function parse(bytes) {
     throw new Error('Malformed CE API contract JSON');
   }
 }
-var _CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest2 });
+var _CE_API_RELEASE = Object.freeze({ tag, commit, fingerprint: digest3 });
 async function loadPublishedCeApi(fetcher = fetch, signal) {
   const deadline = AbortSignal.timeout(60000);
   const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
@@ -8705,17 +10806,17 @@ async function loadPublishedCeApi(fetcher = fetch, signal) {
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '7.0.1' || object21(receipt.assets)['openapi.json'] !== digest2)
+  if (receipt.commit !== commit || receipt.version !== '7.0.1' || object21(receipt.assets)['openapi.json'] !== digest3)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
     ? release.assets.map(object21).filter((asset) => asset.name === 'openapi.json')
     : [];
-  if (assets.length !== 1 || assets[0].digest !== digest2 || assets[0].browser_download_url !== assetUrl)
+  if (assets.length !== 1 || assets[0].digest !== digest3 || assets[0].browser_download_url !== assetUrl)
     throw new Error('CE API schema asset binding differs from the pinned contract');
   const resolved = parse(await read(`https://api.github.com/repos/${repository2}/commits/${tag}`));
   if (resolved.sha !== commit) throw new Error('CE API release tag moved');
   const bytes = await read(assetUrl, 64 * 1024 * 1024);
-  if (`sha256:${createHash16('sha256').update(bytes).digest('hex')}` !== digest2)
+  if (`sha256:${createHash17('sha256').update(bytes).digest('hex')}` !== digest3)
     throw new Error('CE API schema checksum mismatch');
   const api = parse(bytes);
   combined.throwIfAborted();
@@ -9375,7 +11476,7 @@ function buildWireSite(intent, schemas) {
 }
 
 // plugins/platform/src/ce/verified-contract.ts
-var hash6 = (bytes) => `sha256:${createHash17('sha256').update(bytes).digest('hex')}`;
+var hash6 = (bytes) => `sha256:${createHash18('sha256').update(bytes).digest('hex')}`;
 var commitPattern = /^[0-9a-f]{40}$/;
 var digestPattern = /^sha256:[0-9a-f]{64}$/;
 function object25(value) {
@@ -9702,10 +11803,10 @@ var CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
 async function context(env, contextName) {
   if (contextName) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(contextName)) throw new Error('Invalid F5 context name');
-    const directory = join5(env.XDG_CONFIG_HOME ?? join5(homedir(), '.config'), 'xcsh', 'contexts');
+    const directory = join7(env.XDG_CONFIG_HOME ?? join7(homedir(), '.config'), 'xcsh', 'contexts');
     let parsed;
     try {
-      parsed = JSON.parse(await readFile3(join5(directory, `${contextName}.json`), 'utf8'));
+      parsed = JSON.parse(await readFile4(join7(directory, `${contextName}.json`), 'utf8'));
     } catch {
       throw new Error('F5 context is unavailable');
     }
@@ -9741,7 +11842,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
       await assertOriginal();
       const store = await CeDeploymentStore.open(
         env.XCSH_CE_DEPLOYMENTS_DIR ??
-          join5(env.XDG_STATE_HOME ?? join5(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+          join7(env.XDG_STATE_HOME ?? join7(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
         owner,
       );
       const saved = await store.read('gcp-terraform-input-identity.json');
@@ -9766,7 +11867,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
         const current = await context(env, contextName);
         if (
           new URL(current.url).origin !== expected.origin ||
-          createHash18('sha256').update(current.credential).digest('hex') !== expected.credentialSha256
+          createHash19('sha256').update(current.credential).digest('hex') !== expected.credentialSha256
         )
           throw new Error('Original selected bootstrap observation credential differs');
         await assertOriginal();
@@ -9785,7 +11886,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
         throw new Error('Native GCP lifecycle ownership required');
       const store = await CeDeploymentStore.open(
         env.XCSH_CE_DEPLOYMENTS_DIR ??
-          join5(env.XDG_STATE_HOME ?? join5(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+          join7(env.XDG_STATE_HOME ?? join7(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
         owner,
       );
       const saved = await store.read('gcp-deployment-intent.json');
@@ -9806,7 +11907,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
         read: (name) => store.read(name),
         write: (name, value) => store.write(name, value),
         exclusive: async (fn) => {
-          const release = await acquireProcessLock(join5(store.directory, '.gcp-lifecycle-lock'));
+          const release = await acquireProcessLock(join7(store.directory, '.gcp-lifecycle-lock'));
           try {
             return await fn();
           } finally {
@@ -9826,7 +11927,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
       const artifact = await resolveGcpContract(undefined, signal);
       const store = await CeDeploymentStore.open(
         env.XCSH_CE_DEPLOYMENTS_DIR ??
-          join5(env.XDG_STATE_HOME ?? join5(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+          join7(env.XDG_STATE_HOME ?? join7(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
         owner,
       );
       return createGcpPlatformObservations(
@@ -9842,7 +11943,7 @@ function createCePlatformService(env = process.env, loadPublishedContract = () =
     storage(owner) {
       return CeDeploymentStore.open(
         env.XCSH_CE_DEPLOYMENTS_DIR ??
-          join5(env.XDG_STATE_HOME ?? join5(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
+          join7(env.XDG_STATE_HOME ?? join7(homedir(), '.local', 'state'), 'xcsh', 'ce-deployments'),
         owner,
       );
     },

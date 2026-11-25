@@ -15,7 +15,8 @@ import {
 } from './ownership';
 import type { GcpPolicyReceipt } from './policy';
 import { planGcpOwnedTeardown } from './teardown-plan';
-import { assertGcpTerraformHaProfile } from './terraform-ha-profile';
+import { assertGcpTerraformHaProfile, gcpOwnedTerraformCleanupLifecycleFingerprint } from './terraform-ha-profile';
+import type { GcpTerraformTeardownRuntime } from './terraform-teardown';
 import type { GcpCeIntent } from './types';
 import { validateIntent } from './validation';
 
@@ -28,6 +29,9 @@ export function assertGcpTeardownProfile(
   if (intent.engine !== engine) throw new Error(`Teardown requires owning engine ${engine}`);
   const ha = engine === 'terraform' && intent.sites.length === 1 && intent.sites[0].nodes.length === 3;
   if (ha) assertGcpTerraformHaProfile(intent, contract);
+  assertTeardownScope(intent, contract, ha);
+}
+function assertTeardownScope(intent: GcpCeIntent, contract: GcpCeContractBoundary, ha: boolean) {
   if (!contract.singleNodeLifecycle || fingerprint(contract.release) !== fingerprint(GCP_CE_API_RELEASE))
     throw new Error('Qualified immutable teardown contract required');
   if (
@@ -63,6 +67,23 @@ async function storage(platform: CePlatformService, intent: GcpCeIntent) {
   )
     throw new Error('Persisted teardown deployment context differs');
   return store;
+}
+/** Resolve cleanup from the exact original owning source; this cannot admit a deployment. */
+export async function resolveGcpTerraformTeardownLifecycle(
+  runtime: GcpTerraformTeardownRuntime,
+  intent: GcpCeIntent,
+  contract: GcpCeContractBoundary,
+) {
+  if (intent.engine !== 'terraform') throw new Error('Teardown requires owning engine terraform');
+  validateIntent(intent);
+  const ha = intent.sites.length === 1 && intent.sites[0].nodes.length === 3;
+  if (!ha) {
+    assertGcpTeardownProfile(intent, contract, 'terraform');
+    return undefined;
+  }
+  const lifecycle = await gcpOwnedTerraformCleanupLifecycleFingerprint(runtime, intent, contract);
+  assertTeardownScope(intent, contract, true);
+  return lifecycle;
 }
 export function assertGcpTeardownTopology(intent: GcpCeIntent, resources: GcpResourceIdentity[]) {
   const node = intent.sites[0].nodes[0],

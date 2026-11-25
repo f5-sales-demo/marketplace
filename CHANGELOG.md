@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.191 verifies static image lookups against original
+- **`terraform`** v2.4.192 verifies static image lookups against original
   configuration, saved plans and independent state before cleanup ownership
   inspection. Unchanged lookups retained only in original prior state also require
   a literal saved declaration and exact provider pin. Compiled original cleanup
@@ -45,8 +45,11 @@ and this project adheres to
   Permit qualified native cleanup producers to issue at most six reads.
   Keep copied APIs sequential, drain every started batch, and retain
   original deadlines and identity checks. Live acceptance is open (#1559).
+  Bind reviewed original cleanup to its source-issued immutable image.
+  Retain published deployment pins, exact ownership, topology and release checks;
+  copied or retired source authority refuses. Live acceptance remains open (#1559).
 
-- **`platform`** v6.3.39 refreshes the selected API credential for each GCP
+- **`platform`** v6.3.40 refreshes the selected API credential for each GCP
   Verify an original worker and every member of its recorded process group before cleanup,
   preserving failed capture flags and existing executor locks.
   observation and private Terraform environment read. The original tenant stays
@@ -64,6 +67,9 @@ and this project adheres to
   Reread the exact Linux dead-task unavailable-group sentinel once.
   Require a valid fresh record or actual syscall disappearance; retain
   the two-read bound and malformed-record refusal. Live acceptance is open (#1559).
+  Bind reviewed original cleanup to its source-issued immutable image.
+  Retain published deployment pins, exact ownership, topology and release checks;
+  copied or retired source authority refuses. Live acceptance remains open (#1559).
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
   explicitly types and manages fixture resources so full Python CI can check
@@ -81,7 +87,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.94 composes durable successful cleanup with normal Platform
+- **`gcloud`** v1.7.95 composes durable successful cleanup with normal Platform
   observations and the shared Terraform runner. Original ownership, reader closure,
   context and input checks surround reads and commands. Create replay and completed
   checkpoint rewriting are refused. Live cleanup and full acceptance remain open
@@ -110,6 +116,9 @@ and this project adheres to
   Permit qualified native cleanup producers to issue at most six reads.
   Keep copied APIs sequential, drain every started batch, and retain
   original deadlines and identity checks. Live acceptance is open (#1559).
+  Bind reviewed original cleanup to its source-issued immutable image.
+  Retain published deployment pins, exact ownership, topology and release checks;
+  copied or retired source authority refuses. Live acceptance remains open (#1559).
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding
