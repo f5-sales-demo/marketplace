@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { PlanReceipt } from '../../../terraform/src/runner';
+import { readGcpCapturedTeardownOrigin } from './captured-teardown-origin';
 import type { GcpCeContractBoundary } from './contract';
 import {
   assertGcpTeardownPolicyFresh,
@@ -75,8 +76,11 @@ async function stableState(runtime: GcpTerraformTeardownRuntime) {
   if (!runtime.session.readStateIdentity) throw new Error('Stable owning state binding unavailable');
   return runtime.session.readStateIdentity();
 }
-async function ownership(runtime: GcpTerraformTeardownRuntime, intent: GcpCeIntent) {
+export async function readPublicTerraformCleanupOwnership(runtime: GcpTerraformTeardownRuntime, intent: GcpCeIntent) {
+  if (runtime.capturedTeardownOrigin !== undefined)
+    return readGcpCapturedTeardownOrigin(runtime.capturedTeardownOrigin, intent);
   const original = (await runtime.store.read('gcp-tf-deploy-original-authorization.json')) as {
+    kind?: undefined;
     planHash: string;
     receiptFingerprint: string;
     intentFingerprint: string;
@@ -189,7 +193,7 @@ export async function planPublicTerraformTeardown(
   assertGcpTeardownPolicyFresh(policy);
   const release = await acquireProcessLock(join(runtime.store.directory, '.gcp-deployment-lock'));
   try {
-    const { original, owned } = await ownership(runtime, intent);
+    const { original, owned } = await readPublicTerraformCleanupOwnership(runtime, intent);
     const absent = await verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal);
     // The runner proves its executor stopped and archives the original attempt before replacing artifacts.
     const before = await stableState(runtime);
@@ -257,7 +261,7 @@ export async function applyPublicTerraformTeardown(
       plan.policyReceipt.normalizedSha256 !== policy.normalizedSha256
     )
       throw new Error('Reviewed cleanup binding changed');
-    const { original, owned } = await ownership(runtime, intent);
+    const { original, owned } = await readPublicTerraformCleanupOwnership(runtime, intent);
     if (fingerprint(original) !== fingerprint(plan.originalAuthorization) || fingerprint(owned) !== plan.ownershipHash)
       throw new Error('Original cleanup attempt changed');
     const name = `gcp-tf-public-cleanup-authorized-${approvedHash.slice(7)}.json`;

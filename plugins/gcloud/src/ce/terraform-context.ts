@@ -12,6 +12,13 @@ export function publicTerraformContextHash(intent: GcpCeIntent, apiUrl: string |
 }
 
 export async function assertPublicTerraformContext(runtime: GcpTerraformTeardownRuntime, intent: GcpCeIntent) {
+  if (runtime.capturedTeardownOrigin !== undefined) {
+    const { readGcpCapturedTeardownOrigin } = await import('./captured-teardown-origin');
+    const original = await readGcpCapturedTeardownOrigin(runtime.capturedTeardownOrigin, intent);
+    if (original.contextHash !== publicTerraformContextHash(intent, runtime.environment.XCSH_API_URL))
+      throw new Error('Original captured Terraform context endpoint changed');
+    return original.contextHash;
+  }
   const saved = (await runtime.store.read('gcp-tf-public-platform-context.json')) as {
     schemaVersion: number;
     contextHash: string;

@@ -369,6 +369,8 @@ export async function persistGcpCaptureCleanupReview(
 }
 
 export interface GcpCaptureCleanupResume {
+  readonly createReceipt: PlanReceipt;
+  readonly ownership: PublicTerraformOwnership;
   readonly mode: 'original' | 'planned-destroy' | 'partial-replan-required' | 'completed-readonly';
   readonly recovery: CaptureCleanupRecovery;
   readonly absent: string[];
@@ -549,6 +551,8 @@ export async function resumeGcpCaptureCleanupOrigin(input: GcpCaptureCleanupResu
     await assertClosed();
     await current.monitor.assertOriginal();
     result = Object.freeze({
+      createReceipt: source.origin.receipt,
+      ownership: source.origin.ownership,
       mode,
       recovery: freeze(recovery),
       absent,

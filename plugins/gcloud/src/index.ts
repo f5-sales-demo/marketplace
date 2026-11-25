@@ -215,3 +215,6 @@ export {
   resumeGcpCaptureCleanupOrigin,
 } from './ce/capture-cleanup-durable';
 export { readGcpCaptureCleanupStateCandidate } from './ce/capture-cleanup-state';
+
+export { openGcpCapturedTeardownOrigin, readGcpCapturedTeardownOrigin } from './ce/captured-teardown-origin';
+export { readPublicTerraformCleanupOwnership } from './ce/terraform-public-teardown';

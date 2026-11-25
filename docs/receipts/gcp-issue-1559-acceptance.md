@@ -2515,3 +2515,13 @@ service and runner, preserving failed claims, owner/workspace binding, replay
 refusal and independent closure. Actual SDK authentication and original reader,
 ownership and reviewed cleanup composition remain open before campaign submission.
 All original live and delivery gates remain unchanged.
+
+## Reviewed cleanup of captured source campaigns
+
+The [original provenance receipt](gcp-captured-teardown-provenance-20261125.md)
+records the source issuer and normal reviewed teardown ownership/context path,
+530 passing affected cases and the complete 21-resource source cleanup workflow.
+GCloud 1.7.79 preserves actual source authorization and durable original receipts
+without substitute deployment journals. Real CLI/Platform/reader/worker bindings
+and live cleanup remain required before the unsubmitted campaign can run. Every
+original live and delivery acceptance gate remains open.
