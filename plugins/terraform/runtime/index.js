@@ -2037,10 +2037,12 @@ async function assertAbsentProcessGroup(group, listNames, readGroup) {
 // plugins/platform/src/ce/linux-process-group.ts
 import { createHash as createHash5 } from 'node:crypto';
 
+var rejectedRecords = new WeakMap();
 async function readLinuxProcessGroupRecord(pid, readRecord) {
   if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Original executor PID is unavailable');
   let text = await readRecord();
-  if (text.length === 0) text = await readRecord();
+  const initialEmptyRead = text.length === 0;
+  if (initialEmptyRead) text = await readRecord();
   const end = text.lastIndexOf(') ');
   const header = text.match(/^([1-9][0-9]*) \(/);
   const fields =
@@ -2051,19 +2053,35 @@ async function readLinuxProcessGroupRecord(pid, readRecord) {
           .trim()
           .split(/\s+/);
   const group = Number(fields[2]);
-  if (
-    header?.[1] !== String(pid) ||
-    end < (header?.[0].length ?? 0) ||
-    !/^[RSDZTtXxKWPI]$/.test(fields[0] ?? '') ||
-    !/^[0-9]+$/.test(fields[19] ?? '') ||
-    !/^[0-9]+$/.test(fields[2] ?? '') ||
-    !Number.isSafeInteger(group) ||
-    group < 0
-  ) {
-    const sha256 = createHash5('sha256').update(text).digest('hex');
-    throw new Error(
-      `Original executor group is unavailable (pid=${pid}, bytes=${Buffer.byteLength(text)}, sha256=${sha256})`,
+  const validation = Object.freeze({
+    headerMatches: header?.[1] === String(pid),
+    delimiterValid: end >= (header?.[0].length ?? 0),
+    stateValid: /^[RSDZTtXxKWPI]$/.test(fields[0] ?? ''),
+    startValid: /^[0-9]+$/.test(fields[19] ?? ''),
+    groupNumeric: /^[0-9]+$/.test(fields[2] ?? ''),
+    groupSafe: Number.isSafeInteger(group) && group >= 0,
+  });
+  if (Object.values(validation).some((valid) => !valid)) {
+    const bytes = Buffer.from(text, 'utf8');
+    const sha256 = createHash5('sha256').update(bytes).digest('hex');
+    const error = new Error(
+      `Original executor group is unavailable (pid=${pid}, bytes=${bytes.length}, sha256=${sha256})`,
     );
+    rejectedRecords.set(
+      error,
+      Object.freeze({
+        schemaVersion: 1,
+        kind: 'rejected-decoded-linux-process-record',
+        pid,
+        bytes: bytes.length,
+        sha256,
+        recordUtf8Base64: bytes.subarray(0, 16384).toString('base64'),
+        truncated: bytes.length > 16384,
+        initialEmptyRead,
+        validation,
+      }),
+    );
+    throw error;
   }
   return group;
 }
