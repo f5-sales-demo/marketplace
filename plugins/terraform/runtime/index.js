@@ -24870,6 +24870,7 @@ async function collectInstalledCeInsertWitnesses(input) {
 import { randomUUID as randomUUID22 } from 'node:crypto';
 import { join as join39 } from 'node:path';
 
+var sourceReaders2 = new WeakMap();
 async function openInstalledDeleteCapture(input) {
   const { context, store, plan, intent } = input;
   await assertOriginalTerraformPlanProjection(plan);
@@ -24958,6 +24959,21 @@ async function openInstalledDeleteCapture(input) {
     if (context.budget.start !== budget.start || context.budget.deadline !== budget.deadline)
       throw new Error('Original cleanup capture budget differs');
   };
+  const assertCompletedOutputs = async () => {
+    if (!actor) return;
+    if (!completedOutputs) throw new Error('Original complete delete output bindings required');
+    const monitor = await monitorOriginalInputs(completedOutputs, {
+      allowEmpty: Object.keys(completedOutputs).filter(
+        (name) => completedOutputs?.[name].expectedIdentity?.size === '0',
+      ),
+    });
+    try {
+      await inputs(false);
+      await monitor.assertOriginal();
+    } finally {
+      monitor.close();
+    }
+  };
   const persist = async (phase, extra = {}) => {
     await store.verify();
     await store.write(`gcp-delete-capture-${randomUUID22()}.json`, {
@@ -24974,7 +24990,7 @@ async function openInstalledDeleteCapture(input) {
       guestAcceptanceComplete: false,
     });
   };
-  return {
+  const port = {
     async prepare(original) {
       if (original !== context || started || finalStarted || closed || failure)
         throw new Error('Original delete capture preparation context or lifecycle differs');
@@ -25085,13 +25101,7 @@ async function openInstalledDeleteCapture(input) {
       closure ??= (async () => {
         if (started && !finalComplete) throw new Error('Original delete capture final closure unresolved');
         await inputs(false);
-        if (actor) {
-          if (!completedOutputs) throw new Error('Original complete delete output bindings required');
-          for (const binding of Object.values(completedOutputs)) {
-            const current = await owned(binding.path);
-            assertSameOriginalInput(binding, current.binding);
-          }
-        }
+        await assertCompletedOutputs();
         await persist(started ? 'closed' : 'preflight-closed', { earlierFailureRetained: !!failure });
         closed = true;
         if (failure) throw new Error('Original delete capture failure remains retained');
@@ -25099,6 +25109,14 @@ async function openInstalledDeleteCapture(input) {
       return closure;
     },
   };
+  sourceReaders2.set(port, async () => {
+    await closure;
+    if (!closed) throw new Error('Original delete source closure required');
+    await inputs(false);
+    await assertCompletedOutputs();
+    return Object.freeze([Object.freeze({ name: 'delete-output', attemptCount: 0, witnesses: Object.freeze([]) })]);
+  });
+  return Object.freeze(port);
 }
 
 // plugins/terraform/src/installed-observer-insert-witnesses.ts
