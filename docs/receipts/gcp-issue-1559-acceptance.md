@@ -2562,3 +2562,13 @@ stale plans, replacement and malformed action evidence. Recovery invokes no
 Terraform action and creates no failed flags or substitute deployment journals.
 Live cleanup worker composition and every original full acceptance gate remain
 open. The retained campaign is still unsubmitted.
+
+## Successful cleanup runtime composition
+
+The [successful cleanup runtime receipt](gcp-applied-cleanup-runtime-20261125.md)
+records normal Platform/shared-runner composition and failing-first repairs for
+storage changes during context lookup and completed checkpoint rewriting. Source
+qualification includes credential refresh through actual shared-runner commands,
+create/lifecycle refusal, interruption and two completed resumes. Concrete live
+worker composition and every original acceptance/delivery gate remain open. No
+apply was submitted.

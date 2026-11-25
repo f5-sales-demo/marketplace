@@ -208,6 +208,7 @@ const factory: ExtensionFactory = async (pi) => {
 
 export default factory;
 
+export { openGcpAppliedCleanupRuntime } from './ce/applied-cleanup-runtime';
 export {
   persistGcpAppliedSourceCleanupOrigin,
   persistGcpAppliedSourceCleanupReview,
