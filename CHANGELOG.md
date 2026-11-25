@@ -16,8 +16,10 @@ and this project adheres to
   rechecks independent closure. Create replay and foreign scopes remain refused
   (#1559).
 
-- **`platform`** v6.3.33 rebuilds the shared CE runtime with Bun 1.4.4 and
-  retains independent Linux process group closure evidence without signals.
+- **`platform`** v6.3.34 refreshes the selected API credential for each GCP
+  observation and private Terraform environment read. The original tenant stays
+  bound before requests and after capture. Credential rotation is supported;
+  changed or malformed contexts are refused. Live acceptance stays held (#1559).
 
 - **`terraform`** v2.4.125 separates host-trust validation stages and
   explicitly types and manages fixture resources so full Python CI can check

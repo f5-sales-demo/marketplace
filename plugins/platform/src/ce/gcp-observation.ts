@@ -96,15 +96,51 @@ export async function createGcpPlatformObservations(
     return intent;
   };
   const original = await loadIntent();
+  // Refresh credentials within the original selected destination. A changed
+  // endpoint cannot lend authority to an observer opened for another tenant.
+  const selectedContext = async () => {
+    const current = currentContext ? await currentContext() : { url: apiUrl, credential };
+    let selected: URL;
+    try {
+      selected = new URL(current.url);
+    } catch {
+      throw new Error('Original GCP selected context is malformed');
+    }
+    if (
+      selected.protocol !== 'https:' ||
+      selected.origin !== base.origin ||
+      selected.username ||
+      selected.password ||
+      selected.search ||
+      selected.hash ||
+      typeof current.credential !== 'string' ||
+      !current.credential ||
+      /[\r\n]/.test(current.credential)
+    )
+      throw new Error('Original GCP selected context changed or has no supported credential');
+    return { url: base.origin, credential: current.credential };
+  };
+  const teardownRead = async (path: string, signal?: AbortSignal) => {
+    signal?.throwIfAborted();
+    const current = await selectedContext();
+    const value = await createGcpLifecycleHttpPort(current.url, current.credential, fetcher).read(path, signal);
+    await selectedContext();
+    signal?.throwIfAborted();
+    return value;
+  };
   const request = async (path: string, signal?: AbortSignal, responseStatus?: (status: number) => void) => {
     const combined = signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000);
+    combined.throwIfAborted();
+    const selected = await selectedContext();
     combined.throwIfAborted();
     const response = await fetcher(new URL(path, base), {
       method: 'GET',
       redirect: 'error',
       signal: combined,
-      headers: { Accept: 'application/json', Authorization: `APIToken ${credential}` },
+      headers: { Accept: 'application/json', Authorization: `APIToken ${selected.credential}` },
     });
+    await selectedContext();
+    combined.throwIfAborted();
     responseStatus?.(response.status);
     if (!response.ok)
       throw new CeApiError(
@@ -142,6 +178,8 @@ export async function createGcpPlatformObservations(
       throw new CeApiError('malformed');
     }
     if (!result || typeof result !== 'object' || Array.isArray(result)) throw new CeApiError('malformed');
+    await selectedContext();
+    combined.throwIfAborted();
     return result;
   };
   const configPath = (site: string) => mappings.configuration.replace('{site}', site);
@@ -357,7 +395,10 @@ export async function createGcpPlatformObservations(
       const current = await loadIntent();
       if (store.owner.engine !== 'terraform' || fingerprint(current) !== fingerprint(original))
         throw new Error('Terraform execution context/ownership differs');
-      return { XCSH_API_URL: base.origin, XCSH_API_TOKEN: credential };
+      const selected = await selectedContext();
+      if (fingerprint(await loadIntent()) !== fingerprint(original))
+        throw new Error('Terraform execution context/ownership changed during credential refresh');
+      return { XCSH_API_URL: selected.url, XCSH_API_TOKEN: selected.credential };
     },
     configuration: (site, signal) => read(site, 'configuration', signal),
     registrations: (site, signal) => read(site, 'registrations', signal),
@@ -385,8 +426,7 @@ export async function createGcpPlatformObservations(
       )
         throw new Error('GCP teardown observation site/node binding differs');
       // Expose only bound GET observations; token bootstrap content never leaves this closure.
-      const port = createGcpLifecycleHttpPort(apiUrl, credential, fetcher);
-      const configuration = await port.read(configPath(site), signal);
+      const configuration = await teardownRead(configPath(site), signal);
       const owned = (value: Record<string, unknown>, name: string) => {
         const metadata = value.metadata as
           | { name?: string; namespace?: string; labels?: Record<string, string> }
@@ -404,7 +444,7 @@ export async function createGcpPlatformObservations(
         return uid;
       };
       const siteUid = configuration ? owned(configuration, site) : undefined;
-      const token = await port.read(`/api/register/namespaces/system/tokens/${tokenName}`, signal);
+      const token = await teardownRead(`/api/register/namespaces/system/tokens/${tokenName}`, signal);
       let tokenIdentityHash: string | undefined;
       let tokenIdentitySha256: string | undefined;
       if (token) {

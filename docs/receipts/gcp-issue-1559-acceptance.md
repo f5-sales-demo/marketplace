@@ -2525,3 +2525,11 @@ GCloud 1.7.79 preserves actual source authorization and durable original receipt
 without substitute deployment journals. Real CLI/Platform/reader/worker bindings
 and live cleanup remain required before the unsubmitted campaign can run. Every
 original live and delivery acceptance gate remains open.
+
+## Selected Platform credential refresh
+
+The [shared context receipt](gcp-platform-selected-context-20261125.md) records
+11 failing-first regression cases and 822 passing affected cases. Platform 6.3.34
+refreshes credentials within the original tenant for cleanup, ordinary GETs and
+private Terraform environment reads. Concrete cleanup composition and fresh
+installed/live evidence remain open; this repair does not complete #1559.

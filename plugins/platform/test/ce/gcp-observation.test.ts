@@ -424,3 +424,131 @@ it('HA collection binds original site and all three node identities before and a
   await expect(observer.haHealth('site-a')).rejects.toThrow('VM identity');
   expect(paths.length).toBe(before);
 });
+
+it('refreshes selected credentials before each cleanup read and Terraform environment without changing origin', async () => {
+  const f = await fixture();
+  let credential = 'initial-fixture';
+  const headers: string[] = [];
+  const observer = await createGcpPlatformObservations(
+    f.store,
+    'lab',
+    'https://tenant.example.test',
+    credential,
+    f.contract,
+    (async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      headers.push(new Headers(init?.headers).get('Authorization') ?? '');
+      credential = 'rotated-fixture';
+      return Response.json({}, { status: 404 });
+    }) as unknown as typeof fetch,
+    async () => ({ url: 'https://tenant.example.test', credential }),
+  );
+  credential = 'refreshed-fixture';
+  expect(await observer.terraformEnvironment?.()).toEqual({
+    XCSH_API_URL: 'https://tenant.example.test',
+    XCSH_API_TOKEN: 'refreshed-fixture',
+  });
+  const result = await observer.teardown?.('site-a', 'node-a-token');
+  expect(result?.siteAbsent).toBe(true);
+  expect(result?.tokenAbsent).toBe(true);
+  expect(headers).toEqual(['APIToken refreshed-fixture', 'APIToken rotated-fixture']);
+  expect(JSON.stringify(result)).not.toContain('fixture');
+});
+
+it('ordinary health observations use the refreshed selected credential for every GET', async () => {
+  const f = await fixture();
+  let credential = 'initial-fixture';
+  const headers: string[] = [];
+  const observer = await createGcpPlatformObservations(
+    f.store,
+    'lab',
+    'https://tenant.example.test',
+    credential,
+    f.contract,
+    (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      headers.push(new Headers(init?.headers).get('Authorization') ?? '');
+      credential = 'rotated-fixture';
+      return Response.json(
+        new URL(String(url)).pathname.includes('securemesh_site_v2s')
+          ? {
+              metadata: {
+                name: 'site-a',
+                namespace: 'system',
+                labels: {
+                  'xcsh-deployment': 'demo-ce',
+                  'xcsh-engine': 'terraform',
+                },
+              },
+            }
+          : { state: 'PROVISIONED' },
+      );
+    }) as unknown as typeof fetch,
+    async () => ({ url: 'https://tenant.example.test', credential }),
+  );
+  credential = 'refreshed-fixture';
+  await observer.health('site-a');
+  expect(headers).toEqual(['APIToken refreshed-fixture', 'APIToken rotated-fixture']);
+});
+
+for (const mode of ['origin', 'empty', 'userinfo', 'query', 'fragment', 'http', 'malformed'] as const)
+  it(`refuses changed or malformed selected cleanup context before exposing credentials or reading HTTP: ${mode}`, async () => {
+    const f = await fixture();
+    let calls = 0;
+    let current = { url: 'https://tenant.example.test', credential: 'initial-fixture' };
+    const observer = await createGcpPlatformObservations(
+      f.store,
+      'lab',
+      current.url,
+      current.credential,
+      f.contract,
+      (async () => {
+        calls++;
+        return Response.json({}, { status: 404 });
+      }) as unknown as typeof fetch,
+      async () => current,
+    );
+    if (mode === 'origin') current = { ...current, url: 'https://other.example.test' };
+    if (mode === 'empty') current = { ...current, credential: '' };
+    if (mode === 'userinfo') current = { ...current, url: 'https://user@tenant.example.test' };
+    if (mode === 'query') current = { ...current, url: 'https://tenant.example.test?scope=other' };
+    if (mode === 'fragment') current = { ...current, url: 'https://tenant.example.test#other' };
+    if (mode === 'http') current = { ...current, url: 'http://tenant.example.test' };
+    if (mode === 'malformed') current = { ...current, url: 'invalid-url' };
+    await expect(observer.terraformEnvironment?.()).rejects.toThrow('selected context');
+    await expect(observer.teardown?.('site-a', 'node-a-token')).rejects.toThrow('selected context');
+    await expect(observer.health('site-a')).rejects.toThrow('selected context');
+    expect(calls).toBe(0);
+  });
+
+for (const channel of ['teardown', 'health'] as const)
+  it(`refuses selected origin changes during ${channel} capture before returning evidence`, async () => {
+    const f = await fixture();
+    let calls = 0;
+    let url = 'https://tenant.example.test';
+    const observer = await createGcpPlatformObservations(
+      f.store,
+      'lab',
+      url,
+      'fixture',
+      f.contract,
+      (async () => {
+        calls++;
+        url = 'https://other.example.test';
+        return Response.json({
+          metadata: {
+            name: 'site-a',
+            namespace: 'system',
+            labels: {
+              'xcsh-deployment': 'demo-ce',
+              'xcsh-engine': 'terraform',
+            },
+          },
+          system_metadata: { uid: 'site-uid' },
+        });
+      }) as unknown as typeof fetch,
+      async () => ({ url, credential: 'fixture' }),
+    );
+    await expect(
+      channel === 'health' ? observer.health('site-a') : observer.teardown?.('site-a', 'node-a-token'),
+    ).rejects.toThrow('selected context');
+    expect(calls).toBe(1);
+  });
