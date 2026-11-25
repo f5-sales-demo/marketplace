@@ -1429,8 +1429,23 @@ function linuxMonotonicMs() {
 var sample;
 var init_linux_clock = () => {};
 
-// plugins/terraform/src/original-input-monitor.ts
+// plugins/terraform/src/original-input-digest.ts
 import { createHash as createHash3 } from 'node:crypto';
+
+async function readOriginalInputDigest(handle, assertOriginal) {
+  assertOriginal();
+  const hash = createHash3('sha256');
+  for await (const chunk of handle.createReadStream({ autoClose: false, start: 0, highWaterMark: 16 * 1024 * 1024 })) {
+    assertOriginal();
+    hash.update(chunk);
+  }
+  assertOriginal();
+  return hash.digest('hex');
+}
+var init_original_input_digest = () => {};
+
+// plugins/terraform/src/original-input-monitor.ts
+import { createHash as createHash4 } from 'node:crypto';
 import { constants, watch } from 'node:fs';
 import { lstat as lstat3, open, realpath as realpath2 } from 'node:fs/promises';
 import { basename as basename2, dirname as dirname2, isAbsolute as isAbsolute2, resolve } from 'node:path';
@@ -1529,8 +1544,12 @@ async function monitorOriginalInputs(input, options = {}) {
             const opened = await handle.stat({ bigint: true });
             if (keys2.some((key) => opened[key].toString() !== file[key]))
               throw new OriginalInputMonitorError('open-identity-changed');
-            if (verifyBytes && hash(await handle.readFile()) !== binding.sha256)
-              throw new OriginalInputMonitorError('bytes-changed');
+            if (verifyBytes) {
+              const digest = await readOriginalInputDigest(handle, () => {
+                if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
+              });
+              if (digest !== binding.sha256) throw new OriginalInputMonitorError('bytes-changed');
+            }
           } finally {
             await handle.close();
           }
@@ -1619,10 +1638,11 @@ async function monitorOriginalInputs(input, options = {}) {
 var OriginalInputMonitorError,
   keys2,
   parentKeys,
-  hash = (raw) => createHash3('sha256').update(raw).digest('hex'),
+  hash = (raw) => createHash4('sha256').update(raw).digest('hex'),
   maximum,
   identity = (stat) => Object.fromEntries(keys2.map((key) => [key, stat[key].toString()]));
 var init_original_input_monitor = __esm(() => {
+  init_original_input_digest();
   OriginalInputMonitorError = class OriginalInputMonitorError extends Error {
     reason;
     constructor(reason) {
@@ -1637,7 +1657,7 @@ var init_original_input_monitor = __esm(() => {
 });
 
 // plugins/terraform/src/original-output-stream.ts
-import { createHash as createHash4 } from 'node:crypto';
+import { createHash as createHash5 } from 'node:crypto';
 import { constants as constants2 } from 'node:fs';
 import { lstat as lstat4, open as open2, readFile as readFile2, realpath as realpath3, stat } from 'node:fs/promises';
 import { dirname as dirname3, isAbsolute as isAbsolute3, join as join3, resolve as resolve2 } from 'node:path';
@@ -1847,7 +1867,7 @@ async function bindOriginalExecutionOutput(input) {
   };
   const verifyPrefix = async (stream) => {
     phase = 'retained-prefix';
-    const prefix = createHash4('sha256');
+    const prefix = createHash5('sha256');
     for (let offset = 0; offset < stream.offset; offset += maximumChunk)
       prefix.update(await readAt(stream, offset, Math.min(maximumChunk, stream.offset - offset)));
     if (prefix.digest('hex') !== stream.hash.copy().digest('hex')) {
@@ -1914,7 +1934,7 @@ async function bindOriginalExecutionOutput(input) {
         parent,
         descriptor: channel === 'stdout' ? 1 : 2,
         offset: 0,
-        hash: createHash4('sha256'),
+        hash: createHash5('sha256'),
       };
       streams[channel] = stream;
       await guard(stream);
@@ -2027,7 +2047,7 @@ async function bindOriginalExecutionOutput(input) {
           const bound = expected?.[channel];
           if (bound) {
             if (bound.bytes > stream.offset) throw new OutputRefusal('Original prefix is ahead of its consumed output');
-            const hash = createHash4('sha256');
+            const hash = createHash5('sha256');
             for (let offset = 0; offset < bound.bytes; offset += maximumChunk)
               hash.update(await readAt(stream, offset, Math.min(maximumChunk, bound.bytes - offset)));
             if (hash.digest('hex') !== bound.sha256) throw new OutputRefusal('Original issued output prefix changed');
@@ -2062,7 +2082,7 @@ var stableKeys,
   parentKeys2,
   maximumChunk = 65536,
   maximumRetention,
-  digest = (value) => createHash4('sha256').update(value).digest('hex'),
+  digest = (value) => createHash5('sha256').update(value).digest('hex'),
   prefixOrigins,
   prefixReaders,
   closedOutputInputs,
@@ -2379,7 +2399,7 @@ function projectReviewedDataSources(
 }
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash5, randomUUID as randomUUID2 } from 'node:crypto';
+import { createHash as createHash6, randomUUID as randomUUID2 } from 'node:crypto';
 import {
   chmod,
   lstat as lstat5,
@@ -4239,7 +4259,7 @@ var originalPlanSources,
 }
 disable_checkpoint = true
 `,
-  digest2 = (value) => createHash5('sha256').update(value).digest('hex'),
+  digest2 = (value) => createHash6('sha256').update(value).digest('hex'),
   safeId,
   executeTerraform;
 var init_runner = __esm(() => {
@@ -4311,7 +4331,7 @@ var init_installed_final_capture = __esm(() => {
 });
 
 // plugins/terraform/src/google-adc-session.ts
-import { createHash as createHash6 } from 'node:crypto';
+import { createHash as createHash7 } from 'node:crypto';
 import { constants as constants3, watch as watch2 } from 'node:fs';
 import { lstat as lstat6, open as open3, realpath as realpath5 } from 'node:fs/promises';
 import { dirname as dirname5, isAbsolute as isAbsolute6, resolve as resolve5 } from 'node:path';
@@ -4483,7 +4503,7 @@ async function openGoogleAdcSession(input, expectedInput) {
   return Object.freeze({ environment, verify, close });
 }
 var googleCredentialAlternatives,
-  hash2 = (value) => createHash6('sha256').update(value).digest('hex'),
+  hash2 = (value) => createHash7('sha256').update(value).digest('hex'),
   validHash = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   sameOwner = (a, b) =>
     a?.engine === 'terraform' &&
@@ -6293,7 +6313,7 @@ function createGcpReleaseFetch(fetcher = fetch, env = process.env) {
 var fetchGcpRelease = async (input, init) => createGcpReleaseFetch()(input, init);
 
 // plugins/platform/src/ce/deployment-store.ts
-import { createHash as createHash7, randomUUID as randomUUID4 } from 'node:crypto';
+import { createHash as createHash8, randomUUID as randomUUID4 } from 'node:crypto';
 import { constants as constants4 } from 'node:fs';
 import {
   chmod as chmod2,
@@ -6312,7 +6332,7 @@ async function immutableMetadata(path) {
   return lstat7(path, { bigint: true });
 }
 function key(owner) {
-  return createHash7('sha256')
+  return createHash8('sha256')
     .update(JSON.stringify([owner.provider, owner.account, owner.region, owner.deploymentId]))
     .digest('hex');
 }
@@ -6534,7 +6554,7 @@ class CeDeploymentStore {
   }
 }
 var immutableIdentityKeys,
-  immutableHash = (bytes) => createHash7('sha256').update(bytes).digest('hex'),
+  immutableHash = (bytes) => createHash8('sha256').update(bytes).digest('hex'),
   immutableIdentity = (metadata) =>
     Object.fromEntries(immutableIdentityKeys.map((key) => [key, String(metadata[key])]));
 var init_deployment_store = __esm(() => {
@@ -6542,7 +6562,7 @@ var init_deployment_store = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/capture-cleanup-state.ts
-import { createHash as createHash8 } from 'node:crypto';
+import { createHash as createHash9 } from 'node:crypto';
 
 function readGcpCaptureCleanupStateCandidate(input) {
   const intent = structuredClone(input.intent);
@@ -6578,7 +6598,7 @@ function readGcpCaptureCleanupStateCandidate(input) {
   )
     throw fail();
   const bytes = Buffer.from(input.bytes);
-  const stateSha256 = createHash8('sha256').update(bytes).digest('hex');
+  const stateSha256 = createHash9('sha256').update(bytes).digest('hex');
   if (stateSha256 !== input.expectedStateSha256 || !/^[a-f0-9]{64}$/.test(input.expectedStateSha256)) throw fail();
   const state = decodeEvidenceObject(bytes);
   if (
@@ -7447,7 +7467,7 @@ var init_byol_vm_contract = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/corporate-funding.ts
-import { createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash10 } from 'node:crypto';
 import { lstat as lstat8, readFile as readFile5 } from 'node:fs/promises';
 import { homedir as homedir2 } from 'node:os';
 import { join as join8 } from 'node:path';
@@ -7470,7 +7490,7 @@ async function readGcpCorporateFundingPolicy(
   const raw = await readFile5(filename, 'utf8');
   const policy = JSON.parse(raw);
   validatePolicy(policy, project);
-  return { policy, policySha256: `sha256:${createHash9('sha256').update(raw).digest('hex')}` };
+  return { policy, policySha256: `sha256:${createHash10('sha256').update(raw).digest('hex')}` };
 }
 function validatePolicy(policy, project) {
   if (
@@ -7568,7 +7588,7 @@ var init_corporate_funding = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/byol-terms.ts
-import { createHash as createHash10 } from 'node:crypto';
+import { createHash as createHash11 } from 'node:crypto';
 
 async function normalizedGoogleMarketplaceTerms(bytes) {
   const cleaned = await new HTMLRewriter()
@@ -7656,7 +7676,7 @@ async function binding(intent, source, signal, profile = byol_vm_contract_defaul
     const bytes = await source.document(expected.url, signal);
     const content =
       expected.digestKind === 'normalized-current-legal-text' ? await normalizedGoogleMarketplaceTerms(bytes) : bytes;
-    const sha256 = `sha256:${createHash10('sha256').update(content).digest('hex')}`;
+    const sha256 = `sha256:${createHash11('sha256').update(content).digest('hex')}`;
     if (sha256 !== expected.sha256) throw new Error('BYOL legal document changed; requalification required');
     documents.push({ role: expected.role, url: expected.url, version: expected.version, sha256 });
   }
@@ -8985,7 +9005,7 @@ var init_planner = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/policy.ts
-import { createHash as createHash11 } from 'node:crypto';
+import { createHash as createHash12 } from 'node:crypto';
 
 function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
   if (!/^contract_id:\s*f5xc-ce-automation-policy\s*$/m.test(text) || !/^contract_version:\s*v2\s*$/m.test(text))
@@ -9004,7 +9024,7 @@ function parseGcpCePolicy(text, observedAt = new Date().toISOString()) {
     identity: 'f5xc-ce-automation-policy/v2',
     url: GCP_CE_POLICY_URL,
     observedAt,
-    normalizedSha256: `sha256:${createHash11('sha256').update(normalized).digest('hex')}`,
+    normalizedSha256: `sha256:${createHash12('sha256').update(normalized).digest('hex')}`,
   };
 }
 async function readGcpCePolicy(fetcher = fetch) {
@@ -11692,7 +11712,7 @@ var init_terraform_ha_profile = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/operational-release.ts
-import { createHash as createHash12 } from 'node:crypto';
+import { createHash as createHash13 } from 'node:crypto';
 
 async function resolveGcpOperationalRelease(
   fetcher = fetchGcpRelease,
@@ -11766,7 +11786,7 @@ async function resolveGcpOperationalRelease(
     if (assets.length !== 1 || assets[0].digest !== digest || assets[0].browser_download_url !== url)
       throw new Error('Operational release asset identity differs');
     const bytes = await read(url);
-    if (`sha256:${createHash12('sha256').update(bytes).digest('hex')}` !== digest)
+    if (`sha256:${createHash13('sha256').update(bytes).digest('hex')}` !== digest)
       throw new Error('Operational release asset bytes differ');
     return decode(bytes);
   };
@@ -11831,7 +11851,7 @@ var init_operational_release = __esm(() => {
 });
 
 // plugins/gcloud/src/ce/contract.ts
-import { createHash as createHash13 } from 'node:crypto';
+import { createHash as createHash14 } from 'node:crypto';
 
 function qualifiedGcpHaObservationMappings(assets) {
   if (!Array.isArray(assets)) return;
@@ -11898,7 +11918,7 @@ async function resolveGcpContract(fetcher = fetchGcpRelease, signal) {
   )
     throw new Error('Contract asset identity mismatch');
   const bytes = await read(expectedUrl, 4 * 1024 * 1024);
-  if (`sha256:${createHash13('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
+  if (`sha256:${createHash14('sha256').update(bytes).digest('hex')}` !== GCP_CE_API_RELEASE.contractDigest)
     throw new Error('Contract asset digest mismatch');
   const contract = decode(bytes);
   if (
@@ -13574,7 +13594,7 @@ function assertPinnedExecutableMetadata(original, invokerUid) {
 }
 
 // plugins/terraform/src/signal-free-executor.ts
-import { createHash as createHash14, randomUUID as randomUUID7 } from 'node:crypto';
+import { createHash as createHash15, randomUUID as randomUUID7 } from 'node:crypto';
 import { constants as constants6, watch as watch3 } from 'node:fs';
 import {
   lstat as lstat12,
@@ -14335,7 +14355,7 @@ function originalExecutor(input, reserve) {
   return execute;
 }
 var unspawnedExecutors,
-  hash4 = (value) => createHash14('sha256').update(value).digest('hex'),
+  hash4 = (value) => createHash15('sha256').update(value).digest('hex'),
   now,
   pause = () => Bun.sleep(25),
   signalFreeBootstrapSource = `import fcntl,hashlib,json,os,stat,sys,time
@@ -14613,7 +14633,7 @@ var init_legacy_installed_executor = __esm(() => {
 var init_provider_package = () => {};
 
 // plugins/terraform/src/installed-runtime.ts
-import { createHash as createHash15 } from 'node:crypto';
+import { createHash as createHash16 } from 'node:crypto';
 import { constants as constants7 } from 'node:fs';
 import { lstat as lstat13, open as open7, realpath as realpath10 } from 'node:fs/promises';
 import { dirname as dirname9, isAbsolute as isAbsolute11, join as join19, resolve as resolve9 } from 'node:path';
@@ -14659,7 +14679,7 @@ async function owned(path, maximum = 256 * 1024 * 1024) {
     await handle.close();
   }
 }
-var hash5 = (raw) => createHash15('sha256').update(raw).digest('hex'),
+var hash5 = (raw) => createHash16('sha256').update(raw).digest('hex'),
   _installer,
   _retainedInspectionMonitors;
 var init_installed_runtime = __esm(() => {
@@ -15471,21 +15491,21 @@ var init_gcloud_help2 = __esm(() => {
 });
 
 // plugins/platform/src/ce/gcp-http-capture.ts
-import { createHash as createHash18 } from 'node:crypto';
+import { createHash as createHash19 } from 'node:crypto';
 
 async function assertOriginalGcpPlatformHttpBody(value) {
   const issued = bodies.get(value);
   if (!issued || hash6(value.bytes) !== issued.sha256) throw new Error('Original GCP Platform HTTP body required');
   await issued.assertOriginal();
 }
-var hash6 = (bytes) => createHash18('sha256').update(bytes).digest('hex'),
+var hash6 = (bytes) => createHash19('sha256').update(bytes).digest('hex'),
   bodies;
 var init_gcp_http_capture = __esm(() => {
   bodies = new WeakMap();
 });
 
 // plugins/platform/src/ce/gcp-bootstrap-evidence.ts
-import { createHash as createHash19 } from 'node:crypto';
+import { createHash as createHash20 } from 'node:crypto';
 
 function object6(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -15623,7 +15643,7 @@ async function readOriginalGcpBootstrapJwt(value) {
   await assertOriginalGcpPlatformHttpBody(source.token);
   return source.jwt;
 }
-var hash7 = (value) => createHash19('sha256').update(value).digest('hex'),
+var hash7 = (value) => createHash20('sha256').update(value).digest('hex'),
   name2,
   issued7,
   _originalGcpBootstrapSource;
@@ -18306,7 +18326,7 @@ init_discovery();
 init_terraform_context();
 init_validation();
 
-import { createHash as createHash16 } from 'node:crypto';
+import { createHash as createHash17 } from 'node:crypto';
 import { dirname as dirname10, join as join21 } from 'node:path';
 
 async function openGcpAppliedCleanupRuntime(input, signal) {
@@ -18399,7 +18419,7 @@ async function openGcpAppliedCleanupRuntime(input, signal) {
     const manifest = decodeEvidenceObject((await owned(join21(directory, 'deployment.json'))).bytes);
     const configuration = (await owned(join21(directory, 'main.tf.json'))).bytes,
       providerLock = (await owned(join21(directory, '.terraform.lock.hcl'))).bytes;
-    const hash = (bytes) => createHash16('sha256').update(bytes).digest('hex');
+    const hash = (bytes) => createHash17('sha256').update(bytes).digest('hex');
     if (
       manifest.stage !== undefined ||
       manifest.configurationSha256 !== hash(configuration) ||
@@ -18787,7 +18807,7 @@ init_discovery();
 init_terraform_context();
 init_validation();
 
-import { createHash as createHash17 } from 'node:crypto';
+import { createHash as createHash18 } from 'node:crypto';
 import { dirname as dirname12, join as join23 } from 'node:path';
 
 async function openGcpCapturedCleanupRuntime(input, signal) {
@@ -18872,7 +18892,7 @@ async function openGcpCapturedCleanupRuntime(input, signal) {
     const manifest = decodeEvidenceObject((await owned(join23(directory, 'deployment.json'))).bytes);
     const configuration = (await owned(join23(directory, 'main.tf.json'))).bytes,
       providerLock = (await owned(join23(directory, '.terraform.lock.hcl'))).bytes;
-    const hash = (bytes) => createHash17('sha256').update(bytes).digest('hex');
+    const hash = (bytes) => createHash18('sha256').update(bytes).digest('hex');
     if (
       manifest.stage !== undefined ||
       manifest.configurationSha256 !== hash(configuration) ||

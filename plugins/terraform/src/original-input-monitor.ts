@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { constants, type FSWatcher, watch } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import { readOriginalInputDigest } from './original-input-digest';
 
 /** Sanitized first-refusal attribution; never retains paths, bytes or raw filesystem errors. */
 export type OriginalInputMonitorReason =
@@ -144,8 +145,12 @@ export async function monitorOriginalInputs(
             const opened = await handle.stat({ bigint: true });
             if (keys.some((key) => opened[key].toString() !== file[key]))
               throw new OriginalInputMonitorError('open-identity-changed');
-            if (verifyBytes && hash(await handle.readFile()) !== binding.sha256)
-              throw new OriginalInputMonitorError('bytes-changed');
+            if (verifyBytes) {
+              const digest = await readOriginalInputDigest(handle, () => {
+                if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
+              });
+              if (digest !== binding.sha256) throw new OriginalInputMonitorError('bytes-changed');
+            }
           } finally {
             await handle.close();
           }

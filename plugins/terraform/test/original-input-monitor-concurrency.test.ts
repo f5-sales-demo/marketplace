@@ -26,11 +26,21 @@ function countReads(beforeRead?: () => Promise<void>) {
     const handle = await originalOpen(...args);
     return new Proxy(handle, {
       get(target, key) {
-        if (key === 'readFile')
-          return async (...options: Parameters<typeof handle.readFile>) => {
-            reads++;
-            await beforeRead?.();
-            return handle.readFile(...options);
+        if (key === 'createReadStream')
+          return (...options: Parameters<typeof handle.createReadStream>) => {
+            const stream = handle.createReadStream(...options);
+            return new Proxy(stream, {
+              get(source, property) {
+                if (property === Symbol.asyncIterator)
+                  return async function* () {
+                    reads++;
+                    await beforeRead?.();
+                    for await (const chunk of source) yield chunk;
+                  };
+                const value = Reflect.get(source, property, source);
+                return typeof value === 'function' ? value.bind(source) : value;
+              },
+            });
           };
         const value = Reflect.get(target, key, target);
         return typeof value === 'function' ? value.bind(target) : value;

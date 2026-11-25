@@ -1862,9 +1862,13 @@ var init_google_adc_authentication = __esm(() => {
 // plugins/terraform/src/linux-clock.ts
 var init_linux_clock = () => {};
 
+// plugins/terraform/src/original-input-digest.ts
+var init_original_input_digest = () => {};
+
 // plugins/terraform/src/original-input-monitor.ts
 var _maximum;
 var init_original_input_monitor = __esm(() => {
+  init_original_input_digest();
   _maximum = 256n * 1024n * 1024n;
 });
 

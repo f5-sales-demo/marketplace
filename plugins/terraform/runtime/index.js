@@ -927,8 +927,23 @@ function linuxMonotonicMs() {
 var sample;
 var init_linux_clock = () => {};
 
-// plugins/terraform/src/original-input-monitor.ts
+// plugins/terraform/src/original-input-digest.ts
 import { createHash as createHash3 } from 'node:crypto';
+
+async function readOriginalInputDigest(handle, assertOriginal) {
+  assertOriginal();
+  const hash = createHash3('sha256');
+  for await (const chunk of handle.createReadStream({ autoClose: false, start: 0, highWaterMark: 16 * 1024 * 1024 })) {
+    assertOriginal();
+    hash.update(chunk);
+  }
+  assertOriginal();
+  return hash.digest('hex');
+}
+var init_original_input_digest = () => {};
+
+// plugins/terraform/src/original-input-monitor.ts
+import { createHash as createHash4 } from 'node:crypto';
 import { constants, watch } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
@@ -1027,8 +1042,12 @@ async function monitorOriginalInputs(input, options = {}) {
             const opened = await handle.stat({ bigint: true });
             if (keys2.some((key) => opened[key].toString() !== file[key]))
               throw new OriginalInputMonitorError('open-identity-changed');
-            if (verifyBytes && hash2(await handle.readFile()) !== binding.sha256)
-              throw new OriginalInputMonitorError('bytes-changed');
+            if (verifyBytes) {
+              const digest = await readOriginalInputDigest(handle, () => {
+                if (refused || closed) throw latch(closed ? 'monitor-closed' : 'watcher-event');
+              });
+              if (digest !== binding.sha256) throw new OriginalInputMonitorError('bytes-changed');
+            }
           } finally {
             await handle.close();
           }
@@ -1117,10 +1136,11 @@ async function monitorOriginalInputs(input, options = {}) {
 var OriginalInputMonitorError,
   keys2,
   parentKeys,
-  hash2 = (raw) => createHash3('sha256').update(raw).digest('hex'),
+  hash2 = (raw) => createHash4('sha256').update(raw).digest('hex'),
   maximum2,
   identity = (stat) => Object.fromEntries(keys2.map((key) => [key, stat[key].toString()]));
 var init_original_input_monitor = __esm(() => {
+  init_original_input_digest();
   OriginalInputMonitorError = class OriginalInputMonitorError extends Error {
     reason;
     constructor(reason) {
@@ -1135,7 +1155,7 @@ var init_original_input_monitor = __esm(() => {
 });
 
 // plugins/terraform/src/original-output-stream.ts
-import { createHash as createHash4 } from 'node:crypto';
+import { createHash as createHash5 } from 'node:crypto';
 import { constants as constants2 } from 'node:fs';
 import { lstat as lstat2, open as open2, readFile, realpath as realpath2, stat } from 'node:fs/promises';
 import { dirname as dirname2, isAbsolute as isAbsolute2, join, resolve as resolve2 } from 'node:path';
@@ -1371,7 +1391,7 @@ async function bindOriginalExecutionOutput(input) {
   };
   const verifyPrefix = async (stream) => {
     phase = 'retained-prefix';
-    const prefix = createHash4('sha256');
+    const prefix = createHash5('sha256');
     for (let offset = 0; offset < stream.offset; offset += maximumChunk)
       prefix.update(await readAt(stream, offset, Math.min(maximumChunk, stream.offset - offset)));
     if (prefix.digest('hex') !== stream.hash.copy().digest('hex')) {
@@ -1438,7 +1458,7 @@ async function bindOriginalExecutionOutput(input) {
         parent,
         descriptor: channel === 'stdout' ? 1 : 2,
         offset: 0,
-        hash: createHash4('sha256'),
+        hash: createHash5('sha256'),
       };
       streams[channel] = stream;
       await guard(stream);
@@ -1551,7 +1571,7 @@ async function bindOriginalExecutionOutput(input) {
           const bound = expected?.[channel];
           if (bound) {
             if (bound.bytes > stream.offset) throw new OutputRefusal('Original prefix is ahead of its consumed output');
-            const hash = createHash4('sha256');
+            const hash = createHash5('sha256');
             for (let offset = 0; offset < bound.bytes; offset += maximumChunk)
               hash.update(await readAt(stream, offset, Math.min(maximumChunk, bound.bytes - offset)));
             if (hash.digest('hex') !== bound.sha256) throw new OutputRefusal('Original issued output prefix changed');
@@ -1586,7 +1606,7 @@ var stableKeys,
   parentKeys2,
   maximumChunk = 65536,
   maximumRetention,
-  digest = (value) => createHash4('sha256').update(value).digest('hex'),
+  digest = (value) => createHash5('sha256').update(value).digest('hex'),
   prefixOrigins,
   prefixReaders,
   closedOutputInputs,
@@ -2095,7 +2115,7 @@ async function assertAbsentProcessGroup(group, listNames, readGroup) {
 }
 
 // plugins/platform/src/ce/linux-process-group.ts
-import { createHash as createHash5 } from 'node:crypto';
+import { createHash as createHash6 } from 'node:crypto';
 
 function splitProcessRecord(text) {
   const end = text.lastIndexOf(') ');
@@ -2138,7 +2158,7 @@ async function readLinuxProcessGroupRecord(pid, readRecord) {
   });
   if (Object.values(validation).some((valid) => !valid)) {
     const bytes = Buffer.from(text, 'utf8');
-    const sha256 = createHash5('sha256').update(bytes).digest('hex');
+    const sha256 = createHash6('sha256').update(bytes).digest('hex');
     const error = new Error(
       `Original executor group is unavailable (pid=${pid}, bytes=${bytes.length}, sha256=${sha256})`,
     );
@@ -2697,7 +2717,7 @@ function projectReviewedDataSources(
 }
 
 // plugins/terraform/src/runner.ts
-import { createHash as createHash6, randomUUID as randomUUID3 } from 'node:crypto';
+import { createHash as createHash7, randomUUID as randomUUID3 } from 'node:crypto';
 import {
   chmod,
   lstat as lstat4,
@@ -4592,7 +4612,7 @@ var originalPlanSources,
 }
 disable_checkpoint = true
 `,
-  digest2 = (value) => createHash6('sha256').update(value).digest('hex'),
+  digest2 = (value) => createHash7('sha256').update(value).digest('hex'),
   safeId,
   executeTerraform;
 var init_runner = __esm(() => {
@@ -4925,7 +4945,7 @@ var init_installed_final_capture = __esm(() => {
 });
 
 // plugins/terraform/src/google-adc-session.ts
-import { createHash as createHash7 } from 'node:crypto';
+import { createHash as createHash8 } from 'node:crypto';
 import { constants as constants3, watch as watch2 } from 'node:fs';
 import { lstat as lstat5, open as open3, realpath as realpath4 } from 'node:fs/promises';
 import { dirname as dirname5, isAbsolute as isAbsolute6, resolve as resolve6 } from 'node:path';
@@ -5097,7 +5117,7 @@ async function openGoogleAdcSession(input, expectedInput) {
   return Object.freeze({ environment, verify, close });
 }
 var googleCredentialAlternatives,
-  hash3 = (value) => createHash7('sha256').update(value).digest('hex'),
+  hash3 = (value) => createHash8('sha256').update(value).digest('hex'),
   validHash2 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
   sameOwner = (a, b) =>
     a?.engine === 'terraform' &&
@@ -6192,7 +6212,7 @@ function isEvidenceRfc3339(value) {
 }
 
 // plugins/terraform/src/gcp-cloud-serial-reader.ts
-import { createHash as createHash8, randomUUID as randomUUID4 } from 'node:crypto';
+import { createHash as createHash9, randomUUID as randomUUID4 } from 'node:crypto';
 import { lstat as lstat6, mkdir as mkdir3, open as open4, realpath as realpath5 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute7, join as join5, resolve as resolve7 } from 'node:path';
 
@@ -6957,7 +6977,7 @@ async function openInstalledGcpCloudSerialReader(context, signal, fetcher = fetc
 var cloudReaderOrigins,
   installedReaderContexts,
   installedReaderFinals,
-  hash4 = (raw) => createHash8('sha256').update(raw).digest('hex'),
+  hash4 = (raw) => createHash9('sha256').update(raw).digest('hex'),
   name2,
   numericId,
   uint64 = (value) => typeof value === 'string' && numericId.test(value) && BigInt(value) <= 18446744073709551615n,
@@ -6991,7 +7011,7 @@ var init_gcp_cloud_serial_reader = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-http-rpc-trace.ts
-import { createHash as createHash9 } from 'node:crypto';
+import { createHash as createHash10 } from 'node:crypto';
 
 async function readOriginalGoogleHttpResponseSource(value) {
   const read = value && typeof value === 'object' ? responseOrigins.get(value) : undefined;
@@ -7060,7 +7080,7 @@ class GoogleHttpRpcTraceParser {
   #originOutput;
   #originCompletion;
   #sourceEnd = 0;
-  #sourceHash = createHash9('sha256');
+  #sourceHash = createHash10('sha256');
   constructor(scope, binding) {
     const googleVersion = binding ? resolveInstalledGcpVersionProfile(binding).googleVersion : '8.7.0';
     this.#googleVersion = googleVersion;
@@ -7193,7 +7213,7 @@ class GoogleHttpRpcTraceParser {
         marker: true,
         lines: [],
         bytes: 0,
-        hash: createHash9('sha256')
+        hash: createHash10('sha256')
           .update(raw)
           .update(`
 `),
@@ -7241,7 +7261,7 @@ class GoogleHttpRpcTraceParser {
         eligible:
           rpc === this.#scope.rpc &&
           (record.tf_resource_type ?? record.tf_data_source_type) === this.#scope.resourceType,
-        receivedHash: createHash9('sha256')
+        receivedHash: createHash10('sha256')
           .update(raw)
           .update(`
 `)
@@ -7271,7 +7291,7 @@ class GoogleHttpRpcTraceParser {
       requestRecordsSha256: transaction.request.recordsHash,
       responseRecordsSha256: transaction.recordsHash,
       receivedRecordSha256: active.receivedHash,
-      servedRecordSha256: createHash9('sha256')
+      servedRecordSha256: createHash10('sha256')
         .update(raw)
         .update(`
 `)
@@ -7508,7 +7528,7 @@ var responseOrigins,
   maximumLine,
   maximumStream,
   maximumDump,
-  hash5 = (value) => createHash9('sha256').update(value).digest('hex'),
+  hash5 = (value) => createHash10('sha256').update(value).digest('hex'),
   ending = '-----------------------------------------------------',
   markers,
   heading,
@@ -7535,7 +7555,7 @@ var init_gcp_http_rpc_trace = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-image.ts
-import { createHash as createHash10, randomUUID as randomUUID5 } from 'node:crypto';
+import { createHash as createHash11, randomUUID as randomUUID5 } from 'node:crypto';
 import { lstat as lstat7, mkdir as mkdir4, open as open5, realpath as realpath6 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute8, join as join6, resolve as resolve8 } from 'node:path';
 
@@ -7810,7 +7830,7 @@ async function assertOriginalInstalledGcpFinalImageReader(reader, context, callb
   await assertOriginalApplyCallback(callback);
   await source.assertOriginal();
 }
-var hash6 = (raw) => createHash10('sha256').update(raw).digest('hex'),
+var hash6 = (raw) => createHash11('sha256').update(raw).digest('hex'),
   fileKeys2,
   originalReaders,
   installedImageScopes;
@@ -8530,7 +8550,7 @@ var init_original_gcp_inventory_scope = __esm(() => {
 });
 
 // plugins/terraform/src/installed-initial-inventory.ts
-import { createHash as createHash11, randomUUID as randomUUID6 } from 'node:crypto';
+import { createHash as createHash12, randomUUID as randomUUID6 } from 'node:crypto';
 import { join as join8 } from 'node:path';
 
 async function assertOriginalApplyGcpInventoryCallback(packet, callback) {
@@ -8608,7 +8628,7 @@ async function openInitialInventory(input, options = {}) {
   try {
     observation = await openObservation(owner, saved.platformContext, {
       origin,
-      credentialSha256: createHash11('sha256').update(credential).digest('hex'),
+      credentialSha256: createHash12('sha256').update(credential).digest('hex'),
       targets: view.platform.map((row) => row.target),
       assertOriginal: guard,
     });
@@ -8801,7 +8821,7 @@ async function openInitialInventory(input, options = {}) {
             const retained = await owned(entry.value.path, 4 * 1024 * 1024);
             if (
               retained.binding.sha256 !== entry.value.sha256 ||
-              createHash11('sha256').update(read.raw).digest('hex') !== entry.value.sha256
+              createHash12('sha256').update(read.raw).digest('hex') !== entry.value.sha256
             )
               throw new Error('Original inventory absence bytes differ');
             records.push({ binding: retained.binding, evidence: entry.value, cloud: view.cloud[index] });
@@ -9004,7 +9024,7 @@ var init_installed_initial_inventory = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-insert-evidence.ts
-import { createHash as createHash12 } from 'node:crypto';
+import { createHash as createHash13 } from 'node:crypto';
 import { isIP } from 'node:net';
 
 function metadata2(value, allowFingerprint = false) {
@@ -9602,7 +9622,7 @@ async function readOriginalGcpObserverAuditSource(identity, callback, baseline) 
     requestReasonSha256: hash7(provider.request_reason),
   });
 }
-var hash7 = (value) => createHash12('sha256').update(value).digest('hex'),
+var hash7 = (value) => createHash13('sha256').update(value).digest('hex'),
   object5 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Original observer object required');
@@ -9902,7 +9922,7 @@ var init_gcp_observer_client_payload = __esm(() => {
 
 // plugins/terraform/src/gcp-campaign-access.ts
 import {
-  createHash as createHash13,
+  createHash as createHash14,
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
@@ -10270,7 +10290,7 @@ async function bindOriginalGcpCampaignAccess(store, binding) {
 }
 var fileKeys3,
   parentKeys4,
-  hash8 = (bytes) => createHash13('sha256').update(bytes).digest('hex'),
+  hash8 = (bytes) => createHash14('sha256').update(bytes).digest('hex'),
   magic,
   scalar = (value) => {
     const bytes = Buffer.alloc(4);
@@ -10333,7 +10353,7 @@ var init_gcp_observer_client_abi_pins = __esm(() => {
 });
 
 // plugins/terraform/src/original-access-reader-source.ts
-import { createHash as createHash14 } from 'node:crypto';
+import { createHash as createHash15 } from 'node:crypto';
 import { lstat as lstat10, open as open7, realpath as realpath9 } from 'node:fs/promises';
 import { dirname as dirname7, join as join11 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -10527,7 +10547,7 @@ var issued4,
   ports,
   collections,
   _collectionOpenings,
-  hash9 = (bytes) => createHash14('sha256').update(bytes).digest('hex');
+  hash9 = (bytes) => createHash15('sha256').update(bytes).digest('hex');
 var init_original_access_reader_source = __esm(() => {
   init_installed_apply_controller();
   init_installed_runtime();
@@ -10853,7 +10873,7 @@ var init_gcp_observer_client_abi_command = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-guest-process.ts
-import { createHash as createHash15 } from 'node:crypto';
+import { createHash as createHash16 } from 'node:crypto';
 
 function output(value, channel) {
   const encoded = value[`${channel}Base64`];
@@ -10963,7 +10983,7 @@ function inspectGcpObserverGuestProcess(item, request, mapping, window) {
     signalsSent: false,
   });
 }
-var hash10 = (raw) => createHash15('sha256').update(raw).digest('hex'),
+var hash10 = (raw) => createHash16('sha256').update(raw).digest('hex'),
   integer = (value) => typeof value === 'number' && Number.isSafeInteger(value),
   exact = (value, keys) => Object.keys(value).sort().join(',') === [...keys].sort().join(','),
   object6 = (value) => {
@@ -10976,7 +10996,7 @@ var init_gcp_observer_guest_process = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-client-abi.ts
-import { createHash as createHash16, randomUUID as randomUUID7 } from 'node:crypto';
+import { createHash as createHash17, randomUUID as randomUUID7 } from 'node:crypto';
 import { lstat as lstat11, mkdir as mkdir7, open as open9, realpath as realpath10 } from 'node:fs/promises';
 import { join as join13 } from 'node:path';
 
@@ -11358,7 +11378,7 @@ async function openGcpObserverClientAbi(command) {
   bindOriginalAccessReaderCapture(port, recorder);
   return port;
 }
-var hash11 = (raw) => createHash16('sha256').update(raw).digest('hex'),
+var hash11 = (raw) => createHash17('sha256').update(raw).digest('hex'),
   same2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]),
   integer2 = (value) => typeof value === 'number' && Number.isSafeInteger(value),
   exact2 = (value, keys) => Object.keys(value).sort().join(',') === [...keys].sort().join(','),
@@ -11588,7 +11608,7 @@ var init_gcp_observer_client_abi_renewal_command = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-client-abi-renewal.ts
-import { createHash as createHash17, randomUUID as randomUUID8 } from 'node:crypto';
+import { createHash as createHash18, randomUUID as randomUUID8 } from 'node:crypto';
 import { lstat as lstat12, mkdir as mkdir9, open as open11, realpath as realpath11 } from 'node:fs/promises';
 import { join as join15 } from 'node:path';
 
@@ -11984,7 +12004,7 @@ async function openGcpObserverClientAbiRenewal(command) {
   bindOriginalAccessReaderCapture(port, recorder);
   return port;
 }
-var hash12 = (raw) => createHash17('sha256').update(raw).digest('hex'),
+var hash12 = (raw) => createHash18('sha256').update(raw).digest('hex'),
   same3 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]),
   integer3 = (value) => typeof value === 'number' && Number.isSafeInteger(value),
   requestFields,
@@ -12052,7 +12072,7 @@ var init_gcp_observer_qualified_clients = __esm(() => {
 });
 
 // plugins/terraform/src/google-provider-lifecycle.ts
-import { createHash as createHash18 } from 'node:crypto';
+import { createHash as createHash19 } from 'node:crypto';
 import { basename as basename3, isAbsolute as isAbsolute10, resolve as resolve11 } from 'node:path';
 
 function readOriginalGoogleProviderRpcSource(candidate) {
@@ -12076,7 +12096,7 @@ class GoogleProviderLifecycleParser {
   #originOutput;
   #originCompletion;
   #sourceEnd = 0;
-  #sourceHash = createHash18('sha256');
+  #sourceHash = createHash19('sha256');
   #providers = 0;
   #lastEpochMs = -1;
   #pendingEpochMs = 0;
@@ -12377,7 +12397,7 @@ class GoogleProviderLifecycleParser {
 var rpcOrigins,
   maximumLine2,
   maximumStream2,
-  hash13 = (value) => createHash18('sha256').update(value).digest('hex'),
+  hash13 = (value) => createHash19('sha256').update(value).digest('hex'),
   hasControls = (value) => {
     for (const char of value) if (char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) return true;
     return false;
@@ -12418,7 +12438,7 @@ async function withFinalCheck(operation, finalCheck, combinedFailureMessage) {
 }
 
 // plugins/terraform/src/installed-provider-reader.ts
-import { createHash as createHash19, randomUUID as randomUUID9 } from 'node:crypto';
+import { createHash as createHash20, randomUUID as randomUUID9 } from 'node:crypto';
 import { lstat as lstat13, mkdir as mkdir10, open as open12, realpath as realpath12 } from 'node:fs/promises';
 import { dirname as dirname8, join as join16 } from 'node:path';
 
@@ -13117,7 +13137,7 @@ async function openInstalledProviderReader(context, input, options = {}) {
 }
 var windowOrigins,
   windowClockOrigins,
-  hash14 = (raw) => createHash19('sha256').update(raw).digest('hex'),
+  hash14 = (raw) => createHash20('sha256').update(raw).digest('hex'),
   equalIdentity = (value, original) => {
     if (!value || typeof value !== 'object' || Array.isArray(value) || !original) return false;
     const row = value;
@@ -13148,7 +13168,7 @@ var init_installed_provider_reader = __esm(() => {
 });
 
 // plugins/terraform/src/original-google-provider-source.ts
-import { createHash as createHash20 } from 'node:crypto';
+import { createHash as createHash21 } from 'node:crypto';
 
 async function corroborateOriginalGoogleRpcProvider(input) {
   const rpc = input.rpc;
@@ -13162,7 +13182,7 @@ async function corroborateOriginalGoogleRpcProvider(input) {
   for (const window of windows) {
     const raw = await readOriginalInstalledProviderWindow(window);
     if (
-      createHash20('sha256').update(raw).digest('hex') !== window.evidenceSha256 ||
+      createHash21('sha256').update(raw).digest('hex') !== window.evidenceSha256 ||
       ['pid', 'group', 'start', 'boot'].some((key) => source.executor[key] !== window.executor[key]) ||
       ![3, 4].includes(window.schemaVersion) ||
       !window.samplingWindowComplete ||
@@ -13255,7 +13275,7 @@ var init_original_google_provider_source = __esm(() => {
 });
 
 // plugins/terraform/src/terraform-apply-hooks.ts
-import { createHash as createHash21 } from 'node:crypto';
+import { createHash as createHash22 } from 'node:crypto';
 
 async function readOriginalTerraformApplyHookSource(value) {
   const read = hookOrigins.get(value);
@@ -13265,7 +13285,7 @@ async function readOriginalTerraformApplyHookSource(value) {
 function reviewedProvisioners(plan, configuration) {
   if (
     Buffer.byteLength(configuration) > maxStreamBytes ||
-    createHash21('sha256').update(configuration).digest('hex') !== plan.configurationSha256
+    createHash22('sha256').update(configuration).digest('hex') !== plan.configurationSha256
   )
     throw new Error('Original reviewed Terraform configuration bytes required');
   const config = decodeEvidenceObject(Buffer.from(configuration));
@@ -13312,7 +13332,7 @@ class TerraformApplyHookParser {
   #originOutput;
   #originCompletion;
   #sourceEnd = 0;
-  #sourceHash = createHash21('sha256');
+  #sourceHash = createHash22('sha256');
   #eventTimes = new WeakMap();
   #eventEpochMs = 0;
   constructor(plan, binding, configuration) {
@@ -13547,7 +13567,7 @@ class TerraformApplyHookParser {
       elapsedSeconds: elapsed,
       idKey,
       idValue,
-      rawLineSha256: createHash21('sha256')
+      rawLineSha256: createHash22('sha256')
         .update(raw)
         .update(`
 `)
@@ -13585,7 +13605,7 @@ class TerraformApplyHookParser {
     if (phase === 'provision_progress') {
       if (typeof hook.output !== 'string' || Buffer.byteLength(hook.output) > maxLineBytes)
         throw new Error('Original provisioner output must be bounded text');
-      outputSha256 = createHash21('sha256').update(hook.output).digest('hex');
+      outputSha256 = createHash22('sha256').update(hook.output).digest('hex');
     }
     const candidate = Object.freeze({
       address: reviewed.address,
@@ -13599,7 +13619,7 @@ class TerraformApplyHookParser {
       provisioner,
       provisionerIndex: active.provisionerNext,
       outputSha256,
-      rawLineSha256: createHash21('sha256')
+      rawLineSha256: createHash22('sha256')
         .update(raw)
         .update(`
 `)
@@ -13694,7 +13714,7 @@ var init_terraform_apply_hooks = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-insert-evidence.ts
-import { createHash as createHash22 } from 'node:crypto';
+import { createHash as createHash23 } from 'node:crypto';
 import { basename as basename4, isAbsolute as isAbsolute11, resolve as resolve12 } from 'node:path';
 
 function readOriginalGcpInsertSourceBodies(source) {
@@ -14295,7 +14315,7 @@ async function collectOriginalGcpInsertWitnesses(input) {
 }
 var sourceBodies,
   insertOrigins,
-  hash15 = (value) => createHash22('sha256').update(value).digest('hex'),
+  hash15 = (value) => createHash23('sha256').update(value).digest('hex'),
   name3,
   uint643 = (value) =>
     typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value) && BigInt(value) <= 18446744073709551615n,
@@ -14324,7 +14344,7 @@ var init_gcp_insert_evidence = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-vm-evidence.ts
-import { createHash as createHash23 } from 'node:crypto';
+import { createHash as createHash24 } from 'node:crypto';
 import { isIP as isIP3 } from 'node:net';
 
 function canonical5(value) {
@@ -14989,7 +15009,7 @@ async function collectOriginalEarlyGcpVmEvidence(input) {
   });
   return packet;
 }
-var hash16 = (value) => createHash23('sha256').update(value).digest('hex'),
+var hash16 = (value) => createHash24('sha256').update(value).digest('hex'),
   object10 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Original VM evidence object required');
@@ -15388,7 +15408,7 @@ var init_gcp_ce_keyscan_command = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-wire-key.ts
-import { createHash as createHash24 } from 'node:crypto';
+import { createHash as createHash25 } from 'node:crypto';
 
 function inspectGcpWireHostKey(stdout, address, algorithm = 'ssh-ed25519') {
   const text = new TextDecoder('utf-8', { fatal: true }).decode(stdout);
@@ -15453,13 +15473,13 @@ function inspectGcpWireHostKey(stdout, address, algorithm = 'ssh-ed25519') {
   }
   return {
     knownHostsLine: line,
-    fingerprint: `SHA256:${createHash24('sha256').update(bytes).digest('base64').replace(/=+$/, '')}`,
+    fingerprint: `SHA256:${createHash25('sha256').update(bytes).digest('base64').replace(/=+$/, '')}`,
   };
 }
 var init_gcp_wire_key = () => {};
 
 // plugins/terraform/src/gcp-ce-wire-key-reader.ts
-import { createHash as createHash25, randomUUID as randomUUID10 } from 'node:crypto';
+import { createHash as createHash26, randomUUID as randomUUID10 } from 'node:crypto';
 import { lstat as lstat14, mkdir as mkdir12, open as open14, realpath as realpath13 } from 'node:fs/promises';
 import { join as join19 } from 'node:path';
 
@@ -15824,7 +15844,7 @@ async function openGcpCeWireKeyReader(command) {
   bindOriginalAccessReaderCapture(port, recorder);
   return port;
 }
-var hash17 = (raw) => createHash25('sha256').update(raw).digest('hex'),
+var hash17 = (raw) => createHash26('sha256').update(raw).digest('hex'),
   same4 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]),
   integer4 = (value) => typeof value === 'number' && Number.isSafeInteger(value),
   requestFields2,
@@ -15867,7 +15887,7 @@ var init_gcp_ce_wire_key_reader = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-wire-key-reader.ts
-import { createHash as createHash26, randomUUID as randomUUID11 } from 'node:crypto';
+import { createHash as createHash27, randomUUID as randomUUID11 } from 'node:crypto';
 import { constants as constants5 } from 'node:fs';
 import { lstat as lstat15, mkdir as mkdir13, open as open15, realpath as realpath14 } from 'node:fs/promises';
 import { join as join20 } from 'node:path';
@@ -16259,7 +16279,7 @@ async function openGcpObserverWireKeyReader(vm, callback, profile, options = {})
   return port;
 }
 var maximum3 = 65536,
-  hash18 = (value) => createHash26('sha256').update(value).digest('hex'),
+  hash18 = (value) => createHash27('sha256').update(value).digest('hex'),
   sameIdentity2 = (left, right) => ['pid', 'group', 'start', 'boot'].every((key) => left[key] === right[key]),
   origins15;
 var init_gcp_observer_wire_key_reader = __esm(() => {
@@ -16273,7 +16293,7 @@ var init_gcp_observer_wire_key_reader = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-trust-material.ts
-import { createHash as createHash27 } from 'node:crypto';
+import { createHash as createHash28 } from 'node:crypto';
 
 async function readOriginalGcpObserverTrustMaterial(value) {
   const origin = value && typeof value === 'object' ? origins16.get(value) : undefined;
@@ -16482,7 +16502,7 @@ async function sealOriginalTrustMaterial(family, callback, collect) {
   await read();
   return reference;
 }
-var hash19 = (bytes) => createHash27('sha256').update(bytes).digest('hex'),
+var hash19 = (bytes) => createHash28('sha256').update(bytes).digest('hex'),
   origins16;
 var init_gcp_observer_trust_material = __esm(() => {
   init_gcp_ce_sli_target();
@@ -16493,7 +16513,7 @@ var init_gcp_observer_trust_material = __esm(() => {
 });
 
 // plugins/terraform/src/gcp-observer-host-trust-reader.ts
-import { createHash as createHash28, randomUUID as randomUUID12 } from 'node:crypto';
+import { createHash as createHash29, randomUUID as randomUUID12 } from 'node:crypto';
 import { lstat as lstat16, mkdir as mkdir14, open as open16, realpath as realpath15 } from 'node:fs/promises';
 import { join as join21 } from 'node:path';
 
@@ -16754,7 +16774,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
         throw new Error('Original observer serial/wire fingerprint verification failed; private evidence retained');
       const reply = decodeEvidenceObject(stdout);
       const key = original.wire.toString().trimEnd().split(' ')[2];
-      const fingerprint = `SHA256:${createHash28('sha256').update(Buffer.from(key, 'base64')).digest('base64').replace(/=+$/, '')}`;
+      const fingerprint = `SHA256:${createHash29('sha256').update(Buffer.from(key, 'base64')).digest('base64').replace(/=+$/, '')}`;
       if (
         reply.schemaVersion !== 1 ||
         reply.kind !== 'original-gcp-observer-trust-parser-result' ||
@@ -16855,7 +16875,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
   return port;
 }
 var maximum4 = 65536,
-  hash20 = (value) => createHash28('sha256').update(value).digest('hex'),
+  hash20 = (value) => createHash29('sha256').update(value).digest('hex'),
   sameIdentity3 = (left, right) => ['pid', 'group', 'start', 'boot'].every((key) => left[key] === right[key]),
   origins17;
 var init_gcp_observer_host_trust_reader = __esm(() => {
@@ -16949,7 +16969,7 @@ function assertPinnedExecutableMetadata(original, invokerUid) {
 }
 
 // plugins/terraform/src/signal-free-executor.ts
-import { createHash as createHash29, randomUUID as randomUUID13 } from 'node:crypto';
+import { createHash as createHash30, randomUUID as randomUUID13 } from 'node:crypto';
 import { constants as constants6, watch as watch3 } from 'node:fs';
 import {
   lstat as lstat17,
@@ -18128,7 +18148,7 @@ async function signalFreeGcpCeKeyScanExecutor(input, command) {
   );
 }
 var unspawnedExecutors,
-  hash21 = (value) => createHash29('sha256').update(value).digest('hex'),
+  hash21 = (value) => createHash30('sha256').update(value).digest('hex'),
   now,
   pause = () => Bun.sleep(25),
   signalFreeBootstrapSource = `import fcntl,hashlib,json,os,stat,sys,time
@@ -18231,7 +18251,7 @@ var init_signal_free_executor = __esm(() => {
 });
 
 // plugins/terraform/src/original-reader-group-closure.ts
-import { createHash as createHash30, randomUUID as randomUUID14 } from 'node:crypto';
+import { createHash as createHash31, randomUUID as randomUUID14 } from 'node:crypto';
 import { basename as basename5, dirname as dirname11, join as join23 } from 'node:path';
 
 function originalAccessReaderPrefix(family, role) {
@@ -18974,7 +18994,7 @@ async function assertOriginalUnspawnedSource(input, owner) {
           path: expectedExecutable?.path,
           sha256: expectedExecutable?.sha256,
         }) ||
-      evidence.gateSha256 !== createHash30('sha256').update(signalFreeBootstrapSource).digest('hex') ||
+      evidence.gateSha256 !== createHash31('sha256').update(signalFreeBootstrapSource).digest('hex') ||
       !Number.isSafeInteger(evidence.invocationStartedMs) ||
       evidence.invocationStartedMs < budget?.start ||
       (evidence.invocationStartedMs >= (final?.finalDeadlineMs ?? budget?.deadline) &&
@@ -19104,7 +19124,7 @@ var init_original_reader_group_closure = __esm(() => {
 });
 
 // plugins/terraform/src/installed-xcsh-creation-reader.ts
-import { createHash as createHash31, randomUUID as randomUUID15 } from 'node:crypto';
+import { createHash as createHash32, randomUUID as randomUUID15 } from 'node:crypto';
 import { lstat as lstat18, mkdir as mkdir16, open as open18, realpath as realpath17 } from 'node:fs/promises';
 import { dirname as dirname12, join as join24 } from 'node:path';
 import { isDeepStrictEqual as isDeepStrictEqual2 } from 'node:util';
@@ -19748,7 +19768,7 @@ async function openInstalledXcshCreationReader(context, input, packet, options =
   });
   return reader;
 }
-var hash22 = (raw) => createHash31('sha256').update(raw).digest('hex'),
+var hash22 = (raw) => createHash32('sha256').update(raw).digest('hex'),
   terraformHash = 'dbfef0be43ba2117481be510d3b83a2d8cdfa6ae7ec69c5aeb04b3947956ff7e',
   origins20,
   openings,
@@ -19787,7 +19807,7 @@ var init_installed_xcsh_creation_reader = __esm(() => {
 });
 
 // plugins/terraform/src/xcsh-creation-body.ts
-import { createHash as createHash32 } from 'node:crypto';
+import { createHash as createHash33 } from 'node:crypto';
 
 function joinOriginalXcshCreationBody(input) {
   return joinCreationBody(input);
@@ -19960,7 +19980,7 @@ async function readOriginalXcshCreationBodyProviderProfile(evidence) {
   if (!profile) throw new Error('Original creation provider profile required');
   return profile;
 }
-var hash23 = (bytes) => createHash32('sha256').update(bytes).digest('hex'),
+var hash23 = (bytes) => createHash33('sha256').update(bytes).digest('hex'),
   object12 = (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       throw new Error('Original creation object required');
@@ -20280,7 +20300,7 @@ var init_original_plan_inputs = __esm(() => {
 });
 
 // plugins/terraform/src/prepared-creation-scope.ts
-import { createHash as createHash33, generateKeyPairSync as generateKeyPairSync2, sign } from 'node:crypto';
+import { createHash as createHash34, generateKeyPairSync as generateKeyPairSync2, sign } from 'node:crypto';
 import { constants as constants7 } from 'node:fs';
 import {
   chmod as chmod2,
@@ -20797,7 +20817,7 @@ ${JSON.stringify(payload)}`);
 }
 var preparations2,
   leases,
-  hash24 = (raw) => createHash33('sha256').update(raw).digest('hex'),
+  hash24 = (raw) => createHash34('sha256').update(raw).digest('hex'),
   failure = () => new Error('Trusted original prepared creation scope required');
 var init_prepared_creation_scope = __esm(() => {
   init_process_lock();
@@ -21235,7 +21255,7 @@ var init_legacy_installed_executor = __esm(() => {
 });
 
 // plugins/terraform/src/provider-package.ts
-import { createHash as createHash34 } from 'node:crypto';
+import { createHash as createHash35 } from 'node:crypto';
 import { lstat as lstat22, readdir as readdir2, readFile as readFile6, realpath as realpath21 } from 'node:fs/promises';
 import { isAbsolute as isAbsolute17, join as join32, resolve as resolve18 } from 'node:path';
 
@@ -21413,7 +21433,7 @@ async function verifyProviderPackage(request) {
 `,
     )
     .join('');
-  const packageHash = `h1:${createHash34('sha256').update(summary).digest('base64')}`;
+  const packageHash = `h1:${createHash35('sha256').update(summary).digest('base64')}`;
   if (!entry.hashes.includes(packageHash)) throw new Error('Provider contents differ from locked package');
   const firstInventory = JSON.stringify(files);
   files.splice(0);
@@ -21421,11 +21441,11 @@ async function verifyProviderPackage(request) {
   if (JSON.stringify(files.sort()) !== firstInventory) throw new Error('Original provider package inventory changed');
   return { source, version, platform, packageHash, executableSha256: filesSha256[executable], filesSha256 };
 }
-var digest3 = (bytes) => createHash34('sha256').update(bytes).digest('hex');
+var digest3 = (bytes) => createHash35('sha256').update(bytes).digest('hex');
 var init_provider_package = () => {};
 
 // plugins/terraform/src/installed-runtime.ts
-import { createHash as createHash35, randomUUID as randomUUID18 } from 'node:crypto';
+import { createHash as createHash36, randomUUID as randomUUID18 } from 'node:crypto';
 import { constants as constants8 } from 'node:fs';
 import {
   lstat as lstat23,
@@ -22100,7 +22120,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     };
   };
 }
-var hash25 = (raw) => createHash35('sha256').update(raw).digest('hex'),
+var hash25 = (raw) => createHash36('sha256').update(raw).digest('hex'),
   installer,
   modeName = 'google-runtime-mode.json',
   retainedInspectionMonitors,
@@ -22141,7 +22161,7 @@ var init_installed_runtime = __esm(() => {
 });
 
 // plugins/terraform/src/bootstrap-grant-publication.ts
-import { createHash as createHash36, randomBytes as randomBytes5 } from 'node:crypto';
+import { createHash as createHash37, randomBytes as randomBytes5 } from 'node:crypto';
 import { constants as constants9 } from 'node:fs';
 import { lstat as lstat24, open as open21, realpath as realpath23 } from 'node:fs/promises';
 import { basename as basename6, join as join34 } from 'node:path';
@@ -22406,7 +22426,7 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
   if (result.stdout.trim() !== expected) throw new Error('Original bootstrap publication receipt differs');
   return Object.freeze({ name: `grant-${nonce}.json`, sha256 });
 }
-var hash26 = (raw) => createHash36('sha256').update(raw).digest('hex'),
+var hash26 = (raw) => createHash37('sha256').update(raw).digest('hex'),
   directories;
 var init_bootstrap_grant_publication = __esm(() => {
   init_gcp_capture_source_pins();
@@ -22424,9 +22444,9 @@ init_bootstrap_grant_publication();
 // plugins/terraform/src/gcp-bootstrap-evidence.ts
 init_installed_version_profile();
 
-import { createHash as createHash37 } from 'node:crypto';
+import { createHash as createHash38 } from 'node:crypto';
 
-var hash27 = (value) => createHash37('sha256').update(value).digest('hex');
+var hash27 = (value) => createHash38('sha256').update(value).digest('hex');
 var sha256 = /^[a-f0-9]{64}$/;
 var name4 = /^[a-z][a-z0-9-]{0,62}$/;
 var object14 = (value, context = 'Terraform bootstrap creation') => {
@@ -22599,7 +22619,7 @@ async function readOriginalGcpTerraformBootstrapJwt(value) {
 init_discovery();
 init_evidence_json();
 
-import { createHash as createHash39 } from 'node:crypto';
+import { createHash as createHash40 } from 'node:crypto';
 
 // plugins/terraform/src/gcp-insert-audit-evidence.ts
 init_evidence_json();
@@ -22611,9 +22631,9 @@ init_gcp_vm_evidence();
 init_installed_apply_controller();
 init_installed_initial_inventory();
 
-import { createHash as createHash38 } from 'node:crypto';
+import { createHash as createHash39 } from 'node:crypto';
 
-var hash28 = (value) => createHash38('sha256').update(value).digest('hex');
+var hash28 = (value) => createHash39('sha256').update(value).digest('hex');
 function object15(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original insert audit object required');
@@ -22907,7 +22927,7 @@ init_gcp_vm_evidence();
 init_installed_apply_controller();
 init_installed_runtime();
 init_original_input_monitor();
-var hash29 = (value) => createHash39('sha256').update(value).digest('hex');
+var hash29 = (value) => createHash40('sha256').update(value).digest('hex');
 var object16 = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Original bootstrap VM object required');
@@ -23034,7 +23054,7 @@ init_prepared_creation_scope();
 init_reader_final_reserve();
 init_xcsh_creation_body();
 
-import { createHash as createHash40, randomUUID as randomUUID19 } from 'node:crypto';
+import { createHash as createHash41, randomUUID as randomUUID19 } from 'node:crypto';
 
 var sameActor2 = (a, b) => ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 var name5 = (value) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,62}$/.test(value);
@@ -23172,7 +23192,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
   await guard();
   observation = await openObservation(context.owner, platformContext, {
     origin: context.environment.XCSH_API_URL,
-    credentialSha256: createHash40('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
+    credentialSha256: createHash41('sha256').update(context.environment.XCSH_API_TOKEN).digest('hex'),
     targets: scope.resources,
     assertOriginal: inputs,
   });
@@ -23396,7 +23416,7 @@ async function openInstalledBootstrapCapture(input, options = {}) {
         publishedCount: grants.size,
         expectedCount: nodes.length,
         creationComplete: result.status === 'fulfilled' && result.value.complete,
-        creationEvidenceSha256: raw ? createHash40('sha256').update(raw).digest('hex') : undefined,
+        creationEvidenceSha256: raw ? createHash41('sha256').update(raw).digest('hex') : undefined,
         originalGroupClosed,
         finalReserve: reserve,
         failures: outcomes.filter((value) => value.status === 'rejected').length,
@@ -23899,7 +23919,7 @@ async function openInstalledGcpGuestBinding(initial) {
 init_evidence_json();
 init_gcp_capture_source_pins();
 
-import { createHash as createHash41, randomBytes as randomBytes6, randomUUID as randomUUID20 } from 'node:crypto';
+import { createHash as createHash42, randomBytes as randomBytes6, randomUUID as randomUUID20 } from 'node:crypto';
 import {
   lstat as lstat26,
   open as open23,
@@ -24904,7 +24924,7 @@ async function collectInstalledOriginalGuestReaderClosures(value) {
   if (!collect) throw new Error('Original source-issued installed guest reader required');
   return collect();
 }
-var hash30 = (bytes) => createHash41('sha256').update(bytes).digest('hex');
+var hash30 = (bytes) => createHash42('sha256').update(bytes).digest('hex');
 var equalIdentity2 = (a, b) => !!a && !!b && ['pid', 'group', 'start', 'boot'].every((key) => a[key] === b[key]);
 function inspectOriginalGuestCompletion(value, initial, actor) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -26787,7 +26807,7 @@ init_original_google_provider_source();
 init_runner();
 init_terraform_apply_hooks();
 
-import { createHash as createHash42 } from 'node:crypto';
+import { createHash as createHash43 } from 'node:crypto';
 
 async function collectInstalledObserverInsertWitnesses(input) {
   const { callback, originalPlan: plan, body, started, completed, rpc } = input;
@@ -26796,7 +26816,7 @@ async function collectInstalledObserverInsertWitnesses(input) {
     throw new Error('Original final observer witness callback required');
   await assertOriginalTerraformPlanProjection(plan);
   const original = await readOriginalGcpObserverAuditSource(input.identity, callback, input.baseline);
-  const hash = (text) => createHash42('sha256').update(text).digest('hex');
+  const hash = (text) => createHash43('sha256').update(text).digest('hex');
   const expected = original.value;
   if (
     plan.directory !== callback.original.executionDirectory ||
