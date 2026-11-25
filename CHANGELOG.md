@@ -34,7 +34,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.73 preserves typed authentication, expiry, permission
+- **`gcloud`** v1.7.74 preserves typed authentication, expiry, permission
   and setup refusals, and qualifies the current provider tuple and Site SSH
   schema. Live GCP qualification remains held.
 

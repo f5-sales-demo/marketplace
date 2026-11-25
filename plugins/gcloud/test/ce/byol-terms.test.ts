@@ -120,3 +120,33 @@ it('normalization excludes scripts and requires current legal text rather than f
   const bytes = new TextEncoder().encode('<html><script>By using the Marketplace</script><body>empty</body></html>');
   await expect(normalizedGoogleMarketplaceTerms(bytes)).rejects.toThrow('legal text');
 });
+
+it('current verified multi-NIC BYOL image produces an exact local terms review and access authorization', async () => {
+  const f = await fixture();
+  f.i.image.name = 'f5xc-ce-crt-20261001-0155-multi-byol';
+  f.i.image.id = '7920901895741199928';
+  f.i.image.selfLink = `https://www.googleapis.com/compute/v1/projects/f5-7626-networks-public/global/images/${f.i.image.name}`;
+  const plan = await planGcpByolTerms(f.i, f.source, f.funding, f.store, undefined, f.testProfile);
+  const result = await authorizeGcpByolTerms(
+    f.i,
+    f.source,
+    f.funding,
+    f.store,
+    plan.planHash,
+    undefined,
+    f.testProfile,
+  );
+  expect(plan.binding.imageId).toBe(f.i.image.id);
+  expect(result.binding.intentFingerprint).toBe(plan.binding.intentFingerprint);
+  expect(result.remoteConsentGranted).toBe(false);
+  expect(result.resourcesCreated).toBe(0);
+  expect(result.softwareLicenseAcquired).toBe(false);
+});
+
+it('same-product license metadata cannot authorize an unverified image identity', async () => {
+  const f = await fixture();
+  f.i.image.id = '999999999999999999';
+  await expect(planGcpByolTerms(f.i, f.source, f.funding, f.store, undefined, f.testProfile)).rejects.toThrow(
+    'image profile unavailable',
+  );
+});

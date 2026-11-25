@@ -2413,3 +2413,13 @@ catalog, dependency, configured lint and privacy checks pass. The complete
 factory stays inactive and untracked. Fresh normal session preparation preserves
 complete original inputs; actual guest/expiry and every original live/lifecycle/
 network/traffic/recovery/cleanup/CI/review/delivery gate remain unfinished.
+
+## Current BYOL mapping after normal prerequisite refusal
+
+The [current BYOL receipt](gcp-current-byol-mapping-20261124.md) records the
+normal terms-authorization refusal, independent no-submission disposition and
+the verified October image's unchanged license, billing product and legal
+documents. The version 2 source contract passes 27 affected cases, strict types
+and configured lint while preserving exact reviewed authorization. The complete
+factory remains inactive. Actual guest/expiry, full feature acceptance and every
+original runtime/cleanup/CI/review/delivery gate remain unfinished.

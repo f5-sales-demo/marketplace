@@ -6861,7 +6861,7 @@ var init_terraform_context = __esm(() => {
 var byol_vm_contract_default;
 var init_byol_vm_contract = __esm(() => {
   byol_vm_contract_default = {
-    contractId: 'f5xc-gcp-byol-terms/v1',
+    contractId: 'f5xc-gcp-byol-terms/v2',
     publisherProject: 'f5-7626-networks-public',
     billingService: 'f5-distributed-cloud-customer-edge.endpoints.f5-7626-networks-public.cloud.goog',
     productUrl:
@@ -6871,12 +6871,12 @@ var init_byol_vm_contract = __esm(() => {
     productType: 'BYOL',
     acceptanceMechanism: 'explicit-authorization-for-access-or-use',
     evidence: {
-      source: 'authenticated Chrome CDP product and launch-form observation',
-      imageVersion: 'f5xc-ce-crt-20260801-0205-byol',
+      source: 'Google Compute image/license APIs with retained authenticated product and launch-form observation',
+      imageVersion: 'f5xc-ce-crt-20261001-0155-multi-byol',
       observedSeparatePurchaseOrConsentControl: false,
       softwareLicenseAcquired: false,
       deploymentSubmitted: false,
-      imageId: '1689146860273445475',
+      imageId: '7920901895741199928',
       licenseId: '2214615995702558918',
       licenseCode: '8535603005418881222',
       licenseSelfLink:
