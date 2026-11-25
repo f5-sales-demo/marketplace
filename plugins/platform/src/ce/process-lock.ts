@@ -118,16 +118,49 @@ export async function assertRecordedProcessGroupAbsent(identity: RecordedProcess
     throw new Error('Original recorded process group identity required');
   if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
   if ((await bootId()) === identity.boot) {
-    for (const name of await readdir('/proc')) {
-      if (!/^\d+$/.test(name)) continue;
-      try {
-        if ((await processGroup(Number(name))) === identity.group)
-          throw new Error('Original executor process group remains live');
-      } catch (error) {
-        if (!vanishedProcess(error)) throw error;
-      }
+    await assertPhysicalProcessGroupAbsent(identity.group);
+  }
+}
+
+async function assertPhysicalProcessGroupAbsent(group: number): Promise<void> {
+  for (const name of await readdir('/proc')) {
+    if (!/^\d+$/.test(name)) continue;
+    try {
+      if ((await processGroup(Number(name))) === group) throw new Error('Original executor process group remains live');
+    } catch (error) {
+      if (!vanishedProcess(error)) throw error;
     }
   }
+}
+
+/** Physical closure of a source-verified worker that may be a group member.
+ * Check the original PID separately because it may have left its recorded
+ * group. This grants no lock reclamation or capture acceptance. */
+export async function assertRecordedProcessGroupMemberAbsent(identity: RecordedProcessGroupIdentity): Promise<void> {
+  if (
+    !identity ||
+    Object.keys(identity).sort().join(',') !== 'boot,group,pid,start' ||
+    !Number.isSafeInteger(identity.pid) ||
+    identity.pid < 1 ||
+    !Number.isSafeInteger(identity.group) ||
+    identity.group < 1 ||
+    typeof identity.start !== 'string' ||
+    !/^[0-9]+$/.test(identity.start) ||
+    typeof identity.boot !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(identity.boot)
+  )
+    throw new Error('Original recorded process group member identity required');
+  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
+  const observedBoot = await bootId();
+  if (observedBoot !== identity.boot) return;
+  const assertWorkerAbsent = async () => {
+    if ((await processStartTicks(identity.pid)) === identity.start)
+      throw new Error('Original recorded process remains live');
+  };
+  await assertWorkerAbsent();
+  await assertPhysicalProcessGroupAbsent(identity.group);
+  await assertWorkerAbsent();
+  if ((await bootId()) !== observedBoot) throw new Error('Process boot changed during closure inspection');
 }
 
 /** Physical closure only. Does not resolve capture, reclaim the claim or change failed flags. */

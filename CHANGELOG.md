@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.180 passes compiled original cleanup admission through
+- **`terraform`** v2.4.181 passes compiled original cleanup admission through
   the normal shared service to the existing runner. Recovery metadata is frozen,
   cleanup is limited to the original GCP workspace and resume, and every operation
   rechecks independent closure. Create replay and foreign scopes remain refused
@@ -18,7 +18,9 @@ and this project adheres to
   Creation observation uses the original apply budget and keeps a separate
   five-minute final capture reserve. Historical reader closure remains readable.
 
-- **`platform`** v6.3.34 refreshes the selected API credential for each GCP
+- **`platform`** v6.3.35 refreshes the selected API credential for each GCP
+  Verify an original worker and every member of its recorded process group before cleanup,
+  preserving failed capture flags and existing executor locks.
   observation and private Terraform environment read. The original tenant stays
   bound before requests and after capture. Credential rotation is supported;
   changed or malformed contexts are refused. Live acceptance stays held (#1559).
@@ -39,7 +41,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.83 composes durable successful cleanup with normal Platform
+- **`gcloud`** v1.7.84 composes durable successful cleanup with normal Platform
   observations and the shared Terraform runner. Original ownership, reader closure,
   context and input checks surround reads and commands. Create replay and completed
   checkpoint rewriting are refused. Live cleanup and full acceptance remain open

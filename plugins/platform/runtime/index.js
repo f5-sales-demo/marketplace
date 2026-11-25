@@ -1855,14 +1855,16 @@ async function assertRecordedProcessGroupAbsent(identity) {
     throw new Error('Original recorded process group identity required');
   if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
   if ((await bootId()) === identity.boot) {
-    for (const name of await readdir('/proc')) {
-      if (!/^\d+$/.test(name)) continue;
-      try {
-        if ((await processGroup(Number(name))) === identity.group)
-          throw new Error('Original executor process group remains live');
-      } catch (error) {
-        if (!vanishedProcess(error)) throw error;
-      }
+    await assertPhysicalProcessGroupAbsent(identity.group);
+  }
+}
+async function assertPhysicalProcessGroupAbsent(group) {
+  for (const name of await readdir('/proc')) {
+    if (!/^\d+$/.test(name)) continue;
+    try {
+      if ((await processGroup(Number(name))) === group) throw new Error('Original executor process group remains live');
+    } catch (error) {
+      if (!vanishedProcess(error)) throw error;
     }
   }
 }
