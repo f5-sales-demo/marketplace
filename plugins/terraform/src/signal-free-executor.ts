@@ -27,6 +27,7 @@ import { readOwnedInstalledInput } from './installed-runtime';
 import { linuxMonotonicMs } from './linux-clock';
 import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
 import { bindOriginalExecutionOutput, type OriginalExecutionOutput } from './original-output-stream';
+import { assertPinnedExecutableMetadata } from './pinned-executable';
 import {
   assertFinalReaderReserve,
   type FinalReaderReserve,
@@ -226,15 +227,8 @@ async function pinned(binding: ExecutableBinding) {
   const canonical = await realpath(binding.path);
   const original = await stat(canonical, { bigint: true });
   const link = await lstat(binding.path, { bigint: true });
-  if (
-    !original.isFile() ||
-    original.uid !== BigInt(process.getuid?.() ?? -1) ||
-    original.nlink !== 1n ||
-    (original.mode & 0o022n) !== 0n ||
-    (original.mode & 0o111n) === 0n ||
-    hash(await readFile(canonical)) !== binding.sha256
-  )
-    throw new Error('Owned pinned original executable required');
+  assertPinnedExecutableMetadata(original, process.getuid?.() ?? -1);
+  if (hash(await readFile(canonical)) !== binding.sha256) throw new Error('Owned pinned original executable required');
   let changed = false;
   const watcher = watch(canonical, { persistent: false }, () => {
     changed = true;
@@ -256,7 +250,7 @@ async function pinned(binding: ExecutableBinding) {
       if (
         changed ||
         (await realpath(binding.path)) !== canonical ||
-        ['dev', 'ino', 'uid', 'mode', 'size', 'mtimeNs', 'ctimeNs'].some(
+        ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].some(
           (key) => current[key as keyof typeof current] !== original[key as keyof typeof original],
         ) ||
         currentLink.ino !== link.ino ||

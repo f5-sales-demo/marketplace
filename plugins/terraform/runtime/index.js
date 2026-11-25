@@ -15762,6 +15762,20 @@ async function assertOriginalGcpObserverClientDeliveryInputs(value) {
   await origin.inputs();
 }
 
+// plugins/terraform/src/pinned-executable.ts
+function assertPinnedExecutableMetadata(original, invokerUid) {
+  if (
+    !Number.isSafeInteger(invokerUid) ||
+    invokerUid < 0 ||
+    !original.isFile() ||
+    (original.uid !== 0n && original.uid !== BigInt(invokerUid)) ||
+    original.nlink !== 1n ||
+    (original.mode & 0o6022n) !== 0n ||
+    (original.mode & 0o111n) === 0n
+  )
+    throw new Error('Owned pinned original executable required');
+}
+
 // plugins/terraform/src/signal-free-executor.ts
 var unspawnedExecutors = new WeakMap();
 async function collectOriginalSignalFreeUnspawnedExecutions(value) {
@@ -15871,14 +15885,8 @@ async function pinned(binding) {
   const canonical = await realpath16(binding.path);
   const original = await stat2(canonical, { bigint: true });
   const link = await lstat17(binding.path, { bigint: true });
-  if (
-    !original.isFile() ||
-    original.uid !== BigInt(process.getuid?.() ?? -1) ||
-    original.nlink !== 1n ||
-    (original.mode & 0o022n) !== 0n ||
-    (original.mode & 0o111n) === 0n ||
-    hash21(await readFile4(canonical)) !== binding.sha256
-  )
+  assertPinnedExecutableMetadata(original, process.getuid?.() ?? -1);
+  if (hash21(await readFile4(canonical)) !== binding.sha256)
     throw new Error('Owned pinned original executable required');
   let changed = false;
   const watcher = watch3(canonical, { persistent: false }, () => {
@@ -15901,7 +15909,9 @@ async function pinned(binding) {
       if (
         changed ||
         (await realpath16(binding.path)) !== canonical ||
-        ['dev', 'ino', 'uid', 'mode', 'size', 'mtimeNs', 'ctimeNs'].some((key) => current[key] !== original[key]) ||
+        ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'].some(
+          (key) => current[key] !== original[key],
+        ) ||
         currentLink.ino !== link.ino ||
         currentLink.ctimeNs !== link.ctimeNs
       )

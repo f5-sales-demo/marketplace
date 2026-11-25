@@ -10,11 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.177 adds native transport for captured cleanup through
-  the original workspace and a separate executor directory. Original failed
-  claims remain intact. Independent ownership, reader closure and reviewed
-  delete-only authorization remain required. Complete campaign cleanup, live
-  qualification and publication remain held (#1559).
+- **`terraform`** v2.4.178 admits ordinary pinned caller-owned and system-owned
+  executables while refusing foreign ownership, writable files, extra links and
+  setuid/setgid flags. Original hash and lifetime checks remain mandatory;
+  execution retains the caller identity and sends no process signals (#1559).
 
 - **`platform`** v6.3.33 rebuilds the shared CE runtime with Bun 1.4.4 and
   retains independent Linux process group closure evidence without signals.
@@ -35,12 +34,10 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.76 adds exact original-scope cleanup observations through
-  the shared native executor without process signals. Original failed claims,
-  pinned CLI and credential scope, independent reader closure and reviewed
-  delete-only authorization remain required. Source composition and affected
-  regressions pass; live cleanup, full qualification and publication remain held
-  (#1559).
+- **`gcloud`** v1.7.77 includes the qualified shared mapping for ordinary
+  pinned system executables in cleanup observations. Root-owned SDK files retain
+  exact hash, file/link identity, permission and lifetime checks. Live cleanup,
+  full qualification and publication remain held (#1559).
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding

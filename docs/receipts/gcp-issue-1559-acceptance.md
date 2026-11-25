@@ -2496,3 +2496,12 @@ resumes. GCloud 1.7.76 exports exact original-scope reads through the shared nat
 executor without process signals. Live ownership and original reader bindings,
 actual cleanup composition and every original live and delivery gate remain open.
 The fresh 21-resource plan remains unsubmitted.
+
+## Pinned system SDK execution
+
+The [system executable receipt](gcp-pinned-system-executables-20261125.md) records
+failing-first owner admission, native caller-identity and symlink lifetime checks,
+and full affected source qualification. Terraform 2.4.178 and GCloud 1.7.77 retain
+original hashes, owner and permission checks while admitting the ordinary system
+SDK. Actual installed observations and cleanup composition remain required before
+campaign submission; all original live and delivery gates remain open.
