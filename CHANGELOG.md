@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.183 verifies static image lookups against original
+- **`terraform`** v2.4.184 verifies static image lookups against original
   configuration, saved plans and independent state before cleanup ownership
   inspection. Unchanged lookups retained only in original prior state also require
   a literal saved declaration and exact provider pin. Compiled original cleanup
@@ -21,6 +21,9 @@ and this project adheres to
   (#1559).
   Creation observation uses the original apply budget and keeps a separate
   five-minute final capture reserve. Historical reader closure remains readable.
+  Cleanup polling verifies original input identities between full byte checks
+  at native admission, command release and final capture. Freshness and startup
+  deadlines remain fixed; live qualification stays open (#1559).
 
 - **`platform`** v6.3.35 refreshes the selected API credential for each GCP
   Verify an original worker and every member of its recorded process group before cleanup,
@@ -45,11 +48,14 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.86 composes durable successful cleanup with normal Platform
+- **`gcloud`** v1.7.87 composes durable successful cleanup with normal Platform
   observations and the shared Terraform runner. Original ownership, reader closure,
   context and input checks surround reads and commands. Create replay and completed
   checkpoint rewriting are refused. Live cleanup and full acceptance remain open
   (#1559).
+  Cleanup polling verifies original input identities between full byte checks
+  at native admission, command release and final capture. Freshness and startup
+  deadlines remain fixed; live qualification stays open (#1559).
 
 - **`terraform`** v2.4.121 binds final VM/serial handoff to the original
   identity, source files and actual reserved reader. Reviewed machine/forwarding

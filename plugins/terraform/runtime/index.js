@@ -25187,6 +25187,7 @@ function createInstalledCleanupExecutor(options) {
     diagnosticsDirectory === join39(directory, '.terraform-executor-lock') ||
     diagnosticsDirectory.startsWith(`${join39(directory, '.terraform-executor-lock')}/`) ||
     typeof options.assertInputs !== 'function' ||
+    (options.assertInputIdentity !== undefined && typeof options.assertInputIdentity !== 'function') ||
     typeof options.assertIndependentClosure !== 'function'
   )
     throw new Error('Original cleanup workspace, separate diagnostics and source guards required');
@@ -25194,6 +25195,7 @@ function createInstalledCleanupExecutor(options) {
   const terraform = Object.freeze({ ...options.terraform });
   const assertInputs = options.assertInputs.bind(options);
   const assertIndependentClosure = options.assertIndependentClosure.bind(options);
+  const assertInputIdentity = options.assertInputIdentity?.bind(options);
   const start = linuxMonotonicMs(),
     deadline = start + 7200000;
   let active = false,
@@ -25212,7 +25214,7 @@ function createInstalledCleanupExecutor(options) {
   };
   const roots = Promise.all([inspect(directory), inspect(diagnosticsDirectory)]);
   roots.catch(() => {});
-  const guard = async () => {
+  const guard = async (verifyBytes = true) => {
     if (retired) throw new Error('Original cleanup executor is retired');
     const originals = await roots;
     for (const [index, path] of [directory, diagnosticsDirectory].entries()) {
@@ -25227,9 +25229,9 @@ function createInstalledCleanupExecutor(options) {
       )
         throw new Error('Original cleanup directory identity changed');
     }
-    await assertInputs();
+    await (verifyBytes ? assertInputs : (assertInputIdentity ?? assertInputs))();
     await assertIndependentClosure();
-    await assertInputs();
+    await (assertInputIdentity ?? assertInputs)();
   };
   return async (invocation) => {
     if (active || retired) throw new Error('Original cleanup executor remains active or retired');
@@ -25244,7 +25246,7 @@ function createInstalledCleanupExecutor(options) {
     if (linuxMonotonicMs() >= deadline) throw new Error('Original cleanup operation budget exhausted');
     active = true;
     try {
-      await guard();
+      await guard(false);
       const commandDirectory = join39(diagnosticsDirectory, randomUUID22());
       await mkdir20(commandDirectory, { mode: 448 });
       const execute = signalFreeTerraformExecutor({
@@ -25254,6 +25256,9 @@ function createInstalledCleanupExecutor(options) {
         originalDeadlineMs: deadline,
         ...(invocation.args[0] === 'apply' ? {} : { timeoutMs: 60000 }),
         assertOriginal: guard,
+        ...(assertInputIdentity
+          ? { assertOriginalIdentity: () => guard(false), assertFinalInputs: () => guard() }
+          : {}),
         finalCapture: async (capture) => {
           await writeFile6(join39(commandDirectory, 'cleanup-final.private.json'), JSON.stringify(capture), {
             flag: 'wx',
@@ -25266,7 +25271,7 @@ function createInstalledCleanupExecutor(options) {
         cwd: commandDirectory,
         args: [`-chdir=${directory}`, ...invocation.args],
       });
-      await guard();
+      await guard(false);
       return result;
     } catch (error) {
       retired = true;

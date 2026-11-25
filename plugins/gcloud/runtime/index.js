@@ -18459,6 +18459,7 @@ function createGcpCaptureCleanupCli(options) {
       environment.CLOUDSDK_ACTIVE_CONFIG_NAME !== configuration) ||
     (environment.CLOUDSDK_CORE_PROJECT !== undefined && environment.CLOUDSDK_CORE_PROJECT !== intent.project) ||
     typeof options.assertInputs !== 'function' ||
+    (options.assertInputIdentity !== undefined && typeof options.assertInputIdentity !== 'function') ||
     typeof options.assertIndependentClosure !== 'function'
   )
     throw new Error('Original scoped cleanup CLI, private directories and credential guards required');
@@ -18473,6 +18474,7 @@ function createGcpCaptureCleanupCli(options) {
     executable = Object.freeze({ ...options.gcloud });
   const assertInputs = options.assertInputs.bind(options),
     assertIndependentClosure = options.assertIndependentClosure.bind(options);
+  const assertInputIdentity = options.assertInputIdentity?.bind(options);
   const start = linuxMonotonicMs(),
     deadline = start + 7200000;
   let active = false,
@@ -18491,7 +18493,7 @@ function createGcpCaptureCleanupCli(options) {
   };
   const roots = Promise.all([inspect(directory), inspect(diagnosticsDirectory)]);
   roots.catch(() => {});
-  const guard = async () => {
+  const guard = async (verifyBytes = true) => {
     if (retired) throw new Error('Original cleanup observation transport retired');
     const originals = await roots;
     for (const [index, path] of [directory, diagnosticsDirectory].entries()) {
@@ -18506,9 +18508,9 @@ function createGcpCaptureCleanupCli(options) {
       )
         throw new Error('Original cleanup observation directory identity changed');
     }
-    await assertInputs();
+    await (verifyBytes ? assertInputs : (assertInputIdentity ?? assertInputs))();
     await assertIndependentClosure();
-    await assertInputs();
+    await (assertInputIdentity ?? assertInputs)();
   };
   return Object.freeze({
     exec: async (command, supplied, invocation = {}) => {
@@ -18521,7 +18523,7 @@ function createGcpCaptureCleanupCli(options) {
       if (linuxMonotonicMs() >= deadline) throw new Error('Original cleanup observation budget exhausted');
       active = true;
       try {
-        await guard();
+        await guard(false);
         const commandDirectory = join22(diagnosticsDirectory, randomUUID9());
         await mkdir8(commandDirectory, { mode: 448 });
         let capture;
@@ -18534,6 +18536,9 @@ function createGcpCaptureCleanupCli(options) {
           startupTimeoutMs: 15000,
           maxOutputBytes: 1048576,
           assertOriginal: guard,
+          ...(assertInputIdentity
+            ? { assertOriginalIdentity: () => guard(false), assertFinalInputs: () => guard() }
+            : {}),
           finalCapture: async (current) => {
             capture = current;
             await writeFile7(
@@ -18566,11 +18571,11 @@ function createGcpCaptureCleanupCli(options) {
           JSON.stringify({ ...final, completionInput: completion.binding }),
           { flag: 'wx', mode: 256 },
         );
-        await guard();
+        await guard(false);
         signal?.throwIfAborted();
         if (final.reason || final.captureClosed !== true) throw new Error('Original cleanup observation incomplete');
         const stderr = await readCleanupStderr(capture.stderrPath);
-        await guard();
+        await guard(false);
         signal?.throwIfAborted();
         return { stdout: result.stdout, stderr, exitCode: result.code };
       } catch (error) {
