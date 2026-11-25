@@ -208,6 +208,7 @@ export { acknowledgeOriginalApplyGroupClosure, assertOriginalApplyGroupClosed } 
 export { openInstalledApplyTraceStage } from './installed-apply-trace-stage';
 export { scheduleInstalledBeforeGuestRound } from './installed-before-guest-round';
 export { collectInstalledCeInsertWitnesses } from './installed-ce-insert-witnesses';
+export { createInstalledCleanupExecutor } from './installed-cleanup-executor';
 export { openInstalledDeleteCapture } from './installed-delete-capture';
 export {
   assertOriginalApplyGcpInventoryCallback,

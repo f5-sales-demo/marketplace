@@ -24873,9 +24873,116 @@ async function collectInstalledCeInsertWitnesses(input) {
   return Object.freeze(results);
 }
 
-// plugins/terraform/src/installed-delete-capture.ts
+// plugins/terraform/src/installed-cleanup-executor.ts
 import { randomUUID as randomUUID22 } from 'node:crypto';
-import { join as join39 } from 'node:path';
+import { lstat as lstat27, mkdir as mkdir20, realpath as realpath26, writeFile as writeFile6 } from 'node:fs/promises';
+import { isAbsolute as isAbsolute21, join as join39, resolve as resolve22 } from 'node:path';
+
+function createInstalledCleanupExecutor(options) {
+  const directory = options.directory;
+  const diagnosticsDirectory = options.diagnosticsDirectory;
+  if (
+    !isAbsolute21(directory) ||
+    resolve22(directory) !== directory ||
+    !isAbsolute21(diagnosticsDirectory) ||
+    resolve22(diagnosticsDirectory) !== diagnosticsDirectory ||
+    directory === diagnosticsDirectory ||
+    diagnosticsDirectory === join39(directory, '.terraform-executor-lock') ||
+    diagnosticsDirectory.startsWith(`${join39(directory, '.terraform-executor-lock')}/`) ||
+    typeof options.assertInputs !== 'function' ||
+    typeof options.assertIndependentClosure !== 'function'
+  )
+    throw new Error('Original cleanup workspace, separate diagnostics and source guards required');
+  const python = Object.freeze({ ...options.python });
+  const terraform = Object.freeze({ ...options.terraform });
+  const assertInputs = options.assertInputs.bind(options);
+  const assertIndependentClosure = options.assertIndependentClosure.bind(options);
+  const start = linuxMonotonicMs(),
+    deadline = start + 7200000;
+  let active = false,
+    retired = false;
+  const inspect = async (path) => {
+    const value = await lstat27(path, { bigint: true });
+    if (
+      !value.isDirectory() ||
+      value.isSymbolicLink() ||
+      value.uid !== BigInt(process.getuid?.() ?? -1) ||
+      (value.mode & 0o777n) !== 0o700n ||
+      (await realpath26(path)) !== path
+    )
+      throw new Error('Original private cleanup directory required');
+    return value;
+  };
+  const roots = Promise.all([inspect(directory), inspect(diagnosticsDirectory)]);
+  roots.catch(() => {});
+  const guard = async () => {
+    if (retired) throw new Error('Original cleanup executor is retired');
+    const originals = await roots;
+    for (const [index, path] of [directory, diagnosticsDirectory].entries()) {
+      const current = await inspect(path),
+        original = originals[index];
+      if (
+        !original ||
+        current.dev !== original.dev ||
+        current.ino !== original.ino ||
+        current.uid !== original.uid ||
+        current.mode !== original.mode
+      )
+        throw new Error('Original cleanup directory identity changed');
+    }
+    await assertInputs();
+    await assertIndependentClosure();
+    await assertInputs();
+  };
+  return async (invocation) => {
+    if (active || retired) throw new Error('Original cleanup executor remains active or retired');
+    if (
+      invocation.cwd !== directory ||
+      !['version', 'init', 'validate', 'plan', 'show', 'output', 'apply'].includes(invocation.args[0]) ||
+      invocation.args.some((arg) => arg.startsWith('-chdir') || arg.startsWith('-state=') || arg === '-auto-approve') ||
+      (invocation.args[0] === 'apply' && invocation.args.at(-1) !== 'saved.tfplan')
+    )
+      throw new Error('Cleanup invocation escaped its original runner workspace');
+    invocation.signal?.throwIfAborted();
+    if (linuxMonotonicMs() >= deadline) throw new Error('Original cleanup operation budget exhausted');
+    active = true;
+    try {
+      await guard();
+      const commandDirectory = join39(diagnosticsDirectory, randomUUID22());
+      await mkdir20(commandDirectory, { mode: 448 });
+      const execute = signalFreeTerraformExecutor({
+        python,
+        executable: terraform,
+        originalStartMs: start,
+        originalDeadlineMs: deadline,
+        ...(invocation.args[0] === 'apply' ? {} : { timeoutMs: 60000 }),
+        assertOriginal: guard,
+        finalCapture: async (capture) => {
+          await writeFile6(join39(commandDirectory, 'cleanup-final.private.json'), JSON.stringify(capture), {
+            flag: 'wx',
+            mode: 256,
+          });
+        },
+      });
+      const result = await execute({
+        ...invocation,
+        cwd: commandDirectory,
+        args: [`-chdir=${directory}`, ...invocation.args],
+      });
+      await guard();
+      return result;
+    } catch (error) {
+      retired = true;
+      throw error;
+    } finally {
+      active = false;
+    }
+  };
+}
+
+// plugins/terraform/src/installed-delete-capture.ts
+import { randomUUID as randomUUID23 } from 'node:crypto';
+import { join as join40 } from 'node:path';
 
 var sourceReaders2 = new WeakMap();
 async function openInstalledDeleteCapture(input) {
@@ -24900,7 +25007,7 @@ async function openInstalledDeleteCapture(input) {
   )
     throw new Error('Original delete capture owning context differs');
   const admitted = context.inputs['workspace:gcp-terraform-input-identity.json'];
-  if (!admitted || admitted.path !== join39(store.directory, 'gcp-terraform-input-identity.json'))
+  if (!admitted || admitted.path !== join40(store.directory, 'gcp-terraform-input-identity.json'))
     throw new Error('Original delete capture intent input required');
   const original = await owned(admitted.path);
   assertSameOriginalInput(admitted, original.binding);
@@ -24983,7 +25090,7 @@ async function openInstalledDeleteCapture(input) {
   };
   const persist = async (phase, extra = {}) => {
     await store.verify();
-    await store.write(`gcp-delete-capture-${randomUUID22()}.json`, {
+    await store.write(`gcp-delete-capture-${randomUUID23()}.json`, {
       schemaVersion: 1,
       kind: 'original-installed-delete-capture-event',
       phase,
@@ -25224,10 +25331,10 @@ async function collectInstalledObserverInsertWitnesses(input) {
 }
 
 // plugins/terraform/src/installed-vm-capture.ts
-import { randomUUID as randomUUID23 } from 'node:crypto';
+import { randomUUID as randomUUID24 } from 'node:crypto';
 import { constants as constants11 } from 'node:fs';
-import { lstat as lstat27, mkdir as mkdir20, open as open24 } from 'node:fs/promises';
-import { join as join40 } from 'node:path';
+import { lstat as lstat28, mkdir as mkdir21, open as open24 } from 'node:fs/promises';
+import { join as join41 } from 'node:path';
 
 async function openInstalledVmCapture(input) {
   if (process.platform !== 'linux') throw new Error('Original GCP VM capture requires the qualified Linux runtime');
@@ -25240,7 +25347,7 @@ async function openInstalledVmCapture(input) {
   const budget = Object.freeze({ ...context.budget });
   const expectedParent = context.inputs['workspace:main.tf.json']?.expectedParentIdentity;
   const assertDirectory = async () => {
-    const current = await lstat27(context.executionDirectory, { bigint: true });
+    const current = await lstat28(context.executionDirectory, { bigint: true });
     if (
       !current.isDirectory() ||
       current.isSymbolicLink() ||
@@ -25267,9 +25374,9 @@ async function openInstalledVmCapture(input) {
   }
   for (const [name, slot] of slots) slots.set(name, { ...slot });
   if (!slots.size) throw new Error('Original VM inventory is empty');
-  const directory = join40(context.executionDirectory, `gcp-vm-capture-${randomUUID23()}`);
-  await mkdir20(directory, { mode: 448 });
-  const directoryIdentity = await lstat27(directory, { bigint: true });
+  const directory = join41(context.executionDirectory, `gcp-vm-capture-${randomUUID24()}`);
+  await mkdir21(directory, { mode: 448 });
+  const directoryIdentity = await lstat28(directory, { bigint: true });
   let phase = 'before';
   let refused = false,
     busy = false;
@@ -25278,7 +25385,7 @@ async function openInstalledVmCapture(input) {
   let packetReader = reader;
   const retain = async (event, value) => {
     await assertDirectory();
-    const parent = await lstat27(directory, { bigint: true });
+    const parent = await lstat28(directory, { bigint: true });
     if (
       !parent.isDirectory() ||
       parent.isSymbolicLink() ||
@@ -25287,14 +25394,14 @@ async function openInstalledVmCapture(input) {
       ['dev', 'ino', 'uid', 'mode'].some((key) => parent[key] !== directoryIdentity[key])
     )
       throw new Error('Original VM capture retention directory changed');
-    const name = `${event}-${randomUUID23()}.private.json`;
-    const path = join40(directory, name);
+    const name = `${event}-${randomUUID24()}.private.json`;
+    const path = join41(directory, name);
     const folder = await open24(directory, constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW);
     try {
       const original = await folder.stat({ bigint: true });
       if (['dev', 'ino', 'uid', 'mode'].some((key) => original[key] !== directoryIdentity[key]))
         throw new Error('Original VM capture retention directory changed during open');
-      const file = await open24(join40('/proc/self/fd', String(folder.fd), name), 'wx', 256);
+      const file = await open24(join41('/proc/self/fd', String(folder.fd), name), 'wx', 256);
       try {
         await file.writeFile(
           JSON.stringify({
@@ -25314,7 +25421,7 @@ async function openInstalledVmCapture(input) {
       } finally {
         await file.close();
       }
-      const after = await lstat27(directory, { bigint: true });
+      const after = await lstat28(directory, { bigint: true });
       if (['dev', 'ino', 'uid', 'mode'].some((key) => after[key] !== directoryIdentity[key]))
         throw new Error('Original VM capture retention directory changed during write');
     } finally {
@@ -25711,6 +25818,7 @@ export {
   collectOriginalSignalFreeUnspawnedExecutions,
   compileOriginalGcpCeTrustMaterial,
   compileOriginalGcpObserverTrustMaterial,
+  createInstalledCleanupExecutor,
   factory as default,
   GoogleHttpRpcTraceParser,
   handoffOriginalEarlyGcpVmEvidence,

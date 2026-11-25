@@ -2476,3 +2476,13 @@ failed captures and unresolved locks remain unchanged. The failing-first native
 phase regression and 117 affected cases pass after output binding adopted
 continuous original identity checks following full pre-spawn admission. Release
 and final digests remain required. All original feature and delivery gates stay open.
+
+## Native captured-cleanup transport
+
+The [cleanup transport receipt](gcp-cleanup-native-transport-20261125.md) records
+the failing-first implementation and export checks and 87 passing affected cases.
+The transport operates the original Terraform workspace through a separate native
+gate while preserving failed claims and requiring source inputs and independent
+group closure. It grants no deletion authority. The fresh 21-resource plan remains
+unsubmitted until actual ownership observation and full cleanup composition are
+qualified. All original live and delivery gates stay open.

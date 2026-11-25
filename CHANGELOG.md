@@ -10,11 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.176 retains continuous original input identities during
-  native output binding and prefix reads after full admission before spawn.
-  Independent full digests remain required at release and final capture. Original
-  startup and recovery bounds, failed captures and unresolved locks remain intact.
-  Complete factory, live qualification and publication remain held (#1559).
+- **`terraform`** v2.4.177 adds native transport for captured cleanup through
+  the original workspace and a separate executor directory. Original failed
+  claims remain intact. Independent ownership, reader closure and reviewed
+  delete-only authorization remain required. Complete campaign cleanup, live
+  qualification and publication remain held (#1559).
 
 - **`platform`** v6.3.33 rebuilds the shared CE runtime with Bun 1.4.4 and
   retains independent Linux process group closure evidence without signals.
