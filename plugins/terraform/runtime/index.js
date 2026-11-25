@@ -24076,8 +24076,34 @@ async function assertInstalledGcpSshClientSetup(environment = process.env) {
 import { join as join38 } from 'node:path';
 
 var TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
+function snapshotCaptureCleanup(input, execute) {
+  if (!input) return;
+  if (!execute || typeof input.assertIndependentClosure !== 'function')
+    throw new Error('Captured cleanup requires a compiled original executor and closure capability');
+  const { assertIndependentClosure, ...fields } = input;
+  const snapshot = structuredClone(fields);
+  const freeze = (value) => {
+    if (value && typeof value === 'object') {
+      for (const row of Object.values(value)) freeze(row);
+      Object.freeze(value);
+    }
+    return value;
+  };
+  return Object.freeze({ ...freeze(snapshot), assertIndependentClosure: assertIndependentClosure.bind(input) });
+}
+function assertCaptureCleanupSession(cleanup, owner, deployment, resume) {
+  if (
+    cleanup &&
+    (!resume ||
+      owner.provider !== 'gcp' ||
+      deployment.stage !== undefined ||
+      cleanup.deploymentId !== owner.deploymentId)
+  )
+    throw new Error('Captured cleanup requires its original GCP owning workspace and resume');
+}
 function freezeRuntime(options) {
   const execute = options.execute;
+  const captureCleanup = snapshotCaptureCleanup(options.captureCleanup, execute);
   const planSource = options.planSource;
   if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || !execute))
     throw new Error('Qualified versioned plan source requires its original executor');
@@ -24086,12 +24112,19 @@ function freezeRuntime(options) {
     ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
     : undefined;
   if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
-  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource });
+  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource, captureCleanup });
 }
 function createCeTerraformService(platform, options = {}) {
   const defaults = freezeRuntime(options);
   const resolveRuntime = options.resolveRuntime;
-  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady || defaults.planSource))
+  if (
+    resolveRuntime &&
+    (defaults.execute ||
+      defaults.googleAdc ||
+      defaults.assertApplyReady ||
+      defaults.planSource ||
+      defaults.captureCleanup)
+  )
     throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
@@ -24106,6 +24139,7 @@ function createCeTerraformService(platform, options = {}) {
         owner.region !== deployment.scope.region
       )
         throw new Error('Terraform deployment and cloud ownership differ');
+      assertCaptureCleanupSession(defaults.captureCleanup, owner, deployment, resume);
       const shared = await platform();
       const store = await shared.storage(owner);
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
@@ -24113,7 +24147,7 @@ function createCeTerraformService(platform, options = {}) {
       const directory = deployment.stage
         ? join38(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
-      const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
+      const { execute, googleAdc, assertApplyReady, planSource, captureCleanup } = resolveRuntime
         ? freezeRuntime(
             await resolveRuntime({
               owner: structuredClone(owner),
@@ -24124,6 +24158,7 @@ function createCeTerraformService(platform, options = {}) {
             }),
           )
         : defaults;
+      assertCaptureCleanupSession(captureCleanup, owner, deployment, resume);
       let adcSession;
       let originalLease;
       let retiring = false;
@@ -24176,11 +24211,12 @@ function createCeTerraformService(platform, options = {}) {
                 );
               })
           : execute;
-      const runner = new TerraformRunner(directory, guardedExecute, undefined, planSource);
+      const runner = new TerraformRunner(directory, guardedExecute, captureCleanup, planSource);
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);
+        await captureCleanup?.assertIndependentClosure();
       };
       const checkApplyReady = async () => {
         await checkOwner();
@@ -24188,7 +24224,7 @@ function createCeTerraformService(platform, options = {}) {
         await assertApplyReady?.();
       };
       return {
-        ...(assertApplyReady ? { assertApplyReady: checkApplyReady } : {}),
+        ...(assertApplyReady || captureCleanup ? { assertApplyReady: checkApplyReady } : {}),
         ...(policy
           ? {
               googleAdcEnvironment: () =>

@@ -2505,3 +2505,13 @@ and full affected source qualification. Terraform 2.4.178 and GCloud 1.7.77 reta
 original hashes, owner and permission checks while admitting the ordinary system
 SDK. Actual installed observations and cleanup composition remain required before
 campaign submission; all original live and delivery gates remain open.
+
+## Shared original-cleanup session
+
+The [shared cleanup service receipt](gcp-captured-cleanup-service-20261125.md)
+records the failing-first handoff and 167 affected passing cases. Terraform 2.4.179
+and GCloud 1.7.78 carry compiled original recovery through the existing shared
+service and runner, preserving failed claims, owner/workspace binding, replay
+refusal and independent closure. Actual SDK authentication and original reader,
+ownership and reviewed cleanup composition remain open before campaign submission.
+All original live and delivery gates remain unchanged.

@@ -11,6 +11,7 @@ import {
   type AppliedResourceProjection,
   type ApplyAttemptResourceProjection,
   type ApplyCheckpoint,
+  type CaptureCleanupRecovery,
   type CurrentResourcePlanSnapshot,
   type Deployment,
   type Executor,
@@ -128,6 +129,9 @@ export interface GoogleAdcPolicy {
   }): Promise<GoogleAdcLease>;
 }
 export interface CeTerraformRuntimeOptions {
+  /** Compiled original GCP cleanup admission only; never supplied by tool arguments.
+   * The runner preserves original failed claims and reviewed delete-only authority. */
+  readonly captureCleanup?: CaptureCleanupRecovery;
   /** Trusted opt-in read channel; does not grant execution or alter historical executor selection. */
   readonly planSource?: 'gcp-resource-plan-v1';
   /** Source-owned preflight before consuming a saved plan; invocation release still rechecks live capture. */
@@ -148,8 +152,40 @@ export interface CeTerraformServiceOptions extends CeTerraformRuntimeOptions {
   /** Installed server code selects the owning context; conversational callers cannot provide a resolver. */
   readonly resolveRuntime?: (request: CeTerraformRuntimeRequest) => Promise<CeTerraformRuntimeOptions>;
 }
+function snapshotCaptureCleanup(input: CaptureCleanupRecovery | undefined, execute: Executor | undefined) {
+  if (!input) return undefined;
+  if (!execute || typeof input.assertIndependentClosure !== 'function')
+    throw new Error('Captured cleanup requires a compiled original executor and closure capability');
+  const { assertIndependentClosure, ...fields } = input;
+  const snapshot = structuredClone(fields);
+  const freeze = <T>(value: T): T => {
+    if (value && typeof value === 'object') {
+      for (const row of Object.values(value)) freeze(row);
+      Object.freeze(value);
+    }
+    return value;
+  };
+  return Object.freeze({ ...freeze(snapshot), assertIndependentClosure: assertIndependentClosure.bind(input) });
+}
+function assertCaptureCleanupSession(
+  cleanup: CaptureCleanupRecovery | undefined,
+  owner: CeOwner,
+  deployment: Deployment,
+  resume: boolean | 'current',
+) {
+  if (
+    cleanup &&
+    (!resume ||
+      owner.provider !== 'gcp' ||
+      deployment.stage !== undefined ||
+      cleanup.deploymentId !== owner.deploymentId)
+  )
+    throw new Error('Captured cleanup requires its original GCP owning workspace and resume');
+}
+
 function freezeRuntime(options: CeTerraformRuntimeOptions): CeTerraformRuntimeOptions {
   const execute = options.execute;
+  const captureCleanup = snapshotCaptureCleanup(options.captureCleanup, execute);
   const planSource = options.planSource;
   if (planSource !== undefined && (planSource !== 'gcp-resource-plan-v1' || !execute))
     throw new Error('Qualified versioned plan source requires its original executor');
@@ -158,7 +194,7 @@ function freezeRuntime(options: CeTerraformRuntimeOptions): CeTerraformRuntimeOp
     ? Object.freeze({ ...options.googleAdc, acquire: options.googleAdc.acquire })
     : undefined;
   if (googleAdc && !execute) throw new Error('Google ADC policy requires a qualified original-lifetime executor');
-  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource });
+  return Object.freeze({ execute, googleAdc, assertApplyReady, planSource, captureCleanup });
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
@@ -169,7 +205,14 @@ export function createCeTerraformService(
   // Capture the policy once so mutation of the options object cannot redirect later sessions.
   const defaults = freezeRuntime(options);
   const resolveRuntime = options.resolveRuntime;
-  if (resolveRuntime && (defaults.execute || defaults.googleAdc || defaults.assertApplyReady || defaults.planSource))
+  if (
+    resolveRuntime &&
+    (defaults.execute ||
+      defaults.googleAdc ||
+      defaults.assertApplyReady ||
+      defaults.planSource ||
+      defaults.captureCleanup)
+  )
     throw new Error('Select one trusted runtime policy source');
   return {
     async open(owner, deployment, resume) {
@@ -184,6 +227,7 @@ export function createCeTerraformService(
         owner.region !== deployment.scope.region
       )
         throw new Error('Terraform deployment and cloud ownership differ');
+      assertCaptureCleanupSession(defaults.captureCleanup, owner, deployment, resume);
       const shared = await platform();
       const store = await shared.storage(owner);
       if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
@@ -191,7 +235,7 @@ export function createCeTerraformService(
       const directory = deployment.stage
         ? join(store.directory, 'terraform-stages', deployment.stage)
         : store.directory;
-      const { execute, googleAdc, assertApplyReady, planSource } = resolveRuntime
+      const { execute, googleAdc, assertApplyReady, planSource, captureCleanup } = resolveRuntime
         ? freezeRuntime(
             await resolveRuntime({
               owner: structuredClone(owner),
@@ -202,6 +246,7 @@ export function createCeTerraformService(
             }),
           )
         : defaults;
+      assertCaptureCleanupSession(captureCleanup, owner, deployment, resume);
       let adcSession: Promise<Awaited<ReturnType<typeof openGoogleAdcSession>>> | undefined;
       let originalLease: GoogleAdcLease | undefined;
       let retiring = false;
@@ -254,11 +299,12 @@ export function createCeTerraformService(
                 );
               })
           : execute;
-      const runner = new TerraformRunner(directory, guardedExecute, undefined, planSource);
+      const runner = new TerraformRunner(directory, guardedExecute, captureCleanup, planSource);
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);
+        await captureCleanup?.assertIndependentClosure();
       };
       const checkApplyReady = async () => {
         await checkOwner();
@@ -266,7 +312,7 @@ export function createCeTerraformService(
         await assertApplyReady?.();
       };
       return {
-        ...(assertApplyReady ? { assertApplyReady: checkApplyReady } : {}),
+        ...(assertApplyReady || captureCleanup ? { assertApplyReady: checkApplyReady } : {}),
         ...(policy
           ? {
               googleAdcEnvironment: () =>
