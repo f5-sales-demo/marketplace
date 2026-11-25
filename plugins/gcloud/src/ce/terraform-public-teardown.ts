@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import { readGcpAppliedSourceTeardownOrigin } from './applied-source-teardown-origin';
+import { mapCleanupObservations, readCleanupObservationConcurrency } from './bounded-cleanup-observations';
 import { readGcpCapturedTeardownOrigin } from './captured-teardown-origin';
 import type { GcpCeContractBoundary } from './contract';
 import {
@@ -46,13 +47,21 @@ export async function verifyPublicTerraformLiveOwnership(
   const absent: string[] = [];
   const addresses = publicTerraformAddresses(intent),
     scope = publicTerraformCloudScope(intent);
-  for (let n = 0; n < scope.length; n++) {
-    const original = owned.resources.find((resource) => resource.selfLink === scope[n].selfLink);
-    const live = await observeGcpTeardownResource(runtime.api, scope[n], signal);
-    if (live ? !original || original.id !== live.id || original.selfLink !== live.selfLink : !!original && !allowAbsent)
-      throw new Error('Original cloud identity replaced or unavailable');
-    if (!live) absent.push(addresses[n]);
-  }
+  const observations = await mapCleanupObservations(
+    scope,
+    async (expected, n) => {
+      const original = owned.resources.find((resource) => resource.selfLink === expected.selfLink);
+      const live = await observeGcpTeardownResource(runtime.api, expected, signal);
+      if (
+        live ? !original || original.id !== live.id || original.selfLink !== live.selfLink : !!original && !allowAbsent
+      )
+        throw new Error('Original cloud identity replaced or unavailable');
+      return live ? undefined : addresses[n];
+    },
+    signal,
+    readCleanupObservationConcurrency(runtime.api),
+  );
+  for (const address of observations) if (address !== undefined) absent.push(address);
   if (intent.schemaVersion === 2) {
     const present = owned.resources.filter(
       (row) =>

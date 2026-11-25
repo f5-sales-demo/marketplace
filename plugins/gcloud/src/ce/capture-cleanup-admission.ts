@@ -14,6 +14,7 @@ import {
   readCaptureCleanupAttemptResourceFields,
 } from '../../../terraform/src/runner';
 import type { GcloudExecApi } from '../gcloud/exec';
+import { bindCleanupObservationConcurrency, readCleanupObservationConcurrency } from './bounded-cleanup-observations';
 import { readGcpCaptureCleanupStateCandidate } from './capture-cleanup-state';
 import { fingerprint } from './discovery';
 import {
@@ -131,6 +132,7 @@ export function boundedGcpCleanupObservers(
       return result;
     },
   };
+  bindCleanupObservationConcurrency(observation.api, readCleanupObservationConcurrency(api));
   return observation;
 }
 

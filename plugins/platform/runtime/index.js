@@ -6851,6 +6851,9 @@ function correlateGcpPhysicalInterfaces(expected, cloudValue, registrationValue,
     .sort((a, b) => a.cloudNicIndex - b.cloudNicIndex);
 }
 
+// plugins/gcloud/src/ce/bounded-cleanup-observations.ts
+var _readConcurrency = new WeakMap();
+
 // plugins/gcloud/src/ce/terraform-public-ownership.ts
 function publicTerraformPlatformScope(intent) {
   return intent.sites.flatMap((site) => [

@@ -7684,6 +7684,8 @@ import { createHash as createHash11, randomUUID as randomUUID6 } from 'node:cryp
 // plugins/terraform/src/original-gcp-inventory-scope.ts
 import { join as join7, join as join8 } from 'node:path';
 
+// plugins/gcloud/src/ce/bounded-cleanup-observations.ts
+var _readConcurrency = new WeakMap();
 // plugins/gcloud/src/ce/terraform-public-ownership.ts
 function publicTerraformPlatformScope(intent) {
   return intent.sites.flatMap((site) => [

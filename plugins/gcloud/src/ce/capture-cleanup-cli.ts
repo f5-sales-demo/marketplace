@@ -11,6 +11,7 @@ import {
   signalFreeTerraformExecutor,
 } from '../../../terraform/src/signal-free-executor';
 import type { GcloudExecApi } from '../gcloud/exec';
+import { bindCleanupObservationConcurrency } from './bounded-cleanup-observations';
 import { gcpTeardownResourceObservationArgs } from './deployment-teardown';
 import {
   gcpFirewallInsertObservationArgs,
@@ -30,6 +31,7 @@ interface GcpCaptureCleanupCliOptions {
   readonly configuration: string;
   readonly environment: Record<string, string | undefined>;
   /** Compiled guards over pinned CLI, original selected account and configuration. */
+  readonly readConcurrency?: 1 | 3;
   assertInputs(): Promise<void>;
   /** Continuous identity checks over the same admitted inputs between full byte boundaries. */
   assertInputIdentity?(): Promise<void>;
@@ -89,6 +91,8 @@ async function readCleanupStderr(path: string): Promise<string> {
 /** Concrete CLI transport for compiled cleanup composition. It preserves failed
  * claims, original scope and natural child completion without process signals. */
 export function createGcpCaptureCleanupCli(options: GcpCaptureCleanupCliOptions): GcloudExecApi {
+  const readConcurrency = options.readConcurrency ?? 1;
+  if (readConcurrency !== 1 && readConcurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
   const intent = structuredClone(options.intent);
   const allowed = new Set(gcpCaptureCleanupReadCommands(intent).map((args) => JSON.stringify(args)));
   const directory = options.directory,
@@ -142,7 +146,7 @@ export function createGcpCaptureCleanupCli(options: GcpCaptureCleanupCliOptions)
   const assertInputIdentity = options.assertInputIdentity?.bind(options);
   const start = linuxMonotonicMs(),
     deadline = start + 7200000;
-  let active = false,
+  let active = 0,
     retired = false;
   const inspect = async (path: string) => {
     const value = await lstat(path, { bigint: true });
@@ -177,81 +181,85 @@ export function createGcpCaptureCleanupCli(options: GcpCaptureCleanupCliOptions)
     await assertIndependentClosure();
     await (assertInputIdentity ?? assertInputs)();
   };
-  return Object.freeze({
-    exec: async (command, supplied, invocation = {}) => {
-      const args = [...supplied],
-        signal = invocation.signal;
-      if (command !== 'gcloud' || !allowed.has(JSON.stringify(args)))
-        throw new Error('Cleanup observation escaped exact original read-only argv');
-      if (active || retired) throw new Error('Original cleanup observation transport active or retired');
-      signal?.throwIfAborted();
-      if (linuxMonotonicMs() >= deadline) throw new Error('Original cleanup observation budget exhausted');
-      active = true;
-      try {
-        await guard(false);
-        const commandDirectory = join(diagnosticsDirectory, randomUUID());
-        await mkdir(commandDirectory, { mode: 0o700 });
-        let capture: FinalExecutionCapture | undefined;
-        const execute = signalFreeTerraformExecutor({
-          python,
-          executable,
-          originalStartMs: start,
-          originalDeadlineMs: deadline,
-          timeoutMs: 60000,
-          startupTimeoutMs: 15000,
-          maxOutputBytes: 1048576,
-          assertOriginal: guard,
-          ...(assertInputIdentity
-            ? { assertOriginalIdentity: () => guard(false), assertFinalInputs: () => guard() }
-            : {}),
-          finalCapture: async (current) => {
-            capture = current;
-            await writeFile(
-              join(commandDirectory, 'cleanup-observation-partial.private.json'),
-              JSON.stringify(current),
-              { flag: 'wx', mode: 0o400 },
-            );
-          },
-        });
-        const result = await execute({
-          cwd: commandDirectory,
-          args: [...args, `--account=${account}`, `--configuration=${configuration}`],
-          env: environment,
-          signal,
-        });
-        if (!capture) throw new Error('Original cleanup observation final capture missing');
-        const completion = await readOwnedInstalledInput(
-          join(dirname(capture.stdoutPath), 'completion.private.json'),
-          1048576,
-        );
-        const final = decodeEvidenceObject(completion.bytes);
-        if (
-          JSON.stringify(final.identity) !== JSON.stringify(capture.identity) ||
-          final.originalDeadlineMs !== deadline ||
-          final.originalGroupClosed !== true ||
-          final.signalsSent !== false ||
-          final.finalStartedMs !== capture.finalStartedMs ||
-          final.finalDeadlineMs !== capture.finalDeadlineMs
-        )
-          throw new Error('Original cleanup observation completion binding differs');
-        await writeFile(
-          join(commandDirectory, 'cleanup-observation-final.private.json'),
-          JSON.stringify({ ...final, completionInput: completion.binding }),
-          { flag: 'wx', mode: 0o400 },
-        );
-        await guard(false);
+  return bindCleanupObservationConcurrency(
+    Object.freeze({
+      exec: async (command, supplied, invocation = {}) => {
+        const args = [...supplied],
+          signal = invocation.signal;
+        if (command !== 'gcloud' || !allowed.has(JSON.stringify(args)))
+          throw new Error('Cleanup observation escaped exact original read-only argv');
+        if (active >= readConcurrency || retired)
+          throw new Error('Original cleanup observation transport active or retired');
         signal?.throwIfAborted();
-        if (final.reason || final.captureClosed !== true) throw new Error('Original cleanup observation incomplete');
-        const stderr = await readCleanupStderr(capture.stderrPath);
-        await guard(false);
-        signal?.throwIfAborted();
-        return { stdout: result.stdout, stderr, exitCode: result.code };
-      } catch (error) {
-        retired = true;
-        throw error;
-      } finally {
-        active = false;
-      }
-    },
-  } satisfies GcloudExecApi);
+        if (linuxMonotonicMs() >= deadline) throw new Error('Original cleanup observation budget exhausted');
+        active++;
+        try {
+          await guard(false);
+          const commandDirectory = join(diagnosticsDirectory, randomUUID());
+          await mkdir(commandDirectory, { mode: 0o700 });
+          let capture: FinalExecutionCapture | undefined;
+          const execute = signalFreeTerraformExecutor({
+            python,
+            executable,
+            originalStartMs: start,
+            originalDeadlineMs: deadline,
+            timeoutMs: 60000,
+            startupTimeoutMs: 15000,
+            maxOutputBytes: 1048576,
+            assertOriginal: guard,
+            ...(assertInputIdentity
+              ? { assertOriginalIdentity: () => guard(false), assertFinalInputs: () => guard() }
+              : {}),
+            finalCapture: async (current) => {
+              capture = current;
+              await writeFile(
+                join(commandDirectory, 'cleanup-observation-partial.private.json'),
+                JSON.stringify(current),
+                { flag: 'wx', mode: 0o400 },
+              );
+            },
+          });
+          const result = await execute({
+            cwd: commandDirectory,
+            args: [...args, `--account=${account}`, `--configuration=${configuration}`],
+            env: environment,
+            signal,
+          });
+          if (!capture) throw new Error('Original cleanup observation final capture missing');
+          const completion = await readOwnedInstalledInput(
+            join(dirname(capture.stdoutPath), 'completion.private.json'),
+            1048576,
+          );
+          const final = decodeEvidenceObject(completion.bytes);
+          if (
+            JSON.stringify(final.identity) !== JSON.stringify(capture.identity) ||
+            final.originalDeadlineMs !== deadline ||
+            final.originalGroupClosed !== true ||
+            final.signalsSent !== false ||
+            final.finalStartedMs !== capture.finalStartedMs ||
+            final.finalDeadlineMs !== capture.finalDeadlineMs
+          )
+            throw new Error('Original cleanup observation completion binding differs');
+          await writeFile(
+            join(commandDirectory, 'cleanup-observation-final.private.json'),
+            JSON.stringify({ ...final, completionInput: completion.binding }),
+            { flag: 'wx', mode: 0o400 },
+          );
+          await guard(false);
+          signal?.throwIfAborted();
+          if (final.reason || final.captureClosed !== true) throw new Error('Original cleanup observation incomplete');
+          const stderr = await readCleanupStderr(capture.stderrPath);
+          await guard(false);
+          signal?.throwIfAborted();
+          return { stdout: result.stdout, stderr, exitCode: result.code };
+        } catch (error) {
+          retired = true;
+          throw error;
+        } finally {
+          active--;
+        }
+      },
+    } satisfies GcloudExecApi),
+    readConcurrency,
+  );
 }

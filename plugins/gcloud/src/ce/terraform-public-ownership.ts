@@ -1,5 +1,6 @@
 import type { ApplyAttemptResourceProjection, PlanReceipt } from '../../../terraform/src/runner';
 import { parseGcloudJsonOutput } from '../gcloud/exec';
+import { mapCleanupObservations, readCleanupObservationConcurrency } from './bounded-cleanup-observations';
 import { observeGcpTeardownResource } from './deployment-teardown';
 import { fingerprint } from './discovery';
 import { GCP_TERRAFORM_OBSERVER_IMAGE, gcpTerraformObserverIdentity } from './observer-scope';
@@ -173,91 +174,95 @@ export async function inspectPublicTerraformOwnership(
     signal,
   );
   assertPublicTerraformSnapshot(intent, receipt, projected);
-  const resources: GcpResourceIdentity[] = [];
   const scope = publicTerraformCloudScope(intent);
-  for (let index = 0; index < scope.length; index++) {
-    const address = publicTerraformAddresses(intent)[index];
-    const value = projected.resources[address];
-    const expected = scope[index];
-    const live = await observeGcpTeardownResource(runtime.api, expected, signal);
-    if (!value) {
-      if (live) throw new Error('Unidentified cloud object requires reconciliation');
-      continue;
-    }
-    if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
-      throw new Error('Missing owning cloud object requires reconciliation');
-    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
-      ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
-    ];
-    if (
-      value.name !== expected.selfLink.split('/').at(-1) ||
-      value.project !== intent.project ||
-      value.self_link !== expected.selfLink ||
-      (expected.kind !== 'firewall' && String(value[idField]) !== live.id)
-    )
-      throw new Error('Replacement cloud identity requires reconciliation');
-    if (
-      ['instance', 'disk'].includes(expected.kind) &&
-      value.zone !== expected.selfLink.split('/zones/')[1]?.split('/')[0]
-    )
-      throw new Error('Cloud zone identity differs');
-    if (expected.kind === 'subnetwork') {
-      const nic = intent.sites
-        .flatMap((site) => site.nodes.flatMap((node) => node.interfaces))
-        .find((n) => expected.selfLink.endsWith(`/subnetworks/${n.subnet}`));
-      if (
-        !nic ||
-        value.region !== intent.region ||
-        value.ip_cidr_range !== nic.cidr ||
-        value.network !==
-          scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/networks/${nic.network}`))?.selfLink
-      )
-        throw new Error('Subnet ownership topology differs');
-    }
-    if (expected.kind === 'firewall') {
-      await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
-      const observer = intent.schemaVersion === 2 ? gcpTerraformObserverIdentity(intent) : undefined;
-      if (observer && value.name === observer.firewallName) {
-        if (
-          value.network !==
-            `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${observer.network}` ||
-          value.direction !== 'INGRESS' ||
-          fingerprint(value.source_ranges) !== fingerprint([intent.observer?.sshSourceCidr]) ||
-          fingerprint(value.destination_ranges ?? []) !== fingerprint([]) ||
-          fingerprint(value.target_tags) !== fingerprint([observer.name]) ||
-          fingerprint(value.allow) !== fingerprint([{ protocol: 'tcp', ports: ['22'] }])
-        )
-          throw new Error('Original observer SSH firewall topology differs');
-      } else {
-        const binding = intent.sites
-          .flatMap((site) =>
-            site.nodes[0].interfaces.flatMap((nic) =>
-              ['INGRESS', 'EGRESS'].map((direction) => ({
-                site,
-                nic,
-                direction,
-                name: `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`,
-              })),
-            ),
-          )
-          .find((row) => expected.selfLink.endsWith(`/firewalls/${row.name}`));
-        if (
-          !binding ||
-          value.network !==
-            `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${binding.nic.network}` ||
-          value.direction !== binding.direction ||
-          fingerprint(value.source_ranges ?? []) !==
-            fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
-          fingerprint(value.destination_ranges ?? []) !==
-            fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
-          fingerprint(value.target_tags) !== fingerprint([`${binding.site.name}-ha-peer`]) ||
-          fingerprint(value.allow) !== fingerprint([{ protocol: 'all', ports: [] }])
-        )
-          throw new Error('HA interface firewall ownership topology differs');
+  const observations = await mapCleanupObservations(
+    scope,
+    async (expected, index) => {
+      const address = publicTerraformAddresses(intent)[index];
+      const value = projected.resources[address];
+      const live = await observeGcpTeardownResource(runtime.api, expected, signal);
+      if (!value) {
+        if (live) throw new Error('Unidentified cloud object requires reconciliation');
+        return undefined;
       }
-    }
-    resources.push({ ...expected, id: live.id });
-  }
+      if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
+        throw new Error('Missing owning cloud object requires reconciliation');
+      const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
+        ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
+      ];
+      if (
+        value.name !== expected.selfLink.split('/').at(-1) ||
+        value.project !== intent.project ||
+        value.self_link !== expected.selfLink ||
+        (expected.kind !== 'firewall' && String(value[idField]) !== live.id)
+      )
+        throw new Error('Replacement cloud identity requires reconciliation');
+      if (
+        ['instance', 'disk'].includes(expected.kind) &&
+        value.zone !== expected.selfLink.split('/zones/')[1]?.split('/')[0]
+      )
+        throw new Error('Cloud zone identity differs');
+      if (expected.kind === 'subnetwork') {
+        const nic = intent.sites
+          .flatMap((site) => site.nodes.flatMap((node) => node.interfaces))
+          .find((n) => expected.selfLink.endsWith(`/subnetworks/${n.subnet}`));
+        if (
+          !nic ||
+          value.region !== intent.region ||
+          value.ip_cidr_range !== nic.cidr ||
+          value.network !==
+            scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/networks/${nic.network}`))?.selfLink
+        )
+          throw new Error('Subnet ownership topology differs');
+      }
+      if (expected.kind === 'firewall') {
+        await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
+        const observer = intent.schemaVersion === 2 ? gcpTerraformObserverIdentity(intent) : undefined;
+        if (observer && value.name === observer.firewallName) {
+          if (
+            value.network !==
+              `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${observer.network}` ||
+            value.direction !== 'INGRESS' ||
+            fingerprint(value.source_ranges) !== fingerprint([intent.observer?.sshSourceCidr]) ||
+            fingerprint(value.destination_ranges ?? []) !== fingerprint([]) ||
+            fingerprint(value.target_tags) !== fingerprint([observer.name]) ||
+            fingerprint(value.allow) !== fingerprint([{ protocol: 'tcp', ports: ['22'] }])
+          )
+            throw new Error('Original observer SSH firewall topology differs');
+        } else {
+          const binding = intent.sites
+            .flatMap((site) =>
+              site.nodes[0].interfaces.flatMap((nic) =>
+                ['INGRESS', 'EGRESS'].map((direction) => ({
+                  site,
+                  nic,
+                  direction,
+                  name: `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`,
+                })),
+              ),
+            )
+            .find((row) => expected.selfLink.endsWith(`/firewalls/${row.name}`));
+          if (
+            !binding ||
+            value.network !==
+              `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${binding.nic.network}` ||
+            value.direction !== binding.direction ||
+            fingerprint(value.source_ranges ?? []) !==
+              fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
+            fingerprint(value.destination_ranges ?? []) !==
+              fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
+            fingerprint(value.target_tags) !== fingerprint([`${binding.site.name}-ha-peer`]) ||
+            fingerprint(value.allow) !== fingerprint([{ protocol: 'all', ports: [] }])
+          )
+            throw new Error('HA interface firewall ownership topology differs');
+        }
+      }
+      return { ...expected, id: live.id };
+    },
+    signal,
+    readCleanupObservationConcurrency(runtime.api),
+  );
+  const resources: GcpResourceIdentity[] = observations.filter((row) => row !== undefined);
   const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
   for (const site of intent.sites)
     for (const node of site.nodes) {

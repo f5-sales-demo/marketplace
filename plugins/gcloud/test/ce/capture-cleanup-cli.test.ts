@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readCleanupObservationConcurrency } from '../../src/ce/bounded-cleanup-observations';
 import { createGcpCaptureCleanupCli, gcpCaptureCleanupReadCommands } from '../../src/ce/capture-cleanup-cli';
 import { observerOwnershipFixture } from './observer-ownership-fixtures';
 
@@ -194,4 +195,86 @@ test('cleanup preserves bounded CLI failure diagnostics and never reports failed
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain('reauthentication required');
   expect(await readFile(f.retained, 'utf8')).toBe('original-failed-capture');
+});
+
+test('native cleanup transport permits exactly three qualified independent reads with one original budget', async () => {
+  const f = await fixture();
+  const api = createGcpCaptureCleanupCli({ ...f.options, readConcurrency: 3 });
+  expect(readCleanupObservationConcurrency(api)).toBe(3);
+  expect(readCleanupObservationConcurrency({ ...api })).toBe(1);
+  const args = gcpCaptureCleanupReadCommands(f.intent).slice(0, 3);
+  const results = await Promise.all(args.map((argv) => api.exec('gcloud', [...argv])));
+  expect(results.map((r) => r.exitCode)).toEqual([0, 0, 0]);
+  const files = await Array.fromAsync(
+    new Bun.Glob('**/cleanup-observation-final.private.json').scan({ cwd: f.diagnosticsDirectory }),
+  );
+  expect(files).toHaveLength(3);
+  const rows = await Promise.all(
+    files.map(async (p) => JSON.parse(await readFile(join(f.diagnosticsDirectory, p), 'utf8'))),
+  );
+  expect(new Set(rows.map((r) => r.originalDeadlineMs)).size).toBe(1);
+  expect(new Set(rows.map((r) => r.identity.group)).size).toBe(3);
+  for (const row of rows) {
+    expect(row.signalsSent).toBe(false);
+    expect(row.originalGroupClosed).toBe(true);
+    expect(row.finalDeadlineMs - row.finalStartedMs).toBe(300000);
+  }
+  expect(await readFile(f.retained, 'utf8')).toBe('original-failed-capture');
+});
+test('bounded native transport refuses a fourth read without retiring the three admitted reads', async () => {
+  const f = await fixture();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  let started = 0;
+  let began: () => void = () => {};
+  const admission = new Promise<void>((r) => {
+    began = r;
+  });
+  const api = createGcpCaptureCleanupCli({
+    ...f.options,
+    readConcurrency: 3,
+    assertInputs: async () => {
+      if (++started === 3) began();
+      await gate;
+      await f.options.assertInputs();
+    },
+  });
+  const args = gcpCaptureCleanupReadCommands(f.intent)[0];
+  const pending = Array.from({ length: 3 }, () => api.exec('gcloud', [...args]));
+  await admission;
+  await expect(api.exec('gcloud', [...args])).rejects.toThrow('active or retired');
+  release();
+  expect((await Promise.all(pending)).map((r) => r.exitCode)).toEqual([0, 0, 0]);
+});
+test('default native transport keeps its original single-active-read contract', async () => {
+  const f = await fixture();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  let began: () => void = () => {};
+  const admission = new Promise<void>((r) => {
+    began = r;
+  });
+  const api = createGcpCaptureCleanupCli({
+    ...f.options,
+    assertInputs: async () => {
+      began();
+      await gate;
+      await f.options.assertInputs();
+    },
+  });
+  expect(readCleanupObservationConcurrency(api)).toBe(1);
+  const args = gcpCaptureCleanupReadCommands(f.intent)[0];
+  const pending = api.exec('gcloud', [...args]);
+  await admission;
+  await expect(api.exec('gcloud', [...args])).rejects.toThrow('active or retired');
+  release();
+  expect((await pending).exitCode).toBe(0);
+});
+test('native transport rejects unsupported read concurrency before creating observation authority', async () => {
+  const f = await fixture();
+  expect(() => createGcpCaptureCleanupCli({ ...f.options, readConcurrency: 2 as 1 | 3 })).toThrow('read concurrency');
 });

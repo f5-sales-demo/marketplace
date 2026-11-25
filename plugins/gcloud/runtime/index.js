@@ -5605,6 +5605,38 @@ var init_gcp_observer_image = __esm(() => {
   _installedImageScopes = new WeakMap();
 });
 
+// plugins/gcloud/src/ce/bounded-cleanup-observations.ts
+function bindCleanupObservationConcurrency(api, concurrency) {
+  if (concurrency !== 1 && concurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+  readConcurrency.set(api, concurrency);
+  return api;
+}
+function readCleanupObservationConcurrency(api) {
+  return api !== null && (typeof api === 'object' || typeof api === 'function') ? (readConcurrency.get(api) ?? 1) : 1;
+}
+async function mapCleanupObservations(values, observe, signal, concurrency = 1) {
+  if (concurrency !== 1 && concurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
+  const original = [...values];
+  const result = [];
+  signal?.throwIfAborted();
+  for (let offset = 0; offset < original.length; offset += concurrency) {
+    signal?.throwIfAborted();
+    const batch = original.slice(offset, offset + concurrency);
+    const settled = await Promise.allSettled(
+      batch.map((value, index) => Promise.resolve().then(() => observe(value, offset + index))),
+    );
+    for (const row of settled) if (row.status === 'rejected') throw row.reason;
+    signal?.throwIfAborted();
+    for (const row of settled) if (row.status === 'fulfilled') result.push(row.value);
+  }
+  signal?.throwIfAborted();
+  return result;
+}
+var readConcurrency;
+var init_bounded_cleanup_observations = __esm(() => {
+  readConcurrency = new WeakMap();
+});
+
 // plugins/gcloud/src/ce/operational-health.ts
 function safeFingerprint(value) {
   try {
@@ -7350,91 +7382,95 @@ async function inspectPublicTerraformOwnership(runtime, intent, receipt, signal)
     signal,
   );
   assertPublicTerraformSnapshot(intent, receipt, projected);
-  const resources = [];
   const scope = publicTerraformCloudScope(intent);
-  for (let index = 0; index < scope.length; index++) {
-    const address = publicTerraformAddresses(intent)[index];
-    const value = projected.resources[address];
-    const expected = scope[index];
-    const live = await observeGcpTeardownResource(runtime.api, expected, signal);
-    if (!value) {
-      if (live) throw new Error('Unidentified cloud object requires reconciliation');
-      continue;
-    }
-    if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
-      throw new Error('Missing owning cloud object requires reconciliation');
-    const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
-      ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
-    ];
-    if (
-      value.name !== expected.selfLink.split('/').at(-1) ||
-      value.project !== intent.project ||
-      value.self_link !== expected.selfLink ||
-      (expected.kind !== 'firewall' && String(value[idField]) !== live.id)
-    )
-      throw new Error('Replacement cloud identity requires reconciliation');
-    if (
-      ['instance', 'disk'].includes(expected.kind) &&
-      value.zone !== expected.selfLink.split('/zones/')[1]?.split('/')[0]
-    )
-      throw new Error('Cloud zone identity differs');
-    if (expected.kind === 'subnetwork') {
-      const nic = intent.sites
-        .flatMap((site) => site.nodes.flatMap((node) => node.interfaces))
-        .find((n) => expected.selfLink.endsWith(`/subnetworks/${n.subnet}`));
-      if (
-        !nic ||
-        value.region !== intent.region ||
-        value.ip_cidr_range !== nic.cidr ||
-        value.network !==
-          scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/networks/${nic.network}`))?.selfLink
-      )
-        throw new Error('Subnet ownership topology differs');
-    }
-    if (expected.kind === 'firewall') {
-      await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
-      const observer = intent.schemaVersion === 2 ? gcpTerraformObserverIdentity(intent) : undefined;
-      if (observer && value.name === observer.firewallName) {
-        if (
-          value.network !==
-            `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${observer.network}` ||
-          value.direction !== 'INGRESS' ||
-          fingerprint(value.source_ranges) !== fingerprint([intent.observer?.sshSourceCidr]) ||
-          fingerprint(value.destination_ranges ?? []) !== fingerprint([]) ||
-          fingerprint(value.target_tags) !== fingerprint([observer.name]) ||
-          fingerprint(value.allow) !== fingerprint([{ protocol: 'tcp', ports: ['22'] }])
-        )
-          throw new Error('Original observer SSH firewall topology differs');
-      } else {
-        const binding = intent.sites
-          .flatMap((site) =>
-            site.nodes[0].interfaces.flatMap((nic) =>
-              ['INGRESS', 'EGRESS'].map((direction) => ({
-                site,
-                nic,
-                direction,
-                name: `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`,
-              })),
-            ),
-          )
-          .find((row) => expected.selfLink.endsWith(`/firewalls/${row.name}`));
-        if (
-          !binding ||
-          value.network !==
-            `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${binding.nic.network}` ||
-          value.direction !== binding.direction ||
-          fingerprint(value.source_ranges ?? []) !==
-            fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
-          fingerprint(value.destination_ranges ?? []) !==
-            fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
-          fingerprint(value.target_tags) !== fingerprint([`${binding.site.name}-ha-peer`]) ||
-          fingerprint(value.allow) !== fingerprint([{ protocol: 'all', ports: [] }])
-        )
-          throw new Error('HA interface firewall ownership topology differs');
+  const observations = await mapCleanupObservations(
+    scope,
+    async (expected, index) => {
+      const address = publicTerraformAddresses(intent)[index];
+      const value = projected.resources[address];
+      const live = await observeGcpTeardownResource(runtime.api, expected, signal);
+      if (!value) {
+        if (live) throw new Error('Unidentified cloud object requires reconciliation');
+        return;
       }
-    }
-    resources.push({ ...expected, id: live.id });
-  }
+      if (!live || live.selfLink !== expected.selfLink || !/^\d+$/.test(live.id))
+        throw new Error('Missing owning cloud object requires reconciliation');
+      const idField = ['instance_id', 'disk_id', 'numeric_id', 'subnetwork_id'][
+        ['instance', 'disk', 'network', 'subnetwork', 'firewall'].indexOf(expected.kind)
+      ];
+      if (
+        value.name !== expected.selfLink.split('/').at(-1) ||
+        value.project !== intent.project ||
+        value.self_link !== expected.selfLink ||
+        (expected.kind !== 'firewall' && String(value[idField]) !== live.id)
+      )
+        throw new Error('Replacement cloud identity requires reconciliation');
+      if (
+        ['instance', 'disk'].includes(expected.kind) &&
+        value.zone !== expected.selfLink.split('/zones/')[1]?.split('/')[0]
+      )
+        throw new Error('Cloud zone identity differs');
+      if (expected.kind === 'subnetwork') {
+        const nic = intent.sites
+          .flatMap((site) => site.nodes.flatMap((node) => node.interfaces))
+          .find((n) => expected.selfLink.endsWith(`/subnetworks/${n.subnet}`));
+        if (
+          !nic ||
+          value.region !== intent.region ||
+          value.ip_cidr_range !== nic.cidr ||
+          value.network !==
+            scope.find((r) => r.kind === 'network' && r.selfLink.endsWith(`/networks/${nic.network}`))?.selfLink
+        )
+          throw new Error('Subnet ownership topology differs');
+      }
+      if (expected.kind === 'firewall') {
+        await assertOriginalFirewallInsert(runtime, intent, value, live.id, signal);
+        const observer = intent.schemaVersion === 2 ? gcpTerraformObserverIdentity(intent) : undefined;
+        if (observer && value.name === observer.firewallName) {
+          if (
+            value.network !==
+              `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${observer.network}` ||
+            value.direction !== 'INGRESS' ||
+            fingerprint(value.source_ranges) !== fingerprint([intent.observer?.sshSourceCidr]) ||
+            fingerprint(value.destination_ranges ?? []) !== fingerprint([]) ||
+            fingerprint(value.target_tags) !== fingerprint([observer.name]) ||
+            fingerprint(value.allow) !== fingerprint([{ protocol: 'tcp', ports: ['22'] }])
+          )
+            throw new Error('Original observer SSH firewall topology differs');
+        } else {
+          const binding = intent.sites
+            .flatMap((site) =>
+              site.nodes[0].interfaces.flatMap((nic) =>
+                ['INGRESS', 'EGRESS'].map((direction) => ({
+                  site,
+                  nic,
+                  direction,
+                  name: `${site.name}-ha-${nic.role}-${direction.toLowerCase()}`,
+                })),
+              ),
+            )
+            .find((row) => expected.selfLink.endsWith(`/firewalls/${row.name}`));
+          if (
+            !binding ||
+            value.network !==
+              `https://www.googleapis.com/compute/v1/projects/${intent.project}/global/networks/${binding.nic.network}` ||
+            value.direction !== binding.direction ||
+            fingerprint(value.source_ranges ?? []) !==
+              fingerprint(binding.direction === 'INGRESS' ? ['0.0.0.0/0'] : []) ||
+            fingerprint(value.destination_ranges ?? []) !==
+              fingerprint(binding.direction === 'EGRESS' ? ['0.0.0.0/0'] : []) ||
+            fingerprint(value.target_tags) !== fingerprint([`${binding.site.name}-ha-peer`]) ||
+            fingerprint(value.allow) !== fingerprint([{ protocol: 'all', ports: [] }])
+          )
+            throw new Error('HA interface firewall ownership topology differs');
+        }
+      }
+      return { ...expected, id: live.id };
+    },
+    signal,
+    readCleanupObservationConcurrency(runtime.api),
+  );
+  const resources = observations.filter((row) => row !== undefined);
   const prefix = `https://www.googleapis.com/compute/v1/projects/${intent.project}`;
   for (const site of intent.sites)
     for (const node of site.nodes) {
@@ -7717,6 +7753,7 @@ async function assertOriginalObserverLiveBindings(runtime, intent, resources, si
 }
 var init_terraform_public_ownership = __esm(() => {
   init_exec();
+  init_bounded_cleanup_observations();
   init_deployment_teardown();
   init_discovery();
   init_observer_scope();
@@ -13576,13 +13613,21 @@ async function verifyPublicTerraformLiveOwnership(runtime, intent, owned, signal
   const absent = [];
   const addresses = publicTerraformAddresses(intent),
     scope = publicTerraformCloudScope(intent);
-  for (let n = 0; n < scope.length; n++) {
-    const original = owned.resources.find((resource) => resource.selfLink === scope[n].selfLink);
-    const live = await observeGcpTeardownResource(runtime.api, scope[n], signal);
-    if (live ? !original || original.id !== live.id || original.selfLink !== live.selfLink : !!original && !allowAbsent)
-      throw new Error('Original cloud identity replaced or unavailable');
-    if (!live) absent.push(addresses[n]);
-  }
+  const observations = await mapCleanupObservations(
+    scope,
+    async (expected, n) => {
+      const original = owned.resources.find((resource) => resource.selfLink === expected.selfLink);
+      const live = await observeGcpTeardownResource(runtime.api, expected, signal);
+      if (
+        live ? !original || original.id !== live.id || original.selfLink !== live.selfLink : !!original && !allowAbsent
+      )
+        throw new Error('Original cloud identity replaced or unavailable');
+      return live ? undefined : addresses[n];
+    },
+    signal,
+    readCleanupObservationConcurrency(runtime.api),
+  );
+  for (const address of observations) if (address !== undefined) absent.push(address);
   if (intent.schemaVersion === 2) {
     const present = owned.resources.filter(
       (row) =>
@@ -13867,6 +13912,7 @@ async function applyPublicTerraformTeardown(runtime, intent, contract, policy, a
 var init_terraform_public_teardown = __esm(() => {
   init_process_lock();
   init_applied_source_teardown_origin();
+  init_bounded_cleanup_observations();
   init_captured_teardown_origin();
   init_deployment_teardown();
   init_discovery();
@@ -13972,6 +14018,7 @@ function boundedGcpCleanupObservers(api, observePlatform) {
       return result;
     },
   };
+  bindCleanupObservationConcurrency(observation.api, readCleanupObservationConcurrency(api));
   return observation;
 }
 async function openGcpCaptureCleanupAdmission(input, signal) {
@@ -14136,6 +14183,7 @@ var init_capture_cleanup_admission = __esm(() => {
   init_linux_clock();
   init_original_input_monitor();
   init_runner();
+  init_bounded_cleanup_observations();
   init_capture_cleanup_state();
   init_discovery();
   init_terraform_public_ownership();
@@ -18405,6 +18453,7 @@ init_evidence_json();
 init_installed_runtime();
 init_linux_clock();
 init_signal_free_executor();
+init_bounded_cleanup_observations();
 init_deployment_teardown();
 init_terraform_public_ownership();
 init_validation();
@@ -18464,6 +18513,8 @@ async function readCleanupStderr(path) {
   }
 }
 function createGcpCaptureCleanupCli(options) {
+  const readConcurrency = options.readConcurrency ?? 1;
+  if (readConcurrency !== 1 && readConcurrency !== 3) throw new Error('Qualified cleanup read concurrency required');
   const intent = structuredClone(options.intent);
   const allowed = new Set(gcpCaptureCleanupReadCommands(intent).map((args) => JSON.stringify(args)));
   const { directory, diagnosticsDirectory } = options;
@@ -18515,7 +18566,7 @@ function createGcpCaptureCleanupCli(options) {
   const assertInputIdentity = options.assertInputIdentity?.bind(options);
   const start = linuxMonotonicMs(),
     deadline = start + 7200000;
-  let active = false,
+  let active = 0,
     retired = false;
   const inspect = async (path) => {
     const value = await lstat14(path, { bigint: true });
@@ -18550,80 +18601,84 @@ function createGcpCaptureCleanupCli(options) {
     await assertIndependentClosure();
     await (assertInputIdentity ?? assertInputs)();
   };
-  return Object.freeze({
-    exec: async (command, supplied, invocation = {}) => {
-      const args = [...supplied],
-        signal = invocation.signal;
-      if (command !== 'gcloud' || !allowed.has(JSON.stringify(args)))
-        throw new Error('Cleanup observation escaped exact original read-only argv');
-      if (active || retired) throw new Error('Original cleanup observation transport active or retired');
-      signal?.throwIfAborted();
-      if (linuxMonotonicMs() >= deadline) throw new Error('Original cleanup observation budget exhausted');
-      active = true;
-      try {
-        await guard(false);
-        const commandDirectory = join22(diagnosticsDirectory, randomUUID9());
-        await mkdir8(commandDirectory, { mode: 448 });
-        let capture;
-        const execute = signalFreeTerraformExecutor({
-          python,
-          executable,
-          originalStartMs: start,
-          originalDeadlineMs: deadline,
-          timeoutMs: 60000,
-          startupTimeoutMs: 15000,
-          maxOutputBytes: 1048576,
-          assertOriginal: guard,
-          ...(assertInputIdentity
-            ? { assertOriginalIdentity: () => guard(false), assertFinalInputs: () => guard() }
-            : {}),
-          finalCapture: async (current) => {
-            capture = current;
-            await writeFile7(
-              join22(commandDirectory, 'cleanup-observation-partial.private.json'),
-              JSON.stringify(current),
-              { flag: 'wx', mode: 256 },
-            );
-          },
-        });
-        const result = await execute({
-          cwd: commandDirectory,
-          args: [...args, `--account=${account}`, `--configuration=${configuration}`],
-          env: environment,
-          signal,
-        });
-        if (!capture) throw new Error('Original cleanup observation final capture missing');
-        const completion = await owned(join22(dirname11(capture.stdoutPath), 'completion.private.json'), 1048576);
-        const final = decodeEvidenceObject(completion.bytes);
-        if (
-          JSON.stringify(final.identity) !== JSON.stringify(capture.identity) ||
-          final.originalDeadlineMs !== deadline ||
-          final.originalGroupClosed !== true ||
-          final.signalsSent !== false ||
-          final.finalStartedMs !== capture.finalStartedMs ||
-          final.finalDeadlineMs !== capture.finalDeadlineMs
-        )
-          throw new Error('Original cleanup observation completion binding differs');
-        await writeFile7(
-          join22(commandDirectory, 'cleanup-observation-final.private.json'),
-          JSON.stringify({ ...final, completionInput: completion.binding }),
-          { flag: 'wx', mode: 256 },
-        );
-        await guard(false);
+  return bindCleanupObservationConcurrency(
+    Object.freeze({
+      exec: async (command, supplied, invocation = {}) => {
+        const args = [...supplied],
+          signal = invocation.signal;
+        if (command !== 'gcloud' || !allowed.has(JSON.stringify(args)))
+          throw new Error('Cleanup observation escaped exact original read-only argv');
+        if (active >= readConcurrency || retired)
+          throw new Error('Original cleanup observation transport active or retired');
         signal?.throwIfAborted();
-        if (final.reason || final.captureClosed !== true) throw new Error('Original cleanup observation incomplete');
-        const stderr = await readCleanupStderr(capture.stderrPath);
-        await guard(false);
-        signal?.throwIfAborted();
-        return { stdout: result.stdout, stderr, exitCode: result.code };
-      } catch (error) {
-        retired = true;
-        throw error;
-      } finally {
-        active = false;
-      }
-    },
-  });
+        if (linuxMonotonicMs() >= deadline) throw new Error('Original cleanup observation budget exhausted');
+        active++;
+        try {
+          await guard(false);
+          const commandDirectory = join22(diagnosticsDirectory, randomUUID9());
+          await mkdir8(commandDirectory, { mode: 448 });
+          let capture;
+          const execute = signalFreeTerraformExecutor({
+            python,
+            executable,
+            originalStartMs: start,
+            originalDeadlineMs: deadline,
+            timeoutMs: 60000,
+            startupTimeoutMs: 15000,
+            maxOutputBytes: 1048576,
+            assertOriginal: guard,
+            ...(assertInputIdentity
+              ? { assertOriginalIdentity: () => guard(false), assertFinalInputs: () => guard() }
+              : {}),
+            finalCapture: async (current) => {
+              capture = current;
+              await writeFile7(
+                join22(commandDirectory, 'cleanup-observation-partial.private.json'),
+                JSON.stringify(current),
+                { flag: 'wx', mode: 256 },
+              );
+            },
+          });
+          const result = await execute({
+            cwd: commandDirectory,
+            args: [...args, `--account=${account}`, `--configuration=${configuration}`],
+            env: environment,
+            signal,
+          });
+          if (!capture) throw new Error('Original cleanup observation final capture missing');
+          const completion = await owned(join22(dirname11(capture.stdoutPath), 'completion.private.json'), 1048576);
+          const final = decodeEvidenceObject(completion.bytes);
+          if (
+            JSON.stringify(final.identity) !== JSON.stringify(capture.identity) ||
+            final.originalDeadlineMs !== deadline ||
+            final.originalGroupClosed !== true ||
+            final.signalsSent !== false ||
+            final.finalStartedMs !== capture.finalStartedMs ||
+            final.finalDeadlineMs !== capture.finalDeadlineMs
+          )
+            throw new Error('Original cleanup observation completion binding differs');
+          await writeFile7(
+            join22(commandDirectory, 'cleanup-observation-final.private.json'),
+            JSON.stringify({ ...final, completionInput: completion.binding }),
+            { flag: 'wx', mode: 256 },
+          );
+          await guard(false);
+          signal?.throwIfAborted();
+          if (final.reason || final.captureClosed !== true) throw new Error('Original cleanup observation incomplete');
+          const stderr = await readCleanupStderr(capture.stderrPath);
+          await guard(false);
+          signal?.throwIfAborted();
+          return { stdout: result.stdout, stderr, exitCode: result.code };
+        } catch (error) {
+          retired = true;
+          throw error;
+        } finally {
+          active--;
+        }
+      },
+    }),
+    readConcurrency,
+  );
 }
 
 // plugins/gcloud/src/index.ts
