@@ -316,3 +316,173 @@ for (const [name, change] of moreRefusals)
     change(f);
     expect(() => run(f)).toThrow();
   });
+
+function priorOnlyFixture() {
+  const f = fixture();
+  const data = f.plan.planned_values.root_module.resources[0];
+  const configuration = {
+    ...f.configuration,
+    terraform: { required_providers: { google: { source: 'hashicorp/google', version: '= 8.12.0' } } },
+  };
+  const savedConfiguration = {
+    provider_config: {
+      google: { name: 'google', full_name: 'registry.terraform.io/hashicorp/google', version_constraint: '8.12.0' },
+    },
+    root_module: {
+      resources: [
+        {
+          address: data.address,
+          mode: 'data',
+          type: data.type,
+          name: data.name,
+          provider_config_key: 'google',
+          schema_version: 0,
+          expressions: { project: { constant_value: data.values.project }, name: { constant_value: data.values.name } },
+        },
+      ],
+    },
+  };
+  const plan = {
+    ...f.plan,
+    planned_values: { root_module: { resources: [f.plan.planned_values.root_module.resources[1]] } },
+    prior_state: { values: { root_module: { resources: [structuredClone(data)] } } },
+    resource_changes: [] as Record<string, unknown>[],
+    configuration: savedConfiguration,
+  };
+  return { ...f, configuration, plan };
+}
+test('unchanged image in original prior state is verified against saved literal configuration without rewriting evidence', () => {
+  const f = priorOnlyFixture();
+  const before = structuredClone(f);
+  expect(projectReviewedDataSources(f.configuration, f.plan, f.identity, f.state, '1.17.2')).toEqual({
+    ...f.state,
+    values: { root_module: { resources: [f.state.values.root_module.resources[1]] } },
+  });
+  expect(f).toEqual(before);
+});
+const priorRefusals: [string, (f: ReturnType<typeof priorOnlyFixture>) => void][] = [
+  [
+    'absent prior source',
+    (f) => {
+      f.plan.prior_state.values.root_module.resources = [];
+    },
+  ],
+  [
+    'duplicate prior source',
+    (f) => {
+      f.plan.prior_state.values.root_module.resources.push(
+        structuredClone(f.plan.prior_state.values.root_module.resources[0]),
+      );
+    },
+  ],
+  [
+    'changed prior image',
+    (f) => {
+      f.plan.prior_state.values.root_module.resources[0].values.image_id = '123';
+    },
+  ],
+  [
+    'missing saved configuration',
+    (f) => {
+      Reflect.deleteProperty(f.plan, 'configuration');
+    },
+  ],
+  [
+    'missing saved declaration',
+    (f) => {
+      f.plan.configuration.root_module.resources = [];
+    },
+  ],
+  [
+    'duplicate saved declaration',
+    (f) => {
+      f.plan.configuration.root_module.resources.push(structuredClone(f.plan.configuration.root_module.resources[0]));
+    },
+  ],
+  [
+    'changed saved literal',
+    (f) => {
+      f.plan.configuration.root_module.resources[0].expressions.name.constant_value = 'foreign';
+    },
+  ],
+  [
+    'saved reference expression',
+    (f) => {
+      Object.assign(f.plan.configuration.root_module.resources[0].expressions.name, { references: ['var.name'] });
+    },
+  ],
+  [
+    'saved declaration index',
+    (f) => {
+      Object.assign(f.plan.configuration.root_module.resources[0], { count_expression: { constant_value: 1 } });
+    },
+  ],
+  [
+    'saved provider alias',
+    (f) => {
+      f.plan.configuration.root_module.resources[0].provider_config_key = 'google.foreign';
+    },
+  ],
+  [
+    'saved provider source',
+    (f) => {
+      f.plan.configuration.provider_config.google.full_name = 'registry.terraform.io/foreign/google';
+    },
+  ],
+  [
+    'saved provider version',
+    (f) => {
+      f.plan.configuration.provider_config.google.version_constraint = '8.13.0';
+    },
+  ],
+  [
+    'unreviewed provider range',
+    (f) => {
+      f.configuration.terraform.required_providers.google.version = '>= 8.12.0';
+    },
+  ],
+  [
+    'actionable data read',
+    (f) => {
+      f.plan.resource_changes.push({
+        address: 'data.google_compute_image.observer',
+        mode: 'data',
+        change: { actions: ['read'] },
+      });
+    },
+  ],
+  [
+    'ambiguous explicit data no-op',
+    (f) => {
+      f.plan.resource_changes.push({
+        address: 'data.google_compute_image.observer',
+        mode: 'data',
+        change: { actions: ['no-op'] },
+      });
+    },
+  ],
+  [
+    'unknown data changes',
+    (f) => {
+      Reflect.deleteProperty(f.plan, 'resource_changes');
+    },
+  ],
+  [
+    'sensitive prior image',
+    (f) => {
+      Object.assign(f.plan.prior_state.values.root_module.resources[0].sensitive_values, { image_id: true });
+    },
+  ],
+];
+for (const [name, change] of priorRefusals)
+  test(`prior-only image refuses ${name}`, () => {
+    const f = priorOnlyFixture();
+    change(f);
+    expect(() => projectReviewedDataSources(f.configuration, f.plan, f.identity, f.state, '1.17.2')).toThrow();
+  });
+
+test('prior-only image refuses a provider configuration declared in a foreign module', () => {
+  const f = priorOnlyFixture();
+  Object.assign(f.plan.configuration.provider_config.google, { module_address: 'module.foreign' });
+  expect(() => projectReviewedDataSources(f.configuration, f.plan, f.identity, f.state, '1.17.2')).toThrow();
+});

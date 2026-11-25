@@ -10,9 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.182 verifies static image lookups against original
+- **`terraform`** v2.4.183 verifies static image lookups against original
   configuration, saved plans and independent state before cleanup ownership
-  inspection. Compiled original cleanup admission continues through
+  inspection. Unchanged lookups retained only in original prior state also require
+  a literal saved declaration and exact provider pin. Compiled original cleanup
+  admission continues through
   the normal shared service to the existing runner. Recovery metadata is frozen,
   cleanup is limited to the original GCP workspace and resume, and every operation
   rechecks independent closure. Create replay and foreign scopes remain refused
@@ -43,7 +45,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.85 composes durable successful cleanup with normal Platform
+- **`gcloud`** v1.7.86 composes durable successful cleanup with normal Platform
   observations and the shared Terraform runner. Original ownership, reader closure,
   context and input checks surround reads and commands. Create replay and completed
   checkpoint rewriting are refused. Live cleanup and full acceptance remain open

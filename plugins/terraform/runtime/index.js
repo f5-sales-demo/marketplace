@@ -2393,6 +2393,68 @@ function hasReviewedDataSources(identity, state, selectedAddresses = []) {
     throw new Error('Foreign state data requires a verified read-only mapping');
   return rows.length > 0;
 }
+function priorReviewedImage(config, saved, declarations, selected, address) {
+  if (
+    !Array.isArray(saved.resource_changes) ||
+    saved.resource_changes.map(object2).some((row) => row.address === address)
+  )
+    throw new Error('Exact absent data change required for prior-only lookup');
+  const configuration = object2(saved.configuration),
+    root = object2(configuration.root_module);
+  if (root.module_calls !== undefined) throw new Error('Nested saved data configuration requires a verified mapping');
+  const declared = moduleResources({ root_module: root }).filter(
+    (row) => row.mode === 'data' && !selected.has(String(row.address)),
+  );
+  if (
+    declared.length !== declarations.size ||
+    declared.some((row) => !declarations.has(String(row.address))) ||
+    new Set(declared.map((row) => row.address)).size !== declared.length
+  )
+    throw new Error('Saved data configuration inventory differs');
+  const matches = declared.filter((row) => row.address === address);
+  if (matches.length !== 1) throw new Error('Saved data declaration is missing or ambiguous');
+  const row = matches[0],
+    declaration = declarations.get(address);
+  if (
+    !declaration ||
+    canonical(Object.keys(row).sort()) !==
+      canonical(['address', 'expressions', 'mode', 'name', 'provider_config_key', 'schema_version', 'type']) ||
+    row.type !== 'google_compute_image' ||
+    row.name !== address.split('.')[2] ||
+    row.schema_version !== 0 ||
+    row.provider_config_key !== 'google'
+  )
+    throw new Error('Exact static saved image declaration required');
+  const expressions = object2(row.expressions);
+  if (
+    canonical(Object.keys(expressions).sort()) !== canonical(['name', 'project']) ||
+    ['name', 'project'].some(
+      (key) => canonical(object2(expressions[key])) !== canonical({ constant_value: declaration[key] }),
+    )
+  )
+    throw new Error('Saved image expression differs or is unresolved');
+  const required = object2(object2(object2(config.terraform).required_providers).google);
+  const provider = object2(object2(configuration.provider_config).google);
+  if (
+    required.source !== 'hashicorp/google' ||
+    typeof required.version !== 'string' ||
+    !/^=\s*\d+\.\d+\.\d+$/.test(required.version) ||
+    provider.name !== 'google' ||
+    provider.full_name !== 'registry.terraform.io/hashicorp/google' ||
+    provider.alias !== undefined ||
+    provider.module_address !== undefined ||
+    provider.version_constraint !== required.version.replace(/^=\s*/, '')
+  )
+    throw new Error('Saved image provider differs from the original exact pin');
+  const prior = moduleResources(object2(saved.prior_state).values).filter(
+    (row) => row.mode === 'data' && !selected.has(String(row.address)),
+  );
+  if (prior.length !== declarations.size || prior.some((row) => !declarations.has(String(row.address))))
+    throw new Error('Original prior-only data inventory differs');
+  const sources = prior.filter((row) => row.address === address);
+  if (sources.length !== 1) throw new Error('Original prior-only image is missing or ambiguous');
+  return sources[0];
+}
 function projectReviewedDataSources(
   configuration,
   plan,
@@ -2447,7 +2509,8 @@ function projectReviewedDataSources(
     .filter((row) => row.mode === 'data' && !selected.has(`data.${row.type}.${row.name}`));
   if (
     !declarations.size ||
-    planned.length !== declarations.size ||
+    planned.length > declarations.size ||
+    planned.some((row) => !declarations.has(String(row.address))) ||
     observed.length !== declarations.size ||
     rawData.length !== declarations.size
   )
@@ -2456,6 +2519,8 @@ function projectReviewedDataSources(
     const matches = (rows) => rows.filter((row) => row.address === address);
     const planRows = matches(planned),
       stateRows = matches(observed);
+    if (!planRows.length && operation !== 'destroy')
+      planRows.push(priorReviewedImage(config, saved, declarations, selected, address));
     const rawRows = rawData.filter((row) => `data.${row.type}.${row.name}` === address);
     if (planRows.length !== 1 || stateRows.length !== 1 || rawRows.length !== 1)
       throw new Error('Reviewed Terraform data identity is missing or ambiguous');
