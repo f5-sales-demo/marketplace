@@ -1117,7 +1117,14 @@ describe('provider integration lifecycle', () => {
       const module = await import(`../plugins/${plugin}/${entrypoint}`);
       const installArgv = module[exportName] as (platform: string) => string[];
       expect(installArgv('darwin')[0]).toBe('brew');
-      expect(installArgv('linux')).toEqual(expect.arrayContaining(['apt-get']));
+      if (plugin === 'terraform') {
+        const args = installArgv('linux');
+        expect(args[0]).toBe('python3');
+        expect(args[1]).toMatch(/\/scripts\/install_terraform\.py$/);
+        expect(args).not.toContain('sudo');
+      } else {
+        expect(installArgv('linux')).toEqual(expect.arrayContaining(['apt-get']));
+      }
       expect(installArgv('win32')).toEqual(['winget', 'install', '--exact', '--id', expectedWindowsId]);
     }
   });
@@ -1641,6 +1648,19 @@ describe('provider integration lifecycle', () => {
     }
   });
 
+  it('declares GCloud Platform installation dependency while Terraform remains optional', async () => {
+    const definitions = await definitionsFor('gcloud');
+    const gcloud = definitions.find((definition) => definition.id === 'gcloud');
+    expect(gcloud?.dependencies).toEqual(['platform']);
+    expect(gcloud?.setup?.pluginDependencies).toEqual(['platform']);
+    const manifest = await Bun.file(join(import.meta.dir, '..', 'plugins/gcloud/.xcsh-plugin/plugin.json')).json();
+    const catalog = await Bun.file(join(import.meta.dir, '..', '.xcsh-plugin/marketplace.json')).json();
+    expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
+    expect(
+      catalog.plugins.find((entry: { name: string }) => entry.name === 'gcloud').lifecycle.pluginDependencies,
+    ).toEqual(['platform']);
+  });
+
   it('runs KVM setup through its idempotent v2 controller', async () => {
     const [kvm] = await definitionsFor('kvm');
     const controller = join(import.meta.dir, '..', 'plugins', 'kvm', 'scripts', 'kvm-smsv2ctl');
@@ -2026,7 +2046,8 @@ describe('Ghostty unsupported host readiness', () => {
     'unsupported_platform:requires_ubuntu_24.04_amd64_or_arm64',
   ]) {
     it(`classifies ${reason} as unavailable and skips install-authorized setup`, async () => {
-      const definition = (await definitionsFor('ghostty'))[0]!;
+      const definition = (await definitionsFor('ghostty'))[0];
+      if (!definition) throw new Error('Ghostty integration fixture was not registered');
       const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
         exitCode: 1,
         stdout: new TextEncoder().encode(JSON.stringify({ state: 'unavailable', reason })),

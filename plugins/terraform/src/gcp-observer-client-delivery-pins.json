@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "kind": "original-gcp-observer-client-delivery-sources",
+  "guestHelperSha256": "399c6ee34406485450f517cc098926c062459f468441a67bd7f7c2047db635dc",
+  "installerSha256": "21f5cae7e24ee27935c1d004f6fbeec495786ae2af66f633ec1e390d2e2a8de9"
+}

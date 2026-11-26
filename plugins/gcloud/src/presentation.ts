@@ -15,21 +15,21 @@ const fields = (values: Record<string, unknown>, title: string): Section => ({
   values,
   previewFields: 'all',
 });
-const labels: Record<string, string> = {
-  projectId: 'Project ID',
-  projectNumber: 'Project number',
-  lifecycleState: 'Lifecycle state',
-  name: 'Name',
-  zone: 'Zone',
-  machineType: 'Machine type',
-  status: 'Status',
-  internalIp: 'Internal IP',
-  externalIp: 'External IP',
-  location: 'Location',
-  storageClass: 'Storage class',
-  created: 'Created',
-  ownership: 'Ownership evidence',
-};
+const labels = new Map<string, string>([
+  ['projectId', 'Project ID'],
+  ['projectNumber', 'Project number'],
+  ['lifecycleState', 'Lifecycle state'],
+  ['name', 'Name'],
+  ['zone', 'Zone'],
+  ['machineType', 'Machine type'],
+  ['status', 'Status'],
+  ['internalIp', 'Internal IP'],
+  ['externalIp', 'External IP'],
+  ['location', 'Location'],
+  ['storageClass', 'Storage class'],
+  ['created', 'Created'],
+  ['ownership', 'Ownership evidence'],
+]);
 function argv(name: string, args: Record<string, unknown>): string[] | undefined {
   switch (name) {
     case 'gcloud_config_list':
@@ -115,7 +115,7 @@ export function presentTool<T extends { name: string; label?: string }>(tool: T,
             {
               ...p.table(
                 items,
-                keys.map((key) => ({ key, label: labels[key] ?? key })),
+                keys.map((key) => ({ key, label: labels.get(key) ?? key })),
                 collection,
               ),
               previewRows: 12,

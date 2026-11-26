@@ -1,0 +1,35 @@
+{
+  "provider": "f5-sales-demo/xcsh",
+  "version": "15.17.6",
+  "resource": "xcsh_securemesh_site_v2",
+  "sourceSchemaSha256": "8885cd5d40cb9edde0a822915da15e7a1ed6290d2af81c3d7f6773200d0de799",
+  "admin": {
+    "nesting_mode": "single",
+    "ssh_key": {
+      "type": "string",
+      "optional": true
+    }
+  },
+  "services": {
+    "nesting_mode": "single",
+    "item_nesting_mode": "list",
+    "attributes": {
+      "network_type": {
+        "type": "string",
+        "optional": true
+      },
+      "ssh": {
+        "type": ["object", {}],
+        "optional": true
+      },
+      "dns": {
+        "type": ["object", {}],
+        "optional": true
+      },
+      "web_user_interface": {
+        "type": ["object", {}],
+        "optional": true
+      }
+    }
+  }
+}

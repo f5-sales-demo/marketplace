@@ -72,8 +72,9 @@ const factory: ExtensionFactory = async (pi) => {
     name: 'Google Cloud',
     plugin: 'gcloud',
     kind: 'network',
+    dependencies: ['platform'],
     setup: {
-      pluginDependencies: [],
+      pluginDependencies: ['platform'],
       requiredEnvironment: [],
       profileFields: ['accounts'],
       steps: [
@@ -206,3 +207,25 @@ const factory: ExtensionFactory = async (pi) => {
 };
 
 export default factory;
+
+export { openGcpAppliedCleanupRuntime } from './ce/applied-cleanup-runtime';
+export {
+  persistGcpAppliedSourceCleanupOrigin,
+  persistGcpAppliedSourceCleanupReview,
+} from './ce/applied-source-cleanup-durable';
+export {
+  openGcpAppliedSourceTeardownOrigin,
+  readGcpAppliedSourceTeardownOrigin,
+  resumeGcpAppliedSourceTeardownOrigin,
+} from './ce/applied-source-teardown-origin';
+export { openGcpCaptureCleanupAdmission } from './ce/capture-cleanup-admission';
+export { createGcpCaptureCleanupCli } from './ce/capture-cleanup-cli';
+export {
+  persistGcpCaptureCleanupOrigin,
+  persistGcpCaptureCleanupReview,
+  resumeGcpCaptureCleanupOrigin,
+} from './ce/capture-cleanup-durable';
+export { readGcpCaptureCleanupStateCandidate } from './ce/capture-cleanup-state';
+export { openGcpCapturedCleanupRuntime } from './ce/captured-cleanup-runtime';
+export { openGcpCapturedTeardownOrigin, readGcpCapturedTeardownOrigin } from './ce/captured-teardown-origin';
+export { readPublicTerraformCleanupOwnership } from './ce/terraform-public-teardown';
