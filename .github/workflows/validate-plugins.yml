@@ -71,11 +71,16 @@ jobs:
       - name: Install isolated Bash/Zsh qualification shell
         run: ./scripts/install-ci-zsh.sh
 
+      # Native capture fixtures verify the exact source-qualified interpreter,
+      # rather than a runner-specific system build. Install only inside this job.
+      - name: Install original GCP fixture Python
+        run: python3 -B scripts/ci_gcp_test_prerequisites.py install
+
       - name: Prepare isolated Python fixture dependencies
         run: |
           set -euo pipefail
           plugin_test_python_root="$RUNNER_TEMP/plugin-tests-python"
-          plugin_test_python_base=$(python3 -c 'import os, sys; print(os.path.realpath(sys.executable))')
+          plugin_test_python_base="$CI_PYTHON_BASE"
           # Executor tests require a runner-owned original interpreter and real
           # SDK process observations. A symlink to system Python does not meet
           # that ownership contract, including in the hermetic PATH pass.
