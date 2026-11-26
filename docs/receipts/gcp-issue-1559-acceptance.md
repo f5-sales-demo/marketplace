@@ -62,6 +62,30 @@ resumes without submission. The original controller and process group are absent
 The successor will select fresh serial-verified RSA CE keys with modern SHA-2
 signatures and preserve observer Ed25519 trust, strict checking and all bounds.
 
+## Current bounded acceptance on November 26 UTC
+
+The [installed runtime and hermetic factory receipt](gcp-installed-runtime-hermetic-factory-20261126.md)
+records the source repair, supported snapshot installation and ordinary Ubuntu
+runtime evidence. Historical sections below retain their original attribution.
+
+| Gate | Current evidence | Remaining acceptance |
+| --- | --- | --- |
+| Platform dependency and optional Terraform | Automatic Platform installation; explicit Terraform install; status and doctor | Published installation and changed Terraform candidate |
+| Installation lifecycle | Authentic snapshot upgrade, disable/enable, exact installed bytes and removal | Published artifacts and user-scope smoke |
+| Ordinary installed runtime | Actual native identity, explicit Terraform discovery, wrong-engine and unavailable-operation refusals | Full lifecycle execution and changed-candidate acceptance |
+| Authentication failure | Credential-free fixture; actual registered refusal; rendering; normal exit and independent group absences | Same-provider live renewal across expiry |
+| Factory source | Eight failing-first cases repaired; 19 related cases and 22 runtime/tracker cases pass; type, catalog and normal hooks pass | Broader current-source suite and current-head CI |
+| Full setup | Supported status and doctor pass | Retained person-profile lock ownership remains unresolved |
+| Original guest evidence | Source/default registration qualified | Fresh attributed complete bootstrap journals and container evidence |
+| Networking and lifecycle | Explicit holds for unqualified mappings | Every original profile and operation on both engines and topologies |
+| Traffic and recovery | Original timing and content requirements retained | Fresh route, application, loss, outage and restoration evidence |
+| Cleanup | Earlier independent 21-resource closure retains its own receipt | Each future campaign needs complete independent cleanup |
+| Delivery | Linked draft PR and preserved immutable assets | Required review, current-head CI, merge, publication and published smoke |
+
+Full #1559 acceptance remains incomplete. The independently verified checkpoint
+preserves 4,789 recent evidence files; active captures remain partial. This
+continuation submitted no new cloud campaign and preserved all historical locks.
+
 ## Current source and native prerequisites on November 25
 
 The [installed capture and packaging source receipt](gcp-installed-capture-packaging-20261125.md)
