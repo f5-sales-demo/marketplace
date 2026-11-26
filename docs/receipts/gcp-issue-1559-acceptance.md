@@ -2659,3 +2659,19 @@ qualification includes credential refresh through actual shared-runner commands,
 create/lifecycle refusal, interruption and two completed resumes. Concrete live
 worker composition and every original acceptance/delivery gate remain open. No
 apply was submitted.
+
+## Refreshed staging runtime on November 26 UTC
+
+The [refreshed runtime receipt](gcp-refreshed-runtime-qualification-20261126.md)
+records supported GCloud 1.7.97 installation with automatic Platform 6.3.41,
+explicit optional Terraform 2.4.198, reviewed setup, ready integrations and one
+real canonical registered project-identity result in ordinary Ubuntu `bun dev`.
+Existing user settings were preserved and the session exited normally.
+
+xcsh #5250 merged through linked PR #5251; all changed blobs matched the qualified
+source. Broader CI remains subject to the original watcher. Fresh Ubuntu Google
+project access passed with valid credential reuse; original live-provider renewal
+remains open. Independent checkpoint verification covers 2,163 files and both
+sources, retaining original failures, ARM cancellations and immutable assets.
+Original #5231 recovery integration and every unfinished live, cleanup, review,
+publication and published installation gate remain open. #1698 stays draft.
