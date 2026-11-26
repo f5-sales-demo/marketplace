@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.195 registers installed GCP capture through the shared
+- **`terraform`** v2.4.196 registers installed GCP capture through the shared
   runner and ships complete runtime chunks within the existing artifact limit.
   It verifies static image lookups against original
   configuration, saved plans and independent state before cleanup ownership

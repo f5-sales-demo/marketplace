@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { translateGcpTerraformObserverSiteCompute } from '../../gcloud/src/ce/observer-plan';
 import { createGcpTerraformRequestReason } from '../../gcloud/src/ce/request-reason';
@@ -78,6 +79,8 @@ for (const preparationMode of [
   test(`complete factory original21resource preflight lifecycle: ${preparationMode}`, async () => {
     const { createInstalledGcpCaptureFactory } = await import('../src/installed-capture-factory');
     const originalFetch = globalThis.fetch;
+    const originalSshClientsDirectory = process.env.XCSH_TERRAFORM_SSH_CLIENTS_DIR;
+    const sshFixture = await mkdtemp(join(tmpdir(), 'factory-gcp-ssh-'));
     const calls: string[] = [];
     const nativeFiles =
       (preparationMode.startsWith('compiled-actor-') || preparationMode === 'never-prepared') &&
@@ -119,6 +122,29 @@ for (const preparationMode of [
     }) as typeof fetch;
     globalThis.fetch = fakeFetch;
     try {
+      const python = process.env.CE_TEST_PYTHON;
+      if (!python) throw new Error('Original test Python prerequisite required');
+      const clientsDirectory = join(sshFixture, 'clients');
+      const installer = Bun.spawn(
+        [
+          python,
+          '-I',
+          '-B',
+          join(import.meta.dir, '../scripts/install_ssh_clients.py'),
+          '--clients-dir',
+          clientsDirectory,
+        ],
+        { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+      );
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(installer.stdout).text(),
+        new Response(installer.stderr).text(),
+        installer.exited,
+      ]);
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      expect(JSON.parse(stdout).status).toBe('ready');
+      process.env.XCSH_TERRAFORM_SSH_CLIENTS_DIR = clientsDirectory;
       const originalFixture = withOriginalPlan(
         async (context, store, owningInvocation) => {
           const originalWrite = store.write.bind(store);
@@ -677,5 +703,8 @@ for (const preparationMode of [
       } else await originalFixture;
     } finally {
       globalThis.fetch = originalFetch;
+      if (originalSshClientsDirectory === undefined) delete process.env.XCSH_TERRAFORM_SSH_CLIENTS_DIR;
+      else process.env.XCSH_TERRAFORM_SSH_CLIENTS_DIR = originalSshClientsDirectory;
+      await rm(sshFixture, { recursive: true, force: true });
     }
   }, 60000);
