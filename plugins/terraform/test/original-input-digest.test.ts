@@ -73,3 +73,53 @@ test('does not reopen an unavailable original descriptor or substitute a path', 
     await f.close();
   }
 });
+
+test('every descriptor read requires a fresh guard before submission, including read-ahead and EOF', async () => {
+  const f = await fixture(Buffer.alloc(32 * 1024 * 1024 + 17, 0x33));
+  let guards = 0;
+  let previousReadGuard = 0;
+  let reads = 0;
+  const unguarded: number[] = [];
+  const submitted = () => {
+    reads++;
+    if (guards <= previousReadGuard) unguarded.push(reads);
+    previousReadGuard = guards;
+  };
+  const handle = new Proxy(f.handle, {
+    get(target, key) {
+      if (key === 'read')
+        return (...args: unknown[]) => {
+          submitted();
+          return Reflect.apply(target.read, target, args);
+        };
+      if (key === 'createReadStream')
+        return (...args: unknown[]) => {
+          const stream = Reflect.apply(target.createReadStream, target, args);
+          const originalRead = stream._read;
+          stream._read = (size: number) => {
+            submitted();
+            originalRead.call(stream, size);
+          };
+          return stream;
+        };
+      const value = Reflect.get(target, key, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  try {
+    expect(
+      await readOriginalInputDigest(handle, () => {
+        guards++;
+      }),
+    ).toBe(
+      createHash('sha256')
+        .update(Buffer.alloc(32 * 1024 * 1024 + 17, 0x33))
+        .digest('hex'),
+    );
+    expect(reads).toBeGreaterThan(1);
+    expect(unguarded).toEqual([]);
+    expect((await f.handle.stat()).size).toBe(32 * 1024 * 1024 + 17);
+  } finally {
+    await f.close();
+  }
+});

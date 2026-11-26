@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.197 registers installed GCP capture through the shared
+- **`terraform`** v2.4.198 registers installed GCP capture through the shared
   runner and ships complete runtime chunks within the existing artifact limit.
   Inventory test wrappers preserve original executor deadlines. CI verifies
   isolated Python dependencies before native fixtures run.

@@ -26,6 +26,14 @@ function countReads(beforeRead?: () => Promise<void>) {
     const handle = await originalOpen(...args);
     return new Proxy(handle, {
       get(target, key) {
+        if (key === 'read')
+          return async (...args: unknown[]) => {
+            if (args[3] === 0) {
+              reads++;
+              await beforeRead?.();
+            }
+            return Reflect.apply(target.read, target, args);
+          };
         if (key === 'createReadStream')
           return (...options: Parameters<typeof handle.createReadStream>) => {
             const stream = handle.createReadStream(...options);
