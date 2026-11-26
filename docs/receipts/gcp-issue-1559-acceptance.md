@@ -101,8 +101,9 @@ Existing user settings and historical evidence remain preserved.
 
 Independent verification covers 462 current snapshot files and both original
 Mac-only source mirrors. Native CI prerequisite PR #5241 merged after actual
-ARM compilation and all applicable checks passed. PR #5243 fresh CI and draft
-PR #1698's original plugin suite remain running; those captures remain partial.
+ARM compilation and all applicable checks passed. PR #5243 subsequently merged
+normally at `156ba557` after all applicable fresh CI, including ARM compilation,
+passed. Draft PR #1698's original plugin suite remains running and partial.
 Fresh Google verification still requires human authentication. All original
 live, profile-recovery, review, publication and published installation gates
 remain open. The retained input-wrapper signal incident remains disclosed.

@@ -60,10 +60,13 @@ This continuation cannot be characterized as using zero process signals.
 Native CI prerequisite [xcsh PR #5241](https://github.com/f5-sales-demo/xcsh/pull/5241)
 merged normally at `4da3cf05d6fb2dd723581aa4b16fe02e8df336a8`, after
 all applicable checks, including actual ARM native compilation, passed.
-Workflow prerequisite PR #5243 has fresh CI at
-`ccd1b0e5f50c09e6451cf1a6e98c56df0811fbaa`; its original running checks
-remain incomplete. Draft PR #1698's original plugin suite also remains running.
-Neither partial result qualifies a merge.
+Workflow prerequisite [xcsh PR #5243](https://github.com/f5-sales-demo/xcsh/pull/5243)
+subsequently completed fresh CI at
+`ccd1b0e5f50c09e6451cf1a6e98c56df0811fbaa`. Its original watcher exited
+successfully, and a3668 verified normal merge at
+`156ba557b8a038ff39c02cc75692a0cd26295f3b` after every applicable check,
+including ARM native compilation, passed. Draft PR #1698's original plugin
+suite remains running; that partial result does not qualify its merge.
 
 Fresh Ubuntu Google preflight passed, but independent native SDK verification
 returned `human_authentication_required`. Configured integration readiness is
