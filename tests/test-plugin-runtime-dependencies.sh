@@ -216,6 +216,7 @@ fi
 mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
 cp "$CHECK" "$BAD_INSTALL/scripts/check-plugin-runtime-dependencies.sh"
 cp "$RUNNER" "$BAD_INSTALL/scripts/run-plugin-tests.sh"
+cp "$REPO_ROOT/scripts/ci_gcp_test_prerequisites.py" "$BAD_INSTALL/scripts/ci_gcp_test_prerequisites.py"
 mkdir -p "$BAD_INSTALL/scripts/agent-validation-runtime"
 # The canonical runner now includes a real Python capture regression before Bun suites.
 mkdir -p "$BAD_INSTALL/tests"
@@ -225,6 +226,7 @@ cp "$REPO_ROOT/tests/test-run-plugin-tests-native-only.sh" "$BAD_INSTALL/tests/t
 cp "$REPO_ROOT/tests/test-hermetic-cli-diagnostic.sh" "$BAD_INSTALL/tests/test-hermetic-cli-diagnostic.sh"
 cp "$REPO_ROOT/scripts/check-tests-are-hermetic.sh" "$BAD_INSTALL/scripts/check-tests-are-hermetic.sh"
 cp "$REPO_ROOT/tests/test_native_capture_tools.py" "$BAD_INSTALL/tests/test_native_capture_tools.py"
+cp "$REPO_ROOT/tests/test_ci_gcp_test_prerequisites.py" "$BAD_INSTALL/tests/test_ci_gcp_test_prerequisites.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-capture.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-campaign.py" "$BAD_INSTALL/scripts/drive-salesforce-campaign.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-surface-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-surface-capture.py"
@@ -275,6 +277,35 @@ printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
 printf '{"version":"1.4.4"}\n' >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
+# This fixture verifies driver dispatch and dependency repair. Actual interpreter,
+# archive and isolated actor qualification run in the separate native regressions.
+fixture_python=$(command -v python3)
+cat >"$BAD_INSTALL/test-bin/python3" <<'PYTHON'
+#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  '-B scripts/ci_gcp_test_prerequisites.py verify-runtime')
+    [ -f scripts/ci_gcp_test_prerequisites.py ]
+    printf 'verify-runtime\n' >>"$GCP_PREREQUISITE_MARKER"
+    exit "${GCP_RUNTIME_RESULT:-0}"
+    ;;
+  '-B -m pytest -q tests/test_ci_gcp_test_prerequisites.py')
+    [ -f tests/test_ci_gcp_test_prerequisites.py ]
+    [ "$CE_TEST_PYTHON_ARCHIVE" = "$GCP_SYNTHETIC_ARCHIVE" ]
+    printf 'pytest\n' >>"$GCP_PREREQUISITE_MARKER"
+    exit "${GCP_PYTEST_RESULT:-0}"
+    ;;
+esac
+# Unexpected prerequisite actions may not start an archive download in this fixture.
+if [[ " $* " = *' ci_gcp_test_prerequisites.py '* ]] ||
+  [[ " $* " = *' scripts/ci_gcp_test_prerequisites.py '* ]]; then exit 65; fi
+exec "$GCP_FIXTURE_REAL_PYTHON" "$@"
+PYTHON
+chmod +x "$BAD_INSTALL/test-bin/python3"
+export GCP_FIXTURE_REAL_PYTHON="$fixture_python"
+export GCP_PREREQUISITE_MARKER="$BAD_INSTALL/gcp-prerequisite-calls"
+export GCP_SYNTHETIC_ARCHIVE="$BAD_INSTALL/synthetic-archive"
+export CE_TEST_PYTHON_ARCHIVE="$GCP_SYNTHETIC_ARCHIVE"
 if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
   bash "$BAD_INSTALL/scripts/run-plugin-tests.sh" >"$BAD_INSTALL/runner.log" 2>&1; then
   cat "$BAD_INSTALL/runner.log" >&2
@@ -285,3 +316,28 @@ if [ ! -e "$BAD_INSTALL/suite-ran" ]; then
 else
   pass "the plugin runner repairs stale physical dependencies before tests"
 fi
+
+if [ "$(cat "$GCP_PREREQUISITE_MARKER")" != $'verify-runtime\npytest' ]; then
+  fail "the repaired runner must invoke both exact GCP prerequisite checks"
+fi
+pass "dependency repair retains exact GCP prerequisite dispatch"
+
+rm "$BAD_INSTALL/suite-ran" "$GCP_PREREQUISITE_MARKER"
+if PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
+  GCP_RUNTIME_RESULT=19 bash "$BAD_INSTALL/scripts/run-plugin-tests.sh" >"$BAD_INSTALL/runtime-refused.log" 2>&1; then
+  fail "an unavailable GCP runtime prerequisite must fail the runner"
+fi
+if [ -e "$BAD_INSTALL/suite-ran" ] || [ "$(cat "$GCP_PREREQUISITE_MARKER")" != verify-runtime ]; then
+  fail "plugin suites or pytest ran after a failed GCP runtime prerequisite"
+fi
+pass "GCP runtime prerequisite failure prevents plugin suites and later checks"
+
+rm "$GCP_PREREQUISITE_MARKER"
+if PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
+  GCP_PYTEST_RESULT=23 bash "$BAD_INSTALL/scripts/run-plugin-tests.sh" >"$BAD_INSTALL/pytest-refused.log" 2>&1; then
+  fail "failing GCP prerequisite regressions must fail the runner"
+fi
+if [ -e "$BAD_INSTALL/suite-ran" ] || [ "$(cat "$GCP_PREREQUISITE_MARKER")" != $'verify-runtime\npytest' ]; then
+  fail "plugin suites ran after failing GCP prerequisite regressions"
+fi
+pass "GCP prerequisite regression failure prevents plugin suites"
