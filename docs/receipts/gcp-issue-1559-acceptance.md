@@ -62,6 +62,32 @@ resumes without submission. The original controller and process group are absent
 The successor will select fresh serial-verified RSA CE keys with modern SHA-2
 signatures and preserve observer Ed25519 trust, strict checking and all bounds.
 
+## Isolated Python prerequisite correction on November 26 UTC
+
+The selected source-qualified copied interpreter now owns its wheel-installed
+PyYAML 6.0.4, pytest 9.2.0 and psutil 7.2.2 dependencies. Eight prerequisite
+cases and actual isolated startup pass. Both previously blocked inventory
+cases pass, and Terraform typechecking passes with the declared frozen consumer
+dependencies. The failed borrowed-environment and missing-dependency attempts
+remain retained. Terraform 2.4.197 and the generated catalog/tracker reflect the
+wrapper repair; historical evidence remains preserved. Full source, CI/review,
+published installation and all original live acceptance gates remain open.
+
+## Original expiry and full setup qualification on November 26 UTC
+
+The [original provider expiry and setup receipt](gcp-original-provider-expiry-setup-20261126.md)
+records independently verified same-provider renewal after expiry, 79 original
+observation rounds and exact original-budget cleanup of three local resources.
+It also records successful supported forced setup and profile preservation.
+The original host lock is retained and resolved; interrupted-lock source recovery
+and published consumer verification remain open in xcsh #5231.
+
+The original broad suite had one distinct five-second wrapper failure. The
+changed wrapper passed, then exposed an isolated-Python dependency gap in the
+coordinated fixture. Earlier transport source labels are preserved separately
+from the tested child-source authority. Changed-source, CI, installed and all
+original live gates remain required. No new cloud campaign was submitted.
+
 ## Current bounded acceptance on November 26 UTC
 
 The [installed runtime and hermetic factory receipt](gcp-installed-runtime-hermetic-factory-20261126.md)
@@ -73,9 +99,9 @@ runtime evidence. Historical sections below retain their original attribution.
 | Platform dependency and optional Terraform | Automatic Platform installation; explicit Terraform install; status and doctor | Published installation and changed Terraform candidate |
 | Installation lifecycle | Authentic snapshot upgrade, disable/enable, exact installed bytes and removal | Published artifacts and user-scope smoke |
 | Ordinary installed runtime | Actual native identity, explicit Terraform discovery, wrong-engine and unavailable-operation refusals | Full lifecycle execution and changed-candidate acceptance |
-| Authentication failure | Credential-free fixture; actual registered refusal; rendering; normal exit and independent group absences | Same-provider live renewal across expiry |
+| Authentication failure and expiry | Credential-free registered refusal; same original provider renewal across expiry; independent closure and exact local cleanup | Managed GCP insertion, guest/service acceptance and published smoke |
 | Factory source | Eight failing-first cases repaired; 19 related cases and 22 runtime/tracker cases pass; type, catalog and normal hooks pass | Broader current-source suite and current-head CI |
-| Full setup | Supported status and doctor pass | Retained person-profile lock ownership remains unresolved |
+| Full setup | Fresh supported installation; all six forced setup steps, status, doctor and independent profile preservation pass | Published prerequisites and interrupted-lock source recovery #5231 |
 | Original guest evidence | Source/default registration qualified | Fresh attributed complete bootstrap journals and container evidence |
 | Networking and lifecycle | Explicit holds for unqualified mappings | Every original profile and operation on both engines and topologies |
 | Traffic and recovery | Original timing and content requirements retained | Fresh route, application, loss, outage and restoration evidence |

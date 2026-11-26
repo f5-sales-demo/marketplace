@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import os
+import sysconfig
 from pathlib import Path
 
 import pytest
@@ -79,3 +80,26 @@ def test_extraction_is_exclusive_and_retains_the_exact_interpreter(
     assert hashlib.sha256(binary.read_bytes()).hexdigest() == module.PYTHON_SHA256
     with pytest.raises(FileExistsError):
         module.prepare_distribution(root, archive_bytes)
+
+
+def test_selected_fixture_dependencies_are_available_under_isolated_startup() -> None:
+    receipt = module.verify_runtime(Path(os.environ["CE_TEST_PYTHON"]))
+    assert receipt["isolated"] is True
+    assert receipt["ownedModulePaths"] is True
+    assert receipt["sdkCurrentProcessObserved"] is True
+    assert receipt["versions"] == {
+        "psutil": "7.2.2",
+        "pytest": "9.2.0",
+        "yaml": "6.0.4",
+    }
+
+
+def test_borrowed_pythonpath_cannot_qualify_a_copied_runtime_without_dependencies(
+    archive_bytes: bytes, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = module.prepare_distribution(
+        tmp_path / "missing-dependencies", archive_bytes
+    )
+    monkeypatch.setenv("PYTHONPATH", sysconfig.get_path("purelib"))
+    with pytest.raises(ValueError, match="isolated fixture dependencies unavailable"):
+        module.verify_runtime(binary)

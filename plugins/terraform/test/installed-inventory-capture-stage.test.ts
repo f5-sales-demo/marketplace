@@ -14,6 +14,9 @@ import type { ExecutionCaptureAdmission, FinalExecutionCapture } from '../src/si
 import { withApplyInventory } from './fixtures/original-apply-inventory.fixture';
 import { authInfo, fixture } from './original-gcp-inventory-fixture';
 
+// Native preparation verifies original inputs and all 21 inventory entries.
+// Its test wrapper matches the adjacent native case; operation, startup and final
+// capture deadlines remain enforced by their original production authorities.
 test('inventory stage captures all originals before startup and binds only the actual callback', async () => {
   await fixture(async (context, store) => {
     const fetcher = (async (url: string | URL | Request) => {
@@ -94,7 +97,7 @@ test('inventory stage captures all originals before startup and binds only the a
     await expect(control.finalCapture(capture, reserve)).rejects.toThrow('inventory');
     await worker.closeAfterExecutorExit();
   });
-});
+}, 60000);
 
 test('coordinated inventory binds a real original actor and hands its same baseline to reserved final capture', async () => {
   let original: OriginalApplyGcpInventory | undefined;

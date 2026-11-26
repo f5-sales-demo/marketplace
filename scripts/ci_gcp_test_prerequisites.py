@@ -6,6 +6,8 @@ import io
 import json
 import os
 import platform
+import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -136,17 +138,85 @@ def install_distribution(parent: str | Path) -> tuple[Path, Path]:
     return binary, archive
 
 
+def verify_runtime(binary: Path) -> dict[str, object]:
+    """Require dependencies in the selected original interpreter under -I."""
+    binary = Path(binary)
+    if not binary.is_absolute() or binary.resolve() != binary or not binary.is_file():
+        message = "Canonical original fixture interpreter required"
+        raise ValueError(message)
+    before = binary.stat()
+    if (
+        before.st_uid != os.getuid()
+        or hashlib.sha256(binary.read_bytes()).hexdigest() != PYTHON_SHA256
+    ):
+        message = "Source-qualified original fixture interpreter required"
+        raise ValueError(message)
+    script = """import hashlib,json,os,pathlib,psutil,pytest,sys,yaml
+root=pathlib.Path(sys.prefix).resolve()
+modules=[psutil,pytest,yaml]
+assert sys.flags.isolated and sys.version_info[:2]==(3,15)
+assert all(pathlib.Path(m.__file__).resolve().is_relative_to(root) for m in modules)
+assert (psutil.__version__,pytest.__version__,yaml.__version__)==("7.2.2","9.2.0","6.0.4")
+process=psutil.Process(os.getpid())
+assert process.pid==os.getpid() and process.create_time()>0 and process.exe()
+assert process.status() not in ["zombie","dead"]
+print(json.dumps({"isolated":True,"ownedModulePaths":True,"sdkCurrentProcessObserved":True,
+"versions":{"psutil":psutil.__version__,"pytest":pytest.__version__,"yaml":yaml.__version__}}))
+"""
+    # The canonical owned interpreter and its immutable bytes were verified above.
+    result = subprocess.run(  # noqa: S603 - source-qualified exact interpreter argv
+        [str(binary), "-I", "-c", script],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        digest = hashlib.sha256(result.stderr).hexdigest()
+        message = (
+            "Original isolated fixture dependencies unavailable; install project dependencies "
+            f"inside the selected copied interpreter environment; stderr sha256 {digest}"
+        )
+        raise ValueError(message)
+    after = binary.stat()
+    if (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_ctime_ns) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    ) or hashlib.sha256(binary.read_bytes()).hexdigest() != PYTHON_SHA256:
+        message = "Original fixture interpreter changed during verification"
+        raise ValueError(message)
+    receipt = json.loads(result.stdout)
+    if not isinstance(receipt, dict) or receipt != {
+        "isolated": True,
+        "ownedModulePaths": True,
+        "sdkCurrentProcessObserved": True,
+        "versions": {"psutil": "7.2.2", "pytest": "9.2.0", "yaml": "6.0.4"},
+    }:
+        message = "Original isolated fixture verification differs"
+        raise ValueError(message)
+    return receipt
+
+
 def main() -> None:
     """Install source-qualified prerequisites or wait on the existing boot clock."""
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=["install", "wait-clock"])
+    parser.add_argument(
+        "operation", choices=["install", "wait-clock", "verify-runtime"]
+    )
+    parser.add_argument(
+        "--runtime-python", default=os.environ.get("CE_TEST_PYTHON", sys.executable)
+    )
     parser.add_argument("--runner-root", default=os.environ.get("RUNNER_TEMP"))
     parser.add_argument("--print-archive", action="store_true")
     args = parser.parse_args()
     if platform.system() != "Linux" or platform.machine() != "x86_64":
         message = "Original native GCP fixture prerequisites require Linux x86_64"
         raise ValueError(message)
+    if args.operation == "verify-runtime":
+        print(json.dumps(verify_runtime(Path(args.runtime_python)), sort_keys=True))
+        return
     if args.operation == "wait-clock":
         boot = Path("/proc/sys/kernel/random/boot_id").read_text()
 
