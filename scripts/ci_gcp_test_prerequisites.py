@@ -27,7 +27,7 @@ HISTORY_MS = 7_200_000
 
 def remaining_history_ms(now: object) -> int:
     """A late-entry fixture must retain a nonnegative original two-hour start."""
-    if type(now) is not int or now < 0:
+    if not isinstance(now, int) or isinstance(now, bool) or now < 0:
         message = "Original nonnegative integer monotonic clock required"
         raise ValueError(message)
     return max(0, HISTORY_MS - now)
