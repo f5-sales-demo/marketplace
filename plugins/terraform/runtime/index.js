@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import {
   acknowledgeOriginalApplyGroupClosure2,
-  assertInstalledRuntime,
+  assertInstalledRuntime2,
   assertOriginalApplyGcpInventoryCallback2,
   assertOriginalApplyGroupClosed2,
   assertOriginalGcpCeHostTrustContext2,
@@ -58,6 +58,7 @@ import {
   joinOriginalGcpVmEvidence2,
   joinOriginalXcshCreationBody2,
   linuxMonotonicMs,
+  monitorOriginalInputs2,
   openGcpCeHostTrustReader2,
   openGcpCeWireKeyReader2,
   openGcpCloudSerialReader2,
@@ -76,6 +77,7 @@ import {
   openOriginalGcpObserverClientAbiCommand2,
   openOriginalGcpObserverClientAbiRenewalCommand2,
   openOriginalGcpObserverClientInstallation2,
+  owned,
   persistOriginalReaderGroupSet2,
   prepareOriginalGcpCampaignAccess,
   prepareOriginalGcpInventoryScope2,
@@ -122,7 +124,7 @@ import {
   TerraformApplyHookParser2,
   TerraformRunner,
   withFinalCheck,
-} from './chunk-43jrcm29.js';
+} from './chunk-81ghzv3w.js';
 import {
   assertInstalledGcpSshClientSetup,
   collectInstalledCeInsertWitnesses2,
@@ -143,7 +145,7 @@ import {
   openInstalledGuestWorker2,
   openInstalledVmCapture2,
   scheduleInstalledBeforeGuestRound2,
-} from './chunk-y4hs7fjw.js';
+} from './chunk-p0ze143j.js';
 
 var hash = (value) => createHash('sha256').update(value).digest('hex');
 var sha256 = /^[a-f0-9]{64}$/;
@@ -799,7 +801,7 @@ function factory(pi) {
       request = structuredClone(request);
       if (owner.provider !== 'gcp' || owner.engine !== 'terraform')
         throw new Error('GCP Terraform access scope required');
-      await assertInstalledRuntime();
+      await assertInstalledRuntime2();
       await assertInstalledGcpSshClientSetup();
       const platform = await requestPlatform(pi.events);
       return prepareOriginalGcpCampaignAccess(await platform.storage(owner), request);
@@ -814,7 +816,7 @@ function factory(pi) {
     },
     assertNewRuntime: async (provider) => {
       if (provider === 'gcp') {
-        await assertInstalledRuntime();
+        await assertInstalledRuntime2();
         await assertInstalledGcpSshClientSetup();
       }
     },
@@ -823,6 +825,7 @@ function factory(pi) {
 
 export {
   acknowledgeOriginalApplyGroupClosure2 as acknowledgeOriginalApplyGroupClosure,
+  assertInstalledRuntime2 as assertInstalledRuntime,
   assertOriginalApplyGcpInventoryCallback2 as assertOriginalApplyGcpInventoryCallback,
   assertOriginalApplyGroupClosed2 as assertOriginalApplyGroupClosed,
   assertOriginalGcpCeHostTrustContext2 as assertOriginalGcpCeHostTrustContext,
@@ -886,6 +889,7 @@ export {
   joinOriginalGcpInsertAuditEvidence2 as joinOriginalGcpInsertAuditEvidence,
   joinOriginalGcpVmEvidence2 as joinOriginalGcpVmEvidence,
   joinOriginalXcshCreationBody2 as joinOriginalXcshCreationBody,
+  monitorOriginalInputs2 as monitorOriginalInputs,
   openGcpCeHostTrustReader2 as openGcpCeHostTrustReader,
   openGcpCeWireKeyReader2 as openGcpCeWireKeyReader,
   openGcpCloudSerialReader2 as openGcpCloudSerialReader,
@@ -910,6 +914,7 @@ export {
   openOriginalGcpObserverClientAbiCommand2 as openOriginalGcpObserverClientAbiCommand,
   openOriginalGcpObserverClientAbiRenewalCommand2 as openOriginalGcpObserverClientAbiRenewalCommand,
   openOriginalGcpObserverClientInstallation2 as openOriginalGcpObserverClientInstallation,
+  owned as readOwnedInstalledInput,
   persistOriginalReaderGroupSet2 as persistOriginalReaderGroupSet,
   prepareOriginalGcpInventoryScope2 as prepareOriginalGcpInventoryScope,
   publishOriginalGcpBootstrapGrant2 as publishOriginalGcpBootstrapGrant,

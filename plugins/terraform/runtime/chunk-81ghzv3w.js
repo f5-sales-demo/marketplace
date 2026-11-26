@@ -890,10 +890,20 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path';
 
 async function readOriginalInputDigest(handle, assertOriginal) {
   assertOriginal();
+  const size = (await handle.stat()).size;
+  assertOriginal();
+  if (!Number.isSafeInteger(size) || size < 0) throw new Error('Bounded original input size required');
+  const buffer = Buffer.allocUnsafe(Math.max(1, Math.min(size, 16 * 1024 * 1024)));
   const hash = createHash3('sha256');
-  for await (const chunk of handle.createReadStream({ autoClose: false, start: 0, highWaterMark: 16 * 1024 * 1024 })) {
+  let position = 0;
+  while (true) {
     assertOriginal();
-    hash.update(chunk);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
+    assertOriginal();
+    if (bytesRead === 0) break;
+    hash.update(buffer.subarray(0, bytesRead));
+    position += bytesRead;
+    if (!Number.isSafeInteger(position)) throw new Error('Bounded original input position required');
   }
   assertOriginal();
   return hash.digest('hex');
@@ -948,7 +958,7 @@ async function metadata(path, allowEmpty = false) {
     throw new OriginalInputMonitorError('file-metadata-invalid');
   return stat;
 }
-async function monitorOriginalInputs(input, options = {}) {
+async function monitorOriginalInputs2(input, options = {}) {
   const empty = new Set(options.allowEmpty ?? []);
   if (
     Object.keys(options).some((key) => key !== 'allowEmpty') ||
@@ -1829,7 +1839,7 @@ function createInstalledApplyController(original, worker, hooks) {
           try {
             const source = await verifyClosure(candidate);
             const completedInputs = await readOriginalCompletedOutputInputs(execution.output, candidate);
-            closureInputs = await monitorOriginalInputs(completedInputs, {
+            closureInputs = await monitorOriginalInputs2(completedInputs, {
               allowEmpty: Object.keys(completedInputs).filter(
                 (name) => completedInputs[name].expectedIdentity?.size === '0',
               ),
@@ -3162,7 +3172,7 @@ async function readCaptureCleanupAttemptResourceFields2(input, signal) {
     new Set(receipt.changes.map((row) => row.address)).size !== receipt.changes.length
   )
     throw new Error('Exact original read-only capture inspection required');
-  const monitor = await monitorOriginalInputs(bindings);
+  const monitor = await monitorOriginalInputs2(bindings);
   const assertClosed = async () => {
     signal?.throwIfAborted();
     await monitor.assertOriginal();
@@ -3276,7 +3286,7 @@ async function verifyEmptyOriginalCaptureCleanup(scope, directory, manifest) {
     [proof.checkpoint, proof.savedPlan].some((binding) => (Number(binding.expectedIdentity?.mode) & 511) !== 256)
   )
     throw new Error('Original empty capture verification evidence required');
-  const monitor = await monitorOriginalInputs({ checkpoint: proof.checkpoint, savedPlan: proof.savedPlan });
+  const monitor = await monitorOriginalInputs2({ checkpoint: proof.checkpoint, savedPlan: proof.savedPlan });
   try {
     const row = decode2((await privateRead(proof.checkpoint.path)).toString());
     const receipt = proof.receipt;
@@ -3659,7 +3669,7 @@ class TerraformRunner {
       inputs['empty:checkpoint'] = scope.emptyOriginal.checkpoint;
       inputs['empty:savedPlan'] = scope.emptyOriginal.savedPlan;
     }
-    const monitor = await monitorOriginalInputs(inputs);
+    const monitor = await monitorOriginalInputs2(inputs);
     try {
       await monitor.assertOriginal();
       await assertExecutorProcessGroupAbsent(join3(directory, '.terraform-executor-lock'));
@@ -3802,7 +3812,7 @@ class TerraformRunner {
         scope.retainedLockInputs[name]?.sha256 !== scope.retainedLockSha256[name]
       )
         throw new Error('Original retained cleanup lock admission differs');
-    this.#cleanupMonitor ??= await monitorOriginalInputs(scope.retainedLockInputs);
+    this.#cleanupMonitor ??= await monitorOriginalInputs2(scope.retainedLockInputs);
     await this.#cleanupMonitor.assertOriginal();
     for (const [name, expected] of Object.entries(scope.retainedLockSha256))
       if (digest2(await privateRead(join3(lock, name))) !== expected)
@@ -3831,7 +3841,7 @@ class TerraformRunner {
         state.serial !== verification.state.serial
       )
         throw new Error('Original empty cleanup verification state differs');
-      this.#verificationMonitor ??= await monitorOriginalInputs({ checkpoint: verification.checkpoint });
+      this.#verificationMonitor ??= await monitorOriginalInputs2({ checkpoint: verification.checkpoint });
       await this.#verificationMonitor.assertOriginal();
       const checkpoint = decode2((await privateRead(verification.checkpoint.path)).toString());
       const receipt = object3(checkpoint.receipt);
@@ -4436,7 +4446,7 @@ class TerraformRunner {
         expectedParentIdentity: Object.fromEntries(parentKeys.map((key) => [key, parent[key].toString()])),
       };
     }
-    const monitor = await monitorOriginalInputs(files);
+    const monitor = await monitorOriginalInputs2(files);
     const projection = freezeOriginalPlan(
       structuredClone({
         schemaVersion: 1,
@@ -8047,7 +8057,7 @@ function prepareOriginalGcpInventoryScope2(context, store) {
     const resources = Object.freeze(
       [...cloud, ...platform].map((entry) => Object.freeze({ address: entry.address, type: entry.type })),
     );
-    const monitor = await monitorOriginalInputs({ intent: input.binding });
+    const monitor = await monitorOriginalInputs2({ intent: input.binding });
     let retired = false;
     const assertInputs = async () => {
       if (retired) throw refuse();
@@ -9274,7 +9284,7 @@ async function openGcpSshClientProfile(root, options = {}) {
   if (Object.keys(options.originalInputs ?? {}).some((name) => names.includes(name)))
     throw new Error('Original installation guards collide with executable bindings');
   const original = Object.freeze({ ...files });
-  const monitor = await monitorOriginalInputs({ ...original, ...options.originalInputs });
+  const monitor = await monitorOriginalInputs2({ ...original, ...options.originalInputs });
   let retired = false;
   const read = async () => {
     if (retired) throw new Error('Original SSH client profile retired');
@@ -9354,7 +9364,7 @@ async function bindOriginalGcpObserverKeyScanCommand(vm, callback, profile) {
     if (previous) assertSameOriginalInput(previous, input);
     else bindings[input.path] = input;
   }
-  const monitor = await monitorOriginalInputs(bindings);
+  const monitor = await monitorOriginalInputs2(bindings);
   let retired = false;
   const close = () => {
     retired = true;
@@ -9466,7 +9476,7 @@ async function openOriginalGcpObserverClientPayload(clients, callback) {
     (BigInt(archive.binding.expectedIdentity?.mode ?? '-1') & 0o777n) !== 0o400n
   )
     throw new Error('Original installed client artifact bytes or mode differ');
-  const monitor = await monitorOriginalInputs({ archive: archive.binding });
+  const monitor = await monitorOriginalInputs2({ archive: archive.binding });
   let retired = false;
   const read = async () => {
     if (retired) throw new Error('Original observer client payload retired');
@@ -9863,7 +9873,7 @@ async function readOriginalGcpCampaignAccess(store, request, intentSha256) {
     assertSameOriginalInput(original.manifest, manifest.binding);
     inputs.campaign_intent = binding.binding;
   }
-  const monitor = await monitorOriginalInputs(inputs);
+  const monitor = await monitorOriginalInputs2(inputs);
   try {
     await store.verify();
     await monitor.assertOriginal();
@@ -9986,7 +9996,7 @@ async function openOriginalGcpObserverCampaignKey(vm, callback, store) {
     publicHash !== originalVm.publicKeySha256
   )
     throw new Error('Original campaign key and observer VM metadata differ');
-  const monitor = await monitorOriginalInputs({ ...access.inputs, intent: binding });
+  const monitor = await monitorOriginalInputs2({ ...access.inputs, intent: binding });
   let retired = false;
   const read = async () => {
     if (retired) throw new Error('Original observer campaign key retired');
@@ -10376,7 +10386,7 @@ async function openOriginalAccessReaderCapture(input) {
         });
       }
       if (!capture || !final) throw new Error('Original access terminal execution and immutable capture required');
-      const monitor = await monitorOriginalInputs({ request, capture, ...(admission ? { admission } : {}) });
+      const monitor = await monitorOriginalInputs2({ request, capture, ...(admission ? { admission } : {}) });
       try {
         const witness = await collectOriginalReaderGroupClosure2({
           directory: input.directory,
@@ -10980,7 +10990,7 @@ async function openGcpObserverClientDelivery(command) {
           throw error;
         }
       };
-      receipts = await monitorOriginalInputs(
+      receipts = await monitorOriginalInputs2(
         Object.fromEntries(retained.map((input, index) => [String(index), input])),
       );
       const ref = Object.freeze({
@@ -11002,7 +11012,7 @@ async function openGcpObserverClientDelivery(command) {
           installationPending = (async () => {
             await read();
             const originalReceipts = Object.fromEntries(retained.map((input, index) => [String(index), input]));
-            const monitor = await monitorOriginalInputs(originalReceipts);
+            const monitor = await monitorOriginalInputs2(originalReceipts);
             let installationRetired = false;
             const readInstallation = async () => {
               if (installationRetired) throw new Error('Original observer installation reference retired');
@@ -11120,7 +11130,7 @@ async function openOriginalGcpObserverSshInputLease(command, callback) {
     throw new Error('Original SSH input executable mapping differs');
   await assertOriginalGcpObserverSshCommandInputs(command);
   const bindings = freezeAdmittedCaptureInputs(admitted);
-  const monitor = await monitorOriginalInputs(bindings);
+  const monitor = await monitorOriginalInputs2(bindings);
   let closed = false,
     failure;
   const assertOriginal = async () => {
@@ -11239,7 +11249,7 @@ print(json.dumps(result,sort_keys=True))
   const sshInputs = await openOriginalGcpObserverSshInputLease(peer.command, callback);
   let monitor;
   try {
-    monitor = await monitorOriginalInputs({ helper: helper.binding, request: requestInput.binding });
+    monitor = await monitorOriginalInputs2({ helper: helper.binding, request: requestInput.binding });
   } catch (error) {
     sshInputs.close();
     throw error;
@@ -11759,7 +11769,7 @@ async function openGcpObserverClientAbi2(command) {
           throw error;
         }
       };
-      receipts = await monitorOriginalInputs(
+      receipts = await monitorOriginalInputs2(
         Object.fromEntries(retained.map((input, index) => [String(index), input])),
       );
       const ref = Object.freeze({
@@ -11943,7 +11953,7 @@ print(json.dumps(result,sort_keys=True))
   const sshInputs = await openOriginalGcpObserverSshInputLease(peer.command, callback);
   let monitor;
   try {
-    monitor = await monitorOriginalInputs({ helper: helper.binding, abi: abi.binding, request: requestInput.binding });
+    monitor = await monitorOriginalInputs2({ helper: helper.binding, abi: abi.binding, request: requestInput.binding });
   } catch (error) {
     sshInputs.close();
     throw error;
@@ -12370,7 +12380,7 @@ async function openGcpObserverClientAbiRenewal2(command) {
           throw error;
         }
       };
-      receipts = await monitorOriginalInputs(
+      receipts = await monitorOriginalInputs2(
         Object.fromEntries(retained.map((input, index) => [String(index), input])),
       );
       const ref = Object.freeze({
@@ -13059,7 +13069,7 @@ async function openInstalledProviderReader2(context, input, options = {}) {
           const bytes = Buffer.from(JSON.stringify(request)),
             requestPath = join20(directory, 'request.private.json');
           const requestBinding = await persist(requestPath, bytes);
-          requestMonitor = await monitorOriginalInputs({ request: requestBinding });
+          requestMonitor = await monitorOriginalInputs2({ request: requestBinding });
           await guard();
           let readerIdentity;
           let readerStartupDeadline;
@@ -13183,7 +13193,7 @@ async function openInstalledProviderReader2(context, input, options = {}) {
                 value.cloudSubmissions !== 0
               )
                 throw new Error('Original provider window readiness attribution differs');
-              readyMonitor = await monitorOriginalInputs({ ready: input.binding });
+              readyMonitor = await monitorOriginalInputs2({ ready: input.binding });
               windowReady = Object.freeze({
                 ...value,
                 executor: admission.identity,
@@ -15640,7 +15650,7 @@ print(json.dumps(result,sort_keys=True))
   const sshInputs = await openOriginalGcpObserverSshInputLease(peer.command, callback);
   let monitor;
   try {
-    monitor = await monitorOriginalInputs({ helper: helper.binding, abi: abi.binding, request: requestInput.binding });
+    monitor = await monitorOriginalInputs2({ helper: helper.binding, abi: abi.binding, request: requestInput.binding });
   } catch (error) {
     sshInputs.close();
     throw error;
@@ -16103,7 +16113,7 @@ async function openGcpCeWireKeyReader2(command) {
           throw error;
         }
       };
-      receipts = await monitorOriginalInputs(
+      receipts = await monitorOriginalInputs2(
         Object.fromEntries(retained.map((input, index) => [String(index), input])),
       );
       const ref = Object.freeze({
@@ -16831,7 +16841,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
     producerSeen = false,
     producerClosed = false;
   let pending, closure;
-  const inputMonitor = await monitorOriginalInputs({ script, python });
+  const inputMonitor = await monitorOriginalInputs2({ script, python });
   let requestMonitor;
   const retained = {};
   const assertRoot = async () => {
@@ -16917,7 +16927,7 @@ async function openOriginalHostTrustReader(family, material, callback, assertCon
       }),
     );
     retained.request = await persist('request.private.json', request);
-    requestMonitor = await monitorOriginalInputs(retained);
+    requestMonitor = await monitorOriginalInputs2(retained);
     let admission, final;
     let completion;
     let stdout = Buffer.alloc(0),
@@ -17182,7 +17192,7 @@ async function openOriginalGcpObserverSshCommand(trust, key, clients, callback) 
     await configFile.close();
   }
   const config = (await owned(configPath)).binding;
-  const monitor = await monitorOriginalInputs({
+  const monitor = await monitorOriginalInputs2({
     config,
     key: originalKey.key,
     hosts: originalTrust.knownHosts,
@@ -17416,7 +17426,7 @@ print(json.dumps(result,sort_keys=True))
   const sshInputs = await openOriginalGcpObserverSshInputLease(originalPeer.command, callback);
   let monitor;
   try {
-    monitor = await monitorOriginalInputs({
+    monitor = await monitorOriginalInputs2({
       helper: helper.binding,
       installer: installer.binding,
       request: requestInput.binding,
@@ -17518,7 +17528,7 @@ async function collectOriginalSignalFreeUnspawnedExecutions2(value) {
   const inputs = typeof value === 'function' ? unspawnedExecutors.get(value) : undefined;
   if (!inputs) throw new Error('Original source-issued signal-free executor required');
   if (!inputs.length) return Object.freeze([]);
-  const monitor = await monitorOriginalInputs(
+  const monitor = await monitorOriginalInputs2(
     Object.fromEntries(inputs.map((binding, index) => [String(index), binding])),
   );
   try {
@@ -18316,7 +18326,7 @@ function originalExecutor(input, reserve) {
       }
     };
     try {
-      generatedInputs = await monitorOriginalInputs(generatedBindings);
+      generatedInputs = await monitorOriginalInputs2(generatedBindings);
       await generatedInputs.assertOriginal();
       const nativeStartupStartedMs = now();
       child = Bun.spawn([policy.python.path, '-I', '-B', script, bootstrap, policy.executable.path, ...args], {
@@ -19009,7 +19019,7 @@ async function inspectGuestOrigin(witness) {
   )
     throw new Error('Original guest reader source origin required');
   const bindings = { request: origin.request, admission: origin.admission, ...witness.inputs };
-  const monitor = await monitorOriginalInputs(bindings);
+  const monitor = await monitorOriginalInputs2(bindings);
   try {
     const read = async (binding) => {
       const current = await owned(binding.path, 4 * 1024 * 1024);
@@ -19113,7 +19123,7 @@ async function inspectXcshOrigin(witness) {
     scope: origin.preparedScope,
     ...witness.inputs,
   };
-  const monitor = await monitorOriginalInputs(bindings);
+  const monitor = await monitorOriginalInputs2(bindings);
   try {
     const read = async (binding) => {
       const current = await owned(binding.path, 4 * 1024 * 1024);
@@ -19224,7 +19234,7 @@ async function inspectAccessOrigin(witness) {
     )
   )
     throw new Error('Original access reader source origin required');
-  const monitor = await monitorOriginalInputs({
+  const monitor = await monitorOriginalInputs2({
     request: origin.request,
     ...(origin.admission ? { admission: origin.admission } : {}),
     ...witness.inputs,
@@ -19316,7 +19326,7 @@ async function inspectBootstrapPublisherOrigin(witness) {
     )
   )
     throw new Error('Original bootstrap publisher source origin required');
-  const monitor = await monitorOriginalInputs({
+  const monitor = await monitorOriginalInputs2({
     request: origin.request,
     claim: origin.claim,
     ...(origin.admission ? { admission: origin.admission } : {}),
@@ -19456,7 +19466,7 @@ async function inspect(witness) {
     )
   )
     throw new Error('Original reader evidence directory or identity differs');
-  const monitor = await monitorOriginalInputs(witness.inputs);
+  const monitor = await monitorOriginalInputs2(witness.inputs);
   try {
     const read = async (name) => {
       const expected = witness.inputs[name];
@@ -19573,7 +19583,7 @@ async function assertOriginalReaderGroupClosure2(witness) {
   await inspect(structuredClone(witness));
 }
 async function assertOriginalUnspawnedSource(input, owner) {
-  const monitor = await monitorOriginalInputs(input);
+  const monitor = await monitorOriginalInputs2(input);
   try {
     const read = async (binding) => {
       const file = await owned(binding.path, 1024 * 1024);
@@ -19775,7 +19785,7 @@ async function assertOriginalReaderGroupInputs2(input) {
   const values = Object.values(input.inputs);
   if (values.length !== 1) throw new Error('One original reader group set required');
   const binding = values[0];
-  const monitor = await monitorOriginalInputs(input.inputs);
+  const monitor = await monitorOriginalInputs2(input.inputs);
   try {
     const file = await owned(binding.path, 16 * 1024 * 1024);
     assertSameOriginalInput(binding, file.binding);
@@ -19983,7 +19993,7 @@ async function openInstalledXcshCreationReader2(context, input, packet, options 
     requestHash = hash24(bytes),
     requestPath = join30(root, 'request.private.json');
   const requestBinding = await persist(requestPath, bytes);
-  monitors.push(await monitorOriginalInputs({ request: requestBinding }));
+  monitors.push(await monitorOriginalInputs2({ request: requestBinding }));
   const retainedTargets = new Map();
   let finalTargetReceipts;
   const readyState = Promise.withResolvers();
@@ -20187,7 +20197,7 @@ async function openInstalledXcshCreationReader2(context, input, packet, options 
       )
         throw new Error('Original private xcsh readiness required');
       inspectBase(readyValue, readerActor);
-      monitors.push(await monitorOriginalInputs({ ready: readyFile.binding }));
+      monitors.push(await monitorOriginalInputs2({ ready: readyFile.binding }));
       const ready = Object.freeze({
         kind: 'original-xcsh-creation-ready',
         executor: admission.identity,
@@ -20245,7 +20255,7 @@ async function openInstalledXcshCreationReader2(context, input, packet, options 
       }
       if (value.complete && checkedReceipts.remainingTargets)
         throw new Error('Original xcsh scope target coverage differs');
-      monitors.push(await monitorOriginalInputs({ result: resultFile.binding }));
+      monitors.push(await monitorOriginalInputs2({ result: resultFile.binding }));
       await assertOriginal();
       const result = Object.freeze({
         kind: 'original-xcsh-creation-result',
@@ -20371,7 +20381,7 @@ async function openInstalledXcshCreationReader2(context, input, packet, options 
             evidencePath: row.file.binding.path,
             evidenceSha256: hash24(row.file.bytes),
           });
-          monitors.push(await monitorOriginalInputs({ target: row.file.binding }));
+          monitors.push(await monitorOriginalInputs2({ target: row.file.binding }));
           if (finalTargetReceipts && !isDeepStrictEqual2(receipt, finalTargetReceipts.get(row.key)))
             throw new Error('Original xcsh target differs from its final receipt');
           retainedTargets.set(row.key, { evidence, receipt, binding: row.file.binding });
@@ -20421,7 +20431,7 @@ async function openInstalledXcshCreationReader2(context, input, packet, options 
     if (!terminal || !finalCapture || !readerActor || !admissionBinding || !captureBinding)
       throw new Error('Original xcsh terminal execution and immutable source bindings required');
     await assertDirectory();
-    const monitor = await monitorOriginalInputs({
+    const monitor = await monitorOriginalInputs2({
       request: requestBinding,
       admission: admissionBinding,
       capture: captureBinding,
@@ -21163,7 +21173,7 @@ function prepareOriginalCreationScope(context) {
       record.directory = directory;
       record.scopeFile = scopeFile;
       record.binding = await fileBinding(scopeFile);
-      record.monitor = await monitorOriginalInputs({ scope: record.binding });
+      record.monitor = await monitorOriginalInputs2({ scope: record.binding });
     }
     const packet = Object.freeze({ schemaVersion: 2, kind: 'prepared-original-creation-scope' });
     leases.set(packet, record);
@@ -21605,7 +21615,7 @@ function createInstalledReaderInputRetention(input) {
     if (original === undefined) return;
     const inputs = freezeAdmittedCaptureInputs(original);
     await verifyScope();
-    const monitor = await monitorOriginalInputs(inputs);
+    const monitor = await monitorOriginalInputs2(inputs);
     try {
       await monitor.assertOriginal();
       await verifyScope();
@@ -21662,7 +21672,7 @@ async function closeInstalledOriginalRuntimeSources(input) {
         group.inputs.lifetime.path !== join35(group.directory, 'lifetime.json')
       )
         throw new Error('Original installed runtime group bindings required');
-      const monitor = await monitorOriginalInputs(group.inputs);
+      const monitor = await monitorOriginalInputs2(group.inputs);
       monitors.push(monitor);
       await monitor.assertOriginal();
       await assertExecutorProcessGroupAbsent(group.directory);
@@ -21793,7 +21803,7 @@ function createLegacyInstalledTerraformExecutor(options) {
     let monitor;
     let completed = false;
     try {
-      monitor = await monitorOriginalInputs(inputs);
+      monitor = await monitorOriginalInputs2(inputs);
       const guard = monitor.assertOriginal;
       const execute = signalFreeTerraformExecutor({
         python,
@@ -22115,7 +22125,7 @@ function runtimeRoot(env) {
     env.XCSH_TERRAFORM_RUNTIME_DIR ?? join39(homedir2(), '.local/share/xcsh/terraform/runtime/python315-psutil722')
   );
 }
-async function assertInstalledRuntime(env = process.env) {
+async function assertInstalledRuntime2(env = process.env) {
   const root = runtimeRoot(env);
   try {
     if (process.platform !== 'linux' || process.arch !== 'x64') throw new InstalledTerraformSetupRequired();
@@ -22182,7 +22192,7 @@ async function assertInstalledRuntime(env = process.env) {
     }
     bindings.review = (await owned(join39(root, 'review.json'), 65536)).binding;
     Object.assign(bindings, await inspectInstalledCaptureScripts());
-    const monitor = await monitorOriginalInputs(bindings);
+    const monitor = await monitorOriginalInputs2(bindings);
     let inspectionDirectory;
     let inspectionClosed = false;
     try {
@@ -22274,7 +22284,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     const existingDeployment = await Bun.file(join39(executionDirectory, 'deployment.json')).exists();
     if (!resume && existingDeployment) throw new Error('Existing deployment must resume its original runtime');
     const legacy = resume && !mode && existingDeployment;
-    const runtime = await assertInstalledRuntime(env);
+    const runtime = await assertInstalledRuntime2(env);
     const versionProfile = resolveInstalledGcpVersionProfile({
       terraformVersion: deployment.terraformVersion,
       providerLockSha256: hash27(deployment.providerLock),
@@ -22438,7 +22448,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         });
         bindings.adc = (await owned(snapshotPath)).binding;
         bindings.platform = (await owned(environmentPath)).binding;
-        monitor = await monitorOriginalInputs(bindings);
+        monitor = await monitorOriginalInputs2(bindings);
         const start = linuxMonotonicMs(),
           deadline = start + 7200000;
         const inputChecks = createInstalledCaptureInputChecks({
@@ -22566,7 +22576,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
                 providerBindings[`${sourceName}:${name}`] = file.binding;
               }
             }
-            providers = await monitorOriginalInputs(providerBindings);
+            providers = await monitorOriginalInputs2(providerBindings);
             providerInputs = freezeAdmittedCaptureInputs(providerBindings);
           };
           prepareCapture = async () => {
@@ -22730,7 +22740,7 @@ async function collectOriginalBootstrapPublisherSource2(value) {
       if (attempt.offline) throw new Error('Original native bootstrap publisher required');
       if (!attempt.terminal || !attempt.request || !attempt.claim || !attempt.capture || !attempt.final)
         throw new Error('Original bootstrap publisher terminal capture and source bindings required');
-      const monitor = await monitorOriginalInputs({
+      const monitor = await monitorOriginalInputs2({
         request: attempt.request,
         claim: attempt.claim,
         capture: attempt.capture,
@@ -22959,7 +22969,7 @@ export {
   acknowledgeOriginalApplyGroupClosure2,
   assertFinalReaderReserve,
   assertGcpTerraformRequestReason,
-  assertInstalledRuntime,
+  assertInstalledRuntime2,
   assertOriginalApplyCallback,
   assertOriginalApplyGcpInventoryCallback2,
   assertOriginalApplyGroupClosed2,
@@ -23048,7 +23058,7 @@ export {
   joinOriginalGcpVmEvidence2,
   joinOriginalXcshCreationBody2,
   linuxMonotonicMs,
-  monitorOriginalInputs,
+  monitorOriginalInputs2,
   openGcpCeHostTrustReader2,
   openGcpCeWireKeyReader2,
   openGcpCloudSerialReader2,

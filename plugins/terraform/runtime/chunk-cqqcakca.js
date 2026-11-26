@@ -1,4 +1,4 @@
 // @bun
-import { readGcpAppliedSourceTeardownOrigin2 } from './chunk-43jrcm29.js';
+import { readGcpAppliedSourceTeardownOrigin2 } from './chunk-81ghzv3w.js';
 
 export { readGcpAppliedSourceTeardownOrigin2 as readGcpAppliedSourceTeardownOrigin };

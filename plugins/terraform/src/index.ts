@@ -1,3 +1,5 @@
+// Read-only installed admission uses the same bundled implementation as registered setup.
+
 export { collectOriginalBootstrapPublisherSource } from './bootstrap-grant-publication';
 export {
   collectOriginalGcpTerraformBootstrap,
@@ -26,6 +28,7 @@ export {
   openInstalledFinalGuestWorker,
   openInstalledGuestWorker,
 } from './installed-guest-worker';
+export { assertInstalledRuntime, readOwnedInstalledInput } from './installed-runtime';
 export { openInstalledXcshCreationReader, readOriginalInstalledXcshCreation } from './installed-xcsh-creation-reader';
 export {
   assertOriginalGcpInventoryInputs,
@@ -34,6 +37,7 @@ export {
   inspectOriginalGcpInventoryScope,
   prepareOriginalGcpInventoryScope,
 } from './original-gcp-inventory-scope';
+export { monitorOriginalInputs } from './original-input-monitor';
 export {
   collectOriginalPreparedBootstrapPublisherSource,
   publishOriginalGcpBootstrapGrant,

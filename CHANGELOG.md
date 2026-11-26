@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`terraform`** v2.4.198 registers installed GCP capture through the shared
+- **`terraform`** v2.4.199 registers installed GCP capture through the shared
   runner and ships complete runtime chunks within the existing artifact limit.
   Inventory test wrappers preserve original executor deadlines. CI verifies
   isolated Python dependencies before native fixtures run.
@@ -100,7 +100,7 @@ and this project adheres to
 - **`terraform`** v2.4.122 joins original observer insertion, pinned image,
   numeric VM/disk identity and guarded serial evidence. Factory provenance,
   immutable ownership and freshness remain mandatory; live gates stay open.
-- **`gcloud`** v1.7.97 composes durable successful cleanup with normal Platform
+- **`gcloud`** v1.7.98 composes durable successful cleanup with normal Platform
   observations and the shared Terraform runner. Original ownership, reader closure,
   context and input checks surround reads and commands. Create replay and completed
   checkpoint rewriting are refused. Live cleanup and full acceptance remain open

@@ -82,7 +82,7 @@ import {
   joinOriginalGcpVmEvidence2,
   joinOriginalXcshCreationBody2,
   linuxMonotonicMs,
-  monitorOriginalInputs,
+  monitorOriginalInputs2,
   openGcpCeHostTrustReader2,
   openGcpCeWireKeyReader2,
   openGcpObserverClientAbi2,
@@ -150,7 +150,7 @@ import {
   signalFreeTerraformExecutor,
   TerraformApplyHookParser2,
   validateIntent,
-} from './chunk-43jrcm29.js';
+} from './chunk-81ghzv3w.js';
 
 var hash = (value) => createHash('sha256').update(value).digest('hex');
 function object(value) {
@@ -1392,7 +1392,7 @@ async function openOriginalGcpCeCampaignKey(input) {
   )
     throw new Error('Original Site SSH public/private campaign key differs');
   const publicHash = createHash4('sha256').update(site.publicKey).digest('hex');
-  const monitor = await monitorOriginalInputs({ ...access.inputs, intent: binding });
+  const monitor = await monitorOriginalInputs2({ ...access.inputs, intent: binding });
   let retired = false;
   const read = async () => {
     if (retired) throw new Error('Original CE campaign key retired');
@@ -2192,7 +2192,7 @@ async function openInstalledGcpGuestBinding2(initial) {
   const anchor = canonical2(binding),
     identity = core(binding);
   const context = original.context;
-  const monitor = await monitorOriginalInputs(original.inputs);
+  const monitor = await monitorOriginalInputs2(original.inputs);
   const failures = createOriginalGuestFailureRetention();
   let closed = false,
     busy = false,
@@ -3384,7 +3384,7 @@ async function openOriginalGuestWorkerSource(options, after) {
     )
   )
     throw new Error('Complete original installed guest source and input pins required');
-  const inputMonitor = await monitorOriginalInputs(inputs);
+  const inputMonitor = await monitorOriginalInputs2(inputs);
   const root = join4(context.executionDirectory, `gcp-guest-worker-${randomUUID4()}`);
   let actor, final;
   let executionDirectory;
@@ -3513,7 +3513,7 @@ async function openOriginalGuestWorkerSource(options, after) {
     const raw = Buffer.from(JSON.stringify(request));
     const requestInput = await persist(join4(root, 'request.private.json'), raw);
     requestBinding = requestInput;
-    requestMonitor = await monitorOriginalInputs({ request: requestInput });
+    requestMonitor = await monitorOriginalInputs2({ request: requestInput });
     parent = new OriginalGuestControlParent({
       peer,
       binding,
@@ -3731,7 +3731,7 @@ async function openOriginalGuestWorkerSource(options, after) {
     if (submissions === 0) return Object.freeze([]);
     if (!terminal || !final || !actor || !executionDirectory || !requestBinding || !admissionBinding || !captureBinding)
       throw new Error('Original guest reader terminal execution and immutable source bindings required');
-    const monitor = await monitorOriginalInputs({
+    const monitor = await monitorOriginalInputs2({
       request: requestBinding,
       admission: admissionBinding,
       capture: captureBinding,
@@ -4753,7 +4753,7 @@ async function openInstalledDeleteCapture2(input) {
   const assertCompletedOutputs = async () => {
     if (!actor) return;
     if (!completedOutputs) throw new Error('Original complete delete output bindings required');
-    const monitor = await monitorOriginalInputs(completedOutputs, {
+    const monitor = await monitorOriginalInputs2(completedOutputs, {
       allowEmpty: Object.keys(completedOutputs).filter(
         (name) => completedOutputs?.[name].expectedIdentity?.size === '0',
       ),
@@ -6553,7 +6553,7 @@ function createInstalledGcpCaptureFactory2() {
               store = originalStore;
               const admittedInputs = structuredClone(context.inputs);
               const assertUnpreparedInputs = async () => {
-                const monitor = await monitorOriginalInputs(admittedInputs);
+                const monitor = await monitorOriginalInputs2(admittedInputs);
                 try {
                   await originalStore.verify();
                   await monitor.assertOriginal();
