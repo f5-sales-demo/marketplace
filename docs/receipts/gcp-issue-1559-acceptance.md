@@ -88,6 +88,25 @@ coordinated fixture. Earlier transport source labels are preserved separately
 from the tested child-source authority. Changed-source, CI, installed and all
 original live gates remain required. No new cloud campaign was submitted.
 
+## Current delivered installation and runtime on November 26 UTC
+
+The [current delivered installation receipt](gcp-current-delivered-installation-20261126.md)
+qualifies GCloud 1.7.97, automatic Platform 6.3.41 and explicit optional
+Terraform 2.4.198 through supported installation, authentic Terraform upgrade,
+status/doctor, exact bytes, disable/enable and removal. Ordinary Ubuntu
+`bun dev` at xcsh `d49dd10d` and Bun 1.4.5 verified canonical skill selection,
+registered configuration execution, native-default and explicit-Terraform
+unavailable-operation refusals, wrong-engine refusal and natural terminal closure.
+Existing user settings and historical evidence remain preserved.
+
+Independent verification covers 462 current snapshot files and both original
+Mac-only source mirrors. Native CI prerequisite PR #5241 merged after actual
+ARM compilation and all applicable checks passed. PR #5243 fresh CI and draft
+PR #1698's original plugin suite remain running; those captures remain partial.
+Fresh Google verification still requires human authentication. All original
+live, profile-recovery, review, publication and published installation gates
+remain open. The retained input-wrapper signal incident remains disclosed.
+
 ## Current bounded acceptance on November 26 UTC
 
 The [installed runtime and hermetic factory receipt](gcp-installed-runtime-hermetic-factory-20261126.md)
@@ -96,9 +115,9 @@ runtime evidence. Historical sections below retain their original attribution.
 
 | Gate | Current evidence | Remaining acceptance |
 | --- | --- | --- |
-| Platform dependency and optional Terraform | Automatic Platform installation; explicit Terraform install; status and doctor | Published installation and changed Terraform candidate |
-| Installation lifecycle | Authentic snapshot upgrade, disable/enable, exact installed bytes and removal | Published artifacts and user-scope smoke |
-| Ordinary installed runtime | Actual native identity, explicit Terraform discovery, wrong-engine and unavailable-operation refusals | Full lifecycle execution and changed-candidate acceptance |
+| Platform dependency and optional Terraform | Current GCloud/Platform/optional Terraform 2.4.198 installation, bytes, status and doctor | Published installation |
+| Installation lifecycle | Authentic current Terraform upgrade, disable/enable, exact installed bytes and removal | Published artifacts and user-scope smoke |
+| Ordinary installed runtime | Current canonical installed skill/config execution, native-default, explicit Terraform and wrong-engine refusals | Full supported lifecycle execution and published smoke |
 | Authentication failure and expiry | Credential-free registered refusal; same original provider renewal across expiry; independent closure and exact local cleanup | Managed GCP insertion, guest/service acceptance and published smoke |
 | Factory source | Eight failing-first cases repaired; 19 related cases and 22 runtime/tracker cases pass; type, catalog and normal hooks pass | Broader current-source suite and current-head CI |
 | Full setup | Fresh supported installation; all six forced setup steps, status, doctor and independent profile preservation pass | Published prerequisites and interrupted-lock source recovery #5231 |
