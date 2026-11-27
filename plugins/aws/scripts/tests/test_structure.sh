@@ -29,7 +29,8 @@ test_plugin_json_valid() {
 
   local ver
   ver=$(jq -r '.version' "$pj")
-  [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  source "$MARKETPLACE_ROOT/scripts/semver.sh"
+  is_valid_semver "$ver" || {
     echo "bad version: $ver"
     return 1
   }

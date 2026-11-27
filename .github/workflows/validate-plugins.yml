@@ -8,9 +8,9 @@ name: Validate Plugins
 # PR that touches no plugin or script file — which is most of them: five of the last twelve
 # merged here were governance sync PRs editing only root and .github files.
 #
-# Running unconditionally costs about two minutes per PR and removes a whole class of
-# unmergeable-through-no-fault-of-yours. If that ever becomes the wrong trade, the fix is a
-# companion job that reports the same context trivially when nothing relevant changed —
+# Running unconditionally ensures every PR reports the required context. The complete
+# normal and cloud-CLI independence passes have separate bounded jobs. If that ever
+# becomes the wrong trade, the fix is a companion job that reports the same context trivially when nothing relevant changed —
 # not restoring the filter under a required check.
 on:
   pull_request:
@@ -49,45 +49,64 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: ./scripts/check-version-bumps.sh "$BASE_SHA"
 
-  test:
-    name: Run plugin test suites
+  # Each complete pass can take several hours. Separate jobs retain the six-hour
+  # execution bound while allowing both required passes to finish independently.
+  test-main:
+    name: Run complete plugin test pass
     runs-on: managed-socketless
+    timeout-minutes: 360
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-
-      # The repository-owned installer verifies the pinned release digest and extracts
-      # under runner.temp. Persistent runners may have a live Bun process in ~/.bun,
-      # which makes setup-bun's shared-home overwrite fail with ETXTBSY.
-      - name: Install bun
-        run: ./scripts/install-ci-bun.sh
-
-      - name: Check Bun lockfile compatibility
-        run: ./scripts/check-ci-bun-lockfile-compatibility.sh
-
-      - name: Install isolated Bash/Zsh qualification shell
-        run: ./scripts/install-ci-zsh.sh
-
-      - name: Prepare isolated Python fixture dependencies
-        run: |
-          set -euo pipefail
-          plugin_test_python_root="$RUNNER_TEMP/plugin-tests-python"
-          python3 -m venv "$plugin_test_python_root"
-          "$plugin_test_python_root/bin/python3" -m pip install 'PyYAML==6.0.3'
-          plugin_test_python_site=$("$plugin_test_python_root/bin/python3" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
-          printf 'PYTHONPATH=%s\n' "$plugin_test_python_site" >> "$GITHUB_ENV"
-
+      - name: Set up isolated plugin test runtime
+        id: runtime
+        uses: ./.github/actions/setup-plugin-tests
+      - name: Verify required plugin test result contract
+        run: bun test tests/plugin-test-workflow.test.ts
       - name: Run plugin test suites
+        env:
+          PYTHONPATH: ${{ steps.runtime.outputs.python-site }}
         run: ./scripts/run-plugin-tests.sh
 
-      # The runner ships aws, az, gcloud and gh. A test that quietly spawns one passes here
-      # and fails on a machine where that CLI is slower or absent — which is how this job
-      # broke twice. Replacing the CLIs with sleeping stubs makes any such test name itself.
+  test-hermetic:
+    name: Run complete cloud-CLI independence pass
+    runs-on: managed-socketless
+    timeout-minutes: 360
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up isolated plugin test runtime
+        id: runtime
+        uses: ./.github/actions/setup-plugin-tests
+      # Keep the complete sleeping-stub pass: installed cloud CLIs must not hide
+      # tests that spawn a real executable instead of their configured fixture.
       - name: Check tests do not depend on a real cloud CLI
+        env:
+          PYTHONPATH: ${{ steps.runtime.outputs.python-site }}
         run: ./scripts/check-tests-are-hermetic.sh
+
+  test:
+    name: Run plugin test suites
+    runs-on: managed-socketless
+    timeout-minutes: 5
+    needs: [test-main, test-hermetic]
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require both complete test passes
+        env:
+          MAIN_RESULT: ${{ needs.test-main.result }}
+          HERMETIC_RESULT: ${{ needs.test-hermetic.result }}
+        run: ./scripts/check-plugin-test-results.sh "$MAIN_RESULT" "$HERMETIC_RESULT"
 
   release-tags:
     name: Check published versions are tagged

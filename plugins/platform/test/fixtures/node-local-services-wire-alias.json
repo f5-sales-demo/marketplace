@@ -1,0 +1,9 @@
+{
+  "provenance": {
+    "repository": "f5-sales-demo/api-specs-enriched",
+    "release": "v12.5.2",
+    "sha256": "6ddfd13c58332f29c2bb7e6e1a6a567d1e61e75a48da11dad3605344dca083b9",
+    "schemaPath": "components.schemas.fleetBlockedServicesListType.properties.blocked_service.x-f5xc-wire-name"
+  },
+  "wireName": "blocked_sevice"
+}
