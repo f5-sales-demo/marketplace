@@ -19,7 +19,7 @@ criteria to prevent premature advancement and forecast inflation.
 
 **Key outputs:**
 
-- Draft pain statement (impact + urgency)
+- Draft pain statement (customer-confirmed problem + impact)
 - Stakeholder map (EB candidates, champion candidates, blockers)
 - Competitive landscape hypothesis
 - First-pass decision/paper process outline
@@ -42,7 +42,7 @@ criteria to prevent premature advancement and forecast inflation.
 - [ ] POV/pilot success criteria written and approved by customer
 - [ ] Champion identified and actively taking actions
 - [ ] Decision Criteria ranked and influenced toward your strengths
-- [ ] Decision Process mapped with dates and gate owners
+- [ ] Decision Process mapped with gate owners and any customer-agreed dates
 - [ ] Metrics baseline confirmed and target agreed
 - [ ] Pain quantified with consequence of inaction
 
@@ -77,8 +77,8 @@ criteria to prevent premature advancement and forecast inflation.
 - [ ] Business case validated with customer-owned Metrics
 - [ ] Paper Process verified with named owners and timeline
 - [ ] Competitive strategy clear and defensible
-- [ ] Mutual Action Plan dates intact and buyer-confirmed
-- [ ] Champion tested (concrete action taken this week)
+- [ ] Mutual Action Plan milestones and any supplied dates buyer-confirmed
+- [ ] Champion tested (concrete action taken during the supplied review period)
 
 **Key outputs:**
 
@@ -129,5 +129,5 @@ criteria to prevent premature advancement and forecast inflation.
 - [ ] Renewal/expansion triggers identified
 
 **Forecast rule of thumb:** A deal is not "Commit" unless EB, MAP
-dates, and Paper Process are verified. A deal with gaps in these
+milestones and any supplied dates, and Paper Process are verified. A deal with gaps in these
 three elements is "Best Case" at most.

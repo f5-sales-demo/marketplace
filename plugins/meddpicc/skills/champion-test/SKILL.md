@@ -13,6 +13,20 @@ user-invocable: true
 
 # Champion Test
 
+## Timing
+
+Honor explicit user or customer dates, deadlines, and agreed milestones. When
+none are supplied, keep timing unknown or unagreed. Suggest a schedule, deadline,
+meeting duration, or review cadence only when explicitly requested; label it a
+proposal until the customer agrees. Use the supplied review period for evidence
+and champion assessment; if it is absent, assess the available evidence and state
+that the period is unknown. Missing timing alone does not establish urgency.
+Keep missing date properties absent and workbook date cells blank. Human reports
+may say "Unknown" or "Unagreed"; never write those words into date cells. Preserve
+actual supplied dates and report overdue dates against their stated source.
+Record the date of an assessment or evidence ingestion as provenance; it does
+not create a customer commitment, interaction date, or business deadline.
+
 ## Evidence and reporting
 
 Start with the identified deal/file scope, workflow stage, and completion.
@@ -61,7 +75,7 @@ Score each criterion:
 | **Personal Win** | Do they have a personal stake in this deal succeeding? Will their career benefit? | 0–3 |
 | **Access** | Can they (and will they) connect you to the Economic Buyer and other decision-makers? | 0–3 |
 | **Intel** | Do they share internal information — politics, objections, competitor activity, process changes? | 0–3 |
-| **Action** | Have they taken concrete, verifiable actions on your behalf in the last 2 weeks? | 0–3 |
+| **Action** | Have they taken concrete, verifiable actions on your behalf during the supplied review period? | 0–3 |
 
 **Scoring:**
 
@@ -87,12 +101,12 @@ Based on the classification:
 
 - Arm them with materials for internal advocacy
 - Co-develop the internal business case
-- Schedule regular coaching sessions
+- Use customer-agreed coaching sessions when supplied
 - Protect the relationship — deliver on your promises
 
 **Emerging Champion:**
 
-- Test with a specific ask this week (EB meeting, internal presentation, procurement intro)
+- Test with a specific ask during the supplied review period (EB meeting, internal presentation, procurement intro)
 - Help them build their internal narrative
 - Identify what would make this a personal win for them
 - If they don't act on the test, reassess

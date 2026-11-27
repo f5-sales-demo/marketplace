@@ -6,7 +6,7 @@ MEDDPICC sales qualification and deal-execution framework plugin for Claude Code
 
 This plugin turns MEDDPICC from a checkbox exercise into a **living deal intelligence system**. Qualification data accumulates as you feed in meeting notes, emails, call transcripts, competitive intel, and Salesforce updates. Every piece of evidence is extracted, mapped to the correct MEDDPICC element, and persisted incrementally to a structured JSON deal file.
 
-The system supports the full deal lifecycle: initial qualification, ongoing intelligence ingestion, weekly structured reviews, champion assessment, and mutual action plan creation.
+The system supports the full deal lifecycle: initial qualification, ongoing intelligence ingestion, structured reviews over the supplied review period, champion assessment, and mutual action plan creation.
 
 ## Identity and data safety
 
@@ -49,7 +49,7 @@ MEDDPICC is a qualification and deal-execution framework for complex B2B sales:
 | **D** | Decision Criteria | Requirements used to evaluate options | Written criteria, priority ranking, competitive position |
 | **D** | Decision Process | Step-by-step path from evaluation to agreement | Named owners, dates, gates, approvals |
 | **P** | Paper Process | Procurement mechanics (legal, security, signature) | Steps, owners, timelines, artifacts |
-| **I** | Identify Pain | Compelling business pain that creates urgency | Quantified impact, triggering events, stakeholder confirmation |
+| **I** | Identify Pain | Customer-confirmed business problem and its impact | Quantified impact, triggering events, stakeholder confirmation |
 | **C** | Champion | Powerful internal advocate | Concrete actions taken, personal win, organizational influence |
 | **C** | Competition | All alternatives (vendors, build, do-nothing) | Customer perception, differentiation strategy, proof points |
 
@@ -58,7 +58,7 @@ Each element is scored 0-4 based on evidence strength, not assumptions. Scores p
 ## Deal Lifecycle
 
 ```text
-Day 0               Ongoing                    Weekly
+Discovery           Evidence updates           Agreed reviews
 /qualify-deal  -->  /update-deal (repeat)  -->  /deal-review
    |                    |                          |
    v                    v                          v
@@ -103,12 +103,12 @@ The extraction protocol scans for signals mapped to each MEDDPICC element (KPIs,
 
 ### Deal review (`/meddpicc:deal-review`)
 
-Weekly deal inspection with delta tracking. Loads the existing deal JSON, snapshots current scores for comparison, walks through evidence changes since the last review, and produces:
+Deal inspection over the supplied review period with delta tracking. Loads the existing deal JSON, snapshots current scores for comparison, walks through evidence changes since the last review, and produces:
 
 - **Evidence delta table** showing score changes per element
 - **Forecast assessment** — Commit, Best Case, Pipeline, At Risk, or Qualify Out
-- **Action items** with named owners, due dates, and success criteria
-- Updated `previousElementScores` for next week's delta
+- **Action items** with named owners, any agreed due dates, and success criteria
+- Updated `previousElementScores` for the next review delta
 
 ### Champion test (`/meddpicc:champion-test`)
 
@@ -125,7 +125,7 @@ Includes a champion development plan with specific actions for non-True Champion
 
 ### Mutual Action Plan (`/meddpicc:build-map`)
 
-Builds a buyer-approved Mutual Action Plan tied to MEDDPICC elements. Works backward from the target close date to create a customer-facing document with:
+Builds a buyer-approved Mutual Action Plan tied to MEDDPICC elements. Uses customer-agreed milestones and any supplied target close date to create a customer-facing document with:
 
 - Business context (Pain + Metrics)
 - Evaluation milestones (Decision Criteria + Decision Process)
@@ -133,7 +133,7 @@ Builds a buyer-approved Mutual Action Plan tied to MEDDPICC elements. Works back
 - Procurement timeline (Paper Process + Decision Process)
 - Implementation readiness (value realization)
 
-Every task has a named owner, specific date, exit criteria, and dependencies.
+Every task has a named owner, exit criteria, and dependencies. Dates remain unagreed until supplied or customer-confirmed.
 
 ## Agents
 
@@ -180,7 +180,7 @@ The plugin includes reference material loaded automatically by skills:
 | Deal Stage Gates | `meddpicc-coach` | What must be true before advancing to the next stage |
 | Antipatterns | `meddpicc-coach`, `deal-qualification` | Common failure modes with evidence-based remediation |
 | Scoring Rubric | `deal-qualification`, `deal-review` | Objective 0-4 scoring criteria per element |
-| Review Template | `deal-review` | Weekly inspection question sets adapted by deal stage |
+| Review Template | `deal-review` | Inspection questions adapted by deal stage and supplied review period |
 | MAP Template | `mutual-action-plan` | Customer-facing action plan structure |
 | Workbook Spec | `engine` | Declarative description of the generated workbook — the grid, its blocks, formulas, formats, dropdowns |
 | SFDC Field Mapping | `deal-qualification` | Salesforce opportunity field mapping with transforms |
@@ -200,7 +200,7 @@ Or add to your marketplace configuration for automatic installation.
 
 ## Usage Examples
 
-### Create a new deal (day 0)
+### Create a new deal
 
 ```text
 /meddpicc:qualify-deal Example Corp
@@ -240,7 +240,7 @@ $85K/yr vs your $120K. Legal confirmed their standard review takes
 3 weeks. Talk soon, <CHAMPION>
 ```
 
-### Run a weekly deal review
+### Run a deal review
 
 ```text
 /meddpicc:deal-review Example Corp
@@ -262,7 +262,7 @@ Scores Power, Personal Win, Access, Intel, and Action (0-3 each) to classify the
 /meddpicc:build-map Example Corp
 ```
 
-Creates a customer-facing document working backward from the target close date, tied to MEDDPICC elements.
+Creates a customer-facing document using customer-agreed milestones and any supplied target close date, tied to MEDDPICC elements.
 
 ### Export to spreadsheet
 
@@ -291,3 +291,17 @@ What are the common antipatterns for Champion development?
 ## License
 
 Apache-2.0
+
+## Timing
+
+Honor explicit user or customer dates, deadlines, and agreed milestones. When
+none are supplied, keep timing unknown or unagreed. Suggest a schedule, deadline,
+meeting duration, or review cadence only when explicitly requested; label it a
+proposal until the customer agrees. Use the supplied review period for evidence
+and champion assessment; if it is absent, assess the available evidence and state
+that the period is unknown. Missing timing alone does not establish urgency.
+Keep missing date properties absent and workbook date cells blank. Human reports
+may say "Unknown" or "Unagreed"; never write those words into date cells. Preserve
+actual supplied dates and report overdue dates against their stated source.
+Record the date of an assessment or evidence ingestion as provenance; it does
+not create a customer commitment, interaction date, or business deadline.

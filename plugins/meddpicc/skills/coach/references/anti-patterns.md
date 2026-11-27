@@ -17,11 +17,11 @@ A champion has power, a personal win, and takes risks for you.
 
 **Fix:**
 
-- Apply the champion test: ask for a specific action this week
+- Apply the champion test: ask for a specific action during the supplied review period
   (EB meeting, internal deck share, procurement intro)
 - If they won't or can't act, they are a coach at best — find or
   develop a true champion
-- Document what the champion did for you this week in the deal doc
+- Document what the champion did for you during the supplied review period in the deal doc
 
 ---
 
@@ -38,7 +38,7 @@ proof to Decision Criteria and Metrics.
 
 - Stop. Define exit criteria before continuing
 - Tie success criteria to ranked Decision Criteria
-- Set a hard end date with the customer
+- Ask whether the customer has agreed an evaluation end milestone; otherwise leave timing unagreed
 - Require customer sign-off on criteria before kickoff
 - Include differentiation tests (prove what competitors can't)
 
@@ -111,7 +111,7 @@ of a deal execution system.
 
 - Every MEDDPICC field must include evidence (meeting notes,
   customer statements, artifact links)
-- Weekly deal reviews must ask "what evidence changed this week?"
+- Deal reviews ask "what evidence changed during the supplied review period?"
 - Managers must challenge: "How do we know this? When was it
   verified?"
 - Use the MEDDPICC scoring rubric to objectively assess deal health
@@ -130,7 +130,7 @@ a shared deal truth system.
 
 - MEDDPICC is a team document — SE owns technical elements, CSM
   owns adoption elements, AE owns commercial elements
-- Weekly deal reviews include all team members
+- Deal reviews include the relevant team members
 - Each role updates their elements after every customer interaction
 - Shared access in CRM (not private notes)
 

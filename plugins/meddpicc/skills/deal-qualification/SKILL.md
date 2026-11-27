@@ -15,6 +15,20 @@ user-invocable: true
 
 # MEDDPICC Deal Qualification
 
+## Timing
+
+Honor explicit user or customer dates, deadlines, and agreed milestones. When
+none are supplied, keep timing unknown or unagreed. Suggest a schedule, deadline,
+meeting duration, or review cadence only when explicitly requested; label it a
+proposal until the customer agrees. Use the supplied review period for evidence
+and champion assessment; if it is absent, assess the available evidence and state
+that the period is unknown. Missing timing alone does not establish urgency.
+Keep missing date properties absent and workbook date cells blank. Human reports
+may say "Unknown" or "Unagreed"; never write those words into date cells. Preserve
+actual supplied dates and report overdue dates against their stated source.
+Record the date of an assessment or evidence ingestion as provenance; it does
+not create a customer commitment, interaction date, or business deadline.
+
 ## Evidence and reporting
 
 Start with the identified deal/file scope, workflow stage, and completion.
@@ -175,9 +189,9 @@ User provides a deal or account name with no existing JSON file.
    skeleton** that includes all static data pre-populated from the
    schema. Use [example-deal.json](../../schema/example-deal.json)
    as the structural reference. Every MEDDPICC element must include:
-   - `definition` — from the schema's `const` value
-   - `questions` — from the schema's `default` array
-   - `scoreDefinition` — from the schema's `default` object
+   - `definition` — from engine `hint`; the schema uses `default` for the neutral pain definition and `const` for other elements
+   - `questions` — from engine `hint`
+   - `scoreDefinition` — from engine `hint`
    - `responses: []` — empty array (not null)
    - `score: 0` — integer zero
    - `evidence: ""` — empty string (not null, not omitted)

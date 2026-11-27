@@ -1,7 +1,6 @@
-# Weekly Deal Review — Question Template
+# Deal Review — Question Template
 
-Use these questions to inspect each MEDDPICC element during weekly
-deal reviews. Not every question applies to every deal — focus on
+Use these questions to inspect each MEDDPICC element during the supplied review period. Not every question applies to every deal — focus on
 what's most relevant to the current stage and the gaps identified
 in the last review.
 
@@ -49,16 +48,16 @@ in the last review.
 
 ## Identify Pain
 
-- Is the pain still urgent? Has anything changed?
+- Is the business problem still present, and has its impact changed?
 - Has new pain surfaced since our last review?
 - Is there a deadline driver or triggering event?
 - Do multiple stakeholders still agree on the pain?
-- What's the consequence of inaction in the next 90 days?
+- What consequences of inaction does the customer confirm?
 
 ## Champion
 
-- What concrete action did our champion take this week?
-- Did they follow through on last week's commitment?
+- What concrete action did our champion take during the supplied review period?
+- Did they follow through on the customer-agreed commitment?
 - Have they shared any new internal intelligence?
 - Are they still actively advocating?
 - If no action — is this person really our champion?
@@ -75,11 +74,11 @@ in the last review.
 
 ## Red Flags to Watch For
 
-- Champion hasn't taken action in 2+ weeks
+- Champion has not followed through on a customer-agreed action
 - No EB access scheduled or planned
-- Decision Process dates slipping without explanation
+- Supplied Decision Process dates slipping without explanation
 - New stakeholders appearing late in the cycle
 - Customer avoiding Metrics discussions
-- "We'll get back to you" without a specific date
-- POV running past its exit criteria date
+- A customer-agreed follow-up commitment missed without explanation
+- POV running past its customer-agreed exit milestone
 - Paper Process hasn't started in late-stage deal

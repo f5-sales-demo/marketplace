@@ -15,6 +15,20 @@ user-invocable: false
 
 # MEDDPICC Coach
 
+## Timing
+
+Honor explicit user or customer dates, deadlines, and agreed milestones. When
+none are supplied, keep timing unknown or unagreed. Suggest a schedule, deadline,
+meeting duration, or review cadence only when explicitly requested; label it a
+proposal until the customer agrees. Use the supplied review period for evidence
+and champion assessment; if it is absent, assess the available evidence and state
+that the period is unknown. Missing timing alone does not establish urgency.
+Keep missing date properties absent and workbook date cells blank. Human reports
+may say "Unknown" or "Unagreed"; never write those words into date cells. Preserve
+actual supplied dates and report overdue dates against their stated source.
+Record the date of an assessment or evidence ingestion as provenance; it does
+not create a customer commitment, interaction date, or business deadline.
+
 ## Evidence and reporting
 
 Start with the identified deal/file scope, workflow stage, and completion.
@@ -96,7 +110,7 @@ When coaching on MEDDPICC:
 ### For account team alignment
 
 - Clarify role ownership using the RACI model
-- Recommend the appropriate operating rhythm (weekly inspections)
+- Recommend the appropriate operating rhythm (reviews at the customer-agreed cadence, when supplied)
 - Suggest artifacts: deal doc, MAP, proof plan, stakeholder map, value model
 
 ## Operating Rhythm
@@ -105,20 +119,20 @@ Remind teams of the MEDDPICC operating rhythm:
 
 | Step | Timing | Purpose |
 | ---- | ------ | ------- |
-| Deal Hypothesis | Day 0–7 | Testable thesis for why, how, and who |
+| Deal Hypothesis | Initial discovery; timing unagreed unless supplied | Testable thesis for why, how, and who |
 | Evidence Collection | Discovery | Replace assumptions with verified facts |
 | Mutual Action Plan | Mid-cycle | Buyer-approved evaluation roadmap |
 | Proof Strategy | POV/Pilot | Prove criteria alignment and metrics impact |
 | Executive Alignment | Pre-proposal | EB sponsorship via validated business case |
 | Paper Process Control | Pre-close | Predictable procurement mechanics |
-| Weekly Inspection | Ongoing | Keep the deal real and forecastable |
+| Evidence Review | Ongoing | Keep the deal real and forecastable |
 
 ## Forecast Integrity
 
 A deal is not "Commit" unless:
 
 - Economic Buyer is identified and engaged
-- Mutual Action Plan dates are verified
-- Paper Process is verified with owners and timeline
-- Champion has taken a concrete action this week
+- Mutual Action Plan milestones and any supplied dates are buyer-confirmed
+- Paper Process is verified with owners and customer-agreed milestones
+- Champion has taken a concrete action during the supplied review period
 - Competitive strategy is clear and defensible
