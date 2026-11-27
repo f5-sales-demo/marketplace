@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fingerprint } from '../../gcloud/src/ce/discovery';
-import { GCP_PUBLIC_TERRAFORM_ARTIFACTS } from '../../gcloud/src/ce/terraform-public-artifacts';
+import { GCP_XCSH15173_TERRAFORM_ARTIFACTS as GCP_PUBLIC_TERRAFORM_ARTIFACTS } from '../../gcloud/src/ce/terraform-public-artifacts';
 import {
   publicTerraformCloudScope,
   publicTerraformPlatformScope,

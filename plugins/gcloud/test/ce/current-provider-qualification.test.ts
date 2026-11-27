@@ -15,8 +15,31 @@ import { intent } from './fixtures';
 import historicalSchema from './site-access-schema-15.16.2.json';
 import previousSchema from './site-access-schema-15.17.6.json';
 import latestSchema from './site-access-schema-15.17.8.json';
+import stableSchema from './site-access-schema-15.17.9.json';
+
+// Documentation may change independently of provider field types and requirements.
+function functionalSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(functionalSchema);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== 'description' && key !== 'description_kind')
+        .map(([key, item]) => [key, functionalSchema(item)]),
+    );
+  }
+  return value;
+}
 
 const qualifications = [
+  {
+    version: '15.17.9',
+    lockSha256: '40fdb8634396951a615fe16eaeb575ce9ed0a6756bb15c4611c1c2e5fb5b8fee',
+    schema: stableSchema,
+    artifact: 'GCP_XCSH15179_TERRAFORM_ARTIFACTS',
+    xcProviderSha256: 'b4ac1a7018662b26143f592b4404560f86c99299b099c9289e92a3443223dfcc',
+    sourceSchemaSha256: '0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30',
+    providerLock: readFileSync(new URL('./provider-lock-15.17.9.hcl', import.meta.url), 'utf8'),
+  },
   {
     version: '15.17.6',
     lockSha256: 'f77a17ac8bfb5a808da63d887e8427c8663a460600174842e9b534dabf4419a5',
@@ -52,7 +75,7 @@ for (const qualification of qualifications) {
       }
     });
 
-    it('binds the current packaged artifact without replacing historical public selection', () => {
+    it('binds the current packaged artifact while selecting the latest stable public tuple', () => {
       const current = (artifacts as unknown as Record<string, Omit<GcpTerraformInputs, 'intent'>>)[
         qualification.artifact
       ];
@@ -65,8 +88,8 @@ for (const qualification of qualifications) {
       });
       expect(artifacts.GCP_PUBLIC_TERRAFORM_ARTIFACTS.versions).toEqual({
         terraform: '1.17.2',
-        google: '8.11.0',
-        xcsh: '15.17.3',
+        google: '8.12.0',
+        xcsh: '15.17.9',
       });
       expect(artifacts.resolveGcpTerraformArtifacts(artifacts.GCP_PUBLIC_TERRAFORM_ARTIFACTS)).toBe(
         artifacts.GCP_PUBLIC_TERRAFORM_ARTIFACTS,
@@ -90,8 +113,8 @@ for (const qualification of qualifications) {
       expect(mapping).toMatchObject({ version: schema.version, sourceSchemaSha256: schema.sourceSchemaSha256 });
       expect(Object.isFrozen(mapping)).toBe(true);
       expect(schema.sourceSchemaSha256).toBe(qualification.sourceSchemaSha256);
-      expect(schema.admin).toEqual(historicalSchema.admin);
-      expect(schema.services).toEqual(historicalSchema.services);
+      expect(functionalSchema(schema.admin)).toEqual(functionalSchema(historicalSchema.admin));
+      expect(functionalSchema(schema.services)).toEqual(functionalSchema(historicalSchema.services));
       const i = intent();
       i.engine = 'terraform';
       i.routing.destinationCidrs = [];
@@ -116,7 +139,7 @@ for (const qualification of qualifications) {
         expect(() => resolveGcpSiteAccessMapping(version)).toThrow();
     });
 
-    it('binds original current capture preparation without changing public artifact selection', () => {
+    it('binds original current capture preparation while retaining distinct historical artifact identities', () => {
       const profile = resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.2', providerLockSha256: lockSha256 });
       expect(profile).toMatchObject({
         googleVersion: '8.12.0',
@@ -138,8 +161,8 @@ for (const qualification of qualifications) {
       expect(isOriginalCreationScopeProfile(profile)).toBe(true);
       expect(artifacts.GCP_PUBLIC_TERRAFORM_ARTIFACTS.versions).toEqual({
         terraform: '1.17.2',
-        google: '8.11.0',
-        xcsh: '15.17.3',
+        google: '8.12.0',
+        xcsh: '15.17.9',
       });
       expect(() =>
         resolveInstalledGcpVersionProfile({ terraformVersion: '1.17.1', providerLockSha256: lockSha256 }),

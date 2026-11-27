@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import {
   GCP_XCSH15176_TERRAFORM_ARTIFACTS,
   GCP_XCSH15178_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15179_TERRAFORM_ARTIFACTS,
 } from '../../gcloud/src/ce/terraform-public-artifacts';
 import type { GcpCeIntent } from '../../gcloud/src/ce/types';
 import { readOriginalGcpPreapplyBootstrapJwt } from '../src/gcp-preapply-bootstrap';
@@ -48,6 +49,7 @@ test('original inventory and bootstrap creation scope share one actual context a
 for (const profile of [
   { artifact: GCP_XCSH15176_TERRAFORM_ARTIFACTS, version: '15.17.6', schemaVersion: 5 },
   { artifact: GCP_XCSH15178_TERRAFORM_ARTIFACTS, version: '15.17.8', schemaVersion: 6 },
+  { artifact: GCP_XCSH15179_TERRAFORM_ARTIFACTS, version: '15.17.9', schemaVersion: 7 },
 ] as const) {
   test(`original ${profile.version} bootstrap and SDK receipts compose with the native inventory actor`, async () => {
     await withApplyInventory(

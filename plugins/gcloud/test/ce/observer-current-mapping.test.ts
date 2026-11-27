@@ -83,3 +83,26 @@ for (const artifact of [GCP_XCSH15176_OBSERVER_ARTIFACTS, GCP_XCSH15178_OBSERVER
       expect(() => translateGcpTerraformObserverSiteCompute(value, changed, observer, reason)).toThrow();
   });
 }
+
+test('latest stable15.17.9 observer mapping preserves exact21-resource scope and unavailable execution', () => {
+  const value = originalIntent(),
+    observer = value.observer;
+  if (!observer) throw new Error('Original observer fixture required');
+  const versions = { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.9' };
+  const plan = translateGcpTerraformObserverSiteCompute(
+    value,
+    versions,
+    observer,
+    createGcpTerraformRequestReason(value),
+  );
+  expect(plan.inventory.ce).toHaveLength(18);
+  expect(plan.inventory.observer).toHaveLength(3);
+  expect(new Set(plan.inventory.all).size).toBe(21);
+  expect(plan.executable).toBe(false);
+  expect(Object.hasOwn(plan.configuration.resource.google_compute_instance.ce_test_observer, 'service_account')).toBe(
+    false,
+  );
+  expect(JSON.stringify(plan.configuration.resource.google_compute_disk.ce_test_observer.lifecycle)).toContain(
+    '4996011480491275419',
+  );
+});

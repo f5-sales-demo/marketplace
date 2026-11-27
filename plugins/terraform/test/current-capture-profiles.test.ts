@@ -78,3 +78,16 @@ test('shipped XC reader binds the independently verified latest artifact and ref
     select('xcsh_creation_reader.py', 'select_xcsh_pins', { ...input, terraform: { sha256: '0'.repeat(64) } }).code,
   ).not.toBe(0);
 });
+
+test('shipped XC reader admits latest stable15.17.9 with an exact original executable pair', () => {
+  const latest = 'b4ac1a7018662b26143f592b4404560f86c99299b099c9289e92a3443223dfcc';
+  const input = { bootstrap: { sha256: bootstrap }, terraform: { sha256: terraform }, xcsh: { sha256: latest } };
+  const actual = select('xcsh_creation_reader.py', 'select_xcsh_pins', input);
+  expect(actual.code).toBe(0);
+  expect(actual.err).toBe('');
+  expect(JSON.parse(actual.out)).toEqual({ bootstrap, terraform, xcsh: latest });
+  expect(profiles.resolveInstalledXcshCreationExecutableProfile(terraform, latest).xcshVersion).toBe('15.17.9');
+  expect(
+    select('xcsh_creation_reader.py', 'select_xcsh_pins', { ...input, terraform: { sha256: '0'.repeat(64) } }).code,
+  ).not.toBe(0);
+});

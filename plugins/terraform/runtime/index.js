@@ -124,7 +124,7 @@ import {
   TerraformApplyHookParser2,
   TerraformRunner,
   withFinalCheck,
-} from './chunk-81ghzv3w.js';
+} from './chunk-bw2mctgy.js';
 import {
   assertInstalledGcpSshClientSetup,
   collectInstalledCeInsertWitnesses2,
@@ -145,7 +145,7 @@ import {
   openInstalledGuestWorker2,
   openInstalledVmCapture2,
   scheduleInstalledBeforeGuestRound2,
-} from './chunk-p0ze143j.js';
+} from './chunk-ghq3w9rn.js';
 
 var hash = (value) => createHash('sha256').update(value).digest('hex');
 var sha256 = /^[a-f0-9]{64}$/;
@@ -227,7 +227,7 @@ async function collectBootstrap(input, providerVersion) {
     providerLockSha256: receipt.providerLockSha256,
   });
   if (
-    profile.googleVersion !== (['15.17.6', '15.17.8'].includes(providerVersion) ? '8.12.0' : '8.11.0') ||
+    profile.googleVersion !== (['15.17.6', '15.17.8', '15.17.9'].includes(providerVersion) ? '8.12.0' : '8.11.0') ||
     profile.xcshVersion !== providerVersion
   )
     throw new Error('Original qualified Terraform bootstrap provider mapping required');
@@ -301,13 +301,15 @@ async function collectBootstrap(input, providerVersion) {
     bootstrapOwnershipQualified: false,
   };
   const value =
-    providerVersion === '15.15.7'
-      ? Object.freeze({ ...common, schemaVersion: 1, xcshProviderVersion: '15.15.7' })
-      : providerVersion === '15.17.8'
-        ? Object.freeze({ ...common, schemaVersion: 4, xcshProviderVersion: '15.17.8' })
-        : providerVersion === '15.17.6'
-          ? Object.freeze({ ...common, schemaVersion: 3, xcshProviderVersion: '15.17.6' })
-          : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
+    providerVersion === '15.17.9'
+      ? Object.freeze({ ...common, schemaVersion: 5, xcshProviderVersion: '15.17.9' })
+      : providerVersion === '15.15.7'
+        ? Object.freeze({ ...common, schemaVersion: 1, xcshProviderVersion: '15.15.7' })
+        : providerVersion === '15.17.8'
+          ? Object.freeze({ ...common, schemaVersion: 4, xcshProviderVersion: '15.17.8' })
+          : providerVersion === '15.17.6'
+            ? Object.freeze({ ...common, schemaVersion: 3, xcshProviderVersion: '15.17.6' })
+            : Object.freeze({ ...common, schemaVersion: 2, xcshProviderVersion: '15.17.3' });
   issued.set(value, { bootstrap, platform });
   return value;
 }

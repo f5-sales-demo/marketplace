@@ -151,7 +151,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   case "$plugin" in
   aws | azure | github | gitlab) retained_development_xcsh="23.9.3" ;;
   # Keep the separately qualified GCP lane independent of other plugin families.
-  gcloud | platform) retained_development_xcsh="23.10.13" ;;
+  gcloud | platform) retained_development_xcsh="25.1.1" ;;
   esac
   if [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] &&
     [ "$development_xcsh" != "$SHARED_DEVELOPMENT_XCSH" ] &&
@@ -167,13 +167,29 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"
   expected_google_genai="$EXPECTED_GOOGLE_GENAI"
+  expected_typebox_range="$EXPECTED_TYPEBOX_RANGE"
+  expected_bun_types_range="$EXPECTED_BUN_TYPES_RANGE"
+  expected_bun_types="$EXPECTED_BUN_TYPES"
+  case "$plugin:$development_xcsh" in
+  gcloud:25.1.1 | platform:25.1.1)
+    # Latest stable GCP graph is qualified immediately; release age is not an admission condition.
+    expected_anthropic="1.8.0"
+    expected_acp="2.6.0"
+    expected_google_genai="3.3.0"
+    expected_typebox_range="0.34.52"
+    expected_bun_types_range="1.4.5"
+    expected_bun_types="1.4.5"
+    require_json_value "$package_json" '.overrides["google-auth-library"]' "11.3.4" "$plugin coherent Google auth graph"
+    require_lock_version "$lock" 'google-auth-library' "11.3.4"
+    ;;
+  esac
   expected_xcsh_range=">=$expected_xcsh"
   require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/xcsh"]' \
     "$expected_xcsh_range" "$plugin xcsh peer range"
   require_json_value "$package_json" '.devDependencies["@sinclair/typebox"]' \
-    "$EXPECTED_TYPEBOX_RANGE" "$plugin TypeBox development range"
+    "$expected_typebox_range" "$plugin TypeBox development range"
   require_json_value "$package_json" '.devDependencies["bun-types"]' \
-    "$EXPECTED_BUN_TYPES_RANGE" "$plugin Bun types development range"
+    "$expected_bun_types_range" "$plugin Bun types development range"
   if jq -e '.peerDependencies["@f5-sales-demo/pi-utils"]' "$package_json" >/dev/null 2>&1; then
     require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/pi-utils"]' \
       ">=$minimum_xcsh" "$plugin pi-utils peer range"
@@ -202,10 +218,19 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
       "$expected_acp" "$plugin installed ACP SDK version"
     require_installed_json_value "$node_modules/@google/genai/package.json" '.version' \
       "$expected_google_genai" "$plugin installed Google GenAI version"
+    case "$plugin:$development_xcsh" in
+    gcloud:25.1.1 | platform:25.1.1)
+      installed_google_auth=$(resolve_runtime_package_manifest "$node_modules" "google-auth-library") || {
+        fail_installed "$plugin Google auth cannot be resolved from its runtime graph"
+        continue
+      }
+      require_installed_json_value "$installed_google_auth" '.version' "11.3.4" "$plugin installed Google auth version"
+      ;;
+    esac
     require_installed_json_value "$node_modules/@sinclair/typebox/package.json" '.version' \
       "$EXPECTED_TYPEBOX" "$plugin installed TypeBox version"
     require_installed_json_value "$node_modules/bun-types/package.json" '.version' \
-      "$EXPECTED_BUN_TYPES" "$plugin installed Bun types version"
+      "$expected_bun_types" "$plugin installed Bun types version"
   elif $REPAIR; then
     # A fresh checkout has no physical graph yet. The test runner calls this checker with
     # --repair as its precondition, so that mode must materialize every runtime plugin graph.

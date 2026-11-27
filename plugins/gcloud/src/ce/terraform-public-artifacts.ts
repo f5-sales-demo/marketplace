@@ -64,7 +64,7 @@ export const GCP_XCSH15162_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent
 };
 
 /** Authenticated current registry packages; capture and live qualification remain separate gates. */
-export const GCP_PUBLIC_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
+export const GCP_XCSH15173_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
   configurationVersion: 2,
   versions: { terraform: '1.17.2', google: '8.11.0', xcsh: '15.17.3' },
   providerLock:
@@ -79,8 +79,10 @@ const GCP_XCSH15162_OBSERVER_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
 };
 
 /** Separate graph version; never rewrites or substitutes a stored version2 profile. */
-export const GCP_OBSERVER_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> | undefined =
-  GCP_PUBLIC_TERRAFORM_ARTIFACTS && { ...GCP_PUBLIC_TERRAFORM_ARTIFACTS, configurationVersion: 3 };
+export const GCP_XCSH15173_OBSERVER_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
+  ...GCP_XCSH15173_TERRAFORM_ARTIFACTS,
+  configurationVersion: 3,
+};
 
 /** Current verified artifact identities only; positive guest/capture gates remain closed. */
 export const GCP_XCSH15176_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
@@ -111,7 +113,25 @@ export const GCP_XCSH15178_OBSERVER_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'
   configurationVersion: 3,
 };
 
+/** Latest stable signed tuple; source mapping does not establish live acceptance. */
+export const GCP_XCSH15179_TERRAFORM_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
+  configurationVersion: 2,
+  versions: { terraform: '1.17.2', google: '8.12.0', xcsh: '15.17.9' },
+  providerLock:
+    '# This file is maintained automatically by "terraform init".\n# Manual edits may be lost in future updates.\n\nprovider "registry.terraform.io/f5-sales-demo/xcsh" {\n  version     = "15.17.9"\n  constraints = "15.17.9"\n  hashes = [\n    "h1:t1cMcRCZX3eS/C4aOQvrhTNB7aIvCJpr+ToUn3awBPI=",\n    "zh:0b1e314767c4ee8604d5efb205ba6ec0b0bad939a55d686827afcdc4ff2a86ab",\n    "zh:1414a6a66f289729ece7227411e96b1e8ab8866e3e4e649ee4c241c4c87c0d32",\n    "zh:2d1d58f27eb12c980374d10407a3b5764d0c9e81756b64135c317b026c677616",\n    "zh:583000fb3a8070ca92295349af9a2090db7d02462201d82d31f55a0e66fb320a",\n    "zh:5db3ba7153cc4343f6fc2a6a50ab232538fc184938692a7b11e9f64beb226992",\n    "zh:85b4c917dd211bf4f8eb5e18321db34c243ec9ff82cfd6831d7c6e6fd044a6e7",\n    "zh:95513584b227b9c7923e641aae986935821077b1eb4116845b5312ac412bbc72",\n    "zh:ac663e89fe2ac12d56796b49a6bdb260effaa4f6c75557f2dc3df0bbdb8111d3",\n    "zh:c9d45a2ecbe174662c9d7c1c2c9656da46277b3a8ee4fdfd48e17b46126ce99c",\n    "zh:daa46eea6c86574518b94a631a50546a808680f0024b58eab8f8a96b9063001f",\n    "zh:ea3d325a9ede113ba43dab4c4602534bd7492274daa0b68f4de95f0d3db2c194",\n  ]\n}\n\nprovider "registry.terraform.io/hashicorp/google" {\n  version     = "8.12.0"\n  constraints = "8.12.0"\n  hashes = [\n    "h1:es4kOf5hndCahoF3bLHmsLKX93JpkeuThvKQ4Pnm6m8=",\n    "zh:0b486637c4f4a2ff260dcf98e0ab74aa2655884c27df909fc79de9c2829ea6ef",\n    "zh:0b9c04d4bb269389d799f6b871877172d13cd059571768c6c36b28cf297b6fba",\n    "zh:0c63d340b3fda4156bccbd4f02e8ef7d320bea75bd1706573a90851e00129c47",\n    "zh:20371948b3d7f0469f2ad99608d9626a816127c9eb1b4cd007f09e1f68878728",\n    "zh:2a6d9c60699366894da043e604ebe5fee9246bb01bef73ebd100d3dbaf3e5e34",\n    "zh:47aa133c201e1edd2d1eb789f2ef4ccc769fdb49d5000b042280c2ac37acf368",\n    "zh:58e2910ee0625ecd352c2e55050ed35771ed7860dd1e738ee4b53eab695a2ee8",\n    "zh:84a44faf0dc811e48a8590e244c02ffff4a6a10095a4bc869979e7b0e94ae46d",\n    "zh:b8f42d7d79776b54d37c93b51a3f10ae45425fb91fb182bcb2a966e1bd52bdad",\n    "zh:eddf30f53a99381388ff25702ed0c727586deb8c502cd5af395dc98afb217a49",\n    "zh:f569b65999264a9416862bca5cd2a6177d94ccb0424f3a4ef424428912b9cb3c",\n    "zh:f79b40a9d29763535baed6de1cd0d42960059916a1723f8fb4af8a2801dd2f4c",\n  ]\n}\n',
+  expectedLockSha256: 'sha256:40fdb8634396951a615fe16eaeb575ce9ed0a6756bb15c4611c1c2e5fb5b8fee',
+};
+export const GCP_XCSH15179_OBSERVER_ARTIFACTS: Omit<GcpTerraformInputs, 'intent'> = {
+  ...GCP_XCSH15179_TERRAFORM_ARTIFACTS,
+  configurationVersion: 3,
+};
+/** New deployments select the latest qualified stable tuple without a release-age delay. */
+export const GCP_PUBLIC_TERRAFORM_ARTIFACTS = GCP_XCSH15179_TERRAFORM_ARTIFACTS;
+export const GCP_OBSERVER_TERRAFORM_ARTIFACTS = GCP_XCSH15179_OBSERVER_ARTIFACTS;
+
 const packagedProfiles = [
+  GCP_XCSH15173_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15173_OBSERVER_ARTIFACTS,
   GCP_LEGACY_TERRAFORM_ARTIFACTS,
   GCP_PREVIOUS_TERRAFORM_ARTIFACTS,
   GCP_GOOGLE810_TERRAFORM_ARTIFACTS,

@@ -44,6 +44,7 @@ export type OriginalGcpPreapplyBootstrapEvidence = OriginalGcpPreapplyBootstrapE
     | { readonly schemaVersion: 4; readonly xcshProviderVersion: '15.17.3' }
     | { readonly schemaVersion: 5; readonly xcshProviderVersion: '15.17.6' }
     | { readonly schemaVersion: 6; readonly xcshProviderVersion: '15.17.8' }
+    | { readonly schemaVersion: 7; readonly xcshProviderVersion: '15.17.9' }
   );
 const issued = new WeakMap<object, () => Promise<string>>();
 const contextChecks = new WeakMap<object, (context: InstalledCaptureContext) => Promise<void>>();
@@ -51,7 +52,7 @@ const callbackChecks = new WeakMap<object, (callback: OriginalApplyCallbackConte
 export interface OriginalGcpSiteAccessConfiguration {
   readonly siteName: string;
   readonly siteUid: string;
-  readonly providerVersion: '15.17.3' | '15.17.6' | '15.17.8';
+  readonly providerVersion: '15.17.3' | '15.17.6' | '15.17.8' | '15.17.9';
   readonly publicKey: string;
   readonly settingsSha256: string;
   readonly commandsAuthorized: false;
@@ -135,11 +136,13 @@ export async function collectOriginalGcpPreapplyBootstrap(input: {
   if (siteProfile !== tokenProfile) throw new Error('Original Site and Token provider profiles differ');
   const bootstrap = await verify();
   const value = Object.freeze({
-    ...(siteProfile.xcshVersion === '15.17.8'
-      ? { schemaVersion: 6 as const, xcshProviderVersion: '15.17.8' as const }
-      : siteProfile.xcshVersion === '15.17.6'
-        ? { schemaVersion: 5 as const, xcshProviderVersion: '15.17.6' as const }
-        : { schemaVersion: 4 as const, xcshProviderVersion: '15.17.3' as const }),
+    ...(siteProfile.xcshVersion === '15.17.9'
+      ? { schemaVersion: 7 as const, xcshProviderVersion: '15.17.9' as const }
+      : siteProfile.xcshVersion === '15.17.8'
+        ? { schemaVersion: 6 as const, xcshProviderVersion: '15.17.8' as const }
+        : siteProfile.xcshVersion === '15.17.6'
+          ? { schemaVersion: 5 as const, xcshProviderVersion: '15.17.6' as const }
+          : { schemaVersion: 4 as const, xcshProviderVersion: '15.17.3' as const }),
     executor: site.executor,
     kind: 'original-gcp-preapply-bootstrap-candidate' as const,
     planSha256: site.planSha256,

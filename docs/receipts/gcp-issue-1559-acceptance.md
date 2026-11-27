@@ -2675,3 +2675,21 @@ remains open. Independent checkpoint verification covers 2,163 files and both
 sources, retaining original failures, ARM cancellations and immutable assets.
 Original #5231 recovery integration and every unfinished live, cleanup, review,
 publication and published installation gate remain open. #1698 stays draft.
+
+## Latest stable releases without an age hold, November 26 UTC
+
+The [latest stable dependency qualification](gcp-latest-stable-policy-20261126.md)
+supersedes the seven-day eligibility window. Latest stable versions are selected
+immediately. Exact campaign versions, hashes and cleanup identities remain
+recorded. Terraform 1.17.2, Google 8.12.0, XC 15.17.9 and SDK 25.1.1 pass current
+artifact, source, dependency, runtime build and regression qualification.
+The validation harness now uses SDK 25.1.1 and QMD 2.9.0 after failing-first
+verification and normal installation. All prior receipt attribution is retained.
+
+| Gate | Current evidence | Remaining acceptance |
+| --- | --- | --- |
+| Release selection | Latest stable; minimum release age zero | Requalify newly selected releases immediately |
+| Current source and mappings | Current provider profiles, 1,122 source/runtime regression tests, three typechecks | Changed installed runtime and live behavior |
+| Validation graph | Published SDK parser, 26 workflow tests, 98 adjacent regressions, minimum-runtime checks | Fresh delivered CI and review |
+| Reproducibility and cleanup | Exact current hashes and retained historical executor profiles | Original live identities, teardown and restoration proof |
+| Full issue completion | Source qualification only; no new cloud submission | Installation, live campaigns, CI/review, merge, publication and published acceptance |

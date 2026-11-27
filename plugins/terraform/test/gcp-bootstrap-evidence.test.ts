@@ -13,6 +13,7 @@ import {
   collectOriginalGcpTerraformBootstrapV2,
   collectOriginalGcpTerraformBootstrapV3,
   collectOriginalGcpTerraformBootstrapV4,
+  collectOriginalGcpTerraformBootstrapV5,
   readOriginalGcpTerraformBootstrapJwt,
 } from '../src/gcp-bootstrap-evidence';
 import type { AppliedResourceProjection, PlanReceipt } from '../src/runner';
@@ -161,51 +162,59 @@ it('joins original API UIDs through creation hashes while keeping provider-added
   await expect(readOriginalGcpTerraformBootstrapJwt({ ...value })).rejects.toThrow('Original');
 });
 
-it('rejects replaced API identities, missing creation hashes and credential material used as identity', async () => {
-  for (const change of [
-    (x: { site: Json }) => {
-      x.site.system_metadata.uid = 'replacement';
-    },
-    (x: { token: Json }) => {
-      x.token.system_metadata.uid = 'replacement';
-    },
-    (x: { state: AppliedResourceProjection }) => {
-      resource(x.state, 'xcsh_token.node_a').creation_identity_sha256 = null;
-    },
-    (x: { state: AppliedResourceProjection; token: Json }) => {
-      resource(x.state, 'xcsh_token.node_a').creation_identity_sha256 = `sha256:${hash(String(x.token.spec.content))}`;
-    },
-  ]) {
+for (const [index, change] of [
+  (x: { site: Json }) => {
+    x.site.system_metadata.uid = 'replacement';
+  },
+  (x: { token: Json }) => {
+    x.token.system_metadata.uid = 'replacement';
+  },
+  (x: { state: AppliedResourceProjection }) => {
+    resource(x.state, 'xcsh_token.node_a').creation_identity_sha256 = null;
+  },
+  (x: { state: AppliedResourceProjection; token: Json }) => {
+    resource(x.state, 'xcsh_token.node_a').creation_identity_sha256 = `sha256:${hash(String(x.token.spec.content))}`;
+  },
+].entries()) {
+  const names = ['replaced-site', 'replaced-token', 'missing-creation-hash', 'credential-as-identity'];
+  it(`rejects replaced API identities, missing creation hashes and credential material used as identity: ${names[index]}`, async () => {
     const run = await fixture(change);
     await expect(collectOriginalGcpTerraformBootstrap(run.input)).rejects.toThrow('creation');
-  }
-});
+  });
+}
 
-it('requires all owned labels and the exact Google platform marker without accepting foreign labels', async () => {
-  for (const change of [
-    (x: { site: Json }) => {
-      x.site.metadata.labels['ves.io/provider'] = 'ves-io-AZURE';
-    },
-    (x: { site: Json }) => {
-      delete x.site.metadata.labels['ves.io/provider'];
-    },
-    (x: { site: Json }) => {
-      x.site.metadata.labels['foreign-owner'] = 'foreign';
-    },
-    (x: { token: Json }) => {
-      x.token.metadata.labels['xcsh-node'] = 'foreign';
-    },
-    (x: { state: AppliedResourceProjection }) => {
-      resource(x.state, 'xcsh_securemesh_site_v2.site_a').labels = {
-        'xcsh-deployment': 'foreign',
-        'xcsh-engine': 'terraform',
-      };
-    },
-  ]) {
+for (const [index, change] of [
+  (x: { site: Json }) => {
+    x.site.metadata.labels['ves.io/provider'] = 'ves-io-AZURE';
+  },
+  (x: { site: Json }) => {
+    delete x.site.metadata.labels['ves.io/provider'];
+  },
+  (x: { site: Json }) => {
+    x.site.metadata.labels['foreign-owner'] = 'foreign';
+  },
+  (x: { token: Json }) => {
+    x.token.metadata.labels['xcsh-node'] = 'foreign';
+  },
+  (x: { state: AppliedResourceProjection }) => {
+    resource(x.state, 'xcsh_securemesh_site_v2.site_a').labels = {
+      'xcsh-deployment': 'foreign',
+      'xcsh-engine': 'terraform',
+    };
+  },
+].entries()) {
+  const names = [
+    'foreign-platform',
+    'missing-platform',
+    'foreign-site-label',
+    'foreign-token-node',
+    'foreign-state-owner',
+  ];
+  it(`requires all owned labels and the exact Google platform marker without accepting foreign labels: ${names[index]}`, async () => {
     const run = await fixture(change);
     await expect(collectOriginalGcpTerraformBootstrap(run.input)).rejects.toThrow();
-  }
-});
+  });
+}
 
 it('refuses managed or malformed GCP wire forms rather than inferring GCP from labels alone', async () => {
   for (const gcp of [
@@ -390,3 +399,18 @@ for (const profile of [
     await expect(collectOriginalGcpTerraformBootstrapV2(run.input)).rejects.toThrow('mapping');
   });
 }
+
+it('latest stable15.17.9 bootstrap retains its receipt version and rejects historical collectors', async () => {
+  const collect = collectOriginalGcpTerraformBootstrapV5;
+  expect(collect).toBeDefined();
+  const run = await fixture();
+  run.input.terraformVersion = '1.17.2';
+  run.input.receipt.providerLockSha256 = '40fdb8634396951a615fe16eaeb575ce9ed0a6756bb15c4611c1c2e5fb5b8fee';
+  const value = await collect(run.input);
+  expect(value.schemaVersion).toBe(5);
+  expect(value.xcshProviderVersion).toBe('15.17.9');
+  expect(value.bootstrapOwnershipQualified).toBe(false);
+  expect(await readOriginalGcpTerraformBootstrapJwt(value)).toBe(run.jwt);
+  await expect(collectOriginalGcpTerraformBootstrapV4(run.input)).rejects.toThrow('mapping');
+  await expect(readOriginalGcpTerraformBootstrapJwt({ ...value })).rejects.toThrow('Original');
+});

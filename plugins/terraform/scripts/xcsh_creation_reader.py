@@ -58,9 +58,21 @@ XCSH15178_PINS = {
 }
 
 
+XCSH15179_PINS = {
+    **PINS,
+    "xcsh": "b4ac1a7018662b26143f592b4404560f86c99299b099c9289e92a3443223dfcc",
+}
+
+
 def select_xcsh_pins(executables: dict[str, dict[str, str]]) -> dict[str, str]:
     """Keep original exact pairs; unknown or mixed executable inputs refuse."""
-    for profile in (PINS, XCSH15173_PINS, XCSH15176_PINS, XCSH15178_PINS):
+    for profile in (
+        PINS,
+        XCSH15173_PINS,
+        XCSH15176_PINS,
+        XCSH15178_PINS,
+        XCSH15179_PINS,
+    ):
         if all(
             executables.get(role, {}).get("sha256") == digest
             for role, digest in profile.items()

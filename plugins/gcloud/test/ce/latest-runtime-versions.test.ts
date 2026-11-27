@@ -14,8 +14,8 @@ import {
 test('new GCP deployments select the currently verified latest stable Terraform and providers', () => {
   expect(GCP_PUBLIC_TERRAFORM_ARTIFACTS?.versions).toEqual({
     terraform: '1.17.2',
-    google: '8.11.0',
-    xcsh: '15.17.3',
+    google: '8.12.0',
+    xcsh: '15.17.9',
   });
 });
 
@@ -70,7 +70,7 @@ test('latest XC provider binds the independently authenticated lock and observer
   const current = GCP_PUBLIC_TERRAFORM_ARTIFACTS;
   const observer = GCP_OBSERVER_TERRAFORM_ARTIFACTS;
   if (!current || !observer) throw new Error('Current packaged artifacts required');
-  expect(current.expectedLockSha256).toBe('sha256:ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615');
+  expect(current.expectedLockSha256).toBe('sha256:40fdb8634396951a615fe16eaeb575ce9ed0a6756bb15c4611c1c2e5fb5b8fee');
   expect(`sha256:${createHash('sha256').update(current.providerLock).digest('hex')}`).toBe(current.expectedLockSha256);
   expect(observer.configurationVersion).toBe(3);
   expect(observer.versions).toEqual(current.versions);
@@ -105,4 +105,15 @@ test('stored XC15.16.2 public and observer receipts retain exact original lock b
       resolveGcpTerraformArtifacts({ ...stored, versions: GCP_PUBLIC_TERRAFORM_ARTIFACTS.versions }),
     ).toThrow();
   }
+});
+
+test('latest default preserves exact XC15.17.3 historical artifacts for original cleanup', async () => {
+  const module = await import('../../src/ce/terraform-public-artifacts');
+  const historical = (module as unknown as Record<string, typeof GCP_PUBLIC_TERRAFORM_ARTIFACTS>)
+    .GCP_XCSH15173_TERRAFORM_ARTIFACTS;
+  expect(historical).toBeDefined();
+  expect(historical.versions).toEqual({ terraform: '1.17.2', google: '8.11.0', xcsh: '15.17.3' });
+  expect(historical.expectedLockSha256).toBe('sha256:ddd3bbbad292cc08b82014de3060fcf800c02fb2113311c06f50720c1075d615');
+  expect(resolveGcpTerraformArtifacts(structuredClone(historical))).toBe(historical);
+  expect(historical).not.toBe(GCP_PUBLIC_TERRAFORM_ARTIFACTS);
 });

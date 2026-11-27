@@ -5,7 +5,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  GCP_PUBLIC_TERRAFORM_ARTIFACTS,
+  GCP_XCSH15173_TERRAFORM_ARTIFACTS as GCP_PUBLIC_TERRAFORM_ARTIFACTS,
   GCP_XCSH15176_TERRAFORM_ARTIFACTS,
   GCP_XCSH15178_TERRAFORM_ARTIFACTS,
 } from '../../../gcloud/src/ce/terraform-public-artifacts';

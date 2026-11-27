@@ -52,10 +52,10 @@ fi
 # The GCP lane was qualified independently; it must not admit other plugins or future pins.
 UNQUALIFIED_GCP="$WORK/unqualified-gcp-development"
 copy_runtime_state "$UNQUALIFIED_GCP"
-jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.10.14"' \
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "25.1.2"' \
   "$UNQUALIFIED_GCP/plugins/gcloud/package.json" >"$UNQUALIFIED_GCP/package.tmp"
 mv "$UNQUALIFIED_GCP/package.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/package.json"
-sed 's/@f5-sales-demo\/xcsh@23\.10\.13/@f5-sales-demo\/xcsh@23.10.14/g; s/@f5-sales-demo\/pi-utils@23\.10\.13/@f5-sales-demo\/pi-utils@23.10.14/g' \
+sed 's/@f5-sales-demo\/xcsh@25\.1\.1/@f5-sales-demo\/xcsh@25.1.2/g; s/@f5-sales-demo\/pi-utils@25\.1\.1/@f5-sales-demo\/pi-utils@25.1.2/g' \
   "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock" >"$UNQUALIFIED_GCP/lock.tmp"
 mv "$UNQUALIFIED_GCP/lock.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock"
 if REPO_ROOT="$UNQUALIFIED_GCP" bash "$CHECK" >"$UNQUALIFIED_GCP/check.log" 2>&1; then
@@ -268,13 +268,22 @@ pi_utils_version="$xcsh_version"
 anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"
+bun_types_version="1.4.4"
+if [ "$xcsh_version" = "25.1.1" ]; then
+  anthropic_version="1.8.0"
+  acp_version="2.6.0"
+  google_genai_version="3.3.0"
+  bun_types_version="1.4.5"
+  mkdir -p node_modules/google-auth-library
+  printf '{"version":"11.3.4"}\n' >node_modules/google-auth-library/package.json
+fi
 jq -n --arg version "$xcsh_version" '{version: $version}' >node_modules/@f5-sales-demo/xcsh/package.json
 jq -n --arg version "$pi_utils_version" '{version: $version}' >node_modules/@f5-sales-demo/pi-utils/package.json
 printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk/package.json
 printf '{"version":"%s"}\n' "$acp_version" >node_modules/@agentclientprotocol/sdk/package.json
 printf '{"version":"%s"}\n' "$google_genai_version" >node_modules/@google/genai/package.json
 printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
-printf '{"version":"1.4.4"}\n' >node_modules/bun-types/package.json
+printf '{"version":"%s"}\n' "$bun_types_version" >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
 # This fixture verifies driver dispatch and dependency repair. Actual interpreter,
