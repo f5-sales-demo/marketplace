@@ -10,13 +10,17 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`gcloud`** v1.7.99 selects the latest qualified stable Terraform 1.17.2,
+- **`gcloud`** v1.7.100 selects the latest qualified stable Terraform 1.17.2,
   Google 8.12.0 and XC 15.17.9 tuple without a seven-day release-age hold.
   Versioned Site access and observer mappings retain original cleanup identities.
-- **`terraform`** v2.4.200 adds current XC 15.17.9 bootstrap, preapply and
+- **`terraform`** v2.4.201 adds current XC 15.17.9 bootstrap, preapply and
   original-reader profiles. Historical executable and evidence profiles remain
   exact; live qualification stays required (#1559).
-- **`platform`** v6.3.42, GCloud and Terraform require SDK 25.1.1 and use current
+  The installed runtime admits the ordinary managed home state route while
+  retaining canonical directory ownership, original alias identities and
+  permanent refusal after replacement. GCloud and Platform include the
+  regenerated shared runtime. Live and published installation gates remain open.
+- **`platform`** v6.3.43, GCloud and Terraform require SDK 25.1.1 and use current
   direct dependencies. The validation runtime uses SDK 25.1.1 and QMD 2.9.0;
   a coherent Google authentication graph resolves the SDK/GenAI type conflict.
 

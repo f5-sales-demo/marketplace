@@ -26,6 +26,7 @@ import {
   closeInstalledOriginalRuntimeSources,
   type OriginalInstalledRuntimeGroup,
 } from './installed-runtime-source-closure';
+import { admitInstalledRuntimeState } from './installed-runtime-state';
 import { resolveInstalledTerraformExecutable } from './installed-terraform-executable';
 import { isOriginalCreationScopeProfile, resolveInstalledGcpVersionProfile } from './installed-version-profile';
 import { createLegacyInstalledTerraformExecutor } from './legacy-installed-executor';
@@ -240,14 +241,22 @@ export async function assertInstalledRuntime(env: Record<string, string | undefi
     const monitor = await monitorOriginalInputs(bindings);
     let inspectionDirectory: string | undefined;
     let inspectionClosed = false;
+    let state: Awaited<ReturnType<typeof admitInstalledRuntimeState>> | undefined;
     try {
-      const inspection = join(
-        env.XDG_STATE_HOME ?? join(homedir(), '.local/state'),
-        'xcsh/terraform/runtime-inspections',
-        randomUUID(),
-      );
+      const admittedState = await admitInstalledRuntimeState(env);
+      state = admittedState;
+      const assertOriginal = async () => {
+        await admittedState.assertOriginal();
+        await monitor.assertOriginal();
+      };
+      const inspection = join(state.path, 'xcsh/terraform/runtime-inspections', randomUUID());
       await privateDirectory(inspection);
       inspectionDirectory = inspection;
+      await assertOriginal();
+      await writeFile(join(inspection, 'state-directory.private.json'), JSON.stringify(state.binding), {
+        flag: 'wx',
+        mode: 0o400,
+      });
       const start = linuxMonotonicMs();
       const execute = signalFreeTerraformExecutor({
         python: { path: python, sha256: pins.pythonSha256 },
@@ -255,15 +264,16 @@ export async function assertInstalledRuntime(env: Record<string, string | undefi
         originalStartMs: start,
         originalDeadlineMs: start + 7200000,
         timeoutMs: 60000,
-        assertOriginal: monitor.assertOriginal,
+        assertOriginal,
         finalCapture: async (capture) => {
+          await assertOriginal();
           await writeFile(join(inspection, 'inspection-capture.private.json'), JSON.stringify(capture), {
             flag: 'wx',
             mode: 0o400,
           });
           if (!capture.originalGroupClosed || capture.actualExitCode === null)
             throw new Error('Runtime inspection closure unresolved');
-          await monitor.assertOriginal();
+          await assertOriginal();
           inspectionClosed = true;
         },
       });
@@ -282,11 +292,15 @@ export async function assertInstalledRuntime(env: Record<string, string | undefi
         reported.wheelSha256 !== pins.wheelSha256
       )
         throw new InstalledTerraformSetupRequired();
-      await monitor.assertOriginal();
+      await assertOriginal();
       return Object.freeze({ root, python, bindings: Object.freeze(bindings) });
     } finally {
-      if (!inspectionDirectory || inspectionClosed) monitor.close();
-      else retainedInspectionMonitors.set(inspectionDirectory, monitor);
+      const close = () => {
+        state?.close();
+        monitor.close();
+      };
+      if (!inspectionDirectory || inspectionClosed) close();
+      else retainedInspectionMonitors.set(inspectionDirectory, { ...monitor, close });
     }
   } catch (error) {
     if (error instanceof InstalledTerraformSetupRequired) throw error;

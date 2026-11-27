@@ -2,8 +2,8 @@
 // plugins/terraform/src/bootstrap-grant-publication.ts
 import { createHash as createHash40, randomBytes as randomBytes7 } from 'node:crypto';
 import { constants as constants9 } from 'node:fs';
-import { lstat as lstat26, open as open25, realpath as realpath25 } from 'node:fs/promises';
-import { basename as basename6, join as join40 } from 'node:path';
+import { lstat as lstat27, open as open25, realpath as realpath26 } from 'node:fs/promises';
+import { basename as basename7, join as join41 } from 'node:path';
 
 // plugins/terraform/src/gcp-capture-source-pins.json
 var gcp_capture_source_pins_default = {
@@ -31,16 +31,16 @@ var gcp_capture_source_pins_default = {
 import { createHash, createHash as createHash39, randomUUID as randomUUID21 } from 'node:crypto';
 import { constants as constants8 } from 'node:fs';
 import {
-  lstat as lstat25,
-  mkdir as mkdir22,
+  lstat as lstat26,
+  mkdir as mkdir23,
   open as open24,
   readdir as readdir3,
   readFile as readFile7,
-  realpath as realpath24,
+  realpath as realpath25,
   writeFile as writeFile5,
 } from 'node:fs/promises';
-import { homedir as homedir2 } from 'node:os';
-import { dirname as dirname17, isAbsolute as isAbsolute18, join as join39, resolve as resolve19 } from 'node:path';
+import { homedir as homedir3 } from 'node:os';
+import { dirname as dirname18, isAbsolute as isAbsolute19, join as join40, resolve as resolve20 } from 'node:path';
 
 // plugins/gcloud/src/ce/types.ts
 var GCP_CE_IMAGE_PROJECT = 'f5-7626-networks-public';
@@ -21785,10 +21785,134 @@ async function closeInstalledOriginalRuntimeSources(input) {
   }
 }
 
-// plugins/terraform/src/installed-terraform-executable.ts
-import { lstat as lstat23, realpath as realpath22 } from 'node:fs/promises';
+// plugins/terraform/src/installed-runtime-state.ts
+import { watch as watch4 } from 'node:fs';
+import { lstat as lstat23, mkdir as mkdir22, readlink as readlink2, realpath as realpath22 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname as dirname15, isAbsolute as isAbsolute16, join as join36, resolve as resolve17 } from 'node:path';
+import {
+  basename as basename6,
+  dirname as dirname15,
+  isAbsolute as isAbsolute16,
+  join as join36,
+  resolve as resolve17,
+} from 'node:path';
+
+var directoryKeys = ['dev', 'ino', 'uid', 'mode'];
+var linkKeys = [...directoryKeys, 'nlink', 'size', 'mtimeNs', 'ctimeNs'];
+var refusal = () => new Error('Original runtime state directory changed or is unavailable');
+function identity2(stat) {
+  const keys = stat.isSymbolicLink() ? linkKeys : directoryKeys;
+  return Object.freeze(Object.fromEntries(keys.map((key) => [key, stat[key].toString()])));
+}
+async function ownedDirectory(path, trustedParent = false) {
+  const stat = await lstat23(path, { bigint: true });
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    (stat.uid !== BigInt(process.getuid?.() ?? -1) && !(trustedParent && stat.uid === 0n)) ||
+    (stat.mode & 0o022n) !== 0n ||
+    (await realpath22(path)) !== path
+  )
+    throw refusal();
+  return stat;
+}
+async function resolveOwnedState(path, allowAliases) {
+  let canonical;
+  try {
+    canonical = await realpath22(path);
+    if (!allowAliases && canonical !== path) throw refusal();
+  } catch (error) {
+    if (error.code !== 'ENOENT' || dirname15(path) === path) throw error;
+    const parent = await resolveOwnedState(dirname15(path), allowAliases);
+    await ownedDirectory(parent);
+    canonical = join36(parent, basename6(path));
+    try {
+      await mkdir22(canonical, { mode: 448 });
+    } catch (creation) {
+      if (creation.code !== 'EEXIST') throw creation;
+    }
+  }
+  await ownedDirectory(canonical);
+  return canonical;
+}
+async function admitInstalledRuntimeState(environment, home = homedir()) {
+  const explicit = environment.XDG_STATE_HOME !== undefined;
+  const requested = environment.XDG_STATE_HOME ?? join36(home, '.local/state');
+  if (!isAbsolute16(requested) || resolve17(requested) !== requested) throw refusal();
+  const path = await resolveOwnedState(requested, !explicit);
+  await ownedDirectory(path);
+  await ownedDirectory(dirname15(path), true);
+  const routes = new Set([path, dirname15(path)]);
+  for (let current = requested; current !== dirname15(current); current = dirname15(current)) routes.add(current);
+  const originals = [];
+  for (const route of routes) {
+    const stat = await lstat23(route, { bigint: true });
+    if (!stat.isDirectory() && !stat.isSymbolicLink()) throw refusal();
+    if (stat.isSymbolicLink() && stat.uid !== BigInt(process.getuid?.() ?? -1) && stat.uid !== 0n) throw refusal();
+    originals.push(
+      Object.freeze({
+        path: route,
+        identity: identity2(stat),
+        link: stat.isSymbolicLink() ? await readlink2(route) : undefined,
+      }),
+    );
+  }
+  const watchers = [];
+  let refused = false;
+  let closed = false;
+  const close = () => {
+    closed = true;
+    for (const watcher of watchers.splice(0)) watcher.close();
+  };
+  const assertOriginal = async () => {
+    try {
+      if (closed || refused || (await realpath22(requested)) !== path) throw refusal();
+      for (const original of originals) {
+        const stat = await lstat23(original.path, { bigint: true });
+        const current = identity2(stat);
+        if (
+          Object.keys(current).length !== Object.keys(original.identity).length ||
+          Object.entries(original.identity).some(([key, value]) => current[key] !== value) ||
+          (original.link !== undefined && (await readlink2(original.path)) !== original.link)
+        )
+          throw refusal();
+      }
+      await ownedDirectory(path);
+      await ownedDirectory(dirname15(path), true);
+      if (closed || refused || (await realpath22(requested)) !== path) throw refusal();
+    } catch {
+      refused = true;
+      throw refusal();
+    }
+  };
+  try {
+    for (const original of originals) {
+      const watched = original.path === path ? path : dirname15(original.path);
+      const watcher = watch4(watched, { persistent: false }, (_event, name) => {
+        if (!name || name.toString() === basename6(original.path)) refused = true;
+      });
+      watcher.on('error', () => {
+        refused = true;
+      });
+      watchers.push(watcher);
+    }
+    await assertOriginal();
+    return Object.freeze({
+      path,
+      binding: Object.freeze({ path, requested, originals: Object.freeze(originals) }),
+      assertOriginal,
+      close,
+    });
+  } catch (error) {
+    close();
+    throw error;
+  }
+}
+
+// plugins/terraform/src/installed-terraform-executable.ts
+import { lstat as lstat24, realpath as realpath23 } from 'node:fs/promises';
+import { homedir as homedir2 } from 'node:os';
+import { dirname as dirname16, isAbsolute as isAbsolute17, join as join37, resolve as resolve18 } from 'node:path';
 
 function selectPinnedTerraformInput(expectedSha256, cached, ambient) {
   if (cached) {
@@ -21800,16 +21924,16 @@ function selectPinnedTerraformInput(expectedSha256, cached, ambient) {
   return ambient;
 }
 function installedTerraformVersionsDirectory(environment = process.env) {
-  return environment.XCSH_TERRAFORM_EXECUTABLES_DIR ?? join36(homedir(), '.local/share/xcsh/terraform/versions');
+  return environment.XCSH_TERRAFORM_EXECUTABLES_DIR ?? join37(homedir2(), '.local/share/xcsh/terraform/versions');
 }
 async function privateOwnedDirectory(path) {
-  const value = await lstat23(path);
+  const value = await lstat24(path);
   if (
     !value.isDirectory() ||
     value.isSymbolicLink() ||
     value.uid !== process.getuid?.() ||
     (value.mode & 18) !== 0 ||
-    (await realpath22(path)) !== path
+    (await realpath23(path)) !== path
   )
     throw new Error('Original owned Terraform version cache directory required');
 }
@@ -21817,11 +21941,11 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
   if (!/^\d+\.\d+\.\d+$/.test(profile.terraformVersion) || !/^[a-f0-9]{64}$/.test(profile.terraformSha256))
     throw new Error('Original Terraform executable profile required');
   const root = installedTerraformVersionsDirectory(environment);
-  if (!isAbsolute16(root) || resolve17(root) !== root)
+  if (!isAbsolute17(root) || resolve18(root) !== root)
     throw new Error('Original canonical Terraform version cache required');
   const exists = async (path) => {
     try {
-      await lstat23(path);
+      await lstat24(path);
       return true;
     } catch (error) {
       if (error.code === 'ENOENT') return false;
@@ -21830,11 +21954,11 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
   };
   if (await exists(root)) await privateOwnedDirectory(root);
   let cached;
-  const path = join36(root, profile.terraformVersion, 'terraform');
-  if (await exists(dirname15(path))) await privateOwnedDirectory(dirname15(path));
+  const path = join37(root, profile.terraformVersion, 'terraform');
+  if (await exists(dirname16(path))) await privateOwnedDirectory(dirname16(path));
   if (await exists(path)) {
     await privateOwnedDirectory(root);
-    await privateOwnedDirectory(dirname15(path));
+    await privateOwnedDirectory(dirname16(path));
     const value = await owned(path);
     if ((Number(value.binding.expectedIdentity?.mode) & 64) === 0)
       throw new Error('Original cached Terraform is not executable');
@@ -21842,7 +21966,7 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
   }
   if (cached) return selectPinnedTerraformInput(profile.terraformSha256, cached, undefined);
   const command = Bun.which('terraform', { PATH: environment.PATH ?? process.env.PATH });
-  const ambient = command ? (await owned(await realpath22(command))).binding : undefined;
+  const ambient = command ? (await owned(await realpath23(command))).binding : undefined;
   if (ambient && (Number(ambient.expectedIdentity?.mode) & 64) === 0)
     throw new Error('Original Terraform is not executable');
   return selectPinnedTerraformInput(profile.terraformSha256, undefined, ambient);
@@ -21851,7 +21975,7 @@ async function resolveInstalledTerraformExecutable(profile, environment = proces
 // plugins/terraform/src/legacy-installed-executor.ts
 import { randomUUID as randomUUID20 } from 'node:crypto';
 import { writeFile as writeFile4 } from 'node:fs/promises';
-import { dirname as dirname16, join as join37 } from 'node:path';
+import { dirname as dirname17, join as join38 } from 'node:path';
 
 var retained = new Map();
 function createLegacyInstalledTerraformExecutor(options) {
@@ -21887,7 +22011,7 @@ function createLegacyInstalledTerraformExecutor(options) {
         assertOriginal: guard,
         finalCapture: async (capture) => {
           await writeFile4(
-            join37(dirname16(capture.stdoutPath), 'legacy-final.private.json'),
+            join38(dirname17(capture.stdoutPath), 'legacy-final.private.json'),
             JSON.stringify(capture),
             {
               flag: 'wx',
@@ -21909,8 +22033,8 @@ function createLegacyInstalledTerraformExecutor(options) {
 
 // plugins/terraform/src/provider-package.ts
 import { createHash as createHash38 } from 'node:crypto';
-import { lstat as lstat24, readdir as readdir2, readFile as readFile6, realpath as realpath23 } from 'node:fs/promises';
-import { isAbsolute as isAbsolute17, join as join38, resolve as resolve18 } from 'node:path';
+import { lstat as lstat25, readdir as readdir2, readFile as readFile6, realpath as realpath24 } from 'node:fs/promises';
+import { isAbsolute as isAbsolute18, join as join39, resolve as resolve19 } from 'node:path';
 
 var digest3 = (bytes) => createHash38('sha256').update(bytes).digest('hex');
 function lockEntries(raw) {
@@ -22001,11 +22125,11 @@ async function verifyProviderPackage(request) {
   const entry = lockEntries(lock).get(source);
   if (!entry) throw new Error('Unique matching provider lock entry required');
   if (entry.version !== version) throw new Error('Provider lock version differs');
-  const root = await lstat24(directory);
+  const root = await lstat25(directory);
   if (
-    !isAbsolute17(directory) ||
-    resolve18(directory) !== directory ||
-    (await realpath23(directory)) !== directory ||
+    !isAbsolute18(directory) ||
+    resolve19(directory) !== directory ||
+    (await realpath24(directory)) !== directory ||
     !root.isDirectory() ||
     root.isSymbolicLink() ||
     root.uid !== process.getuid?.()
@@ -22013,12 +22137,12 @@ async function verifyProviderPackage(request) {
     throw new Error('Canonical original provider package required');
   const files = [];
   async function inventory(relative) {
-    const parent = relative ? join38(directory, relative) : directory;
+    const parent = relative ? join39(directory, relative) : directory;
     for (const child of (await readdir2(parent)).sort()) {
       if (!/^[A-Za-z0-9_.-]+$/.test(child) || child === '.' || child === '..')
         throw new Error('Safe provider package file name required');
       const path = relative ? `${relative}/${child}` : child;
-      const info = await lstat24(join38(directory, path));
+      const info = await lstat25(join39(directory, path));
       if (
         info.isSymbolicLink() ||
         info.uid !== process.getuid?.() ||
@@ -22040,13 +22164,13 @@ async function verifyProviderPackage(request) {
   const filesSha256 = {};
   let total = 0;
   for (const file of files) {
-    const path = join38(directory, file),
-      before = await lstat24(path);
+    const path = join39(directory, file),
+      before = await lstat25(path);
     total += before.size;
     if (before.size > 512 * 1024 * 1024 || total > 1024 * 1024 * 1024)
       throw new Error('Bounded provider package bytes required');
     const bytes = await readFile6(path),
-      after = await lstat24(path);
+      after = await lstat25(path);
     if (
       !after.isFile() ||
       after.isSymbolicLink() ||
@@ -22098,7 +22222,7 @@ async function verifyProviderPackage(request) {
 
 // plugins/terraform/src/installed-runtime.ts
 var hash27 = (raw) => createHash39('sha256').update(raw).digest('hex');
-var installer = join39(import.meta.dir, '../scripts/install_runtime.py');
+var installer = join40(import.meta.dir, '../scripts/install_runtime.py');
 var modeName = 'google-runtime-mode.json';
 var retainedInspectionMonitors = new Map();
 
@@ -22113,13 +22237,13 @@ class InstalledCaptureSourcesUnavailable extends Error {
     super('Verified Terraform plugin capture sources are missing or changed; reinstall the plugin');
   }
 }
-async function inspectInstalledCaptureScripts(directory = join39(import.meta.dir, '../scripts')) {
+async function inspectInstalledCaptureScripts(directory = join40(import.meta.dir, '../scripts')) {
   try {
-    const parent = await lstat25(directory);
+    const parent = await lstat26(directory);
     if (
-      !isAbsolute18(directory) ||
-      resolve19(directory) !== directory ||
-      (await realpath24(directory)) !== directory ||
+      !isAbsolute19(directory) ||
+      resolve20(directory) !== directory ||
+      (await realpath25(directory)) !== directory ||
       !parent.isDirectory() ||
       parent.isSymbolicLink() ||
       parent.uid !== process.getuid?.() ||
@@ -22130,7 +22254,7 @@ async function inspectInstalledCaptureScripts(directory = join39(import.meta.dir
       throw new InstalledCaptureSourcesUnavailable();
     const inputs = {};
     for (const [name, expected] of Object.entries(gcp_capture_source_pins_default.files)) {
-      const actual = await owned(join39(directory, name));
+      const actual = await owned(join40(directory, name));
       if (actual.binding.sha256 !== expected) throw new InstalledCaptureSourcesUnavailable();
       inputs[`script:${name}`] = actual.binding;
     }
@@ -22141,9 +22265,9 @@ async function inspectInstalledCaptureScripts(directory = join39(import.meta.dir
   }
 }
 async function owned(path, maximum = 256 * 1024 * 1024) {
-  if (!isAbsolute18(path) || resolve19(path) !== path || (await realpath24(path)) !== path)
+  if (!isAbsolute19(path) || resolve20(path) !== path || (await realpath25(path)) !== path)
     throw new Error('Canonical owned runtime input required');
-  const before = await lstat25(path, { bigint: true });
+  const before = await lstat26(path, { bigint: true });
   if (
     !before.isFile() ||
     before.isSymbolicLink() ||
@@ -22160,9 +22284,9 @@ async function owned(path, maximum = 256 * 1024 * 1024) {
     const keys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
     if (keys.some((key) => opened[key] !== before[key])) throw new Error('Original runtime input changed during open');
     const bytes = await handle.readFile();
-    const after = await lstat25(path, { bigint: true });
+    const after = await lstat26(path, { bigint: true });
     if (keys.some((key) => after[key] !== before[key])) throw new Error('Original runtime input changed during read');
-    const parent = await lstat25(dirname17(path), { bigint: true });
+    const parent = await lstat26(dirname18(path), { bigint: true });
     return {
       bytes,
       binding: Object.freeze({
@@ -22182,49 +22306,49 @@ async function owned(path, maximum = 256 * 1024 * 1024) {
   }
 }
 async function privateDirectory4(path) {
-  if (!isAbsolute18(path) || resolve19(path) !== path) throw new Error('Canonical private runtime directory required');
-  await mkdir22(path, { recursive: true, mode: 448 });
-  const stat = await lstat25(path);
+  if (!isAbsolute19(path) || resolve20(path) !== path) throw new Error('Canonical private runtime directory required');
+  await mkdir23(path, { recursive: true, mode: 448 });
+  const stat = await lstat26(path);
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
     stat.uid !== process.getuid?.() ||
     (stat.mode & 511) !== 448 ||
-    (await realpath24(path)) !== path
+    (await realpath25(path)) !== path
   )
     throw new Error('Original private runtime directory required');
 }
 function runtimeRoot(env) {
   return (
-    env.XCSH_TERRAFORM_RUNTIME_DIR ?? join39(homedir2(), '.local/share/xcsh/terraform/runtime/python315-psutil722')
+    env.XCSH_TERRAFORM_RUNTIME_DIR ?? join40(homedir3(), '.local/share/xcsh/terraform/runtime/python315-psutil722')
   );
 }
 async function assertInstalledRuntime2(env = process.env) {
   const root = runtimeRoot(env);
   try {
     if (process.platform !== 'linux' || process.arch !== 'x64') throw new InstalledTerraformSetupRequired();
-    const rootInfo = await lstat25(root);
+    const rootInfo = await lstat26(root);
     if (
       !rootInfo.isDirectory() ||
       rootInfo.isSymbolicLink() ||
       rootInfo.uid !== process.getuid?.() ||
       (rootInfo.mode & 511) !== 448 ||
-      (await realpath24(root)) !== root
+      (await realpath25(root)) !== root
     )
       throw new InstalledTerraformSetupRequired();
-    const python = join39(root, 'environment/bin/python3');
-    const site = join39(root, 'environment/lib/python3.15/site-packages');
+    const python = join40(root, 'environment/bin/python3');
+    const site = join40(root, 'environment/lib/python3.15/site-packages');
     const bindings = {};
     for (const [role, path, expected] of [
       ['python', python, installed_runtime_pins_default.pythonSha256],
-      ['archive', join39(root, 'archive.whl'), installed_runtime_pins_default.wheelSha256],
+      ['archive', join40(root, 'archive.whl'), installed_runtime_pins_default.wheelSha256],
       ['installer', installer, installed_runtime_pins_default.installerSha256],
     ]) {
       const actual = await owned(path);
       if (actual.binding.sha256 !== expected) throw new InstalledTerraformSetupRequired();
       bindings[role] = actual.binding;
     }
-    const config = await owned(join39(root, 'environment/pyvenv.cfg'), 8192);
+    const config = await owned(join40(root, 'environment/pyvenv.cfg'), 8192);
     const pairs = config.bytes
       .toString()
       .trim()
@@ -22236,7 +22360,7 @@ async function assertInstalledRuntime2(env = process.env) {
     if (
       cfg['include-system-site-packages'] !== 'false' ||
       cfg.version !== '3.15.0' ||
-      cfg.home !== dirname17(cfg.executable)
+      cfg.home !== dirname18(cfg.executable)
     )
       throw new InstalledTerraformSetupRequired();
     const base = await owned(cfg.executable);
@@ -22247,8 +22371,8 @@ async function assertInstalledRuntime2(env = process.env) {
     const names = [];
     const walk = async (directory) => {
       for (const name of await readdir3(directory)) {
-        const path = join39(directory, name),
-          stat = await lstat25(path);
+        const path = join40(directory, name),
+          stat = await lstat26(path);
         if (stat.isSymbolicLink() || stat.uid !== process.getuid?.()) throw new InstalledTerraformSetupRequired();
         if (stat.isDirectory()) await walk(path);
         else names.push(path.slice(site.length + 1));
@@ -22260,23 +22384,31 @@ async function assertInstalledRuntime2(env = process.env) {
     )
       throw new InstalledTerraformSetupRequired();
     for (const [name, expected] of Object.entries(installed_runtime_pins_default.sdkFilesSha256)) {
-      const actual = await owned(join39(site, name));
+      const actual = await owned(join40(site, name));
       if (actual.binding.sha256 !== expected) throw new InstalledTerraformSetupRequired();
       bindings[`sdk:${name}`] = actual.binding;
     }
-    bindings.review = (await owned(join39(root, 'review.json'), 65536)).binding;
+    bindings.review = (await owned(join40(root, 'review.json'), 65536)).binding;
     Object.assign(bindings, await inspectInstalledCaptureScripts());
     const monitor = await monitorOriginalInputs2(bindings);
     let inspectionDirectory;
     let inspectionClosed = false;
+    let state;
     try {
-      const inspection = join39(
-        env.XDG_STATE_HOME ?? join39(homedir2(), '.local/state'),
-        'xcsh/terraform/runtime-inspections',
-        randomUUID21(),
-      );
+      const admittedState = await admitInstalledRuntimeState(env);
+      state = admittedState;
+      const assertOriginal = async () => {
+        await admittedState.assertOriginal();
+        await monitor.assertOriginal();
+      };
+      const inspection = join40(state.path, 'xcsh/terraform/runtime-inspections', randomUUID21());
       await privateDirectory4(inspection);
       inspectionDirectory = inspection;
+      await assertOriginal();
+      await writeFile5(join40(inspection, 'state-directory.private.json'), JSON.stringify(state.binding), {
+        flag: 'wx',
+        mode: 256,
+      });
       const start = linuxMonotonicMs();
       const execute = signalFreeTerraformExecutor({
         python: { path: python, sha256: installed_runtime_pins_default.pythonSha256 },
@@ -22284,15 +22416,16 @@ async function assertInstalledRuntime2(env = process.env) {
         originalStartMs: start,
         originalDeadlineMs: start + 7200000,
         timeoutMs: 60000,
-        assertOriginal: monitor.assertOriginal,
+        assertOriginal,
         finalCapture: async (capture) => {
-          await writeFile5(join39(inspection, 'inspection-capture.private.json'), JSON.stringify(capture), {
+          await assertOriginal();
+          await writeFile5(join40(inspection, 'inspection-capture.private.json'), JSON.stringify(capture), {
             flag: 'wx',
             mode: 256,
           });
           if (!capture.originalGroupClosed || capture.actualExitCode === null)
             throw new Error('Runtime inspection closure unresolved');
-          await monitor.assertOriginal();
+          await assertOriginal();
           inspectionClosed = true;
         },
       });
@@ -22311,11 +22444,15 @@ async function assertInstalledRuntime2(env = process.env) {
         reported.wheelSha256 !== installed_runtime_pins_default.wheelSha256
       )
         throw new InstalledTerraformSetupRequired();
-      await monitor.assertOriginal();
+      await assertOriginal();
       return Object.freeze({ root, python, bindings: Object.freeze(bindings) });
     } finally {
-      if (!inspectionDirectory || inspectionClosed) monitor.close();
-      else retainedInspectionMonitors.set(inspectionDirectory, monitor);
+      const close = () => {
+        state?.close();
+        monitor.close();
+      };
+      if (!inspectionDirectory || inspectionClosed) close();
+      else retainedInspectionMonitors.set(inspectionDirectory, { ...monitor, close });
     }
   } catch (error) {
     if (error instanceof InstalledTerraformSetupRequired) throw error;
@@ -22333,10 +22470,10 @@ function selectedGoogleAccountSha256(environment = process.env) {
     throw new Error('Selected Google account unavailable');
   return hash27(account);
 }
-async function resolveInstalledGoogleAdcPath(environment, home = homedir2()) {
+async function resolveInstalledGoogleAdcPath(environment, home = homedir3()) {
   if (environment.GOOGLE_APPLICATION_CREDENTIALS !== undefined) return environment.GOOGLE_APPLICATION_CREDENTIALS;
-  return realpath24(
-    join39(environment.CLOUDSDK_CONFIG ?? join39(home, '.config/gcloud'), 'application_default_credentials.json'),
+  return realpath25(
+    join40(environment.CLOUDSDK_CONFIG ?? join40(home, '.config/gcloud'), 'application_default_credentials.json'),
   );
 }
 function createInstalledRuntimeResolver(environment = process.env, options = {}) {
@@ -22347,15 +22484,15 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     if (owner.provider !== 'gcp') return {};
     if (!/^[a-z][a-z0-9-]{0,62}$/.test(deployment.deploymentId))
       throw new Error('Original Terraform deployment identity required');
-    const executionDirectory = join39(directory, deployment.deploymentId);
+    const executionDirectory = join40(directory, deployment.deploymentId);
     const store = await platform.storage(owner);
     let mode;
     try {
-      mode = JSON.parse((await owned(join39(directory, modeName), 65536)).bytes.toString());
+      mode = JSON.parse((await owned(join40(directory, modeName), 65536)).bytes.toString());
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    const existingDeployment = await Bun.file(join39(executionDirectory, 'deployment.json')).exists();
+    const existingDeployment = await Bun.file(join40(executionDirectory, 'deployment.json')).exists();
     if (!resume && existingDeployment) throw new Error('Existing deployment must resume its original runtime');
     const legacy = resume && !mode && existingDeployment;
     const runtime = await assertInstalledRuntime2(env);
@@ -22393,7 +22530,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
     if (mode && fingerprint(mode) !== fingerprint(expectedMode))
       throw new Error('Original installed runtime mode changed');
     await privateDirectory4(directory);
-    if (!mode) await writeFile5(join39(directory, modeName), JSON.stringify(expectedMode), { flag: 'wx', mode: 256 });
+    if (!mode) await writeFile5(join40(directory, modeName), JSON.stringify(expectedMode), { flag: 'wx', mode: 256 });
     let monitor;
     let providers;
     let providerInputs;
@@ -22451,7 +22588,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         await store.verify();
         const currentSource = await owned(sourcePath, 65536);
         assertSameOriginalInput(source.binding, currentSource.binding);
-        const snapshotPath = join39(directory, `google-adc-${randomUUID21()}.private.json`);
+        const snapshotPath = join40(directory, `google-adc-${randomUUID21()}.private.json`);
         await writeFile5(snapshotPath, currentSource.bytes, { flag: 'wx', mode: 256 });
         const saved = await store.read('gcp-terraform-input-identity.json');
         if (
@@ -22465,8 +22602,8 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
           !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/.test(saved.platformContext)
         )
           throw new Error('Original GCP platform context and ownership differ');
-        const configPath = join39(
-          env.XDG_CONFIG_HOME ?? join39(homedir2(), '.config'),
+        const configPath = join40(
+          env.XDG_CONFIG_HOME ?? join40(homedir3(), '.config'),
           'xcsh/contexts',
           `${saved.platformContext}.json`,
         );
@@ -22483,7 +22620,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         )
           throw new Error('Original selected Platform credential unavailable');
         originalEnvironment = { XCSH_API_URL: url.origin, XCSH_API_TOKEN: context.apiToken };
-        const environmentPath = join39(directory, `platform-environment-${randomUUID21()}.private.json`);
+        const environmentPath = join40(directory, `platform-environment-${randomUUID21()}.private.json`);
         await writeFile5(environmentPath, JSON.stringify(originalEnvironment), { flag: 'wx', mode: 256 });
         const bindings = {
           ...runtime.bindings,
@@ -22499,20 +22636,20 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
         ]) {
           const path =
             name === 'gcp-terraform-input-identity.json'
-              ? join39(store.directory, name)
+              ? join40(store.directory, name)
               : name === modeName
-                ? join39(directory, name)
-                : join39(executionDirectory, name);
+                ? join40(directory, name)
+                : join40(executionDirectory, name);
           bindings[`workspace:${name}`] = (await owned(path)).binding;
         }
         const invocationEnvironment = selectInstalledGcpEnvironment({
           ...env,
-          HOME: env.HOME ?? homedir2(),
+          HOME: env.HOME ?? homedir3(),
           PATH: env.PATH ?? process.env.PATH,
           GOOGLE_APPLICATION_CREDENTIALS: snapshotPath,
           ...originalEnvironment,
         });
-        const invocationEnvironmentPath = join39(directory, `runtime-environment-${randomUUID21()}.private.json`);
+        const invocationEnvironmentPath = join40(directory, `runtime-environment-${randomUUID21()}.private.json`);
         await writeFile5(invocationEnvironmentPath, JSON.stringify(invocationEnvironment), { flag: 'wx', mode: 256 });
         bindings.runtimeEnvironment = (await owned(invocationEnvironmentPath)).binding;
         compileInvocation = createInstalledGcpInvocationCompiler({
@@ -22550,7 +22687,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             assertOriginal,
           });
           await writeFile5(
-            join39(directory, `google-authentication-${randomUUID21()}.private.json`),
+            join40(directory, `google-authentication-${randomUUID21()}.private.json`),
             JSON.stringify(authenticated),
             { flag: 'wx', mode: 256 },
           );
@@ -22581,7 +22718,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             ? createInstalledApplyController(captureContext, worker, {
                 persist: async (event) => {
                   const handle = await open24(
-                    join39(directory, `google-original-apply-${randomUUID21()}.private.json`),
+                    join40(directory, `google-original-apply-${randomUUID21()}.private.json`),
                     'wx',
                     256,
                   );
@@ -22632,7 +22769,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
                 versionProfile.xcProviderSha256,
               ],
             ]) {
-              const path = join39(executionDirectory, '.terraform/providers', sourceName, version, 'linux_amd64');
+              const path = join40(executionDirectory, '.terraform/providers', sourceName, version, 'linux_amd64');
               const verified = await verifyProviderPackage({
                 directory: path,
                 source: sourceName,
@@ -22645,7 +22782,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
               if (verified.executableSha256 !== expectedSha)
                 throw new Error('Original qualified provider executable changed');
               for (const [name, expected] of Object.entries(verified.filesSha256)) {
-                const file = await owned(join39(path, name));
+                const file = await owned(join40(path, name));
                 if (file.binding.sha256 !== expected) throw new Error('Original provider package changed');
                 providerBindings[`${sourceName}:${name}`] = file.binding;
               }
@@ -22675,18 +22812,18 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             },
             assertFinalInputs: assertInputs,
             beforeRelease: async (admission) => {
-              const currentGroup = join39(directory, 'google-runtime-groups', randomUUID21());
+              const currentGroup = join40(directory, 'google-runtime-groups', randomUUID21());
               await privateDirectory4(currentGroup);
               for (const name of ['claim.json', 'lifetime.json'])
                 await writeFile5(
-                  join39(currentGroup, name),
-                  await readFile7(join39(executionDirectory, '.terraform-executor-lock', name)),
+                  join40(currentGroup, name),
+                  await readFile7(join40(executionDirectory, '.terraform-executor-lock', name)),
                   { flag: 'wx', mode: 256 },
                 );
               const groupInputs = {};
               groups.push(Object.freeze({ directory: currentGroup, inputs: groupInputs }));
               for (const name of ['claim', 'lifetime'])
-                groupInputs[name] = (await owned(join39(currentGroup, `${name}.json`))).binding;
+                groupInputs[name] = (await owned(join40(currentGroup, `${name}.json`))).binding;
               Object.freeze(groupInputs);
               const originalCapture = captureInvocations.admit({
                 identity: admission.identity,
@@ -22705,7 +22842,7 @@ function createInstalledRuntimeResolver(environment = process.env, options = {})
             finalCapture: async (finished) =>
               finalizeInstalledCapture(captureInvocations, finished, {
                 persist: async (value) => {
-                  const resultPath = join39(directory, `google-runtime-final-${randomUUID21()}.private.json`);
+                  const resultPath = join40(directory, `google-runtime-final-${randomUUID21()}.private.json`);
                   await writeFile5(resultPath, JSON.stringify(value), { flag: 'wx', mode: 256 });
                 },
                 verify: verifyCaptureGroup,
@@ -22782,15 +22919,15 @@ async function ownOriginalBootstrapPublisherDirectory(context, input) {
   if (
     context.owner.provider !== 'gcp' ||
     context.owner.engine !== 'terraform' ||
-    !/^[a-f0-9]{64}$/.test(basename6(input.directory)) ||
-    input.directory !== join40(context.executionDirectory, '.xcsh-original-bootstrap', basename6(input.directory))
+    !/^[a-f0-9]{64}$/.test(basename7(input.directory)) ||
+    input.directory !== join41(context.executionDirectory, '.xcsh-original-bootstrap', basename7(input.directory))
   )
     throw new Error('Original bootstrap publisher context and directory required');
   const original = Object.freeze({ directory: input.directory, identity: Object.freeze({ ...input.identity }) });
   const guard = async () => {
-    const current = await lstat26(original.directory, { bigint: true });
+    const current = await lstat27(original.directory, { bigint: true });
     if (
-      (await realpath25(original.directory)) !== original.directory ||
+      (await realpath26(original.directory)) !== original.directory ||
       !current.isDirectory() ||
       current.isSymbolicLink() ||
       (current.mode & 0o777n) !== 0o700n ||
@@ -22834,7 +22971,7 @@ async function collectOriginalBootstrapPublisherSource2(value) {
             kind: 'original-bootstrap-publisher-origin',
             owner: source.context.owner,
             executionDirectory: source.context.executionDirectory,
-            planSha256: basename6(original.directory),
+            planSha256: basename7(original.directory),
             nonce: attempt.nonce,
             request: attempt.request,
             claim: attempt.claim,
@@ -22867,7 +23004,7 @@ async function collectOriginalBootstrapPublisherSource2(value) {
 }
 async function retainBootstrapGrantFile(directory, name, raw) {
   const file = await open25(
-    join40(directory, name),
+    join41(directory, name),
     constants9.O_WRONLY | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW,
     256,
   );
@@ -22908,7 +23045,7 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
     sha256 = hash28(raw);
   await retainBootstrapGrantFile(original.directory, name, raw);
   await guard();
-  attempt.claim = (await owned(join40(original.directory, `claim-${nonce}.json`))).binding;
+  attempt.claim = (await owned(join41(original.directory, `claim-${nonce}.json`))).binding;
   const args = [
     '-I',
     '-B',
@@ -22919,7 +23056,7 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
     sha256,
     ...['dev', 'ino', 'uid', 'mode'].map((key) => original.identity[key].toString()),
   ];
-  const requestPath = join40(original.directory, `publisher-${nonce}-request.json`);
+  const requestPath = join41(original.directory, `publisher-${nonce}-request.json`);
   await retainBootstrapGrantFile(
     original.directory,
     `publisher-${nonce}-request.json`,
@@ -22928,7 +23065,7 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
         schemaVersion: 1,
         kind: 'original-bootstrap-publisher-request',
         owner: context.owner,
-        planSha256: basename6(original.directory),
+        planSha256: basename7(original.directory),
         nonce,
         grantSha256: sha256,
         budget: context.budget,
@@ -22988,7 +23125,7 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
           }),
         ),
       );
-      attempt.admission = (await owned(join40(original.directory, `publisher-${nonce}-admission.json`))).binding;
+      attempt.admission = (await owned(join41(original.directory, `publisher-${nonce}-admission.json`))).binding;
     },
     finalCapture: async (capture) => {
       await retainBootstrapGrantFile(
@@ -22997,7 +23134,7 @@ async function publishSignedBootstrapGrant(context, original, nonce, raw, guard,
         Buffer.from(JSON.stringify(capture)),
       );
       attempt.final = Object.freeze(structuredClone(capture));
-      attempt.capture = (await owned(join40(original.directory, `publication-${nonce}.json`))).binding;
+      attempt.capture = (await owned(join41(original.directory, `publication-${nonce}.json`))).binding;
       if (
         capture.actualExitCode !== 0 ||
         !capture.originalGroupClosed ||

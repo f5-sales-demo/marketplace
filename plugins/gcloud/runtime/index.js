@@ -14700,6 +14700,13 @@ var init_installed_runtime_source_closure = __esm(() => {
   init_original_input_monitor();
 });
 
+// plugins/terraform/src/installed-runtime-state.ts
+var directoryKeys, _linkKeys;
+var init_installed_runtime_state = __esm(() => {
+  directoryKeys = ['dev', 'ino', 'uid', 'mode'];
+  _linkKeys = [...directoryKeys, 'nlink', 'size', 'mtimeNs', 'ctimeNs'];
+});
+
 // plugins/terraform/src/installed-terraform-executable.ts
 var init_installed_terraform_executable = __esm(() => {
   init_installed_runtime();
@@ -14779,6 +14786,7 @@ var init_installed_runtime = __esm(() => {
   init_installed_reader_input_retention();
   init_installed_runtime_pins();
   init_installed_runtime_source_closure();
+  init_installed_runtime_state();
   init_installed_terraform_executable();
   init_installed_version_profile();
   init_legacy_installed_executor();
