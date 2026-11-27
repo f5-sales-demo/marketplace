@@ -1,5 +1,10 @@
 import type { AzExecApi } from '../az/exec';
 import { canonicalStringify, sha256Hex } from './canonical';
+import {
+  classifyAzureImageHardwareCompatibility,
+  readAzureImageHardware,
+  readAzureSkuHardware,
+} from './image-hardware-compatibility';
 import type {
   AzureCeObservation,
   AzureCeRegionObservation,
@@ -35,10 +40,31 @@ const OFFICIAL_SOURCES = [
 ] as const;
 
 export function normalizeResearchDocument(body: string): string {
-  const normalized = body
+  let source = body
     .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n')
-    .normalize('NFC')
+    .normalize('NFC');
+  if (/<html(?:\s|>)/i.test(source)) {
+    const open = /<main\b[^>]*>/i.exec(source);
+    const close = open ? source.toLowerCase().indexOf('</main>', open.index + open[0].length) : -1;
+    if (!open || close < 0) throw new Error('Official HTML research document has no complete main content');
+    source = source
+      .slice(open.index + open[0].length, close)
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<(script|style|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+      .replace(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>/gi, (_tag, _quote, href: string) => `\nlink:${href}\n`)
+      .replace(/<img\b[^>]*>/gi, (tag) => {
+        const source = /\bsrc\s*=\s*(["'])(.*?)\1/i.exec(tag)?.[2] ?? '';
+        const alt = /\balt\s*=\s*(["'])(.*?)\1/i.exec(tag)?.[2] ?? '';
+        return `\nimage:${source}:${alt}\n`;
+      })
+      .replace(/<[^>]+>/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+  const normalized = source
     .split('\n')
     .map((line) => line.replace(/[\t ]+$/g, ''))
     .join('\n')
@@ -64,11 +90,11 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
         const normalized = normalizeResearchDocument(body);
         if (
           url === AZURE_CE_SHARED_CONTRACT_URL &&
-          (!/^contract_id: f5xc-ce-automation$/m.test(normalized) ||
-            !/^contract_version: v1$/m.test(normalized) ||
-            !normalized.includes('f5xc-ce-automation/v1'))
+          (!/^contract_id: f5xc-ce-automation-policy$/m.test(normalized) ||
+            !/^contract_version: v2$/m.test(normalized) ||
+            !normalized.includes('f5xc-ce-automation-policy/v2'))
         )
-          throw new Error('document did not advertise f5xc-ce-automation/v1');
+          throw new Error('document did not advertise f5xc-ce-automation-policy/v2');
         return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
         throw new Error(
@@ -91,8 +117,8 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
     sourceReceipts,
     sharedContract: {
       url: AZURE_CE_SHARED_CONTRACT_URL,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: contract.normalizedSha256,
     },
   };
@@ -138,12 +164,12 @@ async function quotaAvailable(api: AzExecApi, region: string, subscriptionId: st
   if (result.exitCode !== 0) return undefined;
   try {
     const usages = JSON.parse(result.stdout) as Array<Record<string, unknown>>;
-    const cores = usages.find((usage) =>
-      String((usage.name as Record<string, unknown> | undefined)?.value ?? '')
-        .toLowerCase()
-        .includes('cores'),
+    const cores = usages.find(
+      (usage) => String((usage.name as Record<string, unknown> | undefined)?.value ?? '').toLowerCase() === 'cores',
     );
-    return Math.max(0, Number(cores?.limit ?? 0) - Number(cores?.currentValue ?? 0));
+    const limit = Number(cores?.limit);
+    const current = Number(cores?.currentValue);
+    return Number.isFinite(limit) && Number.isFinite(current) ? Math.max(0, limit - current) : undefined;
   } catch {
     return undefined;
   }
@@ -154,6 +180,7 @@ async function imageAvailable(
   region: string,
   urn: string,
   subscriptionId: string,
+  hardware: ReturnType<typeof readAzureImageHardware>,
 ): Promise<boolean | undefined> {
   const result = await api.exec('az', [
     'vm',
@@ -168,7 +195,17 @@ async function imageAvailable(
     '--output',
     'json',
   ]);
-  if (result.exitCode === 0) return true;
+  if (result.exitCode === 0) {
+    try {
+      const observed = readAzureImageHardware(JSON.parse(result.stdout), { subscriptionId, region, urn });
+      if (observed.architecture === 'unknown' || observed.hyperVGeneration === 'unknown') return undefined;
+      return observed.architecture === hardware.architecture && observed.hyperVGeneration === hardware.hyperVGeneration
+        ? true
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
   if (/not found|could not be found|invalid image reference|platform image/i.test(result.stderr)) return false;
   return undefined;
 }
@@ -355,6 +392,7 @@ function skusForRegion(
     });
     const observation: AzureCeVmSizeObservation = {
       name,
+      ...readAzureSkuHardware(sku),
       maxNics: Number(capability(sku, 'MaxNetworkInterfaces') ?? 0),
       vCpus: Number(capability(sku, 'vCPUs') ?? capability(sku, 'vCPUsAvailable') ?? 0),
       memoryGb: Number(capability(sku, 'MemoryGB') ?? 0),
@@ -362,6 +400,14 @@ function skusForRegion(
       restricted,
     };
     const existing = byName.get(name.toLowerCase());
+    if (
+      existing &&
+      canonicalStringify({ architecture: existing.architecture, hyperVGenerations: existing.hyperVGenerations }) !==
+        canonicalStringify(readAzureSkuHardware(sku))
+    ) {
+      byName.set(name.toLowerCase(), { ...existing, architecture: 'unknown', hyperVGenerations: undefined });
+      continue;
+    }
     if (!existing || canonicalStringify(observation).localeCompare(canonicalStringify(existing)) < 0)
       byName.set(name.toLowerCase(), observation);
   }
@@ -441,6 +487,15 @@ export async function discoverAzureCompute(
   api: AzExecApi,
   fetcher: typeof fetch = fetch,
 ): Promise<AzureCeObservation> {
+  input = {
+    ...input,
+    publisher: input.publisher || undefined,
+    offer: input.offer || undefined,
+    plan: input.plan || undefined,
+    version: input.version || undefined,
+    vmSize: input.vmSize || undefined,
+  };
+
   validateInput(input);
   const subscriptionId = input.subscriptionId.toLowerCase();
   const research = await verifyOfficialSources(fetcher);
@@ -478,6 +533,20 @@ export async function discoverAzureCompute(
     .sort();
   const selected = await resolveMarketplaceImage(api, physicalRegions, subscriptionId, input);
   const urn = selected.urn;
+  const hardware = readAzureImageHardware(
+    await json(api, [
+      'vm',
+      'image',
+      'show',
+      '--location',
+      selected.catalogRegion,
+      '--urn',
+      urn,
+      '--subscription',
+      subscriptionId,
+    ]),
+    { subscriptionId, region: selected.catalogRegion, urn },
+  );
   const terms = await json<Record<string, unknown>>(api, [
     'vm',
     'image',
@@ -504,7 +573,7 @@ export async function discoverAzureCompute(
     const availabilityPairs = await mapLimit(
       physicalRegions,
       8,
-      async (region) => [region, await imageAvailable(api, region, urn, subscriptionId)] as const,
+      async (region) => [region, await imageAvailable(api, region, urn, subscriptionId, hardware)] as const,
     );
     for (const [region, available] of availabilityPairs) imageAvailability.set(region, available);
   }
@@ -549,7 +618,12 @@ export async function discoverAzureCompute(
   const preliminary: AzureCeRegionObservation[] = physicalRegions.map((region) => {
     const availableVmSizes = skusForRegion(rawSkus, input.vmSize, region);
     const eligibleVmSizes = availableVmSizes.filter(
-      (size) => !size.restricted && size.maxNics >= input.requiredNics && size.vCpus >= 8 && size.memoryGb >= 32,
+      (size) =>
+        !size.restricted &&
+        size.maxNics >= input.requiredNics &&
+        size.vCpus >= 8 &&
+        size.memoryGb >= 32 &&
+        classifyAzureImageHardwareCompatibility(hardware, size) === 'compatible',
     );
     const vmSize = eligibleVmSizes[0] ?? availableVmSizes[0];
     const policyDenied = policies.some(
@@ -569,6 +643,10 @@ export async function discoverAzureCompute(
       if (availableVmSizes.every((size) => size.restricted)) blockers.push('sku-restricted');
       if (availableVmSizes.every((size) => size.maxNics < input.requiredNics)) blockers.push('nic-limit');
       if (availableVmSizes.every((size) => size.vCpus < 8 || size.memoryGb < 32)) blockers.push('ce-minimum-size');
+      if (availableVmSizes.some((size) => classifyAzureImageHardwareCompatibility(hardware, size) === 'incompatible'))
+        blockers.push('vm-image-incompatible');
+      if (availableVmSizes.some((size) => classifyAzureImageHardwareCompatibility(hardware, size) === 'unknown'))
+        blockers.push('vm-image-compatibility-unverified');
       if (blockers.length === 0) blockers.push('no-compatible-vm-size');
     } else if (input.nodeCount === 3 && vmSize.zones.length < 3) {
       reasons.push('fewer-than-three-zones');
@@ -612,6 +690,7 @@ export async function discoverAzureCompute(
       version: selected.version,
       urn,
       termsAccepted: Boolean(terms.accepted),
+      ...hardware,
     },
     regions: preliminary,
     resources: resourceObservations,
