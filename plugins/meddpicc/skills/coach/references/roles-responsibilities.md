@@ -69,7 +69,7 @@ expansion drivers.
 - Identify renewal/expansion timing and stakeholders
 
 **When CSM is critical:** Expansions, renewals, competitive
-displacement, "why change" urgency.
+displacement, customer-confirmed reasons for change.
 
 ---
 

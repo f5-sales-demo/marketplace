@@ -12,6 +12,20 @@ user-invocable: true
 
 # Mutual Action Plan Builder
 
+## Timing
+
+Honor explicit user or customer dates, deadlines, and agreed milestones. When
+none are supplied, keep timing unknown or unagreed. Suggest a schedule, deadline,
+meeting duration, or review cadence only when explicitly requested; label it a
+proposal until the customer agrees. Use the supplied review period for evidence
+and champion assessment; if it is absent, assess the available evidence and state
+that the period is unknown. Missing timing alone does not establish urgency.
+Keep missing date properties absent and workbook date cells blank. Human reports
+may say "Unknown" or "Unagreed"; never write those words into date cells. Preserve
+actual supplied dates and report overdue dates against their stated source.
+Record the date of an assessment or evidence ingestion as provenance; it does
+not create a customer commitment, interaction date, or business deadline.
+
 ## Evidence and reporting
 
 Start with the identified deal/file scope, workflow stage, and completion.
@@ -52,7 +66,7 @@ private account data into Git, public examples, logs, or telemetry.
 Ask the user for:
 
 - Account/deal name
-- Target close date (working backward)
+- Any supplied target close date or customer-agreed milestones; timing may be unknown
 - Current stage and known Decision Process steps
 - Key stakeholders (customer and seller side)
 - Known procurement/legal/security requirements
@@ -75,7 +89,7 @@ full template.
 Every task must have:
 
 - **Owner:** Name or role (customer or seller side)
-- **Date:** Specific date, not "TBD"
+- **Date:** Supplied or customer-agreed date when available; otherwise leave it unagreed
 - **Exit criteria:** How we know this step is complete
 - **Dependencies:** What must happen first
 
@@ -101,7 +115,7 @@ ready to share with the customer after seller-side review.
 ## Coaching Notes
 
 - A MAP without customer buy-in is just a seller's wish list
-- Dates should work backward from the target close date
-- Include buffer for procurement — it always takes longer
+- Use supplied target dates and customer-agreed milestones; leave other timing unagreed
+- Record customer-confirmed procurement dependencies; propose buffers only when scheduling is requested
 - The MAP is a living document — update it after every meeting
 - If the customer won't agree to a MAP, that's a qualification signal

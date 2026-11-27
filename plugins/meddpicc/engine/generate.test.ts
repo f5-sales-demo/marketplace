@@ -931,7 +931,8 @@ describe('planWorkbook — the element definitions ride along as hover notes', (
     // they cost nothing and are still one hover away.
     const elements = table('elements');
     for (const [row, element] of QUALIFICATION_ELEMENTS.entries()) {
-      const definition = schema.properties.qualification.properties[element].properties.definition.const as string;
+      const node = schema.properties.qualification.properties[element].properties.definition;
+      const definition = (node.default ?? node.const) as string;
       expect(definition, `${element} has no definition in the schema`).not.toBe('');
       expect(noteAt(elements.ref('element', row))?.text, element).toBe(definition);
     }

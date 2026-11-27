@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import * as path from 'node:path';
+import { translationKey } from './english-wording';
 import { FALLBACK_HEADER, planWorkbook } from './generate';
 import { isNonProse, translatableSet, translatableStrings } from './translatable';
 import type { WorkbookSpec } from './workbook-spec';
@@ -23,7 +24,7 @@ const renderedByEngine = (deal: unknown): Set<string> => {
   const out = new Set<string>();
   const keep = (text: unknown): void => {
     if (typeof text !== 'string' || text.trim() === '' || isNonProse(text)) return;
-    out.add(text);
+    out.add(translationKey(text));
   };
   for (const sheet of plan.sheets) {
     keep(sheet.name);

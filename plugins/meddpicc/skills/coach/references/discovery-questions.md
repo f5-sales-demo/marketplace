@@ -35,7 +35,7 @@ throughout the deal cycle — not just in initial discovery.
 
 **Engaging the EB:**
 
-- "Would it be helpful to schedule a 30-minute executive briefing?"
+- "Would an executive briefing be helpful?"
 - "What does [EB name] care most about right now?"
 - "What would make [EB name] a hero internally if this succeeds?"
 - "What risk does [EB name] face if this doesn't get solved?"
@@ -104,8 +104,8 @@ throughout the deal cycle — not just in initial discovery.
 
 **Uncovering pain:**
 
-- "What happens if this doesn't change in the next 90 days?"
-- "What's the triggering event that made this urgent now?"
+- "What happens if this does not change?"
+- "Are there any timing constraints or triggering events, or is timing unagreed?"
 - "How is this problem affecting your team day-to-day?"
 - "What have you tried before, and why didn't it work?"
 - "If you could wave a magic wand, what would be different tomorrow?"
@@ -117,10 +117,10 @@ throughout the deal cycle — not just in initial discovery.
 - "What's the worst-case scenario if this isn't addressed?"
 - "How does this pain compare to your other priorities?"
 
-**Testing urgency:**
+**Discovering timing constraints:**
 
-- "Is this a 'must solve now' or a 'nice to solve eventually'?"
-- "What's driving the timeline — is there an external deadline?"
+- "How does the customer prioritize this problem, and have they specified any timing constraints?"
+- "Has any timeline or external deadline been agreed?"
 - "Who else in your organization feels this pain?"
 
 ---
@@ -136,7 +136,7 @@ throughout the deal cycle — not just in initial discovery.
 
 **Testing champion strength:**
 
-- "Can we align on a 30-minute session with your executive sponsor?"
+- "Would a session with your executive sponsor be helpful?"
 - "Would you be willing to present our value proposition to [EB]?"
 - "What's the internal narrative you'd use to advocate for this?"
 - "What objections do you expect, and how would you handle them?"

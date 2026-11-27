@@ -109,7 +109,7 @@
       "definition": "The step-by-step path from evaluation to signed agreement",
       "questions": [
         "What is the client's technical approval process for the solution you are proposing?",
-        "What is the client's business approval process and typical timeline for a transaction of this nature?"
+        "What is the client's business approval process, and have any timing constraints or milestones been agreed?"
       ],
       "responses": [
         "POC → Security review → Architecture review board → Business case to SVP → Procurement",
@@ -118,13 +118,13 @@
       "score": 2,
       "scoreDefinition": {
         "0": "Unknown — Unknown how the customer will make and approve the decision",
-        "1": "Identified — High-level understanding only; no dates or named owners",
-        "2": "Mapped — Major steps identified but dates or owners missing",
-        "3": "Validated — Step-by-step process documented with named owners and dates",
+        "1": "Identified — High-level understanding only; steps and owners not confirmed",
+        "2": "Mapped — Major steps identified but ownership or gate requirements unconfirmed",
+        "3": "Validated — Step-by-step process documented with named owners and customer-agreed milestones",
         "4": "Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed"
       },
       "evidence": "Process outline shared by champion. Missing specific dates for architecture review board and procurement.",
-      "notes": "Need to get specific dates and owners for each gate before next review"
+      "notes": "Confirm gate owners and whether customer timing constraints exist; record dates only when supplied"
     },
     "paperProcess": {
       "definition": "The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process",
@@ -145,7 +145,7 @@
       "notes": "Paper process discovery not started — this is a gap to close in the next review"
     },
     "implicateThePain": {
-      "definition": "The compelling business pain that creates urgency to act",
+      "definition": "Customer-confirmed business problem and its impact",
       "questions": [
         "What is the problem the client is solving for and how does it impact them?",
         "What happens if the client can't solve the problem?"
@@ -160,10 +160,10 @@
         "1": "Identified — Pain implied but not explicitly confirmed by customer",
         "2": "Acknowledged — Pain acknowledged by customer but not fully quantified",
         "3": "Quantified — Pain quantified with business impact; consequence of inaction documented",
-        "4": "Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver"
+        "4": "Confirmed — Multiple stakeholders confirm quantified impact with attributable evidence"
       },
       "evidence": "Incident reports shared by CTO. $400K SLA penalty confirmed by VP Finance. Board mandate documented in Q1 board minutes excerpt.",
-      "notes": "Strongest element in this deal — use as anchor for urgency conversations"
+      "notes": "Strongest element in this deal — anchor the business case in customer-confirmed impact"
     },
     "champion": {
       "definition": "A powerful internal advocate who sells for you when you're not in the room",
@@ -178,7 +178,7 @@
         "1": "Identified — Friendly contact without organizational power; passive supporter",
         "2": "Tested — Friendly contact with some influence; willing to help but hasn't taken significant action",
         "3": "Validated — Named individual with influence and credibility; personal win documented",
-        "4": "Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly"
+        "4": "Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions during the review period"
       },
       "evidence": "<CHAMPION> scheduled the EB meeting, shared competitor pricing (Vendor A quote), and presented our POC results at the architecture review board on 2026-04-28.",
       "notes": "<CHAMPION>'s personal win: the platform team gets headcount if the MTTR target is met with automation"
@@ -327,7 +327,12 @@
         "dateRequiredFrom": "2026-04-01",
         "assignedToDeal": true
       },
-      { "name": "<CUSTOMER_SUCCESS_MANAGER>", "role": "CSM", "dateRequiredFrom": "2026-06-15", "assignedToDeal": false }
+      {
+        "name": "<CUSTOMER_SUCCESS_MANAGER>",
+        "role": "CSM",
+        "dateRequiredFrom": "2026-06-15",
+        "assignedToDeal": false
+      }
     ],
     "partner": [
       {

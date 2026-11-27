@@ -17,6 +17,7 @@
  * say which cells hold a person's value.
  */
 import { BOOLEAN_NO, BOOLEAN_YES, FALLBACK_HEADER } from './display-words';
+import { translationKey } from './english-wording';
 import { ENUM_LABELS, enumLabel } from './labels';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_LABELS } from './sections';
@@ -97,9 +98,10 @@ export function translatableStrings(spec: WorkbookSpec, schema: unknown): Map<st
   const out = new Map<string, Set<TranslatableSource>>();
   const add = (text: unknown, source: TranslatableSource): void => {
     if (typeof text !== 'string' || text.trim() === '') return;
-    const sources = out.get(text) ?? new Set<TranslatableSource>();
+    const key = translationKey(text);
+    const sources = out.get(key) ?? new Set<TranslatableSource>();
     sources.add(source);
-    out.set(text, sources);
+    out.set(key, sources);
   };
 
   const walkSpec = (node: unknown): void => {
@@ -141,7 +143,7 @@ export function translatableStrings(spec: WorkbookSpec, schema: unknown): Map<st
   for (const element of QUALIFICATION_ELEMENTS) {
     const node = qualification?.[element] as { properties?: Record<string, Record<string, unknown>> } | undefined;
     const properties = node?.properties;
-    add(properties?.definition?.const, 'schema');
+    add(properties?.definition?.default ?? properties?.definition?.const, 'schema');
     for (const question of (properties?.questions?.default as unknown[]) ?? []) add(question, 'schema');
     for (const line of Object.values((properties?.scoreDefinition?.default as Record<string, unknown>) ?? {})) {
       add(line, 'schema');

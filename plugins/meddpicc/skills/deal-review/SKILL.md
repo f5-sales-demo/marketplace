@@ -1,9 +1,9 @@
 ---
 name: deal-review
 description: >-
-  Facilitate a structured weekly MEDDPICC deal review with JSON data
+  Facilitate a structured MEDDPICC deal review with JSON data
   persistence. Use when the user says "deal review", "pipeline review",
-  "forecast call", "inspect the deal", "weekly review", or "deal
+  "forecast call", "inspect the deal", "deal review", or "deal
   inspection". Reads existing deal JSON files, guides evidence-based
   review, and writes updates back to JSON.
 user-invocable: true
@@ -12,6 +12,20 @@ user-invocable: true
 **Canonical skill URI**: `skill://meddpicc:deal-review`
 
 # MEDDPICC Deal Review
+
+## Timing
+
+Honor explicit user or customer dates, deadlines, and agreed milestones. When
+none are supplied, keep timing unknown or unagreed. Suggest a schedule, deadline,
+meeting duration, or review cadence only when explicitly requested; label it a
+proposal until the customer agrees. Use the supplied review period for evidence
+and champion assessment; if it is absent, assess the available evidence and state
+that the period is unknown. Missing timing alone does not establish urgency.
+Keep missing date properties absent and workbook date cells blank. Human reports
+may say "Unknown" or "Unagreed"; never write those words into date cells. Preserve
+actual supplied dates and report overdue dates against their stated source.
+Record the date of an assessment or evidence ingestion as provenance; it does
+not create a customer commitment, interaction date, or business deadline.
 
 ## Evidence and reporting
 
@@ -30,7 +44,7 @@ credentials, and raw evidence from Git, public receipts, logs, and telemetry.
 Execute only the reads or writes authorized by the invoked workflow; keep
 proposed actions distinct from completed actions.
 
-Facilitate a weekly deal inspection using evidence-based questions.
+Facilitate a deal inspection over the supplied review period using evidence-based questions.
 This is the operational heartbeat of MEDDPICC — it keeps deals real
 and forecastable. Reviews read from and write to structured JSON deal
 files.
@@ -86,7 +100,7 @@ hand. After element updates, recompute scores with
 `bun xcsh://plugin/meddpicc/file/engine/cli.ts score <deal.json>`
 and relay `sum` / `overallScore` / `overallRating`. (Local/dev
 equivalent: `bun "$PLUGIN_ROOT/engine/cli.ts" score <deal.json>`.)
-Build the weekly delta table by comparing the engine's per-element
+Build the review-period delta table by comparing the engine's per-element
 `elementScores` against the `previousElementScores` snapshot taken
 at Step 1 (load).
 
@@ -109,7 +123,7 @@ exact keys in all `jq` paths — display name ≠ key.
 Handle both `null` and `""` as empty with `// ""`:
 
 ```bash
-jq --arg new "[2026-05-20 weekly-review] <CHAMPION> confirmed ARB slot June 2" \
+jq --arg new "[2026-05-20 deal-review] <CHAMPION> confirmed ARB slot June 2" \
   '.qualification.metrics.evidence = (
     ((.qualification.metrics.evidence // "") | if . == "" then $new else . + "\n" + $new end)
   )' "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
@@ -201,15 +215,15 @@ field `next` returns for the current section, or `hint <element>`)
 to contextualize scores: explain what the current score means and
 what it would take to improve by one level.
 
-### Step 4 — Weekly delta
+### Step 4 — Review-period delta
 
 Focus the review on what changed since the last review:
 
-- "What evidence changed this week for each MEDDPICC letter?"
+- "What evidence changed during the supplied review period for each MEDDPICC letter?"
 - "What is the next customer action that advances the Decision
   Process?"
 - "Do we have EB access scheduled? If not, why not?"
-- "Who is the Champion, and what did they do for us this week?"
+- "Who is the Champion, and what did they do for us during the supplied review period?"
 - "What competitive threat increased or decreased?"
 - "What is the riskiest assumption remaining?"
 
@@ -224,7 +238,7 @@ For each gap identified, produce:
 
 - **Action:** Specific next step
 - **Owner:** Named role (AE, SE, CSM, etc.)
-- **Due date:** Concrete date, not "ASAP"
+- **Due date:** Supplied or customer-agreed date when available; otherwise leave it absent
 - **Success criteria:** How we'll know this is done
 
 **Write:** append each action to `closePlan.criticalActions` with
@@ -234,7 +248,7 @@ For each gap identified, produce:
 
 Based on the review, recommend one of:
 
-- **Commit** — EB, MAP dates, Paper Process all verified (score ≥3
+- **Commit** — EB, MAP milestones, Paper Process all verified (score ≥3
   on each)
 - **Best Case** — Most elements strong, 1-2 gaps with closing plan
 - **Pipeline** — Significant gaps remain; not ready for forecast
@@ -249,12 +263,13 @@ For the final writes:
 
 1. **Write:** update `metadata.reviewDate` to today's date, update
    `metadata.reviewer` to the person conducting the review, and
-   update `metadata.lastClientInteraction` with the most recent
-   interaction discussed:
+   update `metadata.lastClientInteraction` only with the most recent
+   interaction actually discussed. Preserve its date if no source date is supplied.
+   The example below assumes both dates were explicitly supplied:
 
    ```bash
    jq --arg date "2026-05-20" --arg reviewer "<REVIEWER>" \
-      --arg lastDate "2026-05-20" --arg lastOutcome "Weekly review" \
+      --arg lastDate "2026-05-20" --arg lastOutcome "Deal review" \
      '.metadata.reviewDate = $date |
       .metadata.reviewer = $reviewer |
       .metadata.lastClientInteraction = {date: $lastDate, outcome: $lastOutcome}' \
@@ -274,7 +289,7 @@ For the final writes:
 ### Stage: [stage] → [recommended stage change, if any]
 ### Score: [X/32] ([percentage]%) — [Red/Yellow/Green]
 
-### Evidence Delta (This Week)
+### Evidence Delta (Review Period)
 
 | Element | Previous Score | Current Score | Change | Key Update |
 | ------- | ------------- | ------------- | ------ | ---------- |

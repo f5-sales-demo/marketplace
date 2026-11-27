@@ -18,7 +18,7 @@ time-to-value.
 - "Reduce incident response time from 6 hours to 30 minutes"
 - "Cut infrastructure spend 15% by consolidating tools"
 - "Decrease fraud loss rate by 25 bps"
-- "Achieve compliance audit readiness in 60 days vs. 6 months"
+- "Achieve compliance audit readiness by the customer-agreed milestone"
 
 **Evidence required:**
 
@@ -96,7 +96,7 @@ agreement.
 
 **What good looks like:**
 
-- Named steps with owners and dates
+- Named steps with owners and customer-agreed milestones
 - Legal, security, and procurement flow mapped
 - "No surprises" on timing
 - You know what artifacts are required at each gate
@@ -116,7 +116,7 @@ agreement.
 
 - Step-by-step process documented with customer
 - Named owner for each step
-- Target dates for each gate
+- Supplied or customer-agreed target dates for gates, when available
 - Required artifacts identified
 - Known dependencies or blockers
 
@@ -156,15 +156,15 @@ onboarding, security review, legal redlines, signature process.
 
 ## I — Identify Pain
 
-**Definition:** The compelling business pain that creates urgency.
+**Definition:** Customer-confirmed business problem and its impact.
 
 **What good looks like:**
 
 - Pain is quantified and tied to executive priorities
-- There is a consequence of inaction and a deadline driver
+- Consequences of inaction are quantified and confirmed by stakeholders
 - Multiple stakeholders agree the pain is real
 - Pain is current (not historical or theoretical)
-- There is a triggering event that made this urgent now
+- Any customer-confirmed timing constraint is recorded separately from impact
 
 **Pain categories:**
 
@@ -178,7 +178,7 @@ onboarding, security review, legal redlines, signature process.
 
 - Customer-stated pain with business impact
 - Quantified consequence of inaction
-- Timeline driver or triggering event
+- Attributable evidence supporting stakeholder-confirmed, quantified impact
 - Multiple stakeholders confirming the pain
 
 ---
@@ -206,7 +206,7 @@ you're not in the room.
 | Risks reputation for you | Won't stick their neck out |
 | Has a personal win | No personal stake |
 
-**Champion test — ask for a specific action this week:**
+**Champion test — ask for a specific action during the supplied review period:**
 
 - Schedule an EB meeting
 - Share your proposal internally
@@ -218,7 +218,7 @@ you're not in the room.
 
 - Named individual with confirmed influence
 - Personal win documented
-- Concrete action taken this week
+- Concrete action taken during the supplied review period
 - Internal coaching provided
 
 ---

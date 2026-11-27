@@ -10,8 +10,9 @@ function elementProps(schema: unknown, element: string): Record<string, unknown>
   return props && typeof props === 'object' ? props : {};
 }
 
-function constOf(node: unknown): string {
-  return typeof (node as Schema)?.const === 'string' ? ((node as Schema).const as string) : '';
+function definitionOf(node: unknown): string {
+  const value = (node as Schema)?.default ?? (node as Schema)?.const;
+  return typeof value === 'string' ? value : '';
 }
 
 export interface ElementHint {
@@ -30,7 +31,7 @@ export function computeElementHint(schema: unknown, element: string): ElementHin
   const rubric = (props.scoreDefinition as Schema)?.default;
   return {
     element,
-    definition: constOf(props.definition),
+    definition: definitionOf(props.definition),
     questions: Array.isArray(questions) ? (questions as string[]) : [],
     scoreDefinition: rubric && typeof rubric === 'object' ? (rubric as Record<string, string>) : {},
   };
@@ -46,7 +47,7 @@ export interface HintOverview {
 export function computeHintOverview(schema: unknown): HintOverview {
   const elements = QUALIFICATION_ELEMENTS.map((element) => ({
     element,
-    definition: constOf(elementProps(schema, element).definition),
+    definition: definitionOf(elementProps(schema, element).definition),
   }));
   return {
     order: SECTION_ORDER,
