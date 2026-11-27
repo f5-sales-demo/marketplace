@@ -87,7 +87,9 @@ export async function qualifySalesforceLifecycle(runtimeRoot: string, pluginRoot
         calls.push(argv);
         if (response.code !== 0 || response.stdout) return response;
         const result =
-          argv[0] === 'org' ? { ...identity, id: identity.orgId } : { records: [{ Id: identity.userId, UserType: identity.userType }], done: true };
+          argv[0] === 'org'
+            ? { ...identity, id: identity.orgId }
+            : { records: [{ Id: identity.userId, UserType: identity.userType }], done: true };
         return { code: 0, stdout: JSON.stringify({ status: 0, result }), stderr: '' };
       },
       registerTool: (tool: Tool) => tools.push(tool),

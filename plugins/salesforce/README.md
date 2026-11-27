@@ -147,12 +147,12 @@ xcsh plugin setup salesforce
 
 ## Environment Variables
 
-| Variable              | Purpose                                            |
-| --------------------- | -------------------------------------------------- |
-| `SF_PIPELINE_CONFIG` | Optional absolute path for private org configuration |
-| `SF_ORG_INSTANCE_URL` | Login endpoint for reviewed browser authentication |
-| `SF_TARGET_ORG`       | Existing Salesforce target-org selection           |
-| `SFDX_AUTH_URL`       | Provider-managed authentication input              |
+| Variable              | Purpose                                              |
+| --------------------- | ---------------------------------------------------- |
+| `SF_PIPELINE_CONFIG`  | Optional absolute path for private org configuration |
+| `SF_ORG_INSTANCE_URL` | Login endpoint for reviewed browser authentication   |
+| `SF_TARGET_ORG`       | Existing Salesforce target-org selection             |
+| `SFDX_AUTH_URL`       | Provider-managed authentication input                |
 
 ## Usage Examples
 

@@ -1,8 +1,7 @@
 import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 // Run against a published runtime package and the exact installed marketplace cache.
@@ -92,45 +91,68 @@ const receipt: Record<string, unknown> = {
   tools: tools.map((tool) => tool.name),
 };
 if (mode === 'acceptance') {
-  const { readConfiguration, configurationPath } = await import(pathToFileURL(resolve(pluginRoot, 'src/configuration.ts')).href);
+  const { readConfiguration, configurationPath } = await import(
+    pathToFileURL(resolve(pluginRoot, 'src/configuration.ts')).href
+  );
   const { sanitize } = await import(pathToFileURL(resolve(pluginRoot, 'src/sf/sanitize.ts')).href);
   const snapshot = await definition.probe(AbortSignal.timeout(120_000));
   receipt.state = snapshot.state;
   if (snapshot.state !== 'ready' || !snapshot.value) {
-    receipt.blocked = true; receipt.readOnlyToolAttempted = false; receipt.readOnlyToolsPassed = false;
+    receipt.blocked = true;
+    receipt.readOnlyToolAttempted = false;
+    receipt.readOnlyToolsPassed = false;
     receipt.nextAction = 'Use a host authorized for the expected Salesforce org and complete reviewed plugin setup.';
     process.exitCode = 1;
   } else {
-  const evidenceDirectory = process.env.SF_ACCEPTANCE_EVIDENCE || join(homedir(), '.xcsh', 'private', 'salesforce', 'acceptance', String(Date.now()));
-  await mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
-  const privatePath = configurationPath();
-  const config = await readConfiguration(privatePath);
-  receipt.configurationHydrated = Boolean(config.orgs[snapshot.value.orgId]);
-  receipt.configurationPermissions = (await stat(privatePath)).mode & 0o777;
-  receipt.directoryPermissions = (await stat(dirname(privatePath))).mode & 0o777;
-  if (!receipt.configurationHydrated || receipt.configurationPermissions !== 0o600 || receipt.directoryPermissions !== 0o700) throw new Error('Private configuration hydration or permissions failed.');
-  const checks = [
-    ['sf_query', { query: `SELECT Id FROM User WHERE Id = '${snapshot.value.userId}' LIMIT 1`, description: 'Verified user' }],
-    ['sf_describe', { sobject: 'Opportunity', match: 'amount' }],
-    ['sf_org_display', {}],
-    ['sf_pipeline_report', {}],
-    ['sf_help', { command_path: 'org display' }],
-    ['sf_exec', { args: ['org', 'display', '--json'] }],
-  ] as const;
-  const outcomes: Array<{ tool: string; passed: boolean }> = [];
-  for (const [name, args] of checks) {
-    const tool = tools.find(entry => entry.name === name);
-    if (!tool) throw new Error(`Installed tool missing: ${name}`);
-    const result = await tool.execute('salesforce-acceptance', args, AbortSignal.timeout(name === 'sf_pipeline_report' ? 180_000 : 60_000), undefined, { cwd: process.cwd() });
-    const sanitized = sanitize(result);
-    const credentialSafe = JSON.stringify(sanitized) === JSON.stringify(result);
-    await writeFile(join(evidenceDirectory, `${name}.json`), JSON.stringify(sanitized, null, 2), { mode: 0o600 });
-    outcomes.push({ tool: name, passed: !result.isError && credentialSafe });
-  }
-  receipt.readOnlyTools = outcomes;
-  receipt.readOnlyToolsPassed = outcomes.every(result => result.passed);
-  receipt.privateEvidencePreserved = true;
-  if (!receipt.readOnlyToolsPassed) { receipt.blocked = true; process.exitCode = 1; }
+    const evidenceDirectory =
+      process.env.SF_ACCEPTANCE_EVIDENCE ||
+      join(homedir(), '.xcsh', 'private', 'salesforce', 'acceptance', String(Date.now()));
+    await mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
+    const privatePath = configurationPath();
+    const config = await readConfiguration(privatePath);
+    receipt.configurationHydrated = Boolean(config.orgs[snapshot.value.orgId]);
+    receipt.configurationPermissions = (await stat(privatePath)).mode & 0o777;
+    receipt.directoryPermissions = (await stat(dirname(privatePath))).mode & 0o777;
+    if (
+      !receipt.configurationHydrated ||
+      receipt.configurationPermissions !== 0o600 ||
+      receipt.directoryPermissions !== 0o700
+    )
+      throw new Error('Private configuration hydration or permissions failed.');
+    const checks = [
+      [
+        'sf_query',
+        { query: `SELECT Id FROM User WHERE Id = '${snapshot.value.userId}' LIMIT 1`, description: 'Verified user' },
+      ],
+      ['sf_describe', { sobject: 'Opportunity', match: 'amount' }],
+      ['sf_org_display', {}],
+      ['sf_pipeline_report', {}],
+      ['sf_help', { command_path: 'org display' }],
+      ['sf_exec', { args: ['org', 'display', '--json'] }],
+    ] as const;
+    const outcomes: Array<{ tool: string; passed: boolean }> = [];
+    for (const [name, args] of checks) {
+      const tool = tools.find((entry) => entry.name === name);
+      if (!tool) throw new Error(`Installed tool missing: ${name}`);
+      const result = await tool.execute(
+        'salesforce-acceptance',
+        args,
+        AbortSignal.timeout(name === 'sf_pipeline_report' ? 180_000 : 60_000),
+        undefined,
+        { cwd: process.cwd() },
+      );
+      const sanitized = sanitize(result);
+      const credentialSafe = JSON.stringify(sanitized) === JSON.stringify(result);
+      await writeFile(join(evidenceDirectory, `${name}.json`), JSON.stringify(sanitized, null, 2), { mode: 0o600 });
+      outcomes.push({ tool: name, passed: !result.isError && credentialSafe });
+    }
+    receipt.readOnlyTools = outcomes;
+    receipt.readOnlyToolsPassed = outcomes.every((result) => result.passed);
+    receipt.privateEvidencePreserved = true;
+    if (!receipt.readOnlyToolsPassed) {
+      receipt.blocked = true;
+      process.exitCode = 1;
+    }
   }
 }
 console.log(JSON.stringify(receipt));

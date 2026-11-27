@@ -1,5 +1,5 @@
-import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { rendererOwnershipErrors } from './presentation-ownership.mjs';
 
 // One SDK per process avoids loading incompatible native runtime versions together.

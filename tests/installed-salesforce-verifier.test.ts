@@ -24,9 +24,15 @@ test('verification injects published presentation without executing setup or pri
     writeFileSync(join(runtime, 'node_modules/@sinclair/typebox/index.js'), 'exports.Type = {};');
     const config = join(root, 'private', 'config.json');
     chmodSync(join(root, 'private'), 0o700);
-    writeFileSync(config, JSON.stringify({version:1,orgs:{'00D000000000001':{}}}), {mode:0o600});
-    writeFileSync(join(plugin, 'src/configuration.ts'), `export const configurationPath=()=>${JSON.stringify(config)}; export const readConfiguration=async()=>JSON.parse(await Bun.file(configurationPath()).text());`);
-    writeFileSync(join(plugin, 'src/sf/sanitize.ts'), `export {sanitize} from ${JSON.stringify(resolve(import.meta.dir, '../plugins/salesforce/src/sf/sanitize.ts'))};`);
+    writeFileSync(config, JSON.stringify({ version: 1, orgs: { '00D000000000001': {} } }), { mode: 0o600 });
+    writeFileSync(
+      join(plugin, 'src/configuration.ts'),
+      `export const configurationPath=()=>${JSON.stringify(config)}; export const readConfiguration=async()=>JSON.parse(await Bun.file(configurationPath()).text());`,
+    );
+    writeFileSync(
+      join(plugin, 'src/sf/sanitize.ts'),
+      `export {sanitize} from ${JSON.stringify(resolve(import.meta.dir, '../plugins/salesforce/src/sf/sanitize.ts'))};`,
+    );
     const fakeSf = '/synthetic/sf';
     // The CLI fixture models Linux; it must not depend on an ambient Homebrew file.
     const preload = join(root, 'fixture-platform.ts');
@@ -54,7 +60,11 @@ test('verification injects published presentation without executing setup or pri
         plugin,
         'acceptance',
       ],
-      { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, SF_ACCEPTANCE_EVIDENCE: join(root, 'private-evidence') } },
+      {
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: { ...process.env, SF_ACCEPTANCE_EVIDENCE: join(root, 'private-evidence') },
+      },
     );
     const [stdout, stderr, code] = await Promise.all([
       new Response(child.stdout).text(),
@@ -82,7 +92,15 @@ test('verification injects published presentation without executing setup or pri
         plugin,
         'acceptance',
       ],
-      { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, SYNTHETIC_SF_READINESS: 'setup_required', SF_ACCEPTANCE_EVIDENCE: join(root, 'private-evidence') } },
+      {
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: {
+          ...process.env,
+          SYNTHETIC_SF_READINESS: 'setup_required',
+          SF_ACCEPTANCE_EVIDENCE: join(root, 'private-evidence'),
+        },
+      },
     );
     const [blockedText, blockedError, blockedCode] = await Promise.all([
       new Response(blocked.stdout).text(),

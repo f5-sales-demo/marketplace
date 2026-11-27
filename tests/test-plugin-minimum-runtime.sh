@@ -4,7 +4,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/benchmarks" "$WORK/bin" "$WORK/logs"
-for plugin in aws platform firecrawl asm-migration; do
+for plugin in aws platform salesforce firecrawl asm-migration; do
   mkdir -p "$WORK/repo/plugins/$plugin/.xcsh-plugin" "$WORK/repo/plugins/$plugin/node_modules"
   cp "$ROOT/plugins/$plugin/package.json" "$WORK/repo/plugins/$plugin/package.json"
   cp "$ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$WORK/repo/plugins/$plugin/.xcsh-plugin/plugin.json"
@@ -35,19 +35,13 @@ test)
 esac
 MOCK
 chmod +x "$WORK/bin/bun"
-# Exercise the runner contract without requiring rsync in the shell-unit image.
-# Real minimum qualification still uses the production rsync executable.
+# The CI image does not supply rsync; an unexpected call must fail this fixture.
 cat >"$WORK/bin/rsync" <<'MOCK'
-#!/usr/bin/env python3
-import shutil
-import sys
-
-assert sys.argv[1:-2] == ['-a', '--exclude=node_modules', '--exclude=.git']
-shutil.copytree(sys.argv[-2], sys.argv[-1], dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns('node_modules', '.git'))
+#!/bin/sh
+exit 77
 MOCK
 chmod +x "$WORK/bin/rsync"
-for plugin in aws platform firecrawl asm-migration; do
+for plugin in aws platform salesforce firecrawl asm-migration; do
   export KEEP_SHIPPED_LOCK=0
   [ "$plugin" != asm-migration ] || export KEEP_SHIPPED_LOCK=1
   export ORIGINAL_PLUGIN="$WORK/repo/plugins/$plugin"
