@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 2,
+  "plugin": "aws",
+  "assets": [
+    {
+      "sourcePath": "plugins/aws/terraform/provider-lock.hcl",
+      "runtimePath": "assets/plugins/aws/terraform/provider-lock.hcl",
+      "sha256": "b97165003c421c83098216c89f00ecbd10a7fb59cd6954c8abf74af0262ed843"
+    },
+    {
+      "sourcePath": "plugins/terraform/locks/xcsh-provider.hcl",
+      "runtimePath": "assets/plugins/terraform/locks/xcsh-provider.hcl",
+      "sha256": "6d9fd709ee430d66bfa6de99dbbbafca2801eb8471201e6c282102fb3bd1a782"
+    },
+    {
+      "sourcePath": "plugins/terraform/src/cleanup-verifier-entry.ts",
+      "runtimePath": "assets/plugins/terraform/src/cleanup-verifier-entry.ts",
+      "sha256": "fe4cf2997e64bc9125af832b5909efc1079b1ce36828baa19c85cf7234d68c95"
+    },
+    {
+      "sourcePath": "plugins/terraform/src/cleanup-verifier-worker.ts",
+      "runtimePath": "assets/plugins/terraform/src/cleanup-verifier-worker.ts",
+      "sha256": "684c9bb07272f30a68f38676b68a1fd555060b837ceba9dccbcae9ab82c135b3"
+    }
+  ],
+  "bundles": [
+    {
+      "runtimePath": "runtime-0109hfw5.js",
+      "kind": "chunk",
+      "sha256": "0c8635f2aaadf20556d2da4e0e27120512d7450c8724b19053f7d2d5abe7a8a8"
+    },
+    {
+      "runtimePath": "runtime-1wjxzz78.js",
+      "kind": "chunk",
+      "sha256": "d1024a16bd7c934e32630bff321f78e3be6605898ab48a6b03abcacaf5461f1b"
+    },
+    {
+      "runtimePath": "runtime-30f0rzjf.js",
+      "kind": "chunk",
+      "sha256": "77c2943bcb242ce293752c76255d33276f9c966aea12e1c7bc0d9f953f8a164d"
+    },
+    {
+      "runtimePath": "runtime-4wnzm49b.js",
+      "kind": "chunk",
+      "sha256": "e3c9d01826273481d2d04bd860146d068302b8f0a5dd764c3e19b5b8045ff68b"
+    },
+    {
+      "runtimePath": "runtime-6y2k602e.js",
+      "kind": "chunk",
+      "sha256": "4c3dcf2fc291da3da0853beebb653c5effe038b32ed0e99a57ef09397a5288e4"
+    },
+    {
+      "runtimePath": "runtime-7saxwngq.js",
+      "kind": "chunk",
+      "sha256": "73a61183238a850da1fa696f31f4c2e243e3b85ed0b908163559f9d7a4c63008"
+    },
+    {
+      "runtimePath": "runtime-8b4751aq.js",
+      "kind": "chunk",
+      "sha256": "7347c76ffae3cc32850e37568be6d4ba0e08aab609dfa8463e3ad0b4c49d8e03"
+    },
+    {
+      "runtimePath": "runtime-a26130s5.js",
+      "kind": "chunk",
+      "sha256": "732d44ab3166715d012c9b53e93e1c570fd8dbf5db06fcee7ae398d169e45c23"
+    },
+    {
+      "runtimePath": "runtime-ev4p1ca2.js",
+      "kind": "chunk",
+      "sha256": "94c7cac08218002719fe7f5e63f86913b8ea8d4ace6c114bb40e0b8eac133a2d"
+    },
+    {
+      "runtimePath": "runtime-fcs0sdvn.js",
+      "kind": "chunk",
+      "sha256": "6f193a194507096c38221ec29ce73faa3754b06c7815841e884243198bcd8dfc"
+    },
+    {
+      "runtimePath": "runtime-fex55vat.js",
+      "kind": "chunk",
+      "sha256": "55e3af5daf636236b563f2227b870f80d19ed507fd81655eb4081fbae189fcea"
+    },
+    {
+      "runtimePath": "runtime-fhnm51pm.js",
+      "kind": "chunk",
+      "sha256": "df4e009f15630d3d45d9da12d6064a59cca57a20a4c9895eed05576b3999aba8"
+    },
+    {
+      "runtimePath": "runtime-gjz54hes.js",
+      "kind": "chunk",
+      "sha256": "2952540dad91bf81dfceadd424cc1497d59641b4ab5ab1f25e76e4a65f348d4d"
+    },
+    {
+      "runtimePath": "runtime-gm4wbzpx.js",
+      "kind": "chunk",
+      "sha256": "9b5932036c08fa3ca91a957b4d41a6093fb2a5fbe4c3cb702d504b17c8ecf76c"
+    },
+    {
+      "runtimePath": "runtime-hq53g5p8.js",
+      "kind": "chunk",
+      "sha256": "fe1ab7c26a7db0bf6b9ac2f4d3ac7dd64f8565346c968366cfd707defecd9cf2"
+    },
+    {
+      "runtimePath": "runtime-jyz893wy.js",
+      "kind": "chunk",
+      "sha256": "ad017754ba7c542ed5f2ca1ae837d09a13a02fb1e2f046f92b6df297b5af3280"
+    },
+    {
+      "runtimePath": "runtime-k1rqsw4z.js",
+      "kind": "chunk",
+      "sha256": "3e2f771afd1ab154a90669cc7b586105f069b9108a33efe83e8c221352eb5ce3"
+    },
+    {
+      "runtimePath": "runtime-kbg4ng6q.js",
+      "kind": "chunk",
+      "sha256": "05a39762388a1536ac8f8b1f73092d92fab790383d44b23a48f0751421af874f"
+    },
+    {
+      "runtimePath": "runtime-km01yyx2.js",
+      "kind": "chunk",
+      "sha256": "4261a5b1fdfca225f703d89d42324666d9977b53a98c16fe5a207188bddc0b45"
+    },
+    {
+      "runtimePath": "runtime-m8xvrj78.js",
+      "kind": "chunk",
+      "sha256": "10fc7057535e3b9d3f35fe5927c11a8fa595c66cb9959aa4c9616a8ecf9d2e78"
+    },
+    {
+      "runtimePath": "runtime-maka9qd5.js",
+      "kind": "chunk",
+      "sha256": "25a6ca9883ccd3e29a40886bbd623c603df682f54168844c520905150f387030"
+    },
+    {
+      "runtimePath": "runtime-ngfftxfj.js",
+      "kind": "chunk",
+      "sha256": "412a9c06713e9e22f9ff0b40528386ee67481941bf7acf2644cc7bf82f256512"
+    },
+    {
+      "runtimePath": "runtime-nhccrwnn.js",
+      "kind": "chunk",
+      "sha256": "2a6866a0505e2c8c60aa795db141ff54d60f0adefdb5112777bc6df385a29c36"
+    },
+    {
+      "runtimePath": "runtime-npc4566q.js",
+      "kind": "chunk",
+      "sha256": "36f5f20478c84a1ed30a8717c135154aa0d60b2957dd84dc09f12b200e5caed2"
+    },
+    {
+      "runtimePath": "runtime-nprb94vy.js",
+      "kind": "chunk",
+      "sha256": "b71498e3b900d7e9fc30d6d6a6549ec00a7f0838492e686619b224e44a5a36e1"
+    },
+    {
+      "runtimePath": "runtime-qx26ysqj.js",
+      "kind": "chunk",
+      "sha256": "acbdefc4160af035ff0afdc6d50ef04c2fa30eac1ce7adda822c19de079cf44a"
+    },
+    {
+      "runtimePath": "runtime-wvre8ba5.js",
+      "kind": "chunk",
+      "sha256": "91c41918bfbc3ea8d63f84a236a998c6121fa5471f8e18f82dd1cf0bd0fbb96f"
+    },
+    {
+      "runtimePath": "runtime-yfymm378.js",
+      "kind": "chunk",
+      "sha256": "43c4ecb6f626fc41e7cba1a0f1d9b200c00d0838786f23739201466258306488"
+    },
+    {
+      "runtimePath": "runtime-ysf9fnvv.js",
+      "kind": "chunk",
+      "sha256": "2cab814da9c591fc31c310b5b8ff9b0a32e7efb3d0c849b3745adf7c5741d35a"
+    },
+    {
+      "runtimePath": "runtime-zxs18f91.js",
+      "kind": "chunk",
+      "sha256": "9eb779e9168c1c5be893794e2e01e504ec1eb45922b2a3869c28e093c2101a10"
+    },
+    {
+      "runtimePath": "runtime.js",
+      "kind": "entry-point",
+      "sha256": "de71a2a18915a9c1568173bbb4d79451aa10a158340ff137ec4eb135fa5cf639"
+    }
+  ]
+}

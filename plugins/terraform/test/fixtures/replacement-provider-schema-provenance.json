@@ -1,0 +1,7 @@
+{
+  "sourceFixture": "securemesh-replacement-provider-schema.json",
+  "sourceCommit": "e09a1be20b076293acf2f07cb045858a59ea79fb",
+  "originalFileSha256": "e7f07ba489524b5ce47bac68c525be66ec6689700ea27f2378550ba9c11f3db6",
+  "canonicalSha256": "96726d9703b33e6d6a897ffcf1dd64fb95aa73ee043a79fe29fe0b18c5eb51a1",
+  "fullOriginalSchemaPreserved": true
+}

@@ -1,0 +1,967 @@
+{
+  "version": 0,
+  "block": {
+    "attributes": {
+      "annotations": {
+        "type": ["map", "string"],
+        "description": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "block_all_services": {
+        "type": ["object", {}],
+        "description": "[OneOf: block_all_services, blocked_services] Enable this option",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "description": {
+        "type": "string",
+        "description": "Human readable description for the object.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "disable": {
+        "type": "bool",
+        "description": "A value of true administratively disables the object.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "disable_advanced_delivery": {
+        "type": ["object", {}],
+        "description": "[OneOf: disable_advanced_delivery, enable_advanced_delivery; Default: disable_advanced_delivery] Configuration parameter for disable advanced delivery.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "disable_ha": {
+        "type": ["object", {}],
+        "description": "[OneOf: disable_ha, enable_ha; Default: disable_ha] Enable this option",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "disable_log_anonymization": {
+        "type": ["object", {}],
+        "description": "[OneOf: disable_log_anonymization, enable_log_anonymization; Default: disable_log_anonymization] Configuration parameter for disable log anonymization.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "disable_management_network": {
+        "type": ["object", {}],
+        "description": "[OneOf: disable_management_network, enable_management_network; Default: disable_management_network] Configuration parameter for disable management network.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "disable_url_categorization": {
+        "type": ["object", {}],
+        "description": "[OneOf: disable_url_categorization, enable_url_categorization; Default: disable_url_categorization] Enable this option",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "enable_advanced_delivery": {
+        "type": ["object", {}],
+        "description": "Configuration parameter for enable advanced delivery.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "enable_ha": {
+        "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+      },
+      "enable_log_anonymization": {
+        "type": ["object", {}],
+        "description": "Configuration parameter for enable log anonymization.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "enable_management_network": {
+        "type": ["object", {}],
+        "description": "Configuration parameter for enable management network.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "enable_url_categorization": {
+        "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+      },
+      "f5_proxy": {
+        "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+      },
+      "id": {
+        "type": "string",
+        "description": "Unique identifier for the resource.",
+        "description_kind": "markdown",
+        "computed": true
+      },
+      "labels": {
+        "type": ["map", "string"],
+        "description": "Labels is a user defined key value map that can be attached to resources for organization and filtering.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "logs_streaming_disabled": {
+        "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+      },
+      "name": {
+        "type": "string",
+        "description": "Name of the Securemesh Site V2. Must be unique within the namespace. Must be at most 63 characters (DNS-1035).",
+        "description_kind": "markdown",
+        "required": true
+      },
+      "namespace": {
+        "type": "string",
+        "description": "Namespace for the Securemesh Site V2. The F5 XC API restricts this resource to the system namespace; it defaults to that value and may be omitted.",
+        "description_kind": "markdown",
+        "optional": true,
+        "computed": true
+      },
+      "no_forward_proxy": {
+        "type": ["object", {}],
+        "description": "Configuration parameter for no forward proxy.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "no_network_policy": {
+        "type": ["object", {}],
+        "description": "Policy configuration for this feature.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "no_proxy_bypass": {
+        "type": ["object", {}],
+        "description": "Configuration parameter for no proxy bypass.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "no_s2s_connectivity_sli": {
+        "type": ["object", {}],
+        "description": "Configuration parameter for no s2s connectivity sli.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "no_s2s_connectivity_slo": {
+        "type": ["object", {}],
+        "description": "Configuration parameter for no s2s connectivity slo.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "tunnel_dead_timeout": {
+        "type": "number",
+        "description": "Time interval, in millisec, within which any IPsec / SSL connection from the site going down is detected. When not set (== 0), a default value of 10000 msec will be used.",
+        "description_kind": "markdown",
+        "optional": true,
+        "computed": true
+      },
+      "tunnel_type": {
+        "type": "string",
+        "description": "[Enum: SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL|SITE_TO_SITE_TUNNEL_IPSEC|SITE_TO_SITE_TUNNEL_SSL] Tunnel encapsulation to be used between sites Tunnel can operate in both IPsec and SSL, with IPsec being preferred over SSL. Tunnel is of type IPsec Tunnel is of type SSL. Possible values are `SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL`, `SITE_TO_SITE_TUNNEL_IPSEC`, `SITE_TO_SITE_TUNNEL_SSL`. Defaults to `SITE_TO_SITE_TUNNEL_IPSEC_OR_SSL`.",
+        "description_kind": "markdown",
+        "optional": true,
+        "computed": true
+      }
+    },
+    "block_types": {
+      "active_enhanced_firewall_policies": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "enhanced_firewall_policies": {
+              "nesting_mode": "list",
+              "block": {
+                "attributes": {
+                  "$ref": "./shared-schema-components.json#/df9988916bd59f2b457538321914ce0205d6d722fc946e184d18fe9c32c3b5b2"
+                },
+                "description": "Ordered List of Enhanced Firewall Policies active.",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "[OneOf: active_enhanced_firewall_policies, no_network_policy; Default: no_network_policy] List of Enhanced Firewall Policies These policies use session-based rules and provide all OPTIONS available under firewall policies with an additional option for service insertion.",
+          "description_kind": "markdown"
+        }
+      },
+      "active_forward_proxy_policies": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "forward_proxy_policies": {
+              "nesting_mode": "list",
+              "block": {
+                "attributes": {
+                  "$ref": "./shared-schema-components.json#/df9988916bd59f2b457538321914ce0205d6d722fc946e184d18fe9c32c3b5b2"
+                },
+                "description": "Ordered List of Forward Proxy Policies active.",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "[OneOf: active_forward_proxy_policies, no_forward_proxy; Default: no_forward_proxy] Ordered List of Forward Proxy Policies active.",
+          "description_kind": "markdown"
+        }
+      },
+      "admin_user_credentials": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "ssh_key": {
+              "type": "string",
+              "description": "Provided Public SSH key can be used for accessing nodes of the site. When provided, customers can SSH to the nodes of this Customer Edge site using admin as the user.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "block_types": {
+            "admin_password": {
+              "$ref": "./shared-schema-components.json#/9b53b4dd0eaa321b38f587ae557a6f09e525ac96d4cea44f6f017fe5b64fc78b"
+            }
+          },
+          "description": "Setup user credentials to manage access to nodes belonging to the site. When configured, 'admin' user will be setup and customers can access these nodes via either the node local WebUI or via SSH to access shell/CLI Ensure 'Node Local Services' are enabled to allow for required access.",
+          "description_kind": "markdown"
+        }
+      },
+      "aws": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "[OneOf: aws, azure, baremetal, eks_k8s, equinix, gcp, kvm, nutanix, oci, openshift_virtualization, openstack, vmware] AWS Provider Type. AWS Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "azure": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "Azure Provider Type. Azure Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "baremetal": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "Baremetal Provider Type. Baremetal Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "blocked_services": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "blocked_service": {
+              "nesting_mode": "list",
+              "block": {
+                "attributes": {
+                  "dns": {
+                    "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+                  },
+                  "network_type": {
+                    "type": "string",
+                    "description": "[Enum: VIRTUAL_NETWORK_SITE_LOCAL|VIRTUAL_NETWORK_SITE_LOCAL_INSIDE|VIRTUAL_NETWORK_PER_SITE|VIRTUAL_NETWORK_PUBLIC|VIRTUAL_NETWORK_GLOBAL|VIRTUAL_NETWORK_SITE_SERVICE|VIRTUAL_NETWORK_VER_INTERNAL|VIRTUAL_NETWORK_SITE_LOCAL_INSIDE_OUTSIDE|VIRTUAL_NETWORK_IP_AUTO|VIRTUAL_NETWORK_VOLTADN_PRIVATE_NETWORK|VIRTUAL_NETWORK_SRV6_NETWORK|VIRTUAL_NETWORK_IP_FABRIC|VIRTUAL_NETWORK_SEGMENT|VIRTUAL_NETWORK_MANAGEMENT] Different types of virtual networks understood by the system Virtual-network of type VIRTUAL_NETWORK_SITE_LOCAL provides connectivity to public (outside) network. This is an insecure network and is connected to public internet via NAT Gateways/firwalls Virtual-network of this type is local to.. Possible values are `VIRTUAL_NETWORK_SITE_LOCAL`, `VIRTUAL_NETWORK_SITE_LOCAL_INSIDE`, `VIRTUAL_NETWORK_PER_SITE`, `VIRTUAL_NETWORK_PUBLIC`, `VIRTUAL_NETWORK_GLOBAL`, `VIRTUAL_NETWORK_SITE_SERVICE`, `VIRTUAL_NETWORK_VER_INTERNAL`, `VIRTUAL_NETWORK_SITE_LOCAL_INSIDE_OUTSIDE`, `VIRTUAL_NETWORK_IP_AUTO`, `VIRTUAL_NETWORK_VOLTADN_PRIVATE_NETWORK`, `VIRTUAL_NETWORK_SRV6_NETWORK`, `VIRTUAL_NETWORK_IP_FABRIC`, `VIRTUAL_NETWORK_SEGMENT`, `VIRTUAL_NETWORK_MANAGEMENT`. Defaults to `VIRTUAL_NETWORK_SITE_LOCAL`.",
+                    "description_kind": "markdown",
+                    "optional": true
+                  },
+                  "ssh": {
+                    "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+                  },
+                  "web_user_interface": {
+                    "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+                  }
+                },
+                "description": "Disable Node Local Services. Blocking or denial configuration",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "Disable node local services on this site.",
+          "description_kind": "markdown"
+        }
+      },
+      "custom_proxy": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "disable_re_tunnel": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for disable re tunnel.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "enable_re_tunnel": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for enable re tunnel.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "proxy_ip_address": {
+              "type": "string",
+              "description": "Specify the IPv4 Address of the internal Enterprise Proxy.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "proxy_port": {
+              "type": "number",
+              "description": "Specify the Port of the internal Enterprise Proxy.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "username": {
+              "type": "string",
+              "description": "If the internal Enterprise Proxy is using basic authentication, specify the username. This is an optional field.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "block_types": {
+            "password": {
+              "$ref": "./shared-schema-components.json#/9b53b4dd0eaa321b38f587ae557a6f09e525ac96d4cea44f6f017fe5b64fc78b"
+            }
+          },
+          "description": "[OneOf: custom_proxy, f5_proxy, private_adn] Configuration parameter for custom proxy.",
+          "description_kind": "markdown"
+        }
+      },
+      "custom_proxy_bypass": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "proxy_bypass": {
+              "type": ["list", "string"],
+              "description": "Proxy Bypass. List of domains to bypass the proxy.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "description": "[OneOf: custom_proxy_bypass, no_proxy_bypass; Default: no_proxy_bypass] Configuration parameter for custom proxy bypass.",
+          "description_kind": "markdown"
+        }
+      },
+      "dc_cluster_group_sli": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "$ref": "./shared-schema-components.json#/df9988916bd59f2b457538321914ce0205d6d722fc946e184d18fe9c32c3b5b2"
+          },
+          "description": "[OneOf: dc_cluster_group_sli, no_s2s_connectivity_sli; Default: no_s2s_connectivity_sli] Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
+          "description_kind": "markdown"
+        }
+      },
+      "dc_cluster_group_slo": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "$ref": "./shared-schema-components.json#/df9988916bd59f2b457538321914ce0205d6d722fc946e184d18fe9c32c3b5b2"
+          },
+          "description": "[OneOf: dc_cluster_group_slo, no_s2s_connectivity_slo, site_mesh_group_on_slo; Default: no_s2s_connectivity_slo] Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
+          "description_kind": "markdown"
+        }
+      },
+      "dns_ntp_config": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "f5_dns_default": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for f5 dns default.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "f5_ntp_default": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for f5 ntp default.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "block_types": {
+            "custom_dns": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "dns_servers": {
+                    "type": ["list", "string"],
+                    "description": "DNS Servers. DNS Servers.",
+                    "description_kind": "markdown",
+                    "optional": true
+                  }
+                },
+                "description": "DNS Servers. DNS Servers.",
+                "description_kind": "markdown"
+              }
+            },
+            "custom_ntp": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "ntp_servers": {
+                    "type": ["list", "string"],
+                    "description": "NTP Servers. NTP Servers.",
+                    "description_kind": "markdown",
+                    "optional": true
+                  }
+                },
+                "description": "NTP Servers. NTP Servers.",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "Specify DNS and NTP servers that will be used by the nodes in this Customer Edge site.",
+          "description_kind": "markdown"
+        }
+      },
+      "eks_k8s": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "deployment_size": {
+              "type": "string",
+              "description": "[Enum: KUBERNETES_DEPLOYMENT_SIZE_MEDIUM|KUBERNETES_DEPLOYMENT_SIZE_LARGE] Enum for Kubernetes deployment size OPTIONS - KUBERNETES_DEPLOYMENT_SIZE_MEDIUM: Medium Medium deployment size with moderate resource requirements (8 vCPU, 32 GB memory). Suitable for most deployments. - KUBERNETES_DEPLOYMENT_SIZE_LARGE: Large Large deployment size with higher resource.. Possible values are `KUBERNETES_DEPLOYMENT_SIZE_MEDIUM`, `KUBERNETES_DEPLOYMENT_SIZE_LARGE`. Defaults to `KUBERNETES_DEPLOYMENT_SIZE_MEDIUM`.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "disable_anti_affinity": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for disable anti affinity.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "labels": {
+              "type": ["map", "string"],
+              "description": "Add labels to control which Kubernetes nodes the VPM and related pods (etcd, VER, prometheus) are deployed to. Specify label key-value pairs that match the labels on your Kubernetes nodes. This uses Kubernetes nodeSelector to schedule pods only on nodes with matching labels.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "block_types": {
+            "enable_anti_affinity": {
+              "nesting_mode": "single",
+              "block": {
+                "block_types": {
+                  "rules": {
+                    "nesting_mode": "list",
+                    "block": {
+                      "attributes": {
+                        "label_key": {
+                          "type": "string",
+                          "description": "Specify the label key of the customer pods that CE pods should avoid being co-scheduled with. Combined with the label value below, this identifies the target pods.",
+                          "description_kind": "markdown",
+                          "optional": true
+                        },
+                        "label_value": {
+                          "type": "string",
+                          "description": "Specify the label value that, together with the label key, identifies the customer pods to avoid.",
+                          "description_kind": "markdown",
+                          "optional": true
+                        },
+                        "topology_keys": {
+                          "type": ["list", "string"],
+                          "description": "Specify one or more node label keys that define the scope of avoidance. For each topology key (e.g., Kubernetes.I/O/hostname), CE pods will avoid nodes whose topology value matches a node already running a pod with the above specified label.",
+                          "description_kind": "markdown",
+                          "optional": true
+                        }
+                      },
+                      "description": "Define one or more anti-affinity rules. Each rule specifies which pods (by labels) should be distributed across which topology domains.",
+                      "description_kind": "markdown"
+                    }
+                  }
+                },
+                "description": "Configuration for pod anti-affinity scheduling rules. Define multiple rules to control how different applications/components are distributed across your Kubernetes cluster.",
+                "description_kind": "markdown"
+              }
+            },
+            "not_managed": {
+              "$ref": "./shared-schema-components.json#/dcf21b0a32ace8ffaa68df53591b699e14c26bac52e5399ece7566a93d68879b"
+            }
+          },
+          "description": "Kubernetes Provider Type. Kubernetes Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "equinix": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "Equinix Provider Type. Equinix Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "gcp": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "GCP Provider Type. GCP Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "kvm": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "KVM Provider Type. KVM Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "load_balancing": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "vip_vrrp_mode": {
+              "type": "string",
+              "description": "[Enum: VIP_VRRP_INVALID|VIP_VRRP_ENABLE|VIP_VRRP_DISABLE] VRRP advertisement mode for VIP Invalid VRRP mode. Possible values are `VIP_VRRP_INVALID`, `VIP_VRRP_ENABLE`, `VIP_VRRP_DISABLE`. Defaults to `VIP_VRRP_INVALID`.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "description": "Section contains settings on the site that relate to Load Balancing functionality.",
+          "description_kind": "markdown"
+        }
+      },
+      "local_vrf": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "default_config": {
+              "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+            },
+            "default_sli_config": {
+              "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+            }
+          },
+          "block_types": {
+            "sli_config": {
+              "$ref": "./shared-schema-components.json#/77ffdcb30c6577dae247e5a73ae6df814f9a38d18a995cd1dfd6c2dc65a16dcc"
+            },
+            "slo_config": {
+              "$ref": "./shared-schema-components.json#/77ffdcb30c6577dae247e5a73ae6df814f9a38d18a995cd1dfd6c2dc65a16dcc"
+            }
+          },
+          "description": "There can be two local VRFs on each site. The Site Local Outside (SLO) local VRF is used to connect WAN side workloads to this site and to connect the site to F5 Distributed Cloud for management. All sites are required to have an SLO local VRF.",
+          "description_kind": "markdown"
+        }
+      },
+      "log_receiver_with_net": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "use_management_network": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for use management network.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "use_slo_sli": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for use slo sli.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "block_types": {
+            "log_receiver": {
+              "$ref": "./shared-schema-components.json#/a5118155812186d73729bdaccf0e9599f425c9a91aa4eb56cf3067f4c75eb78f"
+            }
+          },
+          "description": "[OneOf: log_receiver_with_net, logs_streaming_disabled] Select log receiver for logs streaming with network option.",
+          "description_kind": "markdown"
+        }
+      },
+      "nutanix": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "Nutanix Provider Type. Nutanix Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "oci": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "OCI Provider Type. OCI Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "offline_survivability_mode": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "enable_offline_survivability_mode": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for enable offline survivability mode.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "no_offline_survivability_mode": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for no offline survivability mode.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "description": "Offline Survivability allows the Site to continue functioning normally without traffic loss during periods of connectivity loss to the Regional Edge (RE) or the Global Controller (GC). When this feature is enabled, a site can continue to function as is with existing configuration for upto 7..",
+          "description_kind": "markdown"
+        }
+      },
+      "openshift_virtualization": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "Configuration parameter for openshift virtualization.",
+          "description_kind": "markdown"
+        }
+      },
+      "openstack": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "Openstack Provider Type. Openstack Provider Type.",
+          "description_kind": "markdown"
+        }
+      },
+      "performance_enhancement_mode": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "perf_mode_l3_enhanced": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "jumbo": {
+                    "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+                  },
+                  "no_jumbo": {
+                    "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+                  }
+                },
+                "description": "Configuration parameter for perf mode l3 enhanced.",
+                "description_kind": "markdown"
+              }
+            },
+            "perf_mode_l7_enhanced": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "jumbo_disabled": {
+                    "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+                  },
+                  "jumbo_enabled": {
+                    "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+                  }
+                },
+                "description": "Configuration parameter for perf mode l7 enhanced.",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "Optimize the site for L3 or L7 traffic processing. L7 optimized is the default.",
+          "description_kind": "markdown"
+        }
+      },
+      "private_adn": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "private_adn": {
+              "type": "string",
+              "description": "Establish private connectivity with the F5 Distributed Cloud Global Network using a Private ADN network. To provision a Private ADN network, please contact F5 Distributed Cloud support.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "description": "X-required Establish private connectivity with the F5 Distributed Cloud Global Network using a Private ADN network. To provision a Private ADN network, please contact F5 Distributed Cloud support.",
+          "description_kind": "markdown"
+        }
+      },
+      "re_select": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "geo_proximity": {
+              "type": ["object", {}],
+              "description": "Configuration parameter for geo proximity.",
+              "description_kind": "markdown",
+              "optional": true
+            },
+            "specific_geography": {
+              "type": "string",
+              "description": "Geographic selection for the site's Regional Edge connections.",
+              "description_kind": "markdown",
+              "optional": true
+            }
+          },
+          "block_types": {
+            "specific_re": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "backup_re": {
+                    "type": "string",
+                    "description": "Select backup RE for this site, cannot be the same as Primary RE.",
+                    "description_kind": "markdown",
+                    "optional": true
+                  },
+                  "primary_re": {
+                    "type": "string",
+                    "description": "Primary RE Geography. Select primary RE for this site.",
+                    "description_kind": "markdown",
+                    "optional": true
+                  }
+                },
+                "description": "Select specific REs. This is useful when a site needs to deterministically connect to a set of REs. A site will always be connected to 2 REs.",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "Selection criteria to connect the site with F5 Distributed Cloud Regional Edge(s).",
+          "description_kind": "markdown"
+        }
+      },
+      "segment_vrf": {
+        "nesting_mode": "list",
+        "block": {
+          "block_types": {
+            "segment_config": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "nameserver": {
+                    "$ref": "./shared-schema-components.json#/342324a374372141895a209f1837c2e30e4e2c43ad0b6e5e54837affc37227d8"
+                  },
+                  "no_static_routes": {
+                    "$ref": "./shared-schema-components.json#/0da8650ad83c0a4f54e5a052c1c77c4c0e13f28f5cc45a074fcc0498debd4167"
+                  },
+                  "no_v6_static_routes": {
+                    "$ref": "./shared-schema-components.json#/4b9c3385632972f8ace11eb2f23ee67dcdb5136bfcd4995f9389ccfefebfc19e"
+                  },
+                  "secondary_nameserver": {
+                    "$ref": "./shared-schema-components.json#/0c1f4798c4c1bc0008442055bbf0051c8d4a8d1d55613aa3630411c70c5f9fbb"
+                  }
+                },
+                "block_types": {
+                  "$ref": "./shared-schema-components.json#/dcf99a173aeb72741e6797bb1d1974ab27668febd4b1eaf6d6aee40e4f669b3f"
+                },
+                "description": "Segment Network Configuration. Segment Network Configuration.",
+                "description_kind": "markdown"
+              }
+            },
+            "segment_network": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "$ref": "./shared-schema-components.json#/52bcc8bb733477081e11d32cf857bcc3cf66c2ebb59febf6f3cf59d4f472efc8"
+                },
+                "description": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name for public API and Uid for private API This type of reference is called direct because the relation is explicit and concrete (as opposed to selector..",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "The Segment VRF is valid across all Sites of a Tenant. These are identified with a Segment name. Though these VRFs are across all Sites of a Tenant, there are some configurations that are valid per Site that can be configured here.",
+          "description_kind": "markdown"
+        }
+      },
+      "site_mesh_group_on_slo": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "no_site_mesh_group": {
+              "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+            },
+            "sm_connection_public_ip": {
+              "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+            },
+            "sm_connection_pvt_ip": {
+              "$ref": "./shared-schema-components.json#/d53350738f1c7937dd135f7cef7fc06b9d76eb8111ba20ca9d99f5e541ef5d5c"
+            }
+          },
+          "block_types": {
+            "site_mesh_group": {
+              "$ref": "./shared-schema-components.json#/a5118155812186d73729bdaccf0e9599f425c9a91aa4eb56cf3067f4c75eb78f"
+            }
+          },
+          "description": "Select how the site mesh group will be connected. By default, public IPs of the control nodes of the site will be used.",
+          "description_kind": "markdown"
+        }
+      },
+      "software_settings": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "os": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "default_os_version": {
+                    "$ref": "./shared-schema-components.json#/4cf755f33a036b490c63276848f3bcdb257d7926b8b18f0e2f8b2b8463409874"
+                  },
+                  "operating_system_version": {
+                    "type": "string",
+                    "description": "Exclusive with [default_os_version] Specify a OS version to be used e.g. 9.2024.6.",
+                    "description_kind": "markdown",
+                    "optional": true,
+                    "sensitive": true
+                  }
+                },
+                "description": "Select the F5XC Operating System Version for the site. By default, latest available OS Version will be used. Refer to release notes to find required released OS versions.",
+                "description_kind": "markdown"
+              }
+            },
+            "sw": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "default_sw_version": {
+                    "$ref": "./shared-schema-components.json#/4cf755f33a036b490c63276848f3bcdb257d7926b8b18f0e2f8b2b8463409874"
+                  },
+                  "volterra_software_version": {
+                    "type": "string",
+                    "description": "Exclusive with [default_sw_version] Specify a F5XC Software Version to be used e.g. Crt-20210329-1002.",
+                    "description_kind": "markdown",
+                    "optional": true,
+                    "sensitive": true
+                  }
+                },
+                "description": "Select the F5XC Software Version for the site. By default, latest available F5XC Software Version will be used. Refer to release notes to find required released SW versions.",
+                "description_kind": "markdown"
+              }
+            },
+            "waf_signatures": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "automatic": {
+                    "$ref": "./shared-schema-components.json#/4cf755f33a036b490c63276848f3bcdb257d7926b8b18f0e2f8b2b8463409874"
+                  },
+                  "manual": {
+                    "$ref": "./shared-schema-components.json#/4cf755f33a036b490c63276848f3bcdb257d7926b8b18f0e2f8b2b8463409874"
+                  }
+                },
+                "description": "Select F5XC WAF Signatures update mode for the site. By default, new signatures will be applied manually. Refer to release notes for details about available Signatures update modes.",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "Select OS and Software version for the site. All nodes in the site will run the same OS and Software version. These settings cannot be changed after the site is created. This block is a create-only, write-only input; changing it replaces the resource, and refresh preserves the configured value without claiming XC observed it.",
+          "description_kind": "markdown"
+        }
+      },
+      "timeouts": {
+        "nesting_mode": "single",
+        "block": {
+          "attributes": {
+            "create": {
+              "$ref": "./shared-schema-components.json#/8ceec06ded57a64fc4d9c8d92d95067496fc41955312c54d5cc0b4bf47ee8c91"
+            },
+            "delete": {
+              "type": "string",
+              "description": "A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as \"30s\" or \"2h45m\". Valid time units are \"s\" (seconds), \"m\" (minutes), \"h\" (hours). Setting a timeout for a Delete operation is only applicable if changes are saved into state before the destroy operation occurs.",
+              "description_kind": "plain",
+              "optional": true
+            },
+            "read": {
+              "type": "string",
+              "description": "A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as \"30s\" or \"2h45m\". Valid time units are \"s\" (seconds), \"m\" (minutes), \"h\" (hours). Read operations occur during any refresh or planning operation when refresh is enabled.",
+              "description_kind": "plain",
+              "optional": true
+            },
+            "update": {
+              "$ref": "./shared-schema-components.json#/8ceec06ded57a64fc4d9c8d92d95067496fc41955312c54d5cc0b4bf47ee8c91"
+            }
+          },
+          "description_kind": "plain"
+        }
+      },
+      "upgrade_settings": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "kubernetes_upgrade_drain": {
+              "nesting_mode": "single",
+              "block": {
+                "attributes": {
+                  "disable_upgrade_drain": {
+                    "type": ["object", {}],
+                    "description": "Configuration parameter for disable upgrade drain.",
+                    "description_kind": "markdown",
+                    "optional": true
+                  }
+                },
+                "block_types": {
+                  "enable_upgrade_drain": {
+                    "nesting_mode": "single",
+                    "block": {
+                      "attributes": {
+                        "disable_vega_upgrade_mode": {
+                          "type": ["object", {}],
+                          "description": "Configuration parameter for disable vega upgrade mode.",
+                          "description_kind": "markdown",
+                          "optional": true
+                        },
+                        "drain_max_unavailable_node_count": {
+                          "type": "number",
+                          "description": "Node Batch Size Count. Exclusive with []",
+                          "description_kind": "markdown",
+                          "optional": true
+                        },
+                        "drain_max_unavailable_node_percentage": {
+                          "type": "number",
+                          "description": "Maximum percentage of nodes unavailable during upgrade draining.",
+                          "description_kind": "markdown",
+                          "optional": true
+                        },
+                        "drain_node_timeout": {
+                          "type": "number",
+                          "description": "Seconds to wait before initiating upgrade on the next set of nodes. Setting it to 0 will wait indefinitely for all services on nodes to be upgraded gracefully before proceeding to the next set of nodes. (Warning: It may block upgrade if services on a node cannot be gracefully upgraded. It is..",
+                          "description_kind": "markdown",
+                          "optional": true
+                        },
+                        "enable_vega_upgrade_mode": {
+                          "type": ["object", {}],
+                          "description": "Configuration parameter for enable vega upgrade mode.",
+                          "description_kind": "markdown",
+                          "optional": true
+                        }
+                      },
+                      "description": "Specify batch upgrade settings for worker nodes within a site.",
+                      "description_kind": "markdown"
+                    }
+                  }
+                },
+                "description": "Specify how worker nodes within a site will be upgraded.",
+                "description_kind": "markdown"
+              }
+            }
+          },
+          "description": "Configuration parameter for upgrade settings.",
+          "description_kind": "markdown"
+        }
+      },
+      "vmware": {
+        "nesting_mode": "single",
+        "block": {
+          "block_types": {
+            "$ref": "./shared-schema-components.json#/956af5178949bd6f3c8f44d431ab110d8745f6c944dc6632bc314531df19aa0b"
+          },
+          "description": "VMware Provider Type. VMware Provider Type.",
+          "description_kind": "markdown"
+        }
+      }
+    },
+    "description": "Manages a Securemesh Site V2 resource in F5 Distributed Cloud for deploying secure mesh edge sites with security and networking controls.",
+    "description_kind": "markdown"
+  }
+}
