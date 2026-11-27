@@ -155,4 +155,8 @@ if ! bash scripts/check-plugin-runtime-dependencies.sh; then
   exit 1
 fi
 
+# Salesforce's reviewed configuration API has a newer minimum than the retained fleet lane.
+# Its isolated lane executes the same source/renderer tests with that published runtime.
+bash scripts/run-plugin-minimum-runtime.sh salesforce || exit 1
+
 printf '\nAll plugin suites passed.\n'

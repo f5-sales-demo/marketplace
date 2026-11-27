@@ -15,7 +15,7 @@ Discover accounts, query Salesforce, and report pipeline evidence from the selec
 
 ## Requirements
 
-- xcsh 22.4.6 or later.
+- xcsh 25.1.0 or later.
 - Salesforce command-line interface (CLI), `sf`.
 - An authenticated default organization with API access.
 - The intended [My Domain login URL](#set-up-a-login-domain), if your organization requires one.
@@ -27,6 +27,16 @@ xcsh plugin install salesforce@f5-sales-demo-marketplace
 ```
 
 Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
+
+## Private configuration
+
+Run `xcsh plugin setup salesforce` to discover the selected organization and review report mappings. Existing
+authentication is reused. Setup saves metadata and confirmed mappings in
+`~/.xcsh/private/salesforce/config.json` with private directory/file permissions and atomic replacement.
+`SF_PIPELINE_CONFIG` can select another absolute user-owned file. Repeating setup refreshes metadata and
+preserves confirmed choices; tools and polling never rewrite the file.
+
+Standard `Opportunity.Amount` and supported line-item `TotalPrice` are the defaults. Confirm custom revenue, renewal, territory and product rules only after discovering their schema and business meaning. Unmatched amounts stay Uncategorized, currencies and opportunity/product totals stay separate, and unsupported sections remain unavailable.
 
 ## Inspect an organization and query pipeline
 

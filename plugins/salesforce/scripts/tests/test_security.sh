@@ -19,7 +19,7 @@ test_no_hardcoded_credentials() {
     grep -v '\$SFDX_AUTH_URL' |
     grep -v 'force://\.\.\.' |
     grep -v 'force://fake' |
-    grep -v 'force://PlatformCLI::YOUR_AUTH_TOKEN' |
+    grep -v 'force://AuthCLI::YOUR_AUTH_TOKEN' |
     grep -v 'your-email@example.com' ||
     true)
 

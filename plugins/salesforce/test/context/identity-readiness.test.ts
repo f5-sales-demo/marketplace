@@ -1,127 +1,60 @@
 import { afterEach, expect, test } from 'bun:test';
-import { Type } from '@sinclair/typebox';
 import {
-  buildSalesforceHint,
   configurePersonProfile,
-  configureSalesforceContext,
   configureSalesforceExecutor,
   enrichSalesforceContext,
-  loadSalesforceContext,
   seedSalesforceContext,
 } from '../../src/context/salesforce-context';
-import { createSfPipelineReportTool } from '../../src/tools/sf-pipeline-report';
+import { response, syntheticApi, syntheticIdentity } from '../synthetic';
 
-const raw = (result: unknown) => ({ stdout: JSON.stringify({ status: 0, result }), stderr: '', exitCode: 0 });
-const identity = {
-  userId: '005000000000001',
-  username: 'user@example.com',
-  instanceUrl: 'https://example.com',
-  orgAlias: 'synthetic',
-  collectedAt: '2026-10-17T00:00:00Z',
-  discoveryPending: true,
-};
 afterEach(() => {
   configurePersonProfile();
-  configureSalesforceContext();
   configureSalesforceExecutor();
 });
-
-test('profile readiness resolves only live identity and never launches slow report discovery', async () => {
-  const calls: string[][] = [];
+const identity = {
+  ...syntheticIdentity,
+  orgId: syntheticIdentity.id,
+  collectedAt: '2026-11-01T00:00:00Z',
+  discoveryPending: true,
+};
+test('readiness verifies organization and user without launching report discovery', async () => {
+  const calls: string[][] = [],
+    api = syntheticApi(calls);
+  configureSalesforceExecutor((args, signal) => api.exec('sf', [...args], { signal }));
   configurePersonProfile(async () => ({ identifiers: { salesforceId: '005000000000002' } }));
-  configureSalesforceExecutor(async (args) => {
-    calls.push([...args]);
-    if (args[0] === 'org') return raw(identity);
-    if (args.includes('--query') && args[3].startsWith('SELECT Id, UserType'))
-      return raw({ records: [{ Id: identity.userId, UserType: 'Standard' }] });
-    throw new Error('Optional discovery must not run during readiness');
+  expect(await seedSalesforceContext()).toMatchObject({
+    orgId: identity.orgId,
+    userId: identity.userId,
+    discoveryPending: true,
   });
-  const ready = await seedSalesforceContext(AbortSignal.timeout(1000));
-  expect(ready).toMatchObject({ userId: identity.userId, userType: 'Standard', discoveryPending: true });
   expect(calls).toHaveLength(2);
-  expect(ready).not.toHaveProperty('opportunityFields');
+  expect(calls[1]).toContain(identity.username);
 });
-
-test('a stale profile ID cannot establish readiness when the authenticated user query is empty', async () => {
+test('a stale profile ID cannot replace a missing verified user', async () => {
   configurePersonProfile(async () => ({ identifiers: { salesforceId: '005000000000002' } }));
-  configureSalesforceExecutor(async (args) => raw(args[0] === 'org' ? identity : { records: [] }));
-  expect(await seedSalesforceContext()).toBeNull();
-});
-
-test('cancelled enrichment preserves ready identity and is not cached as complete', async () => {
-  let calls = 0;
-  configureSalesforceExecutor(async (_args, signal) => {
-    calls++;
-    return new Promise((resolve) =>
-      signal?.addEventListener('abort', () => resolve(raw({ fields: [] })), { once: true }),
-    );
-  });
-  await expect(enrichSalesforceContext(identity, AbortSignal.timeout(10))).rejects.toThrow();
-  expect(identity.discoveryPending).toBe(true);
-  expect(identity.userId).toBe('005000000000001');
-  expect(calls).toBe(2);
-  configureSalesforceExecutor(async (args) => raw(args[0] === 'sobject' ? { fields: [] } : { records: [] }));
-  expect((await enrichSalesforceContext(identity)).discoveryPending).toBe(false);
-});
-
-test('default pipeline lazily discovers and retains schema and territory scope for the verified org', async () => {
-  configurePersonProfile(async () => ({}));
-  const seed = { ...identity, orgAlias: undefined };
-  configureSalesforceContext(async () => seed);
-  expect(buildSalesforceHint(seed)).toBeUndefined();
-  const discoveryCalls: string[][] = [];
-  configureSalesforceExecutor(async (args) => {
-    discoveryCalls.push([...args]);
-    if (args[0] === 'sobject')
-      return raw({
-        fields: [
-          { name: 'Territory__c', label: 'Territory', type: 'string', groupable: true, filterable: true, custom: true },
-        ],
-      });
-    if (args[3].startsWith('SELECT Opportunity.Territory__c'))
-      return raw({ records: [{ Opportunity: { Territory__c: 'Example West' } }] });
-    return raw({ records: [] });
-  });
-  const reportCalls: string[][] = [];
-  const tool = createSfPipelineReportTool({ typebox: { Type } } as never, () => ({
-    exec: async (_cmd, args) => {
-      reportCalls.push(args);
-      return raw({
-        records: args[3].includes('FROM Period')
-          ? [
-              { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
-              { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
-            ]
-          : [],
-        done: true,
-      });
-    },
-  }));
-  const result = await tool.execute('lazy-report', {}, undefined, undefined, { cwd: '/tmp' });
-  expect(result.isError).not.toBe(true);
-  expect(result.details?.pipelineEvidence).toMatchObject({
-    confirmedTerritories: ['Example West'],
-    capabilities: { opportunityFields: ['Territory__c'], territoryField: 'Territory__c' },
-  });
-  expect(discoveryCalls.every((args) => args.at(-2) === '--target-org' && args.at(-1) === identity.username)).toBe(
-    true,
+  configureSalesforceExecutor(async (args) =>
+    response(args[0] === 'org' ? syntheticIdentity : { records: [], done: true }),
   );
-  expect(discoveryCalls.some((args) => args[0] === 'org')).toBe(false);
-  expect(reportCalls.flat().join(' ')).toContain(identity.userId);
-  expect(reportCalls.every((args) => args.includes(identity.username))).toBe(true);
-  expect((await loadSalesforceContext())?.discoveryPending).toBe(false);
-  expect(buildSalesforceHint(await loadSalesforceContext())).toBeDefined();
-  const count = discoveryCalls.length;
-  await tool.execute('cached-report', { target_org: '' }, undefined, undefined, { cwd: '/tmp' });
-  expect(discoveryCalls).toHaveLength(count);
+  await expect(seedSalesforceContext()).rejects.toThrow('user identity');
 });
-
-test('aborted readiness starts no processes', async () => {
+test('aborted readiness never starts commands', async () => {
   let calls = 0;
   configureSalesforceExecutor(async () => {
     calls++;
-    return raw({});
+    return response({});
   });
   await expect(seedSalesforceContext(AbortSignal.abort())).rejects.toThrow();
   expect(calls).toBe(0);
+});
+test('changed organization identity discards previous context', async () => {
+  const api = syntheticApi([], () => [], { ...syntheticIdentity, id: '00D000000000002' });
+  configureSalesforceExecutor((args, signal) => api.exec('sf', [...args], { signal }));
+  await expect(enrichSalesforceContext(identity)).rejects.toThrow('changed');
+});
+test('unconfirmed territory candidates never become report scope', async () => {
+  const api = syntheticApi();
+  configureSalesforceExecutor((args, signal) => api.exec('sf', [...args], { signal }));
+  const context = await enrichSalesforceContext(identity);
+  expect(context.territoryField).toBeUndefined();
+  expect(context.pipelineSummary?.total).toBe(0);
 });

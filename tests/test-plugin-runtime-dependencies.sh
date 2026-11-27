@@ -60,6 +60,34 @@ else
   pass "unqualified intermediate development pin fails"
 fi
 
+CONFIGURATION="$WORK/salesforce-configuration-runtime"
+copy_runtime_state "$CONFIGURATION"
+jq '.minimumRuntimeVersion = "25.1.0"' \
+  "$CONFIGURATION/plugins/salesforce/.xcsh-plugin/plugin.json" >"$CONFIGURATION/plugin.tmp"
+mv "$CONFIGURATION/plugin.tmp" "$CONFIGURATION/plugins/salesforce/.xcsh-plugin/plugin.json"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "25.1.0"
+    | .devDependencies["@f5-sales-demo/pi-utils"] = "25.1.0"
+    | .peerDependencies["@f5-sales-demo/xcsh"] = ">=25.1.0"
+    | .peerDependencies["@f5-sales-demo/pi-utils"] = ">=25.1.0"' \
+  "$CONFIGURATION/plugins/salesforce/package.json" >"$CONFIGURATION/package.tmp"
+mv "$CONFIGURATION/package.tmp" "$CONFIGURATION/plugins/salesforce/package.json"
+sed 's/@f5-sales-demo\/xcsh@23\.8\.0/@f5-sales-demo\/xcsh@25.1.0/g; s/@f5-sales-demo\/pi-utils@23\.8\.0/@f5-sales-demo\/pi-utils@25.1.0/g; s/@anthropic-ai\/sdk@0\.124\.0/@anthropic-ai\/sdk@1.8.0/g; s/@agentclientprotocol\/sdk@1\.4\.0/@agentclientprotocol\/sdk@2.6.0/g; s/@google\/genai@2\.21\.0/@google\/genai@3.3.0/g' \
+  "$CONFIGURATION/plugins/salesforce/bun.lock" >"$CONFIGURATION/lock.tmp"
+mv "$CONFIGURATION/lock.tmp" "$CONFIGURATION/plugins/salesforce/bun.lock"
+if REPO_ROOT="$CONFIGURATION" bash "$CHECK" >/dev/null; then
+  pass "Salesforce reviewed configuration runtime is isolated from retained plugin graphs"
+else
+  fail "Salesforce reviewed configuration runtime must pass without upgrading other plugins"
+fi
+sed 's/@agentclientprotocol\/sdk@2\.6\.0/@agentclientprotocol\/sdk@1.4.0/g' \
+  "$CONFIGURATION/plugins/salesforce/bun.lock" >"$CONFIGURATION/lock.tmp"
+mv "$CONFIGURATION/lock.tmp" "$CONFIGURATION/plugins/salesforce/bun.lock"
+if REPO_ROOT="$CONFIGURATION" bash "$CHECK" >/dev/null 2>&1; then
+  fail "Salesforce new runtime with stale ACP dependencies must fail"
+else
+  pass "Salesforce new runtime rejects a stale dependency graph"
+fi
+
 BAD_MANIFEST="$WORK/bad-manifest"
 copy_runtime_state "$BAD_MANIFEST"
 jq '.peerDependencies["@f5-sales-demo/xcsh"] = ">=1.0.0"' \
@@ -232,6 +260,11 @@ pi_utils_version="$xcsh_version"
 anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"
+if [ "$xcsh_version" = "25.1.0" ]; then
+  anthropic_version="1.8.0"
+  acp_version="2.6.0"
+  google_genai_version="3.3.0"
+fi
 jq -n --arg version "$xcsh_version" '{version: $version}' >node_modules/@f5-sales-demo/xcsh/package.json
 jq -n --arg version "$pi_utils_version" '{version: $version}' >node_modules/@f5-sales-demo/pi-utils/package.json
 printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk/package.json
@@ -241,7 +274,11 @@ printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
 printf '{"version":"1.4.4"}\n' >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
-if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
+cat >"$BAD_INSTALL/scripts/run-plugin-minimum-runtime.sh" <<'EOF'
+#!/usr/bin/env bash
+touch "$RUNNER_MINIMUM_TEST_MARKER"
+EOF
+if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" RUNNER_MINIMUM_TEST_MARKER="$BAD_INSTALL/minimum-ran" \
   bash "$BAD_INSTALL/scripts/run-plugin-tests.sh" >"$BAD_INSTALL/runner.log" 2>&1; then
   cat "$BAD_INSTALL/runner.log" >&2
   fail "the canonical plugin runner must repair stale physical dependencies"
@@ -250,4 +287,10 @@ if [ ! -e "$BAD_INSTALL/suite-ran" ]; then
   fail "the plugin runner did not continue after dependency repair"
 else
   pass "the plugin runner repairs stale physical dependencies before tests"
+fi
+
+if [ ! -e "$BAD_INSTALL/minimum-ran" ]; then
+  fail "the plugin runner did not execute the isolated minimum-runtime lane"
+else
+  pass "the plugin runner executes the isolated minimum-runtime lane"
 fi

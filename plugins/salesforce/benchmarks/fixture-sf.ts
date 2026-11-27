@@ -15,10 +15,10 @@ if (args.includes('xcsh-style-intentionally-missing-org')) {
   process.exit(1);
 }
 
-const organizationRecord = { Name: 'Example Northern Assurance' };
+const organizationRecord = { Name: 'Synthetic assurance account' };
 const records = Array.from({ length: 12 }, (_, index) => ({
   attributes: { type: 'Opportunity' },
-  Name: `Example Northern Assurance / F5 XC / ${index}`,
+  Name: `Synthetic assurance account / Synthetic Services / ${index}`,
   Account: organizationRecord,
   Amount: index === 0 ? 0 : 123456.78 + index,
   CurrencyIsoCode: index % 2 ? 'USD' : 'CAD',
@@ -31,14 +31,16 @@ const records = Array.from({ length: 12 }, (_, index) => ({
   IsWon: false,
   NextStep: index === 0 ? null : `Confirm product scope | 北方\nLine two ${index}`,
   Id: `006000000000${String(index).padStart(3, '0')}`,
-  Product_Segmentation__c: 'XC Platform-Based',
+  SyntheticSegment__c: 'Synthetic Services',
 }));
 
 const schema = {
   name: 'Opportunity',
+  queryable: true,
   fields: [
+    { name: 'OwnerId', label: 'Owner', type: 'reference', filterable: true, groupable: true },
     { name: 'Name', label: 'Name', type: 'string', custom: false, filterable: true, groupable: true },
-    { name: 'Amount', label: 'Amount', type: 'string', custom: false, filterable: true, groupable: true },
+    { name: 'Amount', label: 'Amount', type: 'currency', custom: false, filterable: true, groupable: true },
     {
       name: 'CurrencyIsoCode',
       label: 'CurrencyIsoCode',
@@ -58,13 +60,13 @@ const schema = {
       filterable: true,
       groupable: true,
     },
-    { name: 'IsClosed', label: 'IsClosed', type: 'string', custom: false, filterable: true, groupable: true },
-    { name: 'IsWon', label: 'IsWon', type: 'string', custom: false, filterable: true, groupable: true },
+    { name: 'IsClosed', label: 'IsClosed', type: 'boolean', custom: false, filterable: true, groupable: true },
+    { name: 'IsWon', label: 'IsWon', type: 'boolean', custom: false, filterable: true, groupable: true },
     { name: 'NextStep', label: 'NextStep', type: 'string', custom: false, filterable: true, groupable: true },
     { name: 'Id', label: 'Id', type: 'string', custom: false, filterable: true, groupable: true },
     {
-      name: 'Product_Segmentation__c',
-      label: 'Product_Segmentation__c',
+      name: 'SyntheticSegment__c',
+      label: 'SyntheticSegment__c',
       type: 'string',
       custom: true,
       filterable: true,
@@ -84,7 +86,8 @@ if (args.includes('--help')) {
   console.log(queryHelp);
   process.exit(0);
 }
-if (args[0] === 'sobject') {
+if (args[0] === 'sobject' && args[1] === 'list') result = ['Opportunity', 'Account', 'OpportunityLineItem', 'Product2'];
+else if (args[0] === 'sobject') {
   const name = args[args.indexOf('--sobject') + 1];
   result =
     name === 'Event'
@@ -158,15 +161,15 @@ else if (query.includes('FROM Account'))
   result = {
     records: query.includes('ambiguous')
       ? [
-          { Id: '001000000000000', Name: 'Example Northern Assurance Canada' },
-          { Id: '001000000000002', Name: 'Example Northern Assurance US' },
+          { Id: '001000000000000', Name: 'Synthetic assurance account Canada' },
+          { Id: '001000000000002', Name: 'Synthetic assurance account US' },
         ]
-      : [{ Id: '001000000000000', Name: 'Example Northern Assurance' }],
+      : [{ Id: '001000000000000', Name: 'Synthetic assurance account' }],
     totalSize: query.includes('ambiguous') ? 2 : 1,
     done: true,
   };
 else if (query.includes('SUM(')) result = { records: [{ total: 0 }], totalSize: 1, done: true };
-else if (query.includes('FROM OpportunityLineItem') || query.includes('IsWon = true') || query.includes('Renewal'))
+else if (query.includes('FROM OpportunityLineItem') || query.includes('Renewal'))
   result = { records: [], totalSize: 0, done: true };
 else
   result = {

@@ -25,7 +25,7 @@ describe('full marketplace presentation through installed-plugin discovery', () 
     process.env.PATH = originalPath;
     if (home) await rm(home, { recursive: true, force: true });
   });
-  test('all 22 catalog plugins load through the published runtime and preserve presentation data', async () => {
+  test('retained catalog plugins preserve presentation data while higher minimums use their isolated lane', async () => {
     home = await mkdtemp(join(tmpdir(), 'xcsh-plugin-view-'));
     await mkdir(join(home, '.xcsh', 'plugins'), { recursive: true });
     const catalog = await Bun.file(join(root, '.xcsh-plugin', 'marketplace.json')).json();
@@ -46,12 +46,21 @@ describe('full marketplace presentation through installed-plugin discovery', () 
     } as never);
     try {
       const result = await discoverAndLoadExtensions([], home, undefined, [], home);
-      expect(result.errors).toEqual([]);
+      const higherMinimums = catalog.plugins.filter(
+        (plugin: { minimumRuntimeVersion: string }) =>
+          !Bun.semver.satisfies(runtime.version, `>=${plugin.minimumRuntimeVersion}`),
+      );
+      expect(higherMinimums.map((plugin: { name: string }) => plugin.name)).toEqual(['salesforce']);
+      expect(result.errors).toHaveLength(higherMinimums.length);
+      for (const failure of result.errors) {
+        expect(failure.path).toBe(resolve(root, 'plugins/salesforce'));
+        expect(failure.error).toContain('requires xcsh 25.1.0 or later');
+      }
       const tools = result.extensions
         .filter((extension) => extension.path.startsWith(root))
         .flatMap((extension) => [...extension.tools.values()]);
       expect(tools.length).toBeGreaterThan(40);
-      expect(tools.filter((tool) => tool.definition.name.startsWith('sf_'))).toHaveLength(6);
+      expect(tools.filter((tool) => tool.definition.name.startsWith('sf_'))).toHaveLength(0);
       for (const registered of tools) {
         expect(registered.definition.presentation).toBeDefined();
         const output = {
@@ -153,7 +162,12 @@ describe('full marketplace presentation through installed-plugin discovery', () 
         const minimumRuntime = manifest.minimumRuntimeVersion;
         expect(manifest.minimumRuntimeVersion).toBe(minimumRuntime);
         expect(plugin.minimumRuntimeVersion).toBe(minimumRuntime);
-        expect(Bun.semver.satisfies(runtime.version, `>=${minimumRuntime}`)).toBe(true);
+        const qualifiedRuntime =
+          plugin.name === 'salesforce'
+            ? (await Bun.file(join(root, 'plugins/salesforce/node_modules/@f5-sales-demo/xcsh/package.json')).json())
+                .version
+            : runtime.version;
+        expect(Bun.semver.satisfies(qualifiedRuntime, `>=${minimumRuntime}`)).toBe(true);
         const message = new CustomMessageComponent({
           customType: plugin.name,
           content: `**${plugin.name}**\n\n| Status | Total |\n| --- | ---: |\n| ready | 0 |`,

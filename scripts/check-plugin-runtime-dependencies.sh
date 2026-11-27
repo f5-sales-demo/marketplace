@@ -14,6 +14,7 @@ fi
 
 EXPECTED_XCSH="23.5.1"
 LATEST_DEVELOPMENT_XCSH="23.9.3"
+SALESFORCE_CONFIGURATION_XCSH="25.1.0"
 EXPECTED_ANTHROPIC="0.124.0"
 EXPECTED_ACP="1.4.0"
 EXPECTED_GOOGLE_GENAI="2.21.0"
@@ -147,7 +148,11 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   }
   # Migrate plugins individually; preserve the qualified Salesforce/discovery graph.
   # The exact minimum stays in peerDependencies and gets its own execution lane.
-  if [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] && [ "$development_xcsh" != "$LATEST_DEVELOPMENT_XCSH" ]; then
+  salesforce_configuration=false
+  if [ "$plugin" = salesforce ] && [ "$development_xcsh" = "$SALESFORCE_CONFIGURATION_XCSH" ] && [ "$minimum_xcsh" = "$SALESFORCE_CONFIGURATION_XCSH" ]; then
+    salesforce_configuration=true
+  fi
+  if ! $salesforce_configuration && [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] && [ "$development_xcsh" != "$LATEST_DEVELOPMENT_XCSH" ]; then
     fail_static "$plugin development runtime must be its retained minimum or latest stable $LATEST_DEVELOPMENT_XCSH"
   fi
   if ! jq -en --arg minimum "$minimum_xcsh" --arg development "$development_xcsh" \
@@ -159,6 +164,13 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"
   expected_google_genai="$EXPECTED_GOOGLE_GENAI"
+  if $salesforce_configuration; then
+    # The reviewed configuration API needs this separately qualified runtime graph.
+    # Other plugin families retain their existing runtime and provider dependencies.
+    expected_anthropic="1.8.0"
+    expected_acp="2.6.0"
+    expected_google_genai="3.3.0"
+  fi
   expected_xcsh_range=">=$expected_xcsh"
   require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/xcsh"]' \
     "$expected_xcsh_range" "$plugin xcsh peer range"

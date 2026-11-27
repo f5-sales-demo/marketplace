@@ -1,12 +1,19 @@
-import { enrichSalesforceContext, loadSalesforceContext, readPersonFacts } from '../context/salesforce-context';
+import {
+  configurationFingerprint,
+  loadOrgConfiguration,
+  pipelineCapabilities,
+  queryRecords,
+  resolveIdentity,
+  sameIdentity,
+} from '../configuration';
+import { rememberSalesforceReport } from '../context/salesforce-context';
 import { generatePipelineReport, type SfQueryFn } from '../pipeline-report/generator';
 import { renderPipelineReport } from '../pipeline-report/renderer';
 import type { PipelineReportData, PipelineReportOptions } from '../pipeline-report/types';
-import { DEFAULT_SKU_CLASSIFICATION, DEFAULT_SKU_PREFIXES } from '../pipeline-report/types';
 import sfPipelineReportDescription from '../prompts/sf-pipeline-report.md' with { type: 'text' };
-import { normalizeDescribe } from '../sf/describe';
 import type { SfExecApi } from '../sf/exec';
 import { execSfJson } from '../sf/exec';
+import { sanitize } from '../sf/sanitize';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import type { SfErrorType, SfToolDetails } from './shared';
@@ -61,10 +68,10 @@ function buildQueryFn(
       details: { tool: 'sf_pipeline_report' },
     });
     const result = await execSfJson(api, args, signal, soql);
-    const data = result.result as { records?: Record<string, unknown>[]; done?: boolean };
+    const data = result.result as { records?: Record<string, unknown>[]; done?: boolean; totalSize?: number };
     if (!data || !Array.isArray(data.records))
       throw new Error('Invalid pipeline query response: records array is missing. Totals are not verified.');
-    if (data.done === false)
+    if (data.done !== true || (typeof data.totalSize === 'number' && data.totalSize > data.records.length))
       throw new Error(
         'Pipeline query returned incomplete results. Totals are not verified; use a narrower scope or a complete export.',
       );
@@ -120,112 +127,48 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
       }
 
       try {
-        const profile = await readPersonFacts();
-        let sfContext = await loadSalesforceContext();
-        const differentOrg = Boolean(
-          params.target_org && params.target_org !== sfContext?.orgAlias && params.target_org !== sfContext?.username,
-        );
-        if (!differentOrg && sfContext?.discoveryPending) {
-          onUpdate?.({ content: [{ type: 'text', text: 'Discovering pipeline scope and schema.' }], details: base });
-          sfContext = await enrichSalesforceContext(sfContext, signal);
-        }
-        // A different target org must never reuse another org's IDs, custom schema or territories.
-        if (differentOrg && params.target_org) {
-          const api = makeApi(ctx.cwd);
-          const target = ['--target-org', params.target_org];
-          const org = (await execSfJson(api, ['org', 'display', ...target], signal)).result as {
-            username?: string;
-            instanceUrl?: string;
-          };
-          if (!org?.username) throw new Error('Target Salesforce org identity is unavailable.');
-          const user = (
-            await execSfJson(
-              api,
-              [
-                'data',
-                'query',
-                '--query',
-                `SELECT Id FROM User WHERE Username = '${org.username.replaceAll("'", "\\'")}' LIMIT 1`,
-                ...target,
-              ],
-              signal,
-            )
-          ).result as { records?: { Id?: string }[] };
-          const [opportunity, lineItem] = await Promise.all(
-            ['Opportunity', 'OpportunityLineItem'].map(async (sobject) =>
-              normalizeDescribe(
-                (await execSfJson(api, ['sobject', 'describe', '--sobject', sobject, ...target], signal)).result,
-              ),
-            ),
-          );
-          if (!opportunity || !lineItem) throw new Error('Target Salesforce org schema is unavailable.');
-          sfContext = {
-            userId: user.records?.[0]?.Id ?? '',
-            username: org.username,
-            instanceUrl: org.instanceUrl ?? '',
-            orgAlias: params.target_org,
-            opportunityFields: opportunity.fields.map((f) => f.name),
-            lineItemFields: lineItem.fields.map((f) => f.name),
-            collectedAt: new Date().toISOString(),
-          };
-        }
-
-        const userId = differentOrg ? sfContext?.userId : (profile.identifiers?.salesforceId ?? sfContext?.userId);
-        if (!userId) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: 'No Salesforce user ID found. Run: xcsh plugin setup salesforce, then read `xcsh://user` to confirm your salesforceId is set.',
-              },
-            ],
-            isError: true,
-            details: { ...base, errorType: 'auth_required' as SfErrorType },
-          };
-        }
-
-        const partnerId = differentOrg ? undefined : profile.partner?.id;
-        const userIds = partnerId ? [userId, partnerId] : [userId];
-
-        const staleDate = new Date();
-        staleDate.setFullYear(staleDate.getFullYear() - 1);
-        const staleCutoff = staleDate.toISOString().slice(0, 10);
-
-        const partnerName = profile.partner?.name;
-        const selfName = [profile.givenName, profile.familyName].filter(Boolean).join(' ').trim();
-        const teamMemberNames = partnerName && selfName ? [selfName, partnerName] : selfName ? [selfName] : undefined;
-
-        const orgAlias = params.target_org || sfContext?.orgAlias || sfContext?.username;
-
+        const api = makeApi(ctx.cwd);
+        const identity = await resolveIdentity(api, params.target_org, signal);
+        const configurationBefore = await configurationFingerprint();
+        const config = await loadOrgConfiguration(api, identity, signal);
+        const orgAlias = identity.username;
         const queryFn = buildQueryFn(makeApi, ctx.cwd, orgAlias, signal, onUpdate);
-        const calendar = await queryFn(
-          "SELECT Type, StartDate, EndDate FROM Period WHERE Type IN ('Quarter', 'Year') AND StartDate <= TODAY AND EndDate >= TODAY",
-        );
-        const { start, end, yearStart, yearEnd } = fiscalPeriods(calendar);
-
+        let calendar: Record<string, unknown>[] = [];
+        let periods: ReturnType<typeof fiscalPeriods> | undefined;
+        const unavailable: string[] = [];
+        try {
+          calendar = await queryRecords(
+            api,
+            "SELECT Type, StartDate, EndDate FROM Period WHERE Type IN ('Quarter', 'Year') AND StartDate <= TODAY AND EndDate >= TODAY",
+            identity,
+            signal,
+          );
+          periods = fiscalPeriods(calendar);
+        } catch (error) {
+          signal?.throwIfAborted();
+          if (/REQUEST_LIMIT_EXCEEDED|429|rate limit/i.test(String(error))) throw error;
+          unavailable.push('Fiscal periods unavailable; quarter and fiscal-year bookings are not verified.');
+        }
         const options: PipelineReportOptions = {
-          userIds,
+          userIds: [identity.userId],
           orgAlias,
-          quarterStart: start,
-          quarterEnd: end,
-          fiscalYearStart: yearStart,
-          fiscalYearEnd: yearEnd,
-          staleCutoff,
-          confirmedTerritories: differentOrg
-            ? undefined
-            : (profile.territories ?? sfContext?.confirmedTerritories ?? sfContext?.territories),
-          teamMemberNames,
-          // Discovered schema, so the report builds only the sections this org can answer.
-          // Absent context means "not described" and every section is attempted, as before.
-          capabilities: {
-            opportunityFields: sfContext?.opportunityFields,
-            lineItemFields: sfContext?.lineItemFields,
-            territoryField: sfContext?.territoryField,
-          },
+          quarterStart: periods?.start,
+          quarterEnd: periods?.end,
+          fiscalYearStart: periods?.yearStart,
+          fiscalYearEnd: periods?.yearEnd,
+          teamMemberNames: [identity.username],
+          mappings: config.mappings,
+          unavailable: [...config.discovery.unavailable, ...unavailable],
+          capabilities: pipelineCapabilities(config),
         };
 
         const data: PipelineReportData = await generatePipelineReport(options, queryFn);
-        const report = renderPipelineReport(data, sfContext?.instanceUrl ?? '');
+        if (!sameIdentity(identity, await resolveIdentity(api, params.target_org, signal)))
+          throw new Error('Salesforce organization changed during report; discard the report and retry.');
+        if (configurationBefore !== (await configurationFingerprint()))
+          throw new Error('Salesforce configuration changed during report; discard the report and retry.');
+        await rememberSalesforceReport(identity, data, config.revision);
+        const report = renderPipelineReport(data, identity.instanceUrl);
 
         return {
           content: [{ type: 'text' as const, text: report }],
@@ -235,15 +178,15 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
             pipelineEvidence: {
               ...options,
               calendar,
-              skuClassification: options.skuClassification ?? DEFAULT_SKU_CLASSIFICATION,
-              skuPrefixes: options.skuPrefixes ?? DEFAULT_SKU_PREFIXES,
+              identity,
+              configurationRevision: config.revision,
             },
           },
         };
       } catch (err) {
         if (err instanceof Error && (err.name === 'AbortError' || err.name === 'ToolAbortError')) throw err;
         const errorType = detectErrorType(err);
-        const message = err instanceof Error ? err.message : String(err);
+        const message = sanitize(err instanceof Error ? err.message : String(err));
         return {
           content: [{ type: 'text' as const, text: message }],
           isError: true,

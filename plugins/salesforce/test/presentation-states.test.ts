@@ -65,7 +65,7 @@ test('optional org values stay quiet and missing connection is never inferred', 
   expect(JSON.stringify(render('sf_org_display', result, true))).toContain('isDefaultUsername');
 });
 test('unsupported renewals never show zero and anomaly explanations remain visible', () => {
-  const zero = { totals: { platform: 0, shape: 0, other: 0 }, quotaTotal: 0, accounts: [] };
+  const zero = { totals: { Services: 0, Hardware: 0, Uncategorized: 0 }, total: 0, quotaTotal: 0, accounts: [] };
   const group = {
     netNew: zero,
     booked: zero,
@@ -108,7 +108,7 @@ test('unsupported renewals never show zero and anomaly explanations remain visib
   const text = JSON.stringify(collapsed);
   expect(text).toContain('Renewals unavailable');
   expect(text).not.toContain('Renewals by account');
-  expect(text).toContain('987,654,321');
+  expect(text).not.toContain('987,654,321');
   expect(text).toContain('>30 days');
   expect(text).toContain('no activity recorded');
   expect(
@@ -120,12 +120,12 @@ test('unsupported renewals never show zero and anomaly explanations remain visib
     collapsed.sections.filter((s) => s.kind === 'markdown' && s.text.includes('no entries in this report')),
   ).toHaveLength(2);
   for (const s of collapsed.sections.filter((s) => s.kind === 'table' && s.title?.startsWith('Pipeline summary'))) {
-    if (s.kind === 'table') expect(s.rows.map((r) => r.section)).toEqual(['Net new', 'Booked']);
+    if (s.kind === 'table') expect(s.rows.map((r) => r.section)).toEqual(['Open pipeline', 'Booked']);
   }
   const expanded = JSON.stringify(render('sf_pipeline_report', result, true));
   expect(expanded).toContain('Second original activity warning');
   expect(expanded).toContain('Full SKU classification explanation');
-  expect(expanded).toContain('987,654,321');
+  expect(expanded).toContain('987654321');
 });
 test('empty help and relationship sections are omitted', () => {
   const help = render('sf_help', {
@@ -165,7 +165,7 @@ test('normal and problematic connection status remain visible', () => {
 });
 
 test('currency scope appears once and missing-cell legend stays beside its table', () => {
-  const zero = { totals: { platform: 0, shape: 0, other: 0 }, quotaTotal: 0, accounts: [] };
+  const zero = { totals: { Services: 0, Hardware: 0, Uncategorized: 0 }, total: 0, quotaTotal: 0, accounts: [] };
   const result = {
     content: [],
     details: {

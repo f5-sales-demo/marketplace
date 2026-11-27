@@ -54,8 +54,6 @@ const labelPairs = [
   ['ownerName', 'Owner'],
   ['oppCount', 'Opportunity count'],
   ['quotaTotal', 'Quota total'],
-  ['platform', 'Platform'],
-  ['shape', 'Shape'],
   ['other', 'Other'],
   ['bestCase', 'Best case'],
 ] as const;

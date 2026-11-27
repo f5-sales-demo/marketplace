@@ -78,9 +78,9 @@ test('pipeline uses summary tables with warnings and detail records', () => {
       details: {
         pipelineReport: {
           netNew: {
-            totals: { platform: 0, shape: 0, other: 0 },
+            totals: { Services: 0, Hardware: 0, Uncategorized: 0 },
             quotaTotal: 0,
-            accounts: [{ name: 'Synthetic account', platform: 0 }],
+            accounts: [{ name: 'Synthetic account', Services: 0 }],
           },
           unavailable: ['Synthetic unavailable section'],
           anomalies: [{ message: 'Synthetic warning' }],

@@ -46,15 +46,7 @@ describe('Salesforce host setup', () => {
     expect(calls[0]).toMatchObject({ executable: 'sf', brew: { package: 'sf' }, archive: { executable: 'bin/sf' } });
     expect(calls[0]).not.toHaveProperty('winget');
     expect(definitions[0].setup.steps).toHaveLength(1);
-    expect(definitions[0].setup.steps[0].argv).toEqual([
-      'sf',
-      'org',
-      'login',
-      'web',
-      '--set-default',
-      '--alias',
-      'SFDC',
-    ]);
+    expect(definitions[0].setup.steps[0].argv).toEqual(['sf', 'org', 'login', 'web', '--set-default']);
   });
   it('discovers identity and optional context through the injected resolved executor', async () => {
     const calls: string[][] = [];
@@ -64,17 +56,30 @@ describe('Salesforce host setup', () => {
       calls.push(argv);
       const result =
         argv[0] === 'org'
-          ? { username: 'user@example.com', instanceUrl: 'https://example.com', alias: 'SFDC' }
+          ? {
+              id: '00D000000000001',
+              username: 'user@example.com',
+              instanceUrl: 'https://example.com',
+              alias: 'synthetic',
+            }
           : argv[0] === 'sobject'
-            ? { fields: [] }
+            ? {
+                name: 'Opportunity',
+                queryable: true,
+                fields: ['Id', 'Amount', 'OwnerId', 'IsClosed', 'IsWon', 'CloseDate'].map((name) => ({
+                  name,
+                  type: name === 'Amount' ? 'currency' : 'string',
+                })),
+              }
             : {
+                done: true,
                 records: argv.includes("SELECT Id, UserType FROM User WHERE Username = 'user@example.com' LIMIT 1")
                   ? [{ Id: '005000000000001', UserType: 'Standard' }]
                   : [],
               };
       return { stdout: JSON.stringify({ status: 0, result }), stderr: '', exitCode: 0 };
     });
-    expect(await discoverSalesforceContext()).toMatchObject({ userId: '005000000000001', orgAlias: 'SFDC' });
+    expect(await discoverSalesforceContext()).toMatchObject({ userId: '005000000000001', orgId: '00D000000000001' });
     expect(calls).toContainEqual(['org', 'display', '--json']);
   });
   it('cancellation prevents context discovery from launching commands', async () => {
@@ -113,14 +118,14 @@ it('in-flight context cancellation reaches every child and rejects discovery', a
       return {
         stdout: JSON.stringify({
           status: 0,
-          result: { username: 'user@example.com', instanceUrl: 'https://example.com' },
+          result: { id: '00D000000000001', username: 'user@example.com', instanceUrl: 'https://example.com' },
         }),
         stderr: '',
         exitCode: 0,
       };
     if (argv[0] === 'data')
       return {
-        stdout: JSON.stringify({ status: 0, result: { records: [{ Id: '005000000000001' }] } }),
+        stdout: JSON.stringify({ status: 0, result: { records: [{ Id: '005000000000001' }], done: true } }),
         stderr: '',
         exitCode: 0,
       };
@@ -197,8 +202,6 @@ it('passes the explicit normalized domain to shared preparation and rejects stal
       'login',
       'web',
       '--set-default',
-      '--alias',
-      'SFDC',
       '--instance-url',
       'https://example.my.salesforce.com',
     ]);

@@ -28,8 +28,8 @@ const directory = mkdtempSync(join(tmpdir(), 'salesforce-workflow-'));
 const executable = join(directory, 'sf');
 const records = Array.from({ length: 12 }, (_, index) => ({
   attributes: { type: 'Opportunity' },
-  Name: `Example Northern Assurance / F5 XC / ${index === 11 ? 'FINAL_OPPORTUNITY' : index}`,
-  Account: { Name: 'Example Northern Assurance', Parent: { Name: 'Synthetic parent' } },
+  Name: `Synthetic assurance account / Synthetic Services / ${index === 11 ? 'FINAL_OPPORTUNITY' : index}`,
+  Account: { Name: 'Synthetic assurance account', Parent: { Name: 'Synthetic parent' } },
   Amount: index === 0 ? 0 : 123456.78 + index,
   CurrencyIsoCode: index % 2 ? 'USD' : 'CAD',
   StageName: 'Technical validation',
@@ -42,8 +42,9 @@ const records = Array.from({ length: 12 }, (_, index) => ({
   Id: `006000000000${String(index).padStart(3, '0')}`,
 }));
 const schema = {
-  name: 'Opportunity',
+  name: 'Opportunity', queryable: true,
   fields: [
+    ...['Name','Amount','OwnerId','AccountId','IsClosed','IsWon','CloseDate'].map(name => ({ name, label: name, type: name === 'Amount' ? 'currency' : name.startsWith('Is') ? 'boolean' : name.endsWith('Id') ? 'reference' : 'string', custom: false, filterable: true, groupable: true })),
     { name: 'Id', label: 'Identifier', type: 'id', custom: false },
     ...Array.from({ length: 65 }, (_, i) => ({
       name: `SyntheticProduct${i}__c`,
@@ -51,7 +52,7 @@ const schema = {
       type: 'picklist',
       custom: true,
       picklistValues: [
-        { value: 'Distributed Cloud', active: true },
+        { value: 'configured product', active: true },
         { value: 'FINAL_PICKLIST_VALUE', active: true },
       ],
     })),
@@ -65,7 +66,7 @@ const schema = {
 // This fixture never reads a real CLI, environment credential, or customer file.
 writeFileSync(
   executable,
-  `#!${process.execPath}\nconst args = process.argv.slice(2);\nconst q = args.findIndex(a => a === '--query' || a === '-q'); const query = q < 0 ? '' : args[q + 1];\nconst records = ${JSON.stringify(records)};\nconst schema = ${JSON.stringify(schema)};\nlet result;\nif (args.includes('--help')) { console.log(${JSON.stringify(queryHelp)}); process.exit(0); }\nif (args[0] === 'sobject') result = args.includes('Event') ? ${JSON.stringify(eventSchema)} : schema;\nelse if (args[0] === 'org') result = { username: 'synthetic@example.com', id: '00D000000000001', instanceUrl: 'https://salesforce.example.com', connectedStatus: 'Connected', alias: 'synthetic', accessToken: 'SYNTHETIC_SECRET_SENTINEL' };\nelse if (query.includes('DefinitelyMissingDemoField__c')) { console.log(JSON.stringify({status:1,name:'INVALID_FIELD',message: "No such column DefinitelyMissingDemoField__c on Opportunity"})); process.exit(1); }\nelse if (query.includes('FROM Period')) result = { records: [{ Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' }, { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' }], done: true, totalSize: 1 };\nelse if (query.includes('FROM Task')) result = {records:${JSON.stringify(taskRecords)},done:true,totalSize:10};\nelse if (query.includes('COUNT(') && query.includes('SUM(')) result = {records:[${JSON.stringify(aggregateRecord)}],done:true,totalSize:1};\nelse if (query.includes('COUNT(')) result = { records: [{ attributes: {type:'AggregateResult'}, total: 0 }], totalSize: 1, done: true };\nelse if (query.includes('FROM Account')) result = { records: query.includes('ambiguous') ? [{Id:'001000000000000',Name:'Example Northern Assurance Canada'},{Id:'001000000000002',Name:'Example Northern Assurance US'}] : [{Id:'001000000000000',Name:'Example Northern Assurance'}], totalSize: query.includes('ambiguous') ? 2 : 1, done:true };\nelse if (query.includes('SUM(')) result = { records:[{total:0}],totalSize:1,done:true };\nelse if (query.includes('FROM OpportunityLineItem') || query.includes('IsWon = true') || query.includes('Renewal')) result = { records:[],totalSize:0,done:true };\nelse result = { records: query.includes('Id = null') ? [] : records, totalSize: query.includes('Id = null') ? 0 : records.length, done: !query.includes('partial') };\nconsole.log(JSON.stringify({status:0,result}));\n`,
+  `#!${process.execPath}\nconst args = process.argv.slice(2);\nconst q = args.findIndex(a => a === '--query' || a === '-q'); const query = q < 0 ? '' : args[q + 1];\nconst records = ${JSON.stringify(records)};\nconst schema = ${JSON.stringify(schema)};\nlet result;\nif (args.includes('--help')) { console.log(${JSON.stringify(queryHelp)}); process.exit(0); }\nif (args[0] === 'sobject' && args[1] === 'list') result = ['Opportunity','OpportunityLineItem','Product2'];\nelse if (args[0] === 'sobject') result = args.includes('Event') ? ${JSON.stringify(eventSchema)} : schema;\nelse if (args[0] === 'org') result = { username: 'synthetic@example.com', id: '00D000000000001', instanceUrl: 'https://salesforce.example.com', connectedStatus: 'Connected', alias: 'synthetic', accessToken: 'SYNTHETIC_SECRET_SENTINEL' };\nelse if (query.includes('FROM User')) result = { records: [{ Id:'005000000000001', UserType:'Standard' }], done:true, totalSize:1 };\nelse if (query.includes('DefinitelyMissingDemoField__c')) { console.log(JSON.stringify({status:1,name:'INVALID_FIELD',message: "No such column DefinitelyMissingDemoField__c on Opportunity"})); process.exit(1); }\nelse if (query.includes('FROM Period')) result = { records: [{ Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' }, { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' }], done: true, totalSize: 1 };\nelse if (query.includes('FROM Task')) result = {records:${JSON.stringify(taskRecords)},done:true,totalSize:10};\nelse if (query.includes('COUNT(') && query.includes('SUM(')) result = {records:[${JSON.stringify(aggregateRecord)}],done:true,totalSize:1};\nelse if (query.includes('COUNT(')) result = { records: [{ attributes: {type:'AggregateResult'}, total: 0 }], totalSize: 1, done: true };\nelse if (query.includes('FROM Account')) result = { records: query.includes('ambiguous') ? [{Id:'001000000000000',Name:'Synthetic assurance account Canada'},{Id:'001000000000002',Name:'Synthetic assurance account US'}] : [{Id:'001000000000000',Name:'Synthetic assurance account'}], totalSize: query.includes('ambiguous') ? 2 : 1, done:true };\nelse if (query.includes('SUM(')) result = { records:[{total:0}],totalSize:1,done:true };\nelse if (query.includes('FROM OpportunityLineItem') || query.includes('Renewal')) result = { records:[],totalSize:0,done:true };\nelse result = { records: query.includes('Id = null') ? [] : records, totalSize: query.includes('Id = null') ? 0 : records.length, done: !query.includes('partial') };\nconsole.log(JSON.stringify({status:0,result}));\n`,
 );
 chmodSync(executable, 0o700);
 
@@ -157,7 +158,7 @@ test('all six production tools register; unavailable integration is not ready', 
 test('project account lookup, ambiguity, opportunities and scope render through the real TUI', async () => {
   writeFileSync(
     join(directory, 'ACCOUNT_BRIEF.md'),
-    '# Example Northern Assurance\nCanadian insurer. Investigate recent Distributed Cloud opportunities. Local dates are not Salesforce facts.',
+    '# Synthetic assurance account\nCanadian insurer. Investigate recent configured product opportunities. Local dates are not Salesforce facts.',
   );
   const cases = [
     await invoke('sf_exec', { args: ['data', 'query', '-q', taskQuery, '-o', 'synthetic', '--json'] }),
@@ -169,7 +170,7 @@ test('project account lookup, ambiguity, opportunities and scope render through 
       description: 'Account candidates',
     }),
     await invoke('sf_query', {
-      query: "SELECT Id, Name FROM Account WHERE Name = 'Example Northern Assurance'",
+      query: "SELECT Id, Name FROM Account WHERE Name = 'Synthetic assurance account'",
       description: 'Verified account',
     }),
     await invoke('sf_query', {

@@ -3,9 +3,8 @@
 // Kept free of I/O so the filtering and volume rules are trivially testable, mirroring how
 // sf-exec-guard.ts keeps its allowlist logic pure.
 //
-// Why this exists at all: a mature Opportunity carries 642 fields (593 of them custom, ~14.5 KB
-// of names). Neither a model nor a prompt can hold that, and no two orgs agree on the custom
-// ones — so field names must be LOOKED UP, never guessed or hardcoded. Every consumer therefore
+// Organizations can return hundreds of custom fields. Field names must be discovered from the
+// selected schema, never guessed or hardcoded. Every consumer therefore
 // goes through a match filter, and an unfiltered call deliberately returns a summary rather than
 // the whole catalog.
 
@@ -26,6 +25,7 @@ export interface SfFieldDescription {
   /** Active values only; an inactive value cannot appear in live data. */
   picklistValues?: string[];
   referenceTo?: string[];
+  relationshipName?: string;
 }
 
 export interface SfChildRelationship {
@@ -62,6 +62,7 @@ function normalizeField(raw: Record<string, unknown>): SfFieldDescription {
     groupable: raw.groupable !== false,
     ...(picklist.length > 0 ? { picklistValues: picklist } : {}),
     ...(referenceTo.length > 0 ? { referenceTo } : {}),
+    ...(typeof raw.relationshipName === 'string' ? { relationshipName: raw.relationshipName } : {}),
   };
 }
 
@@ -93,9 +94,8 @@ function relationshipMatches(rel: SfChildRelationship, needle: string): boolean 
 /**
  * Make a value safe to place in a markdown table cell.
  *
- * Not hypothetical: this org's `Competitor_1__c` picklist contains the literal value
- * `Broadcom (Symantec | Blue Coat | VMware)`, whose pipes split one cell into four and shift
- * every column after it. Newlines (common in textarea labels) end the row outright.
+ * Pipes in labels or picklist values split cells and shift later columns.
+ * Newlines in labels end the row outright.
  */
 function cell(value: string): string {
   return value

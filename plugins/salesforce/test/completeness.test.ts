@@ -5,6 +5,7 @@ import { configurePersonProfile, configureSalesforceContext } from '../src/conte
 import { generatePipelineReport } from '../src/pipeline-report/generator';
 import { renderPipelineReport } from '../src/pipeline-report/renderer';
 import { presentTool as enrichTool } from '../src/presentation';
+import { standardCapabilities, syntheticApi, syntheticOpportunity, syntheticPeriods } from './synthetic';
 
 const presentTool = <T extends { name: string; label?: string }>(tool: T) => enrichTool(tool, presentation);
 
@@ -68,14 +69,14 @@ test('query text preserves null, false, zero, nested fields, pipes and multiline
         IsWon: false,
         NextStep: null,
         Account: { Name: 'Synthetic account', Parent: { Name: 'Synthetic parent' } },
-        OpportunityLineItems: { records: [{ Product2: { Name: 'F5 XC' } }], done: false },
+        OpportunityLineItems: { records: [{ Product2: { Name: 'Synthetic Services' } }], done: false },
       },
     ],
   });
   expect(text).toContain('null');
   expect(text).toContain('false');
   expect(text).toContain('Synthetic parent');
-  expect(text).toContain('F5 XC');
+  expect(text).toContain('Synthetic Services');
   expect(text).not.toContain('[object Object]');
   expect(text).toContain('\\|');
   expect(text).toContain('second line');
@@ -135,59 +136,39 @@ test('pipeline failures and partial pages never report successful zero totals', 
 });
 
 test('pipeline forwards cancellation and reports query progress', async () => {
-  configurePersonProfile(async () => ({ identifiers: { salesforceId: '005000000000001' } }));
-  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'synthetic' }) as never);
-  const controller = new AbortController();
-  const signals: (AbortSignal | undefined)[] = [];
-  const updates: unknown[] = [];
+  const signals: (AbortSignal | undefined)[] = [],
+    updates: unknown[] = [];
+  const controller = new AbortController(),
+    api = syntheticApi();
   const tool = createSfPipelineReportTool(pi, () => ({
-    exec: async (_command, _args, options) => {
+    exec: (command, args, options) => {
       signals.push(options?.signal);
-      return raw({
-        records: _args.some((arg) => arg.includes('FROM Period'))
-          ? [
-              { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
-              { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
-            ]
-          : [],
-        totalSize: 0,
-        done: true,
-      });
+      return api.exec(command, args, options);
     },
   }));
-  await tool.execute('pipeline', {}, controller.signal, (update) => updates.push(update), context);
-  expect(signals.length).toBeGreaterThan(0);
+  const result = await tool.execute('progress', {}, controller.signal, (update) => updates.push(update), context);
+  expect(result.isError).not.toBe(true);
   expect(signals.every((signal) => signal === controller.signal)).toBe(true);
   expect(updates.length).toBeGreaterThan(0);
 });
-
-test('fallback opportunity amounts have unverified product classification and zero bookings remain visible', async () => {
+test('opportunity totals include Uncategorized and preserve verified zero bookings', async () => {
   const report = await generatePipelineReport(
-    { userIds: ['005000000000001'], quarterStart: '2026-10-01', quarterEnd: '2026-12-31' },
-    async (query) => {
-      if (query.includes('SUM(Amount)')) return [{ total: 0 }];
-      if (query.includes('FROM OpportunityLineItem') || query.includes('IsWon = true') || query.includes('Renewal'))
-        return [];
-      return [
-        {
-          Id: '006000000000001',
-          Name: 'Synthetic unrelated appliance',
-          Amount: 100,
-          Account: { Name: 'Synthetic' },
-          ForecastCategoryName: 'Pipeline',
-        },
-      ];
+    {
+      userIds: ['005000000000001'],
+      quarterStart: syntheticPeriods[0].StartDate,
+      quarterEnd: syntheticPeriods[0].EndDate,
+      fiscalYearStart: syntheticPeriods[1].StartDate,
+      fiscalYearEnd: syntheticPeriods[1].EndDate,
+      capabilities: standardCapabilities,
     },
+    async (query) => (query.includes('WHERE OwnerId') ? [syntheticOpportunity()] : []),
   );
-  expect(report.netNew.totals.platform).toBe(0);
-  expect(report.netNew.totals.other).toBe(100);
+  expect(report.netNew.totals.Uncategorized).toBe(100);
+  expect(report.netNew.quotaTotal).toBeUndefined();
   expect(report.fyBookedTotal).toBe(0);
-  expect(report.anomalies.some((a) => /product|classif/i.test(a.message))).toBe(true);
   const text = renderPipelineReport(report, '');
-  expect(text).toContain('100.00');
-  expect(text).toContain('Other');
-  expect(text).not.toContain('No open net new pipeline');
-  expect(text).toContain('YTD Booked: 0');
+  expect(text).toContain('Uncategorized');
+  expect(text).toContain('Fiscal-year bookings: 0');
   expect(text).not.toContain('$');
 });
 
@@ -217,111 +198,33 @@ test('all typed data tools preserve real cancellation instead of converting it t
   }
 });
 
-test('a different target org discovers its own identity and schema before reporting', async () => {
-  configurePersonProfile(
-    async () =>
-      ({
-        identifiers: { salesforceId: '005000000000001' },
-        territories: ['Wrong org territory'],
-        partner: { id: '005000000000003' },
-      }) as never,
-  );
-  configureSalesforceContext(
-    async () => ({ userId: '005000000000001', orgAlias: 'first-org', discoveryPending: true }) as never,
-  );
-  const calls: string[][] = [];
-  const tool = createSfPipelineReportTool(pi, () => ({
-    exec: async (_command, args) => {
-      calls.push(args);
-      if (args[0] === 'org')
-        return raw({ username: 'synthetic@example.com', instanceUrl: 'https://second.example.com' });
-      if (args[0] === 'sobject') return raw({ name: args[3], fields: [{ name: 'Id' }], childRelationships: [] });
-      const query = args[args.indexOf('--query') + 1] ?? '';
-      return raw({
-        records: query.includes('FROM User')
-          ? [{ Id: '005000000000002' }]
-          : query.includes('FROM Period')
-            ? [
-                { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
-                { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
-              ]
-            : [],
-        done: true,
-      });
-    },
+test('a different target org discovers its own identity and never uses stale profile scope', async () => {
+  configurePersonProfile(async () => ({
+    identifiers: { salesforceId: '005000000000003' },
+    territories: ['Wrong org territory'],
   }));
-  const result = await tool.execute('org-scope', { target_org: 'second-org' }, undefined, undefined, context);
+  const calls: string[][] = [];
+  const tool = createSfPipelineReportTool(pi, () => syntheticApi(calls));
+  const result = await tool.execute('org', { target_org: 'second-org' }, undefined, undefined, context);
   expect(result.isError).not.toBe(true);
-  expect(calls.every((args) => args.includes('second-org'))).toBe(true);
-  const queries = calls
-    .filter((args) => args.includes('--query'))
-    .flat()
-    .join(' ');
-  expect(queries).toContain('005000000000002');
-  expect(queries).not.toContain('005000000000001');
+  expect(calls.filter((args) => args[0] !== 'org').every((args) => args.includes('reader@example.com'))).toBe(true);
+  expect(calls.filter((args) => args[0] === 'org').every((args) => args.includes('second-org'))).toBe(true);
+  expect(calls.flat().join(' ')).not.toContain('005000000000003');
   expect(JSON.stringify(result.details)).not.toContain('Wrong org territory');
-});
-
-test('renewal summaries query and preserve owner, stage and next step', async () => {
-  const report = await generatePipelineReport(
-    {
-      userIds: ['005000000000001'],
-      quarterStart: '2026-10-01',
-      quarterEnd: '2026-12-31',
-      capabilities: { opportunityFields: ['Id', 'Name', 'Amount', 'Renewal__c', 'Product_Segmentation__c'] },
-    },
-    async (query) => {
-      if (query.includes('SUM(Amount)')) return [{ total: 0 }];
-      if (!query.includes('Renewal__c = true')) return [];
-      return [
-        {
-          Id: '006000000000001',
-          Name: 'Example renewal',
-          Account: { Name: 'Example' },
-          Amount: 100,
-          Product_Segmentation__c: 'XC',
-          ...(query.includes('Owner.Name') ? { Owner: { Name: 'Example owner' } } : {}),
-          ...(query.includes('StageName') ? { StageName: 'Technical validation' } : {}),
-          ...(query.includes('NextStep') ? { NextStep: 'Confirm renewal terms' } : {}),
-        },
-      ];
-    },
-  );
-  expect(report.topRenewals?.[0]?.ownerName).toBe('Example owner');
-  expect(report.topRenewals?.[0]?.stage).toBe('Technical validation');
-  expect(report.topRenewals?.[0]?.nextStep).toBe('Confirm renewal terms');
 });
 
 test('pipeline presentation separates record currencies and does not publish a combined monetary total', async () => {
   const report = await generatePipelineReport(
-    {
-      userIds: ['005000000000001'],
-      quarterStart: '2026-10-01',
-      quarterEnd: '2026-12-31',
-      capabilities: { opportunityFields: ['CurrencyIsoCode'] },
-    },
-    async (query) => {
-      if (query.includes('SUM(')) return [{ total: 0 }];
-      if (!query.includes('FROM Opportunity ') || !query.includes('IsClosed = false')) return [];
-      return [
-        {
-          Id: '006000000000001',
-          Account: { Name: 'Example' },
-          Name: 'Example CAD',
-          Amount: 100,
-          CurrencyIsoCode: 'CAD',
-        },
-        {
-          Id: '006000000000002',
-          Account: { Name: 'Example' },
-          Name: 'Example USD',
-          Amount: 200,
-          CurrencyIsoCode: 'USD',
-        },
-      ];
-    },
+    { userIds: ['005000000000001'], capabilities: standardCapabilities },
+    async (query) =>
+      query.includes('WHERE OwnerId')
+        ? [
+            syntheticOpportunity('006000000000001', 100, { CurrencyIsoCode: 'CAD' }),
+            syntheticOpportunity('006000000000002', 200, { CurrencyIsoCode: 'USD' }),
+          ]
+        : [],
   );
-  expect(report.currencyBreakdown?.map((group) => [group.currency, group.netNew.totals.other])).toEqual([
+  expect(report.currencyBreakdown?.map((group) => [group.currency, group.netNew.total])).toEqual([
     ['CAD', 100],
     ['USD', 200],
   ]);

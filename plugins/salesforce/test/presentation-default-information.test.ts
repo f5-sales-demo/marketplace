@@ -64,14 +64,14 @@ for (const theme of ['dark', 'light'] as const) {
         },
       };
       const pipeline = await output('sf_pipeline_report', report, {}, false, width);
-      expect(pipeline).toContain('FY aggregate bookings');
-      expect(pipeline).toContain('Reported amount: 0');
-      expect(pipeline).toContain('Currency: Unknown');
+      expect(pipeline).toContain('Fiscal-year bookings');
+      expect(pipeline).toContain('Amount: 0');
+      expect(pipeline).toContain('Currency: CAD');
       expect(pipeline).toContain('No activity for 31 days.');
       expect(pipeline.replace(/[│\n]/g, ' ').replace(/\s+/g, ' ')).toContain('Review synthetic account.');
       expect(pipeline).not.toContain('EXPANDED_CHANGE');
       const expanded = await output('sf_pipeline_report', report, {}, true, width);
-      expect(expanded.match(/FY aggregate bookings/g)).toHaveLength(1);
+      expect(expanded.match(/Fiscal-year bookings/g)).toHaveLength(1);
       expect(expanded).toContain('EXPANDED_CHANGE');
     });
   }

@@ -1,4 +1,5 @@
 import { recordSalesforceCommand } from './command-evidence';
+import { sanitize } from './sanitize';
 import type { SfJsonResult, SfRawResult } from './types';
 
 export type { SfRawResult } from './types';
@@ -127,6 +128,8 @@ export function parseSfJsonOutput(raw: string): SfJsonResult {
 }
 
 export interface SfExecApi {
+  /** Decorators that change argv record the actual invocation at their transport boundary. */
+  readonly recordsCommands?: boolean;
   exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<SfRawResult>;
 }
 
@@ -137,8 +140,8 @@ export async function execSfJson(
   query?: string,
 ): Promise<SfJsonResult> {
   const argv = [...args, '--json'];
-  recordSalesforceCommand(argv);
-  const result = await api.exec('sf', argv, { signal });
+  if (!api.recordsCommands) recordSalesforceCommand(argv);
+  const result = sanitize(await api.exec('sf', argv, { signal }));
   if (!result.stdout.trim() && result.exitCode !== 0) {
     throw detectSfError(result.stderr || 'Salesforce CLI returned no output', result.exitCode, query);
   }
@@ -155,10 +158,23 @@ export async function execSfJson(
 }
 
 export async function execSfRaw(api: SfExecApi, args: string[], signal?: AbortSignal): Promise<SfRawResult> {
-  recordSalesforceCommand(args);
-  const result = await api.exec('sf', args, { signal });
+  if (!api.recordsCommands) recordSalesforceCommand(args);
+  const result = sanitize(await api.exec('sf', args, { signal }));
   const queryIndex = args.indexOf('--query');
   const query = queryIndex >= 0 ? args[queryIndex + 1] : args.find((arg) => arg.startsWith('--query='))?.slice(8);
+  let structured: SfJsonResult | undefined;
+  try {
+    structured = parseSfJsonOutput(result.stdout);
+  } catch {
+    /* Plain help and CLI output remain supported. */
+  }
+  if (structured && structured.status !== 0)
+    throw detectSfError(
+      structured.message || result.stderr || 'Salesforce command failed',
+      structured.status,
+      query,
+      structured.name,
+    );
   if (result.exitCode !== 0) {
     if (args.includes('--json')) {
       let parsed: SfJsonResult | undefined;
