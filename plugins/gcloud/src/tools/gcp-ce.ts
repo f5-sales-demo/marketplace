@@ -152,9 +152,16 @@ export function createGcpCeTools(
         }),
       ),
       intent: Type.Optional(
-        Type.Unknown({
-          description: 'Versioned GCP CE intent for readiness planning or Marketplace agreement qualification',
-        }),
+        Type.Object(
+          {
+            engine: Type.Optional(Type.Union([Type.Literal('native'), Type.Literal('terraform')])),
+          },
+          {
+            additionalProperties: true,
+            description:
+              'Versioned GCP CE intent as a JSON object, never an encoded JSON string. The owning engine stays in intent.engine; deployment fields are validated by the selected operation.',
+          },
+        ),
       ),
       operation: Type.Optional(
         Type.Union(

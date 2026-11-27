@@ -15,7 +15,7 @@ and this project adheres to
 - **`salesforce`** v3.0.0 discovers reviewed private org configuration, reuses valid authentication, pins verified user/org scope and reports generic owner-or-team pipeline with separate currencies and product values. Requires xcsh 25.1.0 (#1941).
   Breaking change: embedded organization aliases, custom-field/product assumptions and inferred renewal/quota rules are removed; optional business mappings require confirmation.
 
-- **`gcloud`** v1.7.101 selects the latest qualified stable Terraform 1.17.2,
+- **`gcloud`** v1.7.102 selects the latest qualified stable Terraform 1.17.2,
   Google 8.12.0 and XC 15.17.9 tuple without a seven-day release-age hold.
   Versioned Site access and observer mappings retain original cleanup identities.
 - **`terraform`** v2.4.202 adds current XC 15.17.9 bootstrap, preapply and
