@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 119,
+  "sourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+  "scope": "ce-r119-q-7235ec61",
+  "publicTrace": [
+    {
+      "mode": "cancel-prepare",
+      "trace": [
+        {
+          "tool": "aws_ce_apply",
+          "startedAt": "2026-10-23T16:13:16.231Z",
+          "completedAt": "2026-10-23T16:15:03.194Z",
+          "status": "cancelled-before-planning",
+          "originalWorkspacePrepared": true,
+          "originalConfigurationSha256": "5a45c44505aee6b1d30ae7c1a6c3a38eba9b92c4680a6aa0d26e80d2e710441f",
+          "originalProviderLockSha256": "b97165003c421c83098216c89f00ecbd10a7fb59cd6954c8abf74af0262ed843",
+          "liveCleanupQualified": false
+        }
+      ],
+      "candidateRevision": 119,
+      "archiveSourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+      "planId": "aws-ce-86ca37457e65fdee6803becb",
+      "sourcePlanSha256": "86ca37457e65fdee6803becbdf37c7018b110fd6e66c5160edf8b364a2c073b8",
+      "cliVersion": "23.9.3",
+      "loadedArchivedRuntimes": 4,
+      "fixture": "ce-r119-q-7235ec61",
+      "fullCeAcceptance": false,
+      "releaseReady": false
+    },
+    {
+      "mode": "verify-cancel",
+      "trace": [
+        {
+          "tool": "aws_ce_apply",
+          "status": "retained-cancellation-verified",
+          "originalWorkspacePrepared": true,
+          "planningStarted": false,
+          "originalInputs": 4,
+          "liveCloudCleanupQualified": false
+        }
+      ],
+      "candidateRevision": 119,
+      "archiveSourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+      "planId": "aws-ce-86ca37457e65fdee6803becb",
+      "sourcePlanSha256": "86ca37457e65fdee6803becbdf37c7018b110fd6e66c5160edf8b364a2c073b8",
+      "cliVersion": "23.9.3",
+      "loadedArchivedRuntimes": 4,
+      "fixture": "ce-r119-q-7235ec61",
+      "fullCeAcceptance": false,
+      "releaseReady": false
+    },
+    {
+      "mode": "teardown-prepare",
+      "trace": [
+        {
+          "tool": "aws_ce_teardown",
+          "startedAt": "2026-10-23T16:15:08.906Z",
+          "completedAt": "2026-10-23T16:15:35.063Z",
+          "isError": false,
+          "resultSha256": "eaf5d3bba4c9921b2e4ca9ac6360a1f5b6ff913f0f1b94f0f077f8baf4ad6122"
+        }
+      ],
+      "candidateRevision": 119,
+      "archiveSourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+      "planId": "aws-ce-86ca37457e65fdee6803becb",
+      "sourcePlanSha256": "86ca37457e65fdee6803becbdf37c7018b110fd6e66c5160edf8b364a2c073b8",
+      "cliVersion": "23.9.3",
+      "loadedArchivedRuntimes": 4,
+      "fixture": "ce-r119-q-7235ec61",
+      "fullCeAcceptance": false,
+      "releaseReady": false
+    },
+    {
+      "mode": "teardown-apply",
+      "trace": [
+        {
+          "tool": "aws_ce_teardown",
+          "startedAt": "2026-10-23T16:15:54.377Z",
+          "completedAt": "2026-10-23T16:18:49.693Z",
+          "isError": false,
+          "status": "deployment-artifacts-retired",
+          "resultSha256": "a14a8e7799743b0f23452224323469a63cb8247e268e1fafc1f24a83bf77a8fe"
+        }
+      ],
+      "candidateRevision": 119,
+      "archiveSourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+      "planId": "aws-ce-86ca37457e65fdee6803becb",
+      "sourcePlanSha256": "86ca37457e65fdee6803becbdf37c7018b110fd6e66c5160edf8b364a2c073b8",
+      "cliVersion": "23.9.3",
+      "loadedArchivedRuntimes": 4,
+      "fixture": "ce-r119-q-7235ec61",
+      "fullCeAcceptance": false,
+      "releaseReady": false
+    }
+  ],
+  "independentVerification": {
+    "status": "verified-preprovision-clean",
+    "candidateRevision": 119,
+    "sourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+    "scope": "ce-r119-q-7235ec61",
+    "sourcePlanSha256": "86ca37457e65fdee6803becbdf37c7018b110fd6e66c5160edf8b364a2c073b8",
+    "observedAt": "2026-10-23T16:19:36.901Z",
+    "originalPublicCancellation": true,
+    "originalBeforePlanningInputs": 4,
+    "actualPublicTeardown": true,
+    "independentOriginalExecution": true,
+    "separateExecutionProof": {
+      "status": "independent-original-execution-provenance-verified",
+      "independentCleanupSha256": "0f3563d44951eaf6f042912a13cd2eed90825ca3d6ec417de69d50cb35955f93",
+      "inputInventorySha256": "e61e6706f3a3014dba71a9262d7536af3d68fc74956ef8a21e12b3e7facf9423",
+      "originalLocalState": "present-empty-verified",
+      "liveCloudCleanupQualified": false,
+      "fullCeAcceptance": false
+    },
+    "independentOwnershipInventoryAbsence": true,
+    "independentApiTokenInterfaceAbsence": true,
+    "sensitiveStagingRetired": true,
+    "cloudIdBaselineCount": 0,
+    "launchedCloudCleanupQualified": false,
+    "watchdogArmingQualified": false,
+    "fullCeAcceptance": false,
+    "releaseReady": false
+  },
+  "originalDestroyReceiptSha256": "4a31227c3cd2f922268a3822f1df2df85b6cc8517c58107d26a93f945aeed34a",
+  "verifierFileDigests": {
+    "verify-preprovision119.py": "8069e082e7da028744cfd4276d53b2a788d8df4a2b0475490561d53eb220e6c1",
+    "verify-ce-preprovision-proof.py": "f6a00c1c399a656badacb91700bf1f870f24a3aa6de0cd0dc71dda54ba01bbc0",
+    "verify-ce-inspection-cleanup.py": "703759a28e5b8a6c68eb10955d9e9e28bae6184d0a510d13027f6b399221f60a",
+    "verify-ce-independent-execution.py": "60f2754384a15e56c61b0507cb19cad1514ad18fcecf10eee6718649e316a78a",
+    "test_verify_ce_preprovision_proof.py": "fcb2b3f4dc0d7a95b020605a888aadec4663b3f6cf763003d1b64c6de1b5a835"
+  },
+  "independentVerifierRegression": {
+    "macTestsPassed": 7,
+    "ubuntuTestsPassed": 7,
+    "initialFailureRetained": true,
+    "initialFailure": "Verifier expected a retired destroy journal in the deployment directory; corrected to join a snapshot captured before removal with the exact parent retirement inventory hash."
+  },
+  "retainedUat118Failure": "docs/receipts/ce-uat118-empty-inventory-failure.json",
+  "preprovisionCleanupQualified": true,
+  "launchedCloudCleanupQualified": false,
+  "watchdogArmingQualified": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}

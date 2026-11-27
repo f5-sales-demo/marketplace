@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "candidateRevision": 231,
+  "problem": "Initial CE registrations arrive as PENDING and the previous NEW-only admission path never submitted approval.",
+  "behavior": "The platform lifecycle service approves an identity-verified initial PENDING registration once, preserving its server passport. An immutable owner/tenant/contract/UID/passport reservation is synced before submission. Matching reservations suppress replay; conflicting or missing provenance blocks mutation.",
+  "publicContract": {
+    "repository": "https://github.com/volterraedge/terraform-provider-volterra",
+    "commit": "3ec45bb41f3980e8876d2d298f48babba206c7ce",
+    "implementation": "volterra/resource_volterra_registration_approval.go",
+    "lines": [156, 159],
+    "documentation": "docs/resources/volterra_registration_approval.md"
+  },
+  "validation": {
+    "platformCeTestsBeforeFinalTwoCases": 949,
+    "platformAssertions": 6311,
+    "finalRuntimeTests": 145,
+    "finalRuntimeAssertions": 607,
+    "consumerTests": 120,
+    "consumerAssertions": 772,
+    "typescriptPlugins": ["platform", "aws", "azure", "terraform"],
+    "builtPlugins": ["platform", "aws", "azure", "terraform"],
+    "assetChecks": "passed",
+    "installedPendingAdmissionQualified": false,
+    "livePendingAdmissionQualified": false
+  },
+  "cleanup": {
+    "recoveryRequired": true,
+    "originalWatchdogDeadlinePassed": false,
+    "originalFailurePreserved": true,
+    "independentChecksPassed": 8,
+    "sensitiveAdditionalCapturesRetired": 6,
+    "publicCleanupAcceptancePassed": false
+  },
+  "acceptance": {
+    "currentCompleteMatrixRows": 0,
+    "requiredMatrixRows": 288,
+    "blockedGates": 11,
+    "awsRecoveryMeasuredMilliseconds": 212977,
+    "awsRecoveryThresholdMilliseconds": 45000,
+    "selectedSliControlQualified": false,
+    "originalPublicationFreshnessQualified": false,
+    "fullCeAcceptance": false,
+    "releaseReady": false
+  }
+}
