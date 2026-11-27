@@ -4,6 +4,7 @@ import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { scopedAwsApi } from './scoped-exec';
+import { type AwsTerraformMetadataIdentity, awsTerraformMetadataProjection } from './terraform-metadata-retirement';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import type { AwsCePlan } from './types';
 
@@ -188,6 +189,7 @@ export async function verifyAwsTerraformDestroyOwnership(
     )
       throw new Error('AWS teardown resource is foreign to this deployment, plan, or engine');
   };
+  const metadata = new Map<string, AwsTerraformMetadataIdentity>();
   const live = new Map<string, { type: string; value: Json }>();
   for (const [type, [operation, flag, collection, idKey, prefix]] of Object.entries(tagged)) {
     const selected = states.filter((state) => state.type === type);
@@ -210,7 +212,19 @@ export async function verifyAwsTerraformDestroyOwnership(
       owned(item, type === 'aws_network_interface' ? 'TagSet' : 'Tags');
       const id = String(item[idKey]);
       if (live.has(id)) throw new Error('Duplicate teardown resource identity across types');
+      const original = selected.find((state) => state.value.id === id);
+      if (!original) throw Error('Original metadata resource projection unavailable');
       live.set(id, { type, value: item });
+      metadata.set(id, {
+        type,
+        id,
+        address: original.address,
+        tags: awsTerraformMetadataProjection(
+          plan,
+          original.address,
+          item[type === 'aws_network_interface' ? 'TagSet' : 'Tags'],
+        ),
+      });
     }
   }
   for (const [type, [operation, flag, collection, pattern]] of Object.entries(elbTagged)) {
@@ -246,6 +260,7 @@ export async function verifyAwsTerraformDestroyOwnership(
     return result.value;
   };
   const volumeIds = new Set<string>();
+  const volumeParents = new Map<string, string>();
   for (const { type, value } of live.values())
     if (type === 'aws_instance') {
       const nics = rows(value.NetworkInterfaces);
@@ -257,6 +272,8 @@ export async function verifyAwsTerraformDestroyOwnership(
         const id = object(disk.Ebs).VolumeId;
         if (typeof id !== 'string' || !/^vol-[a-f0-9]{8,21}$/.test(id))
           throw new Error('Instance teardown volume identity is unavailable');
+        if (volumeParents.has(id)) throw Error('Ambiguous attached volume lifecycle owner');
+        volumeParents.set(id, String(value.InstanceId));
         volumeIds.add(id);
       }
     }
@@ -268,7 +285,21 @@ export async function verifyAwsTerraformDestroyOwnership(
       volumes.some((volume) => !volumeIds.has(String(volume.VolumeId)))
     )
       throw new Error('Instance teardown volume inventory differs');
-    for (const volume of volumes) owned(volume);
+    for (const volume of volumes) {
+      owned(volume);
+      const id = String(volume.VolumeId),
+        parentInstanceId = volumeParents.get(id);
+      if (!parentInstanceId) throw Error('Original volume lifecycle parent unavailable');
+      const parent = states.find((state) => state.type === 'aws_instance' && state.value.id === parentInstanceId);
+      if (!parent) throw Error('Original volume parent projection unavailable');
+      metadata.set(id, {
+        type: 'aws_ebs_volume',
+        id,
+        address: parent.address,
+        parentInstanceId,
+        tags: awsTerraformMetadataProjection(plan, parent.address, volume.Tags),
+      });
+    }
   }
   const tables = new Map<string, Json>();
   const tgwTable = async (id: unknown) => {
@@ -449,6 +480,7 @@ export async function verifyAwsTerraformDestroyOwnership(
     resources: [...live.entries()]
       .map(([id, row]) => ({ type: row.type, id }))
       .concat([...volumeIds].map((id) => ({ type: 'aws_ebs_volume', id }))),
+    metadata: [...metadata.values()],
     tgwEdges: states
       .filter((row) => row.type.startsWith('aws_ec2_transit_gateway_route_table_'))
       .map((row) => ({

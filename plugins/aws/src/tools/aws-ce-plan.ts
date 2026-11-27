@@ -19,7 +19,7 @@ export function createAwsCePlanTool(pi: PluginInterface) {
     securityGroupNames: Type.Optional(stringArray),
     role: Type.Union(['slo', 'sli', 'management', 'service', 'workload'].map((value) => Type.Literal(value))),
     vrf: Type.String(),
-    mtu: Type.Optional(Type.Integer({ minimum: 1500, maximum: 9000 })),
+    mtu: Type.Optional(Type.Integer({ minimum: 1500, maximum: 8000 })),
     guestDevice: Type.Optional(Type.String()),
     subnets: Type.Array(subnet),
     addressing: Type.Object({
@@ -147,13 +147,28 @@ export function createAwsCePlanTool(pi: PluginInterface) {
                 subnetIds: stringArray,
                 privateAddresses: stringArray,
               }),
-              listener: Type.Object({
-                privateAddresses: stringArray,
-                name: Type.String(),
-                namespace: Type.String(),
-                domain: Type.String(),
-                originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
-              }),
+              listener: Type.Union([
+                Type.Object(
+                  {
+                    privateAddresses: stringArray,
+                    name: Type.String(),
+                    namespace: Type.String(),
+                    domain: Type.String(),
+                    originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
+                  },
+                  { additionalProperties: false },
+                ),
+                Type.Object(
+                  {
+                    usePrimaryInterfaceAddress: Type.Literal(true),
+                    name: Type.String(),
+                    namespace: Type.String(),
+                    domain: Type.String(),
+                    originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
+                  },
+                  { additionalProperties: false },
+                ),
+              ]),
               probe: Type.Object({
                 sourceInstanceId: Type.String(),
                 path: Type.String(),

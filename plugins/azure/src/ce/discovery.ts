@@ -1,5 +1,10 @@
 import type { AzExecApi } from '../az/exec';
 import { canonicalStringify, sha256Hex } from './canonical';
+import {
+  classifyAzureImageHardwareCompatibility,
+  readAzureImageHardware,
+  readAzureSkuHardware,
+} from './image-hardware-compatibility';
 import type {
   AzureCeObservation,
   AzureCeRegionObservation,
@@ -175,6 +180,7 @@ async function imageAvailable(
   region: string,
   urn: string,
   subscriptionId: string,
+  hardware: ReturnType<typeof readAzureImageHardware>,
 ): Promise<boolean | undefined> {
   const result = await api.exec('az', [
     'vm',
@@ -189,7 +195,17 @@ async function imageAvailable(
     '--output',
     'json',
   ]);
-  if (result.exitCode === 0) return true;
+  if (result.exitCode === 0) {
+    try {
+      const observed = readAzureImageHardware(JSON.parse(result.stdout), { subscriptionId, region, urn });
+      if (observed.architecture === 'unknown' || observed.hyperVGeneration === 'unknown') return undefined;
+      return observed.architecture === hardware.architecture && observed.hyperVGeneration === hardware.hyperVGeneration
+        ? true
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
   if (/not found|could not be found|invalid image reference|platform image/i.test(result.stderr)) return false;
   return undefined;
 }
@@ -376,6 +392,7 @@ function skusForRegion(
     });
     const observation: AzureCeVmSizeObservation = {
       name,
+      ...readAzureSkuHardware(sku),
       maxNics: Number(capability(sku, 'MaxNetworkInterfaces') ?? 0),
       vCpus: Number(capability(sku, 'vCPUs') ?? capability(sku, 'vCPUsAvailable') ?? 0),
       memoryGb: Number(capability(sku, 'MemoryGB') ?? 0),
@@ -383,6 +400,14 @@ function skusForRegion(
       restricted,
     };
     const existing = byName.get(name.toLowerCase());
+    if (
+      existing &&
+      canonicalStringify({ architecture: existing.architecture, hyperVGenerations: existing.hyperVGenerations }) !==
+        canonicalStringify(readAzureSkuHardware(sku))
+    ) {
+      byName.set(name.toLowerCase(), { ...existing, architecture: 'unknown', hyperVGenerations: undefined });
+      continue;
+    }
     if (!existing || canonicalStringify(observation).localeCompare(canonicalStringify(existing)) < 0)
       byName.set(name.toLowerCase(), observation);
   }
@@ -508,6 +533,20 @@ export async function discoverAzureCompute(
     .sort();
   const selected = await resolveMarketplaceImage(api, physicalRegions, subscriptionId, input);
   const urn = selected.urn;
+  const hardware = readAzureImageHardware(
+    await json(api, [
+      'vm',
+      'image',
+      'show',
+      '--location',
+      selected.catalogRegion,
+      '--urn',
+      urn,
+      '--subscription',
+      subscriptionId,
+    ]),
+    { subscriptionId, region: selected.catalogRegion, urn },
+  );
   const terms = await json<Record<string, unknown>>(api, [
     'vm',
     'image',
@@ -534,7 +573,7 @@ export async function discoverAzureCompute(
     const availabilityPairs = await mapLimit(
       physicalRegions,
       8,
-      async (region) => [region, await imageAvailable(api, region, urn, subscriptionId)] as const,
+      async (region) => [region, await imageAvailable(api, region, urn, subscriptionId, hardware)] as const,
     );
     for (const [region, available] of availabilityPairs) imageAvailability.set(region, available);
   }
@@ -579,7 +618,12 @@ export async function discoverAzureCompute(
   const preliminary: AzureCeRegionObservation[] = physicalRegions.map((region) => {
     const availableVmSizes = skusForRegion(rawSkus, input.vmSize, region);
     const eligibleVmSizes = availableVmSizes.filter(
-      (size) => !size.restricted && size.maxNics >= input.requiredNics && size.vCpus >= 8 && size.memoryGb >= 32,
+      (size) =>
+        !size.restricted &&
+        size.maxNics >= input.requiredNics &&
+        size.vCpus >= 8 &&
+        size.memoryGb >= 32 &&
+        classifyAzureImageHardwareCompatibility(hardware, size) === 'compatible',
     );
     const vmSize = eligibleVmSizes[0] ?? availableVmSizes[0];
     const policyDenied = policies.some(
@@ -599,6 +643,10 @@ export async function discoverAzureCompute(
       if (availableVmSizes.every((size) => size.restricted)) blockers.push('sku-restricted');
       if (availableVmSizes.every((size) => size.maxNics < input.requiredNics)) blockers.push('nic-limit');
       if (availableVmSizes.every((size) => size.vCpus < 8 || size.memoryGb < 32)) blockers.push('ce-minimum-size');
+      if (availableVmSizes.some((size) => classifyAzureImageHardwareCompatibility(hardware, size) === 'incompatible'))
+        blockers.push('vm-image-incompatible');
+      if (availableVmSizes.some((size) => classifyAzureImageHardwareCompatibility(hardware, size) === 'unknown'))
+        blockers.push('vm-image-compatibility-unverified');
       if (blockers.length === 0) blockers.push('no-compatible-vm-size');
     } else if (input.nodeCount === 3 && vmSize.zones.length < 3) {
       reasons.push('fewer-than-three-zones');
@@ -642,6 +690,7 @@ export async function discoverAzureCompute(
       version: selected.version,
       urn,
       termsAccepted: Boolean(terms.accepted),
+      ...hardware,
     },
     regions: preliminary,
     resources: resourceObservations,

@@ -9,6 +9,10 @@ const previousToken = process.env.XCSH_API_TOKEN;
 const previousTenant = process.env.XCSH_TENANT;
 const previousGithubToken = process.env.GH_TOKEN;
 beforeEach(() => {
+  // Each test chooses context or environment precedence explicitly.
+  delete process.env.XCSH_API_URL;
+  delete process.env.XCSH_API_TOKEN;
+  delete process.env.XCSH_TENANT;
   // The release transport is simulated; never consult workstation GitHub auth.
   process.env.GH_TOKEN = 'fixture-contract-credential';
 });

@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,8 +8,10 @@ import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
 import { type CeStoredSiteBinding, createCePlatformService } from '../../src/ce/service';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
+import sixInterfaces from '../fixtures/aws-ha-six-interface-links.json';
 import routingSchemaCompact from '../fixtures/aws-routing-schema.json';
 import recordedInterfaces from '../fixtures/aws-site-publisher-links.json';
+import registrationDeleteApi from '../fixtures/registration-delete-api.json';
 import { resolveCeSchemaFixture } from '../fixtures/resolve-schema-fixture';
 import contract from '../fixtures/smsv2-contract-v7.json';
 import schemaCompact from '../fixtures/smsv2-create-schema.json';
@@ -25,9 +28,16 @@ type ContractFixtureConstructor = new (
   schemas: Record<string, unknown>,
   networking: { network: Record<string, unknown>; marketplace: Record<string, unknown> } | undefined,
   publication: 'published-release',
+  kvm?: unknown,
+  readonlyApi?: Record<string, unknown>,
+  registrationApi?: Record<string, unknown>,
 ) => VerifiedCeContract;
 
-function fixture(withRouting = false, fixtureContract: Record<string, unknown> = contract): VerifiedCeContract {
+function fixture(
+  withRouting = false,
+  fixtureContract: Record<string, unknown> = contract,
+  registrationApi: Record<string, unknown> = registrationDeleteApi,
+): VerifiedCeContract {
   const Constructor = VerifiedCeContract as unknown as ContractFixtureConstructor;
   return new Constructor(
     schema.provenance.commit,
@@ -41,6 +51,9 @@ function fixture(withRouting = false, fixtureContract: Record<string, unknown> =
         }
       : undefined,
     'published-release',
+    undefined,
+    undefined,
+    registrationApi,
   );
 }
 const binding: SiteBinding = {
@@ -1415,7 +1428,11 @@ test('maintenance routing observation binds site and child identity before writa
       metadata: {
         name: bgp.name,
         namespace: 'system',
-        labels: { ...labels, 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': foreign ? 'foreign' : 'site-one' },
+        labels: {
+          ...labels,
+          'xcsh-ce-site': binding.siteName,
+          'xcsh-ce-site-uid': foreign ? 'foreign' : 'site-one',
+        },
       },
       system_metadata: { uid: 'bgp-one' },
       resource_version: missingVersion ? '' : 'v1',
@@ -1896,7 +1913,11 @@ for (const mode of ['stable', 'upgrading', 'offline', 'stale', 'replacement', 'c
     const calls: string[] = [];
     const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
       calls.push(init?.method ?? 'GET');
-      const metadata = { name: binding.siteName, namespace: 'system', labels: mode === 'foreign' ? {} : labels };
+      const metadata = {
+        name: binding.siteName,
+        namespace: 'system',
+        labels: mode === 'foreign' ? {} : labels,
+      };
       if (new URL(url).pathname.includes('securemesh_site_v2s'))
         return json({
           metadata,
@@ -2134,3 +2155,706 @@ for (const identity of ['same', 'foreign-site', 'foreign-contract', 'foreign-ten
     }
   });
 }
+
+for (const mode of ['stable', 'unknown', 'down', 'duplicate', 'partial', 'foreign-node', 'all-nodes'] as const)
+  test(`Azure surviving interface observation ${mode} preserves complete deployment bindings`, async () => {
+    const raw = structuredClone(sixInterfaces);
+    const configuration: Record<string, unknown> = {
+      ...raw.configuration,
+      metadata: { ...raw.configuration.metadata, labels: { ...labels, 'xcsh-ce-provider': 'azure' } },
+      spec: { azure: raw.configuration.spec.aws },
+    };
+    const nodes = [...new Set(raw.expected.map((row) => row.node))];
+    const selected: SiteBinding = {
+      ...binding,
+      owner: { ...binding.owner, provider: 'azure' },
+      siteName: raw.configuration.metadata.name,
+      nodes,
+    };
+    const complete = raw.expected.map((row) => ({ ...row, role: row.role as 'slo' | 'sli' }));
+    const surviving = nodes.slice(0, -1);
+    let writes = 0,
+      reads = 0;
+    const runtime = new CeRuntime(
+      fixture(),
+      'native',
+      'https://tenant.test',
+      'test-credential',
+      async (url, init) => {
+        reads++;
+        expect(init?.method ?? 'GET').toBe('GET');
+        const path = new URL(url).pathname;
+        if (path.includes('securemesh_site_v2s')) return json(configuration);
+        if (mode === 'unknown' && path.includes('network_interfaces')) return json({}, 503);
+        const physical = structuredClone(raw.physical);
+        if (mode === 'down') physical.status[0].ver_status.intf_status[0].link_state = false;
+        return json(path.includes('network_interfaces') ? raw.objects : physical);
+      },
+      undefined,
+      async () => {
+        writes++;
+      },
+    );
+    const selectedNodes =
+      mode === 'duplicate'
+        ? [surviving[0], surviving[0]]
+        : mode === 'foreign-node'
+          ? ['foreign-node']
+          : mode === 'all-nodes'
+            ? nodes
+            : surviving;
+    const expected = mode === 'partial' ? complete.slice(1) : complete;
+    if (['duplicate', 'partial', 'foreign-node', 'all-nodes'].includes(mode)) {
+      await expect(runtime.observeAzureInterfacesForNodes(selected, expected, selectedNodes)).rejects.toThrow();
+      expect(reads).toBe(0);
+    } else {
+      const result = await runtime.observeAzureInterfacesForNodes(selected, expected, selectedNodes);
+      expect(result.status).toBe(mode === 'stable' ? 'observed' : mode === 'down' ? 'down' : 'unknown');
+      expect(result.interfaces.every((row) => surviving.includes(row.node))).toBe(true);
+      expect(result.interfaces.length).toBe(mode === 'unknown' ? 0 : surviving.length * 2);
+    }
+    expect(writes).toBe(0);
+  });
+
+for (const provider of ['aws', 'azure'] as const)
+  for (const engine of ['native', 'terraform'] as const)
+    test(`current issued bootstrap witness verifies ${provider}/${engine} without creation or secret exposure`, async () => {
+      const owned = { ...binding, owner: { ...binding.owner, provider, engine } },
+        expectedLabels = { ...labels, 'xcsh-ce-provider': provider, 'xcsh-ce-engine': engine };
+      const jwt = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.c2lnbmF0dXJl`,
+        sha = createHash('sha256').update(jwt).digest('hex');
+      let requests = 0;
+      const runtime = new CeRuntime(fixture(), engine, 'https://tenant.test', 'test-credential', async (url, init) => {
+        expect(init?.method ?? 'GET').toBe('GET');
+        requests++;
+        if (String(url).includes('/tokens/'))
+          return json({
+            metadata: {
+              name: 'node-token',
+              namespace: 'system',
+              labels: { ...expectedLabels, 'xcsh-ce-node': 'node-one' },
+            },
+            spec: { type: 1, site_name: 'ce-one', content: jwt },
+          });
+        return json({ metadata: { name: 'ce-one', namespace: 'system', labels: expectedLabels } });
+      });
+      const witness = await runtime.observeIssuedBootstrapToken(owned, 'node-one', 'node-token', sha);
+      expect(witness.tokenSha256).toBe(sha);
+      expect(witness.owner).toEqual(owned.owner);
+      expect(witness.expiresAt).toBeGreaterThan(Date.now() + 60000);
+      expect(JSON.stringify(witness)).not.toContain(jwt);
+      expect(requests).toBe(2);
+    });
+for (const mode of [
+  'foreign-digest',
+  'foreign-owner',
+  'wrong-site',
+  'wrong-node',
+  'expired',
+  'near-expiry',
+  'missing-expiry',
+  'overflow',
+  'malformed-jwt',
+  'unsigned-jwt',
+  'missing-token',
+  'unauthorized',
+  'service-failure',
+  'context-race',
+  'wrong-engine',
+  'unresolved',
+] as const)
+  test(`current issued bootstrap witness rejects ${mode} without creation or leaking the token`, async () => {
+    const owned = structuredClone(binding),
+      claims: Record<string, unknown> = { exp: Math.floor(Date.now() / 1000) + 3600 };
+    if (mode === 'expired') claims.exp = 1;
+    if (mode === 'near-expiry') claims.exp = Math.floor(Date.now() / 1000) + 30;
+    if (mode === 'missing-expiry') delete claims.exp;
+    if (mode === 'overflow') claims.exp = 1e308;
+    const jwt =
+        mode === 'unsigned-jwt'
+          ? `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.`
+          : mode === 'malformed-jwt'
+            ? 'SENSITIVE_INVALID_JWT'
+            : `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.c2lnbmF0dXJl`,
+      sha = createHash('sha256').update(jwt).digest('hex');
+    let writes = 0;
+    const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+      if (init?.method && init.method !== 'GET') writes++;
+      if (String(url).includes('/tokens/')) {
+        if (mode === 'missing-token') return json({}, 404);
+        if (mode === 'unauthorized') return json({ secret: jwt }, 403);
+        if (mode === 'service-failure') return json({ secret: jwt }, 500);
+        if (mode === 'context-race') owned.owner.account = 'example-foreign';
+        return json({
+          metadata: {
+            name: 'node-token',
+            namespace: 'system',
+            labels: {
+              ...labels,
+              'xcsh-ce-node': mode === 'wrong-node' ? 'foreign' : 'node-one',
+              ...(mode === 'foreign-owner' ? { 'xcsh-ce-account': 'foreign' } : {}),
+            },
+          },
+          spec: { type: 1, site_name: mode === 'wrong-site' ? 'foreign' : 'ce-one', content: jwt },
+        });
+      }
+      return json({ metadata: { name: 'ce-one', namespace: 'system', labels } });
+    });
+    if (mode === 'wrong-engine') owned.owner.engine = 'terraform';
+    const result = await runtime
+      .observeIssuedBootstrapToken(
+        owned,
+        'node-one',
+        'node-token',
+        mode === 'unresolved' ? '__JWT__' : mode === 'foreign-digest' ? 'a'.repeat(64) : sha,
+      )
+      .then(
+        () => ({ accepted: true, error: '' }),
+        (error) => ({ accepted: false, error: String(error) }),
+      );
+    expect(result.accepted).toBe(false);
+    expect(result.error).not.toContain(jwt);
+    expect(writes).toBe(0);
+  });
+
+for (const engine of ['native', 'terraform'] as const)
+  for (const mode of ['complete', 'missing-path', 'duplicate-path', 'caller-mutated'] as const)
+    test(`${engine} owned BGP membership ${mode} retains distinct exact path inventory`, async () => {
+      const scoped: SiteBinding = structuredClone(binding);
+      scoped.owner.engine = engine;
+      const expected = ['169.254.10.2', '169.254.10.3'].map((peerAddress) => ({
+        node: scoped.nodes[0],
+        interfaceName: 'ce-gre-one',
+        peerAddress,
+      }));
+      const tables = [{ node: scoped.nodes[0], routingInstance: 'site-local-inside', table: 'inet.0' }];
+      const prefixes = ['10.200.0.0/16'];
+      const original = structuredClone({ scoped, expected, tables, prefixes });
+      const route: Record<string, unknown> = { subnet: prefixes[0] };
+      const path = { peer: expected[0].peerAddress, nh: [expected[0].peerAddress], as_path: '65001' };
+      if (mode !== 'missing-path') route.path = mode === 'duplicate-path' ? [path, path] : [path];
+      const requests: string[] = [];
+      const runtime = new CeRuntime(fixture(true), engine, 'https://tenant.test', 'credential', async (url, init) => {
+        expect(init?.method ?? 'GET').toBe('GET');
+        requests.push(String(url));
+        if (String(url).includes('securemesh_site_v2s'))
+          return json({
+            metadata: {
+              name: original.scoped.siteName,
+              namespace: 'system',
+              labels: { ...labels, 'xcsh-ce-engine': engine },
+            },
+            system_metadata: { uid: 'site-one' },
+          });
+        if (mode === 'caller-mutated') {
+          scoped.siteName = 'foreign';
+          expected.length = 0;
+          tables.length = 0;
+          prefixes.length = 0;
+        }
+        if (String(url).includes('bgp_peers'))
+          return json({
+            ver: [
+              {
+                name: original.scoped.nodes[0],
+                peer: original.expected.map((peer) => ({
+                  interface_name: peer.interfaceName,
+                  peer_address: { ipv4: { addr: peer.peerAddress } },
+                  protocol_status: 'Established',
+                  received_prefix_count: 1,
+                  advertised_prefix_count: 1,
+                  up_down_timestamp: '2026-09-10T12:00:00Z',
+                })),
+              },
+            ],
+          });
+        return json({
+          ver: [
+            {
+              name: original.scoped.nodes[0],
+              ri_table: [
+                {
+                  routing_instance: 'site-local-inside',
+                  rt_table: [{ name: 'inet.0', imported: [], exported: [route] }],
+                },
+              ],
+            },
+          ],
+        });
+      });
+      const result = await runtime.observeBgpServiceMembership(scoped, 'site-one', expected, tables, prefixes);
+      expect(result).toMatchObject({
+        status: 'active',
+        freshness: 'unqualified',
+        traffic: 'unknown',
+        siteName: 'ce-one',
+      });
+      expect(result.pathInventory).toMatchObject({
+        status: ['missing-path', 'duplicate-path'].includes(mode) ? 'unknown' : 'observed',
+        scope: 'unqualified',
+        freshness: 'unqualified',
+        traffic: 'unknown',
+      });
+      if (result.pathInventory.status === 'observed')
+        expect(result.pathInventory.nodes[0].routingInstances[0].tables[0].exported[0].path).toEqual([path]);
+      expect(requests.every((url) => !url.includes('foreign'))).toBe(true);
+      expect(result.sessions[0].stateChangedAt).toBe('2026-09-10T12:00:00Z');
+    });
+
+const pendingRegistrationUid = '11111111-2222-4333-8444-555555555555';
+const pendingRegistrationName = `r-${pendingRegistrationUid}`;
+
+type InitialPendingSource = {
+  object: {
+    metadata: { name: string; namespace: string };
+    system_metadata: { uid: string; creator_class: string };
+    spec: {
+      gc_spec: {
+        passport: Record<string, unknown>;
+        infra: { hostname: string; instance_id: string; provider: string; zone?: string };
+      };
+    };
+    status: { current_state: string; parent_current_state: string };
+  };
+};
+
+function initialPendingFixture(change?: (source: InitialPendingSource) => void) {
+  const passport = { cluster_name: binding.siteName, cluster_size: 1, vendor_field: 'preserve-original' };
+  const source: InitialPendingSource = {
+    object: {
+      metadata: { name: pendingRegistrationName, namespace: 'system' },
+      system_metadata: { uid: pendingRegistrationUid, creator_class: 'prism' },
+      spec: { gc_spec: { passport, infra: { hostname: 'node-one', instance_id: 'i-fixture', provider: 'AWS' } } },
+      status: { current_state: 'PENDING', parent_current_state: 'WAITING_FOR_REGISTRATION' },
+    },
+  };
+  change?.(source);
+  const posts: Record<string, unknown>[] = [];
+  const fetcher = async (url: URL | RequestInfo, init?: RequestInit) => {
+    const path = new URL(String(url)).pathname;
+    if (path.includes('securemesh_site_v2s'))
+      return json({ metadata: { name: binding.siteName, namespace: 'system', labels } });
+    if (path.includes('registrations_by_site'))
+      return json({
+        items: [
+          {
+            name: pendingRegistrationName,
+            get_spec: { passport, infra: { hostname: 'node-one', instance_id: 'i-fixture' } },
+            object: { system_metadata: { uid: pendingRegistrationUid }, status: { current_state: 'PENDING' } },
+          },
+        ],
+      });
+    if (path.endsWith('/approve')) {
+      posts.push(JSON.parse(String(init?.body)));
+      // Acknowledgement deliberately leaves PENDING: a resumed caller must not replay it.
+      return json({});
+    }
+    return json(source);
+  };
+  return { fetcher, posts, passport, source };
+}
+
+test('initial PENDING admission preserves passport and reserves once across runtime recreation', async () => {
+  const { CeDeploymentStore } = await import('../../src/ce/deployment-store');
+  const root = await mkdtemp(join(tmpdir(), 'ce-pending-reservation-'));
+  try {
+    const store = await CeDeploymentStore.open(root, binding.owner);
+    const observed = initialPendingFixture();
+    const records: Record<string, unknown>[] = [];
+    const runtime = () =>
+      new CeRuntime(
+        fixture(),
+        'native',
+        'https://tenant.test',
+        'test-credential',
+        observed.fetcher,
+        undefined,
+        undefined,
+        async (scope, identity) => {
+          expect(scope.owner).toEqual(store.owner);
+          return store.reserve('initial-registration.json', { owner: scope.owner, identity });
+        },
+      );
+    const checkpoint = async (record: Record<string, unknown>) => {
+      records.push(record);
+    };
+    const result = await runtime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, checkpoint);
+    expect(result.status).toBe('degraded');
+    expect(observed.posts).toEqual([
+      { namespace: 'system', name: pendingRegistrationName, state: 'APPROVED', passport: observed.passport },
+    ]);
+    expect(records.map((row) => row.state)).toEqual(['requested', 'submitted']);
+    await runtime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, checkpoint);
+    expect(observed.posts).toHaveLength(1);
+    expect(records).toHaveLength(2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('initial PENDING admission without durable reservation is unknown and cannot post', async () => {
+  const observed = initialPendingFixture();
+  const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', observed.fetcher);
+  const result = await runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {});
+  expect(result).toMatchObject({ status: 'unknown', reason: 'registration-request-provenance-unavailable' });
+  expect(observed.posts).toHaveLength(0);
+});
+
+for (const [name, change] of [
+  [
+    'foreign UID',
+    (s: InitialPendingSource) => {
+      s.object.system_metadata.uid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    },
+  ],
+  [
+    'foreign publisher',
+    (s: InitialPendingSource) => {
+      s.object.system_metadata.creator_class = 'foreign';
+    },
+  ],
+  [
+    'foreign namespace',
+    (s: InitialPendingSource) => {
+      s.object.metadata.namespace = 'other';
+    },
+  ],
+  [
+    'foreign node',
+    (s: InitialPendingSource) => {
+      s.object.spec.gc_spec.infra.hostname = 'other';
+    },
+  ],
+  [
+    'foreign instance',
+    (s: InitialPendingSource) => {
+      s.object.spec.gc_spec.infra.instance_id = 'i-other';
+    },
+  ],
+  [
+    'foreign provider',
+    (s: InitialPendingSource) => {
+      s.object.spec.gc_spec.infra.provider = 'Azure';
+    },
+  ],
+  [
+    'noninitial parent',
+    (s: InitialPendingSource) => {
+      s.object.status.parent_current_state = 'ONLINE';
+    },
+  ],
+] as const) {
+  test(`initial PENDING admission rejects ${name} before reservation or request`, async () => {
+    const observed = initialPendingFixture(change);
+    let reservations = 0;
+    const runtime = new CeRuntime(
+      fixture(),
+      'native',
+      'https://tenant.test',
+      'test-credential',
+      observed.fetcher,
+      undefined,
+      undefined,
+      async () => {
+        reservations++;
+        return true;
+      },
+    );
+    await expect(runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {})).rejects.toThrow(
+      'Initial pending registration identity',
+    );
+    expect(reservations).toBe(0);
+    expect(observed.posts).toHaveLength(0);
+  });
+}
+
+test('immutable reservations reject substitution and concurrent callers reserve exactly once', async () => {
+  const { CeDeploymentStore } = await import('../../src/ce/deployment-store');
+  const root = await mkdtemp(join(tmpdir(), 'ce-request-reservation-'));
+  try {
+    const store = await CeDeploymentStore.open(root, binding.owner);
+    const result = await Promise.all(Array.from({ length: 8 }, () => store.reserve('request.json', { uid: 'one' })));
+    expect(result.filter(Boolean)).toHaveLength(1);
+    await expect(store.reserve('request.json', { uid: 'other' })).rejects.toThrow('reservation identity differs');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+for (const provider of ['aws', 'azure'] as const) {
+  for (const engine of ['native', 'terraform'] as const) {
+    test(`public service reserves initial PENDING approval across recreation (${provider}/${engine})`, async () => {
+      const root = await mkdtemp(join(tmpdir(), 'ce-pending-service-'));
+      const scope: SiteBinding = { ...binding, owner: { ...binding.owner, provider, engine } };
+      const observed = initialPendingFixture((source) => {
+        source.object.spec.gc_spec.infra.provider = provider.toUpperCase();
+      });
+      const previous = globalThis.fetch;
+      globalThis.fetch = (async (url, init) => {
+        if (new URL(String(url)).pathname.includes('securemesh_site_v2s'))
+          return json({
+            metadata: {
+              name: scope.siteName,
+              namespace: 'system',
+              labels: {
+                ...labels,
+                'xcsh-ce-provider': provider,
+                'xcsh-ce-engine': engine,
+              },
+            },
+          });
+        return observed.fetcher(url, init);
+      }) as typeof fetch;
+      try {
+        const service = () =>
+          createCePlatformService(
+            {
+              XCSH_API_URL: 'https://tenant.example.test',
+              XCSH_API_TOKEN: 'fixture-token',
+              XCSH_CE_DEPLOYMENTS_DIR: root,
+            },
+            async () => fixture(),
+          );
+        const first = await service().runtime(engine);
+        await first.approveRegistrations(scope, { 'node-one': 'i-fixture' }, async () => {});
+        const resumed = await service().runtime(engine);
+        await resumed.approveRegistrations(scope, { 'node-one': 'i-fixture' }, async () => {});
+        expect(observed.posts).toHaveLength(1);
+        const storage = await service().storage(scope.owner);
+        const key = createHash('sha256').update(pendingRegistrationName).digest('hex');
+        const reservation = await storage.read(`registration-approval-${key}.json`);
+        expect(reservation).toMatchObject({
+          schemaVersion: 1,
+          owner: scope.owner,
+          tenantOrigin: 'https://tenant.example.test',
+          contractFingerprint: fixture().fingerprint,
+          identity: { registrationUid: pendingRegistrationUid, initialState: 'PENDING' },
+        });
+      } finally {
+        globalThis.fetch = previous;
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  }
+}
+
+for (const failure of ['checkpoint-before-request', 'response-lost'] as const) {
+  test(`initial PENDING ${failure} remains reserved and is never replayed`, async () => {
+    const { CeDeploymentStore } = await import('../../src/ce/deployment-store');
+    const root = await mkdtemp(join(tmpdir(), 'ce-pending-interruption-'));
+    const observed = initialPendingFixture();
+    try {
+      const store = await CeDeploymentStore.open(root, binding.owner);
+      const makeRuntime = () =>
+        new CeRuntime(
+          fixture(),
+          'native',
+          'https://tenant.test',
+          'test-credential',
+          async (url, init) => {
+            const response = await observed.fetcher(url, init);
+            if (failure === 'response-lost' && new URL(String(url)).pathname.endsWith('/approve'))
+              throw new Error('simulated transport interruption');
+            return response;
+          },
+          undefined,
+          undefined,
+          async (_scope, identity) => store.reserve('approval.json', identity),
+        );
+      await expect(
+        makeRuntime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {
+          if (failure === 'checkpoint-before-request') throw new Error('simulated checkpoint interruption');
+        }),
+      ).rejects.toThrow();
+      expect(observed.posts).toHaveLength(failure === 'response-lost' ? 1 : 0);
+      const resumed = await makeRuntime().approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {});
+      expect(resumed.status).toBe('degraded');
+      expect(observed.posts).toHaveLength(failure === 'response-lost' ? 1 : 0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const mode of [
+  'deleted',
+  'ack-only',
+  'list-omission',
+  'changed-passport',
+  'advanced',
+  'unauthorized',
+  'service-failure',
+  'already-absent',
+] as const) {
+  test(`exact initial registration deletion retains ${mode} semantics`, async () => {
+    const { parseInitialRegistrationRetirement } = await import('../../src/ce/initial-registration-retirement');
+    const observed = initialPendingFixture((value) => {
+      value.object.spec.gc_spec.infra.zone = binding.owner.region;
+    });
+    const initial = observed.source;
+    const identity = parseInitialRegistrationRetirement(initial, binding, {
+      siteName: binding.siteName,
+      node: binding.nodes[0],
+      instanceId: 'i-fixture',
+      name: pendingRegistrationName,
+      uid: pendingRegistrationUid,
+    });
+    if (mode === 'changed-passport') initial.object.spec.gc_spec.passport.changed = true;
+    if (mode === 'advanced') initial.object.status.current_state = 'APPROVED';
+    let deleted = mode === 'already-absent';
+    let posts = 0,
+      logicalReads = 0;
+    const checkpoints: string[] = [];
+    const runtime = new CeRuntime(fixture(), 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      if (path.includes('/securemesh_site_v2s/')) {
+        logicalReads++;
+        if (deleted) return json({}, 404);
+        return json({
+          metadata: { name: binding.siteName, namespace: 'system', labels },
+          system_metadata: { uid: 'logical-uid' },
+        });
+      }
+      if (path.includes('/registrations_by_site/') && (deleted || mode === 'list-omission')) return json({ items: [] });
+      if (path.includes('/registrations/')) {
+        if (init?.method === 'DELETE') {
+          expect(new URL(String(url)).searchParams.get('fail_if_referred')).toBe('true');
+          expect(checkpoints).toEqual(['requested']);
+          posts++;
+          deleted = mode !== 'ack-only';
+          return json({});
+        }
+        if (deleted) return json({}, 404);
+        if (mode === 'unauthorized') return json({}, 403);
+        if (mode === 'service-failure') return json({}, 503);
+      }
+      return observed.fetcher(url, init);
+    });
+    const checkpoint = async (record: Record<string, unknown>) => {
+      checkpoints.push(String(record.state));
+    };
+    if (['list-omission', 'changed-passport', 'advanced', 'unauthorized', 'service-failure'].includes(mode)) {
+      await expect(
+        runtime.deleteInitialRegistration(binding, identity, checkpoint, undefined, 'logical-uid'),
+      ).rejects.toThrow();
+      expect(posts).toBe(0);
+    } else {
+      expect(
+        await runtime.deleteInitialRegistration(binding, identity, checkpoint, undefined, 'logical-uid'),
+      ).toHaveProperty('status', mode === 'ack-only' ? 'pending' : 'absent');
+      expect(posts).toBe(mode === 'already-absent' ? 0 : 1);
+      if (deleted) {
+        const before = logicalReads;
+        expect(
+          await runtime.deleteInitialRegistration(binding, identity, checkpoint, undefined, 'logical-uid'),
+        ).toHaveProperty('status', 'absent');
+        expect(logicalReads).toBe(before);
+        expect(posts).toBe(mode === 'already-absent' ? 0 : 1);
+      }
+    }
+  });
+}
+
+type RegistrationDeleteDefinition = {
+  operationId: string;
+  parameters: Array<{
+    name: string;
+    in: string;
+    required?: boolean;
+    schema: { type: string };
+  }>;
+  responses: Record<string, unknown>;
+  requestBody?: { required: boolean };
+};
+for (const kind of [
+  'operation',
+  'missing-path',
+  'query-type',
+  'duplicate',
+  'required-input',
+  'required-location',
+  'required-body',
+] as const) {
+  test(`pinned initial registration DELETE rejects ${kind} mapping`, () => {
+    const changed = structuredClone(registrationDeleteApi) as unknown as {
+      paths: Record<string, { delete: RegistrationDeleteDefinition }>;
+    };
+    const operation = changed.paths['/api/register/namespaces/{namespace}/registrations/{name}'].delete;
+    if (kind === 'operation') operation.operationId = 'unqualified';
+    if (kind === 'missing-path') operation.parameters = operation.parameters.filter((row) => row.name !== 'namespace');
+    if (kind === 'query-type') {
+      const query = operation.parameters.find((row) => row.name === 'fail_if_referred');
+      if (!query) throw Error('Published query fixture missing');
+      query.schema.type = 'string';
+    }
+    if (kind === 'duplicate') operation.parameters.push(operation.parameters[0]);
+    if (kind === 'required-input')
+      operation.parameters.push({ name: 'unresolved', in: 'query', required: true, schema: { type: 'string' } });
+    if (kind === 'required-location')
+      operation.parameters.push({ name: 'namespace', in: 'header', required: true, schema: { type: 'string' } });
+    if (kind === 'required-body') operation.requestBody = { required: true };
+    expect(() => fixture(false, contract, changed).registrationDeletionRequest(pendingRegistrationName)).toThrow();
+  });
+}
+test('pinned deletion mapping is isolated from caller mutation and requires a resolved registration UUID', () => {
+  const changed = structuredClone(registrationDeleteApi);
+  const mapped = fixture(false, contract, changed);
+  changed.paths['/api/register/namespaces/{namespace}/registrations/{name}'].delete.operationId = 'unqualified';
+  expect(mapped.registrationDeletionRequest(pendingRegistrationName)).toEqual({
+    method: 'DELETE',
+    path: `/api/register/namespaces/system/registrations/${pendingRegistrationName}?fail_if_referred=true`,
+  });
+  expect(() => mapped.registrationDeletionRequest('__REGISTRATION_ID__')).toThrow();
+});
+
+for (const provider of ['aws', 'azure'] as const)
+  for (const engine of ['native', 'terraform'] as const)
+    test(`public service retires original approval after exact remote deletion (${provider}/${engine})`, async () => {
+      const root = await mkdtemp(join(tmpdir(), 'ce-approval-finalization-'));
+      const scope: SiteBinding = { ...binding, owner: { ...binding.owner, provider, engine } };
+      const instance = provider === 'aws' ? 'i-1234567890abcdef0' : 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+      const observed = initialPendingFixture();
+      const previous = globalThis.fetch;
+      let retiring = false;
+      globalThis.fetch = (async (url, init) => {
+        if (retiring) return new Response('{}', { status: 404 });
+        if (new URL(String(url)).pathname.includes('securemesh_site_v2s'))
+          return json({
+            metadata: {
+              name: scope.siteName,
+              namespace: 'system',
+              labels: { ...labels, 'xcsh-ce-provider': provider, 'xcsh-ce-engine': engine },
+            },
+          });
+        const response = await observed.fetcher(url, init);
+        const encoded = JSON.stringify(await response.json())
+          .replaceAll('i-fixture', instance)
+          .replaceAll('AWS', provider.toUpperCase());
+        return new Response(encoded, { status: response.status, headers: { 'content-type': 'application/json' } });
+      }) as typeof fetch;
+      try {
+        const service = createCePlatformService(
+          {
+            XCSH_API_URL: 'https://tenant.example.test',
+            XCSH_API_TOKEN: 'fixture-token',
+            XCSH_CE_DEPLOYMENTS_DIR: root,
+          },
+          async () => fixture(),
+        );
+        const runtime = await service.runtime(engine);
+        await runtime.approveRegistrations(scope, { 'node-one': instance }, async () => {});
+        const store = await service.storage(scope.owner);
+        const name = `registration-approval-${createHash('sha256').update(pendingRegistrationName).digest('hex')}.json`;
+        expect(await store.read(name)).toHaveProperty('schemaVersion', 1);
+        retiring = true;
+        expect(
+          (await runtime.observeSiteDeletion(scope, { siteUid: 'logical-uid', physicalSiteUid: 'physical-uid' }))
+            .status,
+        ).toBe('deleted');
+        await expect(store.read(name)).rejects.toThrow();
+        expect(observed.posts).toHaveLength(1);
+      } finally {
+        globalThis.fetch = previous;
+        await rm(root, { recursive: true, force: true });
+      }
+    });

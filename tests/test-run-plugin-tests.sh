@@ -16,10 +16,10 @@ fail() {
   exit 1
 }
 
-if grep -Fq 'bun_version=1.4.2' "$INSTALLER"; then
-  pass "plugin CI uses current Bun 1.4.2"
+if grep -Fq 'bun_version=1.4.4' "$INSTALLER"; then
+  pass "plugin CI uses current Bun 1.4.4"
 else
-  fail "plugin CI must use current Bun 1.4.2"
+  fail "plugin CI must use current Bun 1.4.4"
 fi
 
 if grep -Fq 'run: ./scripts/install-ci-bun.sh' "$WORKFLOW" &&
@@ -31,9 +31,9 @@ fi
 
 if [ -x "$INSTALLER" ] &&
   grep -Fq 'RUNNER_TEMP' "$INSTALLER" &&
-  grep -Fq '36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913' \
+  grep -Fq 'bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c' \
     "$INSTALLER" &&
-  grep -Fq '54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7' \
+  grep -Fq 'baa6bb36f51d6e58561e02bbea825038a9df454f673d6d776e8bbf86f8c7850e' \
     "$INSTALLER"; then
   pass "Bun installer binds the verified artifact to runner temp"
 else
@@ -74,7 +74,8 @@ new_fixture() {
   cp "$SOURCE_ROOT/scripts/run-plugin-tests.sh" "$root/scripts/run-plugin-tests.sh"
   cp "$SOURCE_ROOT/scripts/check-plugin-runtime-dependencies.sh" \
     "$root/scripts/check-plugin-runtime-dependencies.sh"
-  for plugin in aws azure gcloud platform github gitlab salesforce; do
+  cp "$SOURCE_ROOT/scripts/resolve-plugin-runtime-package.cjs" "$root/scripts/resolve-plugin-runtime-package.cjs"
+  for plugin in aws azure gcloud platform terraform github gitlab salesforce; do
     mkdir -p "$root/plugins/$plugin/.xcsh-plugin"
     cp "$SOURCE_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" "$root/plugins/$plugin/.xcsh-plugin/plugin.json"
     cp "$SOURCE_ROOT/plugins/$plugin/package.json" "$root/plugins/$plugin/package.json"
@@ -82,9 +83,37 @@ new_fixture() {
   done
   printf '#!/bin/sh\nexit 0\n' >"$root/plugins/demo/scripts/tests/run-tests.sh"
   printf 'test("demo", () => {});\n' >"$root/plugins/demo/test/demo.test.ts"
-  printf '#!/bin/sh\nset -eu\nprintf "%%s|%%s\\n" "$*" "${PUPPETEER_SKIP_DOWNLOAD:-}" >>"$TEST_STATE/calls"\nif [ "${1:-}" = install ]; then exit "${INSTALL_EXIT:-0}"; fi\nif [ "${1:-}" = test ]; then touch "$TEST_STATE/test-ran"; fi\n' >"$root/bin/bun"
+  mkdir -p "$root/scripts/agent-validation-runtime"
+  printf '{"name":"runner-fixture"}\n' >"$root/scripts/agent-validation-runtime/package.json"
+  printf '{"lockfileVersion":2}\n' >"$root/scripts/agent-validation-runtime/bun.lock"
+  cat >"$root/bin/bun" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s|%s\n' "$*" "${PUPPETEER_SKIP_DOWNLOAD:-}" >>"$TEST_STATE/calls"
+if [ "${1:-}" = install ]; then
+  [ "${INSTALL_EXIT:-0}" = 0 ] || exit "$INSTALL_EXIT"
+  if sdk=$(jq -er '.devDependencies["@f5-sales-demo/xcsh"] // empty' package.json); then
+    for package in @f5-sales-demo/xcsh @f5-sales-demo/pi-ai @f5-sales-demo/pi-utils @anthropic-ai/sdk @agentclientprotocol/sdk @google/genai @sinclair/typebox bun-types; do
+      case "$package" in
+      @f5-sales-demo/xcsh | @f5-sales-demo/pi-ai | @f5-sales-demo/pi-utils) version="$sdk" ;;
+      @anthropic-ai/sdk) version=0.124.0 ;;
+      @agentclientprotocol/sdk) version=1.4.0 ;;
+      @google/genai) version=2.21.0 ;;
+      @sinclair/typebox) version=0.34.52 ;;
+      bun-types) version=$(jq -er '.devDependencies["bun-types"] | ltrimstr("^")' package.json) ;;
+      esac
+      mkdir -p "node_modules/$package"
+      jq -n --arg version "$version" '{version: $version}' >"node_modules/$package/package.json"
+    done
+  fi
+  exit 0
+fi
+if [ "${1:-}" = test ] && [[ "$PWD" = */plugins/demo ]]; then touch "$TEST_STATE/test-ran"; fi
+EOF
+  printf '#!/bin/sh\nexit 0\n' >"$root/bin/python3"
+  chmod +x "$root/bin/python3"
   chmod +x "$root/bin/bun" "$root/plugins/demo/scripts/tests/run-tests.sh"
-  for tool in bash basename dirname find git grep jq ln mktemp rm sort; do
+  for tool in bash basename dirname find git grep jq ln mkdir mktemp rm sort env touch node; do
     ln -s "$(command -v "$tool")" "$root/tools/$tool"
   done
   printf '%s\n' "$root"
@@ -114,7 +143,24 @@ if PATH="$MISSING_LOCK/bin:$MISSING_LOCK/tools" TEST_STATE="$MISSING_LOCK/state"
   fail "a Bun-tested plugin without a lockfile must fail the runner"
 fi
 if [ -e "$MISSING_LOCK/state/test-ran" ]; then
-  fail "bun tests must not run without a lockfile"
+  fail "the plugin's Bun tests must not run without its lockfile"
 else
-  pass "a missing lockfile stops before bun tests"
+  pass "a missing plugin lockfile stops before that plugin's Bun tests"
+fi
+
+PARALLEL_AZURE=$(new_fixture parallel-azure)
+printf '{"lockfileVersion":2}\n' >"$PARALLEL_AZURE/plugins/demo/bun.lock"
+mkdir -p "$PARALLEL_AZURE/plugins/azure/scripts/tests" "$PARALLEL_AZURE/plugins/azure/test"
+printf '#!/bin/sh\nexit 0\n' >"$PARALLEL_AZURE/plugins/azure/scripts/tests/run-tests.sh"
+printf 'test("azure", () => {});\n' >"$PARALLEL_AZURE/plugins/azure/test/azure.test.ts"
+if ! PATH="$PARALLEL_AZURE/bin:$PARALLEL_AZURE/tools" TEST_STATE="$PARALLEL_AZURE/state" \
+  bash "$PARALLEL_AZURE/scripts/run-plugin-tests.sh" >"$PARALLEL_AZURE/state/output" 2>&1; then
+  cat "$PARALLEL_AZURE/state/output" >&2
+  fail "bounded Azure file workers must preserve the full runner workflow"
+fi
+if grep -Fq 'test . --parallel=1|' "$PARALLEL_AZURE/state/calls" &&
+  ! grep -Eq -- '--concurrent|--no-isolate|--shard|--test-name-pattern' "$PARALLEL_AZURE/state/calls"; then
+  pass "Azure executes its complete suite with one isolated file worker"
+else
+  fail "Azure must retain all tests, file isolation, and serial tests within each file"
 fi

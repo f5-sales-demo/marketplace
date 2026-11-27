@@ -53,6 +53,39 @@ export function renderObservedProviderResource(
     )
       delete actualNodes.node_list;
   }
+  // AWS reservation readback adds these exact empty defaults before a CE exists.
+  // Bind omissions to the requested node/device/MAC; explicit or nondefault values
+  // must remain in the full writable comparison.
+  const aws = spec.aws ? object(object(spec.aws).not_managed) : undefined;
+  const wantedAws = desired.aws ? object(object(desired.aws).not_managed) : undefined;
+  const omitUnrequested = (actual: Json, configured: Json, key: string, value: unknown) => {
+    if (!Object.hasOwn(configured, key) && JSON.stringify(actual[key]) === JSON.stringify(value)) delete actual[key];
+  };
+  if (Array.isArray(aws?.node_list) && Array.isArray(wantedAws?.node_list)) {
+    const wantedNodes = wantedAws.node_list.map(object);
+    for (const row of aws.node_list) {
+      const node = object(row);
+      const matches = wantedNodes.filter((wanted) => wanted.hostname === node.hostname);
+      if (matches.length !== 1) continue;
+      const wanted = matches[0];
+      omitUnrequested(node, wanted, 'public_ip', '');
+      if (!Array.isArray(node.interface_list) || !Array.isArray(wanted.interface_list)) continue;
+      const wantedInterfaces = wanted.interface_list.map(object);
+      for (const row of node.interface_list) {
+        const iface = object(row);
+        if (!iface.ethernet_interface) continue;
+        const ethernet = object(iface.ethernet_interface);
+        const matches = wantedInterfaces.filter((wanted) => {
+          if (!wanted.ethernet_interface) return false;
+          const configured = object(wanted.ethernet_interface);
+          return configured.mac === ethernet.mac && configured.device === ethernet.device;
+        });
+        if (matches.length !== 1) continue;
+        omitUnrequested(iface, matches[0], 'labels', {});
+        omitUnrequested(iface, matches[0], 'priority', 0);
+      }
+    }
+  }
   const stripInterfaceFlags = (values: Json, schema: Json, path: string[]) => {
     const attributes = schema.attributes === undefined ? {} : object(schema.attributes);
     const blocks = schema.block_types === undefined ? {} : object(schema.block_types);

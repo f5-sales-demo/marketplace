@@ -8,6 +8,8 @@ import {
   buildAzureCeFailoverPlan,
   requireAzureFailoverExecutionContract,
   runAzureCeFailover,
+  validateAzureFailoverCheckpoint,
+  validateAzureFailoverReceipt,
 } from '../../src/ce/failover';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { intent, observation } from './fixtures';
@@ -171,3 +173,216 @@ test('reconciles a crash after mutation without replaying an already-complete re
   await expect(run()).resolves.toMatchObject({ status: 'failover-complete' });
   expect(stops).toBe(1);
 });
+
+for (const boundary of ['before-receipt', 'after-receipt', 'before-complete', 'after-complete'] as const)
+  test(`failover completion resumes ${boundary} publication without replacing its receipt`, async () => {
+    const f = fixture();
+    const root = await mkdtemp(join(tmpdir(), 'azure-failover-publish-'));
+    directories.push(root);
+    const storage = await CeDeploymentStore.open(root, azureFailoverOwner(f.plan));
+    let state: 'running' | 'deallocated' = 'running',
+      releases = 0,
+      failed = false;
+    const write = storage.write.bind(storage);
+    storage.write = async (name, value) => {
+      const target = boundary.includes('receipt')
+        ? name.endsWith('-receipt.json')
+        : (value as { phase?: string }).phase === 'complete';
+      if (target && !failed) {
+        failed = true;
+        if (boundary.startsWith('after-')) await write(name, value);
+        throw Error('interrupted publication');
+      }
+      return write(name, value);
+    };
+    const run = () =>
+      runAzureCeFailover(
+        f.plan,
+        f.failover,
+        f.failover.planSha256,
+        storage,
+        async () => state,
+        async (phase) => {
+          state = phase === 'stop' ? 'deallocated' : 'running';
+        },
+        async () => ({ acceptance: 'passed' }),
+        async () => {
+          releases++;
+        },
+        undefined,
+        { attempts: 1, intervalMs: 0, wait: async () => {} },
+      );
+    await expect(run()).rejects.toThrow('interrupted publication');
+    let original: unknown;
+    try {
+      original = await storage.read(`${f.failover.planId}-receipt.json`);
+    } catch {}
+    const result = await run();
+    const repeated = await run();
+    expect(repeated).toEqual(result);
+    if (original) expect(result as unknown).toEqual(original);
+    expect(releases).toBe(boundary === 'before-receipt' ? 2 : 1);
+    expect(((await storage.read(`${f.failover.planId}-checkpoint.json`)) as { phase: string }).phase).toBe('complete');
+  });
+
+for (const boundary of ['collect', 'observe', 'mutate', 'release'] as const)
+  test(`ignored failover ${boundary} cancellation cannot advance publication`, async () => {
+    const f = fixture();
+    const root = await mkdtemp(join(tmpdir(), 'azure-failover-cancel-'));
+    directories.push(root);
+    const storage = await CeDeploymentStore.open(root, azureFailoverOwner(f.plan));
+    const abort = new AbortController();
+    let state: 'running' | 'deallocated' = 'running',
+      mutations = 0;
+    await expect(
+      runAzureCeFailover(
+        f.plan,
+        f.failover,
+        f.failover.planSha256,
+        storage,
+        async () => {
+          if (boundary === 'observe') abort.abort(Error('ignored cancellation'));
+          return state;
+        },
+        async (phase) => {
+          mutations++;
+          state = phase === 'stop' ? 'deallocated' : 'running';
+          if (boundary === 'mutate') abort.abort(Error('ignored cancellation'));
+        },
+        async () => {
+          if (boundary === 'collect') abort.abort(Error('ignored cancellation'));
+          return { acceptance: 'passed' };
+        },
+        async () => {
+          if (boundary === 'release') abort.abort(Error('ignored cancellation'));
+        },
+        abort.signal,
+        { attempts: 1, intervalMs: 0, wait: async () => {} },
+      ),
+    ).rejects.toThrow('ignored cancellation');
+    await expect(storage.read(`${f.failover.planId}-receipt.json`)).rejects.toThrow();
+    if (['collect', 'observe'].includes(boundary)) expect(mutations).toBe(0);
+    const checkpoint = (await storage.read(`${f.failover.planId}-checkpoint.json`)) as { phase: string };
+    expect(checkpoint.phase).not.toBe('complete');
+  });
+
+test('failover checkpoint and receipt validators reject extra, foreign, future and impossible records', () => {
+  const f = fixture();
+  const checkpoint = {
+    schemaVersion: 1,
+    engine: 'native',
+    sourcePlanSha256: f.plan.planSha256,
+    failoverPlanSha256: f.failover.planSha256,
+    phase: 'baseline',
+  };
+  const receipt = {
+    status: 'failover-complete',
+    engine: 'native',
+    planId: f.failover.planId,
+    planSha256: f.failover.planSha256,
+    nodeIndex: f.failover.nodeIndex,
+    sessionSequence: [6, 4, 6],
+    traffic: 'healthy',
+    observedAt: new Date().toISOString(),
+  };
+  expect(checkpoint).toEqual(validateAzureFailoverCheckpoint(f.plan, f.failover, checkpoint));
+  expect(receipt as unknown).toEqual(validateAzureFailoverReceipt(f.plan, f.failover, receipt));
+  for (const changed of [
+    { ...checkpoint, extra: true },
+    { ...checkpoint, engine: 'terraform' },
+    { ...checkpoint, pending: { phase: 'baseline', requestSha256: 'f'.repeat(64) } },
+    { ...checkpoint, phase: 'release', pending: { phase: 'stop', requestSha256: 'f'.repeat(64) } },
+  ])
+    expect(() => validateAzureFailoverCheckpoint(f.plan, f.failover, changed)).toThrow();
+  for (const changed of [
+    { ...receipt, extra: true },
+    { ...receipt, nodeIndex: 3 },
+    { ...receipt, observedAt: '2999-01-01T00:00:00Z' },
+    { ...receipt, sessionSequence: [4, 4, 4] },
+  ])
+    expect(() => validateAzureFailoverReceipt(f.plan, f.failover, changed)).toThrow();
+});
+
+test('failover resume re-observes baseline before an unsubmitted stop mutation', async () => {
+  const f = fixture();
+  const root = await mkdtemp(join(tmpdir(), 'azure-failover-baseline-resume-'));
+  directories.push(root);
+  const storage = await CeDeploymentStore.open(root, azureFailoverOwner(f.plan));
+  const write = storage.write.bind(storage);
+  let failed = false,
+    baselineCalls = 0,
+    mutations = 0;
+  storage.write = async (name, value) => {
+    await write(name, value);
+    if (!failed && (value as { phase?: string }).phase === 'stop') {
+      failed = true;
+      throw Error('interrupt before stop');
+    }
+  };
+  const run = () =>
+    runAzureCeFailover(
+      f.plan,
+      f.failover,
+      f.failover.planSha256,
+      storage,
+      async () => 'running',
+      async () => {
+        mutations++;
+      },
+      async (phase) => {
+        if (phase === 'baseline') baselineCalls++;
+        return { acceptance: baselineCalls === 1 ? 'passed' : 'unknown' };
+      },
+      undefined,
+      undefined,
+      { attempts: 1, intervalMs: 0, wait: async () => {} },
+    );
+  await expect(run()).rejects.toThrow('interrupt before stop');
+  await expect(run()).rejects.toThrow('baseline convergence');
+  expect(baselineCalls).toBe(2);
+  expect(mutations).toBe(0);
+});
+
+for (const mode of ['missing-receipt', 'foreign-receipt', 'receipt-before-release'] as const)
+  test(`failover resume rejects ${mode} without cloud mutation`, async () => {
+    const f = fixture();
+    const root = await mkdtemp(join(tmpdir(), 'azure-failover-forged-completion-'));
+    directories.push(root);
+    const storage = await CeDeploymentStore.open(root, azureFailoverOwner(f.plan));
+    await storage.write(`${f.failover.planId}-checkpoint.json`, {
+      schemaVersion: 1,
+      engine: 'native',
+      sourcePlanSha256: f.plan.planSha256,
+      failoverPlanSha256: f.failover.planSha256,
+      phase: mode === 'receipt-before-release' ? 'baseline' : 'complete',
+    });
+    if (mode !== 'missing-receipt')
+      await storage.write(`${f.failover.planId}-receipt.json`, {
+        status: 'failover-complete',
+        engine: mode === 'foreign-receipt' ? 'terraform' : 'native',
+        planId: f.failover.planId,
+        planSha256: f.failover.planSha256,
+        nodeIndex: f.failover.nodeIndex,
+        sessionSequence: [6, 4, 6],
+        traffic: 'healthy',
+        observedAt: new Date().toISOString(),
+      });
+    let mutations = 0;
+    await expect(
+      runAzureCeFailover(
+        f.plan,
+        f.failover,
+        f.failover.planSha256,
+        storage,
+        async () => 'running',
+        async () => {
+          mutations++;
+        },
+        async () => ({ acceptance: 'passed' }),
+        undefined,
+        undefined,
+        { attempts: 1, intervalMs: 0, wait: async () => {} },
+      ),
+    ).rejects.toThrow();
+    expect(mutations).toBe(0);
+  });

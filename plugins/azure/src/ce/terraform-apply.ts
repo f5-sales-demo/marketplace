@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
@@ -5,12 +6,18 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import { assertApplyAllowed, assertObservationFresh } from './apply';
+import { captureAzureCeApplyRequest, guardAzureCeApplyServices } from './apply-request';
 import { type AzureCeToolContext, loadPlanArtifact } from './artifacts';
 import { discoverAzureCompute } from './discovery';
 import { ensureAzurePlatformIngress } from './platform-ingress';
 import { fingerprintCurrentObservation } from './recovery';
+import { azureTerraformCurrentDeployment } from './terraform-foundation';
 import { azureTerraformLifecycleDeployment, runAzureTerraformLifecycle } from './terraform-lifecycle';
+import { runAzureTerraformNetworkPublicReplacement } from './terraform-network-public-replacement';
+import { runAzureTerraformNetworkPublicUpdate } from './terraform-network-public-update';
+import { loadAzureTerraformOutcome, saveAzureTerraformOutcome } from './terraform-outcome';
 import { runAzureTerraformReplacement } from './terraform-replacement';
+import { qualifyAzureTerraformReplacementPublicSource } from './terraform-replacement-public-source';
 import { assertAzureTerraformDeploymentActive } from './terraform-retirement';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import { runAzureTerraformAdmission } from './terraform-workflow';
@@ -18,6 +25,7 @@ import { collectAzureTrafficProbe } from './traffic-probe';
 import type { AzureCeObservation, AzureCePlan } from './types';
 
 interface AzureTerraformApplyDependencies {
+  observe?: () => Promise<AzureCeObservation>;
   ingressContract?: () => Promise<VerifiedIngressContract>;
 }
 
@@ -41,7 +49,11 @@ export function reconcileAzureTerraformMarketplaceTermsAcceptance(
 
 /** Keep unsupported lifecycle intents from falling through to the deployment-only admission workflow. */
 export function assertAzureTerraformApplyOperation(plan: Awaited<ReturnType<typeof loadPlanArtifact>>['plan']): void {
-  if (!['deploy', 'start', 'stop', 'resize', 'replace-node'].includes(plan.intent.operation))
+  if (
+    !['deploy', 'start', 'stop', 'resize', 'replace-node', 'update-network', 'reconcile', 'repair'].includes(
+      plan.intent.operation,
+    )
+  )
     throw new Error(`Terraform ${plan.intent.operation} is not executable through Azure CE apply`);
 }
 
@@ -58,8 +70,13 @@ export async function acceptAzureTerraformLifecycleTraffic(
     collectTraffic?: typeof collectAzureTrafficProbe;
   } = {},
 ) {
-  if (!['start', 'resize'].includes(plan.intent.operation) || plan.intent.ingress?.mode !== 'platform-http')
-    throw new Error('Azure Terraform lifecycle traffic acceptance requires start or resize with platform ingress');
+  if (
+    !['start', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation) ||
+    plan.intent.ingress?.mode !== 'platform-http'
+  )
+    throw new Error(
+      'Azure Terraform lifecycle traffic acceptance requires a running-state lifecycle plan with platform ingress',
+    );
   const ingress = await (dependencies.ensureIngress ?? ensureAzurePlatformIngress)(
     plan,
     runtime,
@@ -95,17 +112,10 @@ export async function readAzureTerraformAuthorization(
 ): Promise<{ authorized: boolean; name: string }> {
   const name = `terraform-authorization-${planSha256}.json`;
   let authorization: unknown;
-  let scoped = true;
   try {
     authorization = await storage.read(name);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    scoped = false;
-    try {
-      authorization = await storage.read('terraform-authorization.json');
-    } catch (legacyError) {
-      if ((legacyError as NodeJS.ErrnoException).code !== 'ENOENT') throw legacyError;
-    }
   }
   const authorized = Boolean(
     authorization &&
@@ -115,23 +125,38 @@ export async function readAzureTerraformAuthorization(
       (authorization as Record<string, unknown>).planSha256 === planSha256 &&
       (authorization as Record<string, unknown>).mutations === true,
   );
-  if (scoped && authorization !== undefined && !authorized)
+  if (authorization !== undefined && !authorized)
     throw new Error('Azure Terraform authorization checkpoint differs from this plan or engine');
   return { authorized, name };
 }
 
 export async function executeAzureCeTerraformApply(
-  input: { planId: string; planSha256: string },
-  ctx: AzureCeToolContext,
-  api: AzExecApi,
-  platform: CePlatformService,
-  terraform: CeTerraformService,
+  requestInput: { planId: string; planSha256: string },
+  requestContext: AzureCeToolContext,
+  requestApi: AzExecApi,
+  requestPlatform: CePlatformService,
+  requestTerraform: CeTerraformService,
   signal?: AbortSignal,
   dependencies: AzureTerraformApplyDependencies = {},
 ) {
+  const request = captureAzureCeApplyRequest(requestInput, requestContext),
+    seal = () => {
+      signal?.throwIfAborted();
+      request.assertUnchanged();
+    },
+    services = guardAzureCeApplyServices(seal, requestApi, requestPlatform, requestTerraform),
+    input = request.input,
+    ctx = request.context,
+    api = services.api,
+    platform = services.platform;
+  if (!services.terraform) throw Error('Azure CE Terraform service was not acquired');
+  const terraform = services.terraform;
+  seal();
   if (Object.keys(input).some((key) => !['planId', 'planSha256'].includes(key)))
     throw new Error('Azure Terraform apply accepts only the persisted plan identity');
   const { plan } = await loadPlanArtifact(ctx.sessionManager, input.planId, input.planSha256);
+  request.bindPlatformContext(plan.intent.platformContext);
+  seal();
   if (plan.engine !== 'terraform') throw new Error('Azure Terraform apply requires Terraform ownership');
   assertAzureTerraformApplyOperation(plan);
   const storage = await platform.storage(azureUpgradeBinding(plan).owner);
@@ -146,24 +171,26 @@ export async function executeAzureCeTerraformApply(
       authorization: authorized ? { apply: true, terms: false, destroy: false } : undefined,
       executionEngine: 'terraform',
     });
-    const observe = () =>
-      discoverAzureCompute(
-        {
-          subscriptionId: plan.subscription.id,
-          publisher: plan.image.publisher,
-          offer: plan.image.offer,
-          plan: plan.image.plan,
-          version: plan.image.version,
-          vmSize: plan.vm.size,
-          requiredNics: plan.nics.length,
-          nodeCount: plan.topology.nodeCount,
-          requireRouteServer: plan.routing.mode === 'route-server',
-          brownfieldResourceIds: plan.intent.brownfield.resourceIds,
-          deploymentName: plan.deploymentName,
-          resourceGroup: plan.intent.resourceGroup,
-        },
-        api,
-      );
+    const observe =
+      dependencies.observe ??
+      (() =>
+        discoverAzureCompute(
+          {
+            subscriptionId: plan.subscription.id,
+            publisher: plan.image.publisher,
+            offer: plan.image.offer,
+            plan: plan.image.plan,
+            version: plan.image.version,
+            vmSize: plan.vm.size,
+            requiredNics: plan.nics.length,
+            nodeCount: plan.topology.nodeCount,
+            requireRouteServer: plan.routing.mode === 'route-server',
+            brownfieldResourceIds: plan.intent.brownfield.resourceIds,
+            deploymentName: plan.deploymentName,
+            resourceGroup: plan.intent.resourceGroup,
+          },
+          api,
+        ));
     let acceptedTermsFingerprint: string | undefined;
     const revalidate = async () => {
       const current = await observe();
@@ -214,24 +241,64 @@ export async function executeAzureCeTerraformApply(
           return { ingress, traffic: { ...traffic, status: 'healthy' as const } };
         }
       : undefined;
-    let result: Record<string, unknown> = ['start', 'stop', 'resize'].includes(plan.intent.operation)
-      ? await runAzureTerraformLifecycle(plan, terraform, runtime, storage, api, process.env, signal)
-      : plan.intent.operation === 'replace-node'
-        ? await runAzureTerraformReplacement(plan, terraform, runtime, storage, api, process.env, signal, acceptIngress)
-        : await runAzureTerraformAdmission(
-            plan,
-            terraform,
-            runtime,
-            storage,
-            api,
-            revalidate,
-            process.env,
-            signal,
-            undefined,
-            acceptIngress,
-          );
+    const qualifySource =
+      !plan.relayProfile && !plan.terraformNetworkReplacementProfile && plan.intent.operation === 'replace-node'
+        ? async (source: string, state: Parameters<typeof qualifyAzureTerraformReplacementPublicSource>[2]) =>
+            qualifyAzureTerraformReplacementPublicSource(
+              plan,
+              source,
+              state,
+              storage,
+              async (digest) =>
+                (await loadPlanArtifact(ctx.sessionManager, `azure-ce-${digest.slice(0, 24)}`, digest)).plan,
+              (owner) => loadAzureTerraformOutcome(ctx.sessionManager, owner),
+              createHash('sha256')
+                .update((await azureTerraformCurrentDeployment(plan)).providerLock)
+                .digest('hex'),
+            )
+        : undefined;
+    let result: Record<string, unknown> =
+      plan.intent.operation === 'update-network'
+        ? await runAzureTerraformNetworkPublicUpdate(plan, ctx, terraform, runtime, storage, api, signal)
+        : ['start', 'stop', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation)
+          ? await runAzureTerraformLifecycle(plan, terraform, runtime, storage, api, process.env, signal)
+          : plan.intent.operation === 'replace-node'
+            ? plan.terraformNetworkReplacementProfile
+              ? await runAzureTerraformNetworkPublicReplacement(
+                  plan,
+                  ctx,
+                  terraform,
+                  runtime,
+                  storage,
+                  api,
+                  signal,
+                  acceptIngress,
+                )
+              : await runAzureTerraformReplacement(
+                  plan,
+                  terraform,
+                  runtime,
+                  storage,
+                  api,
+                  process.env,
+                  signal,
+                  acceptIngress,
+                  qualifySource,
+                )
+            : await runAzureTerraformAdmission(
+                plan,
+                terraform,
+                runtime,
+                storage,
+                api,
+                revalidate,
+                process.env,
+                signal,
+                undefined,
+                acceptIngress,
+              );
     if (
-      ['start', 'resize'].includes(plan.intent.operation) &&
+      ['start', 'resize', 'reconcile', 'repair'].includes(plan.intent.operation) &&
       ingressContract &&
       plan.intent.ingress?.mode === 'platform-http'
     ) {
@@ -248,8 +315,7 @@ export async function executeAzureCeTerraformApply(
         )),
       };
     }
-    const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'azure-ce-terraform-checkpoint');
-    if (!artifactId) throw new Error('Azure Terraform outcome artifact persistence failed; checkpoint is retained');
+    const artifactId = await saveAzureTerraformOutcome(ctx.sessionManager, result);
     return { ...result, status: String(result.status), artifactId };
   } finally {
     await release();

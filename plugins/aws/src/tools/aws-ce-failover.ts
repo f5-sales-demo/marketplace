@@ -24,6 +24,7 @@ import {
 import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
 import { assertAwsTerraformDeploymentActive, withAwsTerraformLifecycle } from '../ce/terraform-lifecycle';
 import { siteForNode } from '../ce/topology';
+import { collectAwsTrafficProbe } from '../ce/traffic-probe';
 import type { AwsCeCheckpoint } from '../ce/types';
 import { makeExecApi } from './shared';
 
@@ -34,6 +35,7 @@ interface Dependencies {
   run: typeof runAwsTerraformFailover;
   runNative: typeof runAwsNativeFailover;
   collect: typeof collectAwsFailoverBgpHealth;
+  collectTraffic: typeof collectAwsTrafficProbe;
   observeNative: typeof observeAwsNativeFailoverInstance;
 }
 const defaults: Dependencies = {
@@ -43,6 +45,7 @@ const defaults: Dependencies = {
   run: runAwsTerraformFailover,
   runNative: runAwsNativeFailover,
   collect: collectAwsFailoverBgpHealth,
+  collectTraffic: collectAwsTrafficProbe,
   observeNative: observeAwsNativeFailoverInstance,
 };
 const object = (value: unknown): Record<string, unknown> => {
@@ -57,13 +60,14 @@ async function optional(storage: Awaited<ReturnType<CePlatformService['storage']
   }
 }
 
-export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Dependencies = defaults) {
+export function createAwsCeFailoverTool(pi: PluginInterface, overrides: Partial<Dependencies> = {}) {
+  const dependencies: Dependencies = { ...defaults, ...overrides };
   const { Type } = pi.typebox;
   return {
     name: 'aws_ce_failover',
     label: 'Validate AWS Customer Edge Failover',
     description:
-      'Prepare or execute an owning-engine planned CE outage. Apply proves the selected BGP withdrawal and restoration from live AWS evidence. Terraform releases its temporary power control and requires a final no-change plan; native execution reconciles ambiguous mutations without replay.',
+      'Prepare or execute an owning-engine planned CE outage. Apply collects selected BGP withdrawal/restoration and fresh reviewed HTTP traffic on recovery when NLB ingress is configured. Terraform releases its temporary power control and requires a final no-change plan; native execution reconciles ambiguous mutations without replay.',
     parameters: Type.Object({
       operation: Type.Union([Type.Literal('prepare'), Type.Literal('apply')]),
       basePlanId: Type.String(),
@@ -257,9 +261,24 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
               ? ((await storage.read('terraform-routing-checkpoint.json')) as AwsCeCheckpoint)
               : await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
           if (!routing) throw new Error('AWS CE routing checkpoint is unavailable');
-          const collect = (phase: 'outage' | 'recovered', currentSignal?: AbortSignal) =>
-            dependencies.collect(plan, routing, failover.nodeIndex, phase, api, currentSignal);
-          const result =
+          const collectTraffic = async (currentSignal?: AbortSignal) => {
+            const evidence = await dependencies.collectTraffic(plan, routing, storage, api, currentSignal);
+            if (evidence.status !== 'healthy') throw new Error('AWS failover traffic has not converged');
+            return evidence;
+          };
+          const collect = async (phase: 'outage' | 'recovered', currentSignal?: AbortSignal) => {
+            const bgp = await dependencies.collect(plan, routing, failover.nodeIndex, phase, api, currentSignal);
+            const selectedSite = siteForNode(plan.intent, failover.nodeIndex);
+            if (
+              bgp.acceptance !== 'passed' ||
+              plan.intent.ingress?.mode !== 'nlb' ||
+              (phase === 'outage' && selectedSite.nodeIndexes.length !== 3)
+            )
+              return bgp;
+            const trafficEvidence = await collectTraffic(currentSignal);
+            return { ...bgp, traffic: trafficEvidence.status, trafficEvidence };
+          };
+          const execution =
             plan.engine === 'terraform'
               ? await dependencies.run(
                   plan,
@@ -302,13 +321,21 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
                   collect,
                   signal,
                 );
+          // Recollect after Terraform release/final refresh, or on a completed apply retry.
+          // This current sample is separate from the original restoration timing evidence.
+          const trafficEvidence = plan.intent.ingress?.mode === 'nlb' ? await collectTraffic(signal) : undefined;
+          const result = {
+            ...execution,
+            traffic: trafficEvidence?.status ?? 'unknown',
+            ...(trafficEvidence ? { trafficEvidence } : {}),
+          };
           const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-failover-receipt');
           if (!artifactId) throw new Error('AWS CE failover receipt persistence failed');
           return {
             content: [
               {
                 type: 'text' as const,
-                text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration converged; timing acceptance is reported separately when available. Traffic and origin-control evidence remain separate.`,
+                text: `AWS CE node ${failover.nodeIndex}: ${result.status}. BGP withdrawal and restoration converged; timing acceptance is reported separately when available. Current HTTP traffic: ${result.traffic}. Origin-control evidence remains separate.`,
               },
             ],
             ...('acceptance' in result && result.acceptance !== 'passed' ? { isError: true } : {}),

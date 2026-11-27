@@ -60,6 +60,8 @@ test('Terraform revalidates durable ownership before execution', async () => {
     { mode: 0o600 },
   );
   await expect(session.plan({})).rejects.toThrow();
+  if (!session.readArtifactRetirement) throw Error('Owning retirement provenance missing');
+  await expect(session.readArtifactRetirement({} as PlanReceipt, 'a'.repeat(64))).rejects.toThrow();
   if (!session.retireArtifacts) throw Error('Owning terminal retirement method missing');
   await expect(session.retireArtifacts({} as PlanReceipt, 'a'.repeat(64), {})).rejects.toThrow();
   if (!session.planRelinquishments) throw Error('Owning relinquishment method missing');
@@ -144,4 +146,31 @@ test('isolates lifecycle stage workspaces while retaining deployment and engine 
   await service.open(owner, deployment, true);
   await expect(service.open(owner, { ...staged, stage: '../foreign' }, false)).rejects.toThrow();
   await expect(service.open(owner, { ...staged, backendIdentity: deployment.backendIdentity }, true)).rejects.toThrow();
+});
+
+test('private path service rechecks durable owner before every prior/proposed inspection', async () => {
+  const { platform, service } = await fixture();
+  const session = await service.open(owner, deployment, false);
+  expect(typeof session.readPlannedResourcePaths).toBe('function');
+  expect(typeof session.readProposedResourcePaths).toBe('function');
+  if (!session.readPlannedResourcePaths || !session.readProposedResourcePaths)
+    throw Error('Private field path service missing');
+  const store = await platform.storage(owner);
+  await writeFile(
+    join(store.directory, 'owner.json'),
+    JSON.stringify({ schemaVersion: 2, owner: { ...owner, account: 'example-foreign' } }),
+    { mode: 0o600 },
+  );
+  for (const method of [session.readPlannedResourcePaths, session.readProposedResourcePaths])
+    await expect(method({} as PlanReceipt, { 'terraform_data.ce': ['input.subnet_id'] }, {})).rejects.toThrow(
+      'another execution engine or scope',
+    );
+});
+
+test('Terraform service exposes absent retirement custody without invoking Terraform', async () => {
+  const { service } = await fixture();
+  const session = await service.open(owner, deployment, false);
+  if (!session.readArtifactRetirement) throw Error('Owning retirement provenance missing');
+  const receipt = { planSha256: 'a'.repeat(64) } as PlanReceipt;
+  expect(await session.readArtifactRetirement(receipt, 'b'.repeat(64))).toEqual({ status: 'absent' });
 });

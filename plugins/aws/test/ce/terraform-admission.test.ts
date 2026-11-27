@@ -5,6 +5,8 @@ import schemaCompact from '../../../platform/test/fixtures/smsv2-create-schema.j
 import { admitAwsTerraformSites } from '../../src/ce/terraform-admission';
 import { admissionFixture as fixture } from './terraform-admission-fixture';
 
+// Partial observer fixtures do not claim installed/live evidence.
+const admissionRuntime = (value: unknown) => value as Parameters<typeof admitAwsTerraformSites>[2];
 const schema = resolveCeSchemaFixture(schemaCompact);
 
 it('persists initial admission before a site mutation can fail', async () => {
@@ -21,9 +23,9 @@ it('persists initial admission before a site mutation can fail', async () => {
       throw Error('site submission interrupted');
     };
     const runtime = { ...f.runtime, reserveSite: fail, ensureSite: fail };
-    await expect(admitAwsTerraformSites(f.plan, f.session, runtime, f.storage, f.api, {})).rejects.toThrow(
-      'site submission interrupted',
-    );
+    await expect(
+      admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {}),
+    ).rejects.toThrow('site submission interrupted');
     expect(f.bootstrapped).toEqual([]);
     expect([...f.nodes]).toEqual([]);
   }
@@ -31,12 +33,14 @@ it('persists initial admission before a site mutation can fail', async () => {
 
 it('admits independent sites cumulatively and waits for registration before the next site', async () => {
   const f = fixture();
-  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe(
-    'pending-registration',
-  );
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('pending-registration');
   expect([...f.nodes]).toEqual([1]);
   f.healthy();
-  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe('registered');
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('registered');
   expect([...f.nodes]).toEqual([1, 2, 3]);
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
   const checkpoint = (await f.storage.read('terraform-admission.json')) as { bootstrapByNode: Record<string, string> };
@@ -44,7 +48,16 @@ it('admits independent sites cumulatively and waits for registration before the 
 });
 it('mints and launches all HA nodes through resumable serial boundaries before registration', async () => {
   const f = fixture(true);
-  const result = await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {}, undefined, 0);
+  const result = await admitAwsTerraformSites(
+    f.plan,
+    f.session,
+    admissionRuntime(f.runtime),
+    f.storage,
+    f.api,
+    {},
+    undefined,
+    0,
+  );
   expect(result.status).toBe('pending-registration');
   expect([...f.nodes]).toEqual([1, 2, 3]);
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
@@ -86,11 +99,13 @@ it('mints and launches all HA nodes through resumable serial boundaries before r
 it('resumes after interrupted apply without minting bootstrap again or omitting earlier nodes', async () => {
   const f = fixture();
   f.interrupt();
-  await expect(admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).rejects.toThrow(
-    'interrupted',
-  );
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('interrupted');
   f.healthy();
-  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe('registered');
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('registered');
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
   expect([...f.nodes]).toEqual([1, 2, 3]);
 });
@@ -102,9 +117,9 @@ it('rejects update/replacement work during initial admission', async () => {
     ...(await plan(...args)),
     changes: [{ address: 'aws_instance.existing', type: 'aws_instance', actions: ['delete', 'create'] }],
   });
-  await expect(admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).rejects.toThrow(
-    'alter or replace',
-  );
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('alter or replace');
   expect([...f.nodes]).toEqual([]);
 });
 
@@ -117,7 +132,7 @@ it('does not admit the next site when server-populated interface configuration i
       return { status: 'unknown' as const };
     },
   };
-  const result = await admitAwsTerraformSites(f.plan, f.session, runtime, f.storage, f.api, {});
+  const result = await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {});
   expect(result.status).toBe('pending-interface-configuration');
   expect([...f.nodes]).toEqual([1]);
 });
@@ -146,7 +161,7 @@ it('configures static independent sites through the pinned SMSv2 schema before b
     order.push('bootstrap');
     return originalBootstrap(binding, node);
   };
-  await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {});
+  await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {});
   expect(order).toEqual(['ensure', 'bootstrap']);
   expect(f.ensuredSites).toHaveLength(1);
 });
@@ -167,8 +182,61 @@ it('rejects a cloud/output address that agrees with itself but differs from the 
     if (response.NetworkInterfaces) response.NetworkInterfaces[0].PrivateIpAddress = '10.0.1.21';
     return { ...result, stdout: JSON.stringify(response) };
   };
-  await expect(admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).rejects.toThrow(
-    'resource binding',
-  );
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('resource binding');
   expect(f.bootstrapped).toEqual([]);
+});
+
+it('installs explicit DHCP device and MTU configuration before minting bootstrap', async () => {
+  const f = fixture();
+  const original = f.runtime.ensureSite.bind(f.runtime);
+  f.runtime.ensureSite = async (binding, intent) => {
+    expect(f.bootstrapped).toEqual([]);
+    expect([...f.nodes]).toEqual([]);
+    expect(intent).toMatchObject({
+      haMode: 'one-node',
+      nodes: [
+        {
+          hostname: 'ce-1',
+          interfaces: [
+            { mtu: 1500, ethernet_interface: { device: 'ens5', mac: '00:11:22:33:01:00' }, dhcp_client: {} },
+            { mtu: 1500, ethernet_interface: { device: 'ens6', mac: '00:11:22:33:01:01' }, dhcp_client: {} },
+          ],
+        },
+      ],
+    });
+    expect(() => buildWireSite(intent as WireSiteIntent, schema.schemas)).not.toThrow();
+    await original(binding, intent);
+  };
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('pending-registration');
+  expect(f.ensuredSites).toHaveLength(1);
+});
+
+it('rejects duplicate planned devices before site mutation or bootstrap', async () => {
+  const f = fixture();
+  const { canonicalSha256 } = await import('../../src/ce/canonical');
+  const { planId: _id, planSha256: _sha, ...draft } = structuredClone(f.plan);
+  draft.intent.interfaces[1].guestDevice = draft.intent.interfaces[0].guestDevice;
+  const planSha256 = canonicalSha256(draft);
+  const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
+  await expect(
+    admitAwsTerraformSites(plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('planned guest devices must be distinct');
+  expect(f.ensuredSites).toEqual([]);
+  expect(f.bootstrapped).toEqual([]);
+  expect([...f.nodes]).toEqual([]);
+});
+
+it('leaves partial device input to authoritative registration discovery', async () => {
+  const f = fixture(false, false, false, (interfaces) => {
+    delete interfaces[1].guestDevice;
+  });
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('pending-registration');
+  expect(f.ensuredSites).toEqual([]);
+  expect(f.bootstrapped).toEqual(['ce-1']);
 });

@@ -1,7 +1,8 @@
 import { afterEach, expect, test } from 'bun:test';
-import { link, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, link, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { retirePrivateArtifacts } from '../src/artifact-retirement';
 import { type CleanupRequest, encode, hash, type IndependentCleanupEvidence } from '../src/cleanup-verifier-worker';
 import { type Deployment, type Invocation, TerraformRunner } from '../src/runner';
 
@@ -262,3 +263,265 @@ for (const [name, override] of [
     expect(await readdir(directory)).not.toContain('artifact-retirement.json');
     expect(await readFile(join(directory, 'saved.tfplan'), 'utf8')).toBe('private-plan');
   });
+
+for (const mode of [
+  'refresh-disabled',
+  'refresh-missing',
+  'target',
+  'missing-arguments',
+  'extra-execution-key',
+  'extra-journal-key',
+] as const)
+  test(`original final retirement journal rejects ${mode} before executor or independent cleanup`, async () => {
+    const f = await fixture(),
+      receipt = await f.runner.plan({});
+    const path = join(f.directory, 'plan-receipt.json');
+    const journal = JSON.parse((await readFile(path)).toString());
+    if (mode === 'refresh-disabled')
+      journal.execution.planArgs = journal.execution.planArgs.map((arg: string) =>
+        arg === '-refresh=true' ? '-refresh=false' : arg,
+      );
+    if (mode === 'refresh-missing')
+      journal.execution.planArgs = journal.execution.planArgs.filter((arg: string) => arg !== '-refresh=true');
+    if (mode === 'target') journal.execution.planArgs.push('-target=terraform_data.foreign');
+    if (mode === 'missing-arguments') delete journal.execution.planArgs;
+    if (mode === 'extra-execution-key') journal.execution.foreign = true;
+    if (mode === 'extra-journal-key') journal.foreign = true;
+    await writeFile(path, JSON.stringify(journal), { mode: 0o600 });
+    const calls = [...f.calls],
+      bytes = await readFile(path);
+    await expect(f.runner.retireArtifacts(receipt, 'a'.repeat(64), {})).rejects.toThrow();
+    expect(f.calls).toEqual(calls);
+    expect(f.verifications).toHaveLength(0);
+    expect(await readFile(path)).toEqual(bytes);
+    expect(await readdir(f.directory)).not.toContain('artifact-retirement.json');
+  });
+
+test('retirement provenance reports absent without Terraform or independent execution', async () => {
+  const { runner, directory, calls, verifications } = await fixture();
+  const receipt = await runner.plan({});
+  const before = (await readdir(directory)).sort();
+  const count = calls.length;
+  expect(await runner.readArtifactRetirement(receipt, 'a'.repeat(64))).toEqual({ status: 'absent' });
+  expect(calls).toHaveLength(count);
+  expect(verifications).toHaveLength(0);
+  expect((await readdir(directory)).sort()).toEqual(before);
+});
+
+test('retirement provenance recovers a lost response after permanent retirement without CLI', async () => {
+  const { runner, root, calls, verifications } = await fixture();
+  const receipt = await runner.plan({});
+  const retired = await runner.retireArtifacts(receipt, 'a'.repeat(64), {});
+  const count = calls.length;
+  const observed = await runner.readArtifactRetirement(receipt, 'a'.repeat(64));
+  expect(observed.status).toBe('runner-artifacts-retired');
+  if (observed.status !== 'runner-artifacts-retired') throw Error('Retired provenance missing');
+  expect(observed.receipt).toEqual(retired);
+  expect(observed.markerSha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(calls).toHaveLength(count);
+  expect(verifications).toHaveLength(1);
+  const resumed = new TerraformRunner(
+    root,
+    async () => {
+      throw Error('No CLI permitted');
+    },
+    async () => {
+      throw Error('No verifier permitted');
+    },
+  );
+  await resumed.resume(deployment.deploymentId, deployment, 'current');
+  expect(await resumed.readArtifactRetirement(receipt, 'a'.repeat(64))).toEqual(observed);
+  await expect(resumed.plan({})).rejects.toThrow('retired');
+});
+
+test('retirement provenance preserves partial removal as retiring without repair', async () => {
+  const { runner, directory, calls, verifications } = await fixture();
+  await writeFile(join(directory, 'private.txt'), 'PRIVATE_FIXTURE', { mode: 0o600 });
+  const receipt = await runner.plan({});
+  await runner.retireArtifacts(receipt, 'a'.repeat(64), {});
+  const path = join(directory, 'artifact-retirement.json');
+  const marker = JSON.parse(await readFile(path, 'utf8'));
+  marker.status = 'retiring';
+  await writeFile(path, JSON.stringify(marker), { mode: 0o600 });
+  await writeFile(join(directory, 'private.txt'), 'PRIVATE_FIXTURE', { mode: 0o600 });
+  const before = await readFile(path);
+  const count = calls.length;
+  const observed = await runner.readArtifactRetirement(receipt, 'a'.repeat(64));
+  expect(observed.status).toBe('retiring');
+  if (observed.status !== 'retiring') throw Error('Partial provenance missing');
+  expect(observed.remainingArtifacts).toBe(1);
+  expect('receipt' in observed).toBe(false);
+  expect(await readFile(path)).toEqual(before);
+  expect(await readFile(join(directory, 'private.txt'), 'utf8')).toBe('PRIVATE_FIXTURE');
+  expect(calls).toHaveLength(count);
+  expect(verifications).toHaveLength(1);
+  await expect(runner.plan({})).rejects.toThrow('retired');
+});
+
+interface RetirementTestMarker {
+  status: unknown;
+  artifacts: Array<{ path: string; [key: string]: unknown }>;
+  independentCleanup: Record<string, unknown>;
+  [key: string]: unknown;
+}
+for (const [label, mutate] of [
+  [
+    'extra marker key',
+    (m: RetirementTestMarker) => {
+      m.extra = true;
+    },
+  ],
+  [
+    'array status',
+    (m: RetirementTestMarker) => {
+      m.status = ['runner-artifacts-retired'];
+    },
+  ],
+  [
+    'foreign manifest',
+    (m: RetirementTestMarker) => {
+      m.manifestSha256 = 'b'.repeat(64);
+    },
+  ],
+  [
+    'foreign evidence',
+    (m: RetirementTestMarker) => {
+      m.evidenceSha256 = 'b'.repeat(64);
+    },
+  ],
+  [
+    'foreign receipt',
+    (m: RetirementTestMarker) => {
+      m.planReceiptSha256 = 'b'.repeat(64);
+    },
+  ],
+  [
+    'extra artifact key',
+    (m: RetirementTestMarker) => {
+      m.artifacts[0].extra = true;
+      m.inventorySha256 = hash(JSON.stringify(m.artifacts));
+    },
+  ],
+  [
+    'duplicate artifact',
+    (m: RetirementTestMarker) => {
+      m.artifacts.push(m.artifacts[0]);
+      m.inventorySha256 = hash(JSON.stringify(m.artifacts));
+    },
+  ],
+  [
+    'unsafe artifact',
+    (m: RetirementTestMarker) => {
+      m.artifacts[0].path = '../foreign';
+      m.inventorySha256 = hash(JSON.stringify(m.artifacts));
+    },
+  ],
+  [
+    'missing parent',
+    (m: RetirementTestMarker) => {
+      m.artifacts[0].path = 'missing/child';
+      m.inventorySha256 = hash(JSON.stringify(m.artifacts));
+    },
+  ],
+  [
+    'unverified cleanup',
+    (m: RetirementTestMarker) => {
+      m.independentCleanup.status = 'pending';
+      m.independentCleanupSha256 = hash(encode(m.independentCleanup));
+    },
+  ],
+  [
+    'extra cleanup key',
+    (m: RetirementTestMarker) => {
+      m.independentCleanup.extra = true;
+      m.independentCleanupSha256 = hash(encode(m.independentCleanup));
+    },
+  ],
+  [
+    'cleanup digest',
+    (m: RetirementTestMarker) => {
+      m.independentCleanupSha256 = 'b'.repeat(64);
+    },
+  ],
+] as const)
+  test(`retirement provenance and retry reject ${label} without CLI or deletion`, async () => {
+    const { runner, directory, calls } = await fixture();
+    const receipt = await runner.plan({});
+    await runner.retireArtifacts(receipt, 'a'.repeat(64), {});
+    const path = join(directory, 'artifact-retirement.json');
+    const marker = JSON.parse(await readFile(path, 'utf8'));
+    mutate(marker);
+    await writeFile(path, JSON.stringify(marker), { mode: 0o600 });
+    const before = await readFile(path);
+    const count = calls.length;
+    await expect(runner.readArtifactRetirement(receipt, 'a'.repeat(64))).rejects.toThrow();
+    await expect(runner.retireArtifacts(receipt, 'a'.repeat(64), {})).rejects.toThrow();
+    expect(await readFile(path)).toEqual(before);
+    expect(calls).toHaveLength(count);
+  });
+
+test('retirement provenance rejects new artifacts and foreign requests without changing the barrier', async () => {
+  const { runner, directory } = await fixture();
+  const receipt = await runner.plan({});
+  await runner.retireArtifacts(receipt, 'a'.repeat(64), {});
+  await expect(runner.readArtifactRetirement(receipt, 'b'.repeat(64))).rejects.toThrow();
+  await expect(
+    runner.readArtifactRetirement({ ...receipt, backendIdentity: 'local:foreign' }, 'a'.repeat(64)),
+  ).rejects.toThrow();
+  await writeFile(join(directory, 'unexpected.txt'), 'UNBOUND', { mode: 0o600 });
+  await expect(runner.readArtifactRetirement(receipt, 'a'.repeat(64))).rejects.toThrow();
+  expect(await readFile(join(directory, 'unexpected.txt'), 'utf8')).toBe('UNBOUND');
+});
+
+test('retirement provenance honors abort and rejects persisted owner drift', async () => {
+  const { runner, directory } = await fixture();
+  const receipt = await runner.plan({});
+  const controller = new AbortController();
+  controller.abort();
+  await expect(runner.readArtifactRetirement(receipt, 'a'.repeat(64), controller.signal)).rejects.toThrow();
+  const path = join(directory, 'deployment.json');
+  const manifest = JSON.parse(await readFile(path, 'utf8'));
+  manifest.backendIdentity = 'local:foreign';
+  await writeFile(path, JSON.stringify(manifest), { mode: 0o600 });
+  await expect(runner.readArtifactRetirement(receipt, 'a'.repeat(64))).rejects.toThrow();
+});
+
+for (const unsafe of ['permissions', 'symlink', 'hardlink', 'directory', 'malformed-json'])
+  test(`retirement provenance rejects unsafe marker ${unsafe} without executor or repair`, async () => {
+    const { runner, directory, root, calls } = await fixture();
+    const receipt = await runner.plan({});
+    await runner.retireArtifacts(receipt, 'a'.repeat(64), {});
+    const marker = join(directory, 'artifact-retirement.json');
+    const backup = join(root, 'marker-backup.json');
+    if (unsafe === 'permissions') await chmod(marker, 0o644);
+    if (unsafe === 'symlink' || unsafe === 'directory') {
+      await rename(marker, backup);
+      if (unsafe === 'symlink') await symlink(backup, marker);
+      else await mkdir(marker, { mode: 0o700 });
+    }
+    if (unsafe === 'hardlink') await link(marker, backup);
+    if (unsafe === 'malformed-json') await writeFile(marker, '{', { mode: 0o600 });
+    const count = calls.length;
+    await expect(runner.readArtifactRetirement(receipt, 'a'.repeat(64))).rejects.toThrow();
+    await expect(runner.retireArtifacts(receipt, 'a'.repeat(64), {})).rejects.toThrow();
+    expect(calls).toHaveLength(count);
+    await expect(runner.plan({})).rejects.toThrow('retired');
+  });
+
+test('retirement rejects invalid retained cleanup before installing the permanent barrier', async () => {
+  const { runner, directory } = await fixture();
+  const receipt = await runner.plan({});
+  await expect(
+    retirePrivateArtifacts(
+      directory,
+      'a'.repeat(64),
+      'b'.repeat(64),
+      receipt.planSha256,
+      'c'.repeat(64),
+      undefined,
+      {} as IndependentCleanupEvidence,
+    ),
+  ).rejects.toThrow();
+  expect(await readdir(directory)).not.toContain('artifact-retirement.json');
+  expect(await readFile(join(directory, 'saved.tfplan'), 'utf8')).toBe('private-plan');
+});

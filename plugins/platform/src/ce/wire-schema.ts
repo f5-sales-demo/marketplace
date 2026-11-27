@@ -25,6 +25,38 @@ function object(value: unknown): Json {
   return value as Json;
 }
 
+/** Preserve disjoint protobuf uint32 ranges rather than flattening their union into a maximum. */
+function vendorIntegerRanges(source: Json): Json | undefined {
+  const key = 'ves.io.schema.rules.uint32.ranges';
+  const annotations = ['x-ves-validation-rules', 'x-validation-rules']
+    .map((name) => (source[name] === undefined ? undefined : object(source[name])[key]))
+    .filter((value) => value !== undefined);
+  if (!annotations.length) return undefined;
+  if (source.type !== 'integer' || annotations.some((value) => typeof value !== 'string'))
+    throw new Error('Malformed SMSv2 integer range');
+  const parse = (value: unknown) => {
+    const ranges = String(value)
+      .split(',')
+      .map((part) => {
+        const match = /^(\d+)(?:-(\d+))?$/.exec(part.trim());
+        if (!match) throw new Error('Malformed SMSv2 integer range');
+        const minimum = Number(match[1]),
+          maximum = Number(match[2] ?? match[1]);
+        if (
+          ![minimum, maximum].every((bound) => Number.isSafeInteger(bound) && bound >= 0 && bound <= 4294967295) ||
+          minimum > maximum
+        )
+          throw new Error('Malformed SMSv2 integer range');
+        return { minimum, maximum };
+      });
+    return ranges;
+  };
+  const ranges = annotations.map(parse);
+  if (ranges.some((value) => JSON.stringify(value) !== JSON.stringify(ranges[0])))
+    throw new Error('Conflicting SMSv2 integer ranges');
+  return { anyOf: ranges[0] };
+}
+
 /** Convert the verified OpenAPI request schema, preserving constraints and F5 oneof groups. */
 export function requestSchema(schemas: Json, root: string): Json {
   const definitions: Json = {};
@@ -70,6 +102,8 @@ export function requestSchema(schemas: Json, root: string): Json {
         else if (item === true) result[key] = source[key === 'exclusiveMinimum' ? 'minimum' : 'maximum'];
       }
     }
+    const integerRanges = vendorIntegerRanges(source);
+    if (integerRanges) result.allOf = [...((result.allOf as Json[]) ?? []), integerRanges];
     const exclusions: Json[] = [];
     for (const [key, item] of Object.entries(source)) {
       if (!key.startsWith('x-ves-oneof-field-')) continue;

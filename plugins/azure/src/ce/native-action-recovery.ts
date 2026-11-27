@@ -1,5 +1,7 @@
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256 } from './canonical';
+import { assertAzureGreenfieldUdrAssociationOwnership } from './greenfield-udr-ownership';
+import { azureRelayPlanForDeployment } from './relay-deployment-plan';
 import type { AzureCeAction, AzureCeCheckpoint, AzureCePlan } from './types';
 
 type Json = Record<string, unknown>;
@@ -99,6 +101,33 @@ function assertRecoverableAction(action: AzureCeAction): asserts action is Azure
 }
 
 function expectedRequest(plan: AzureCePlan, action: AzureCeAction): PendingAction {
+  if (action.kind === 'relay-provision') {
+    const relay = azureRelayPlanForDeployment(plan);
+    const expected = plan.actions.find((item) => item.id === action.id);
+    if (
+      plan.engine !== 'native' ||
+      !expected ||
+      canonicalSha256(expected) !== canonicalSha256(action) ||
+      !action.mutates ||
+      action.resourceId !== relay.routeServerId ||
+      action.command ||
+      action.args
+    )
+      throw Error('Azure relay pending action differs from the immutable native boundary');
+    const resourceId = relay.routeServerId.toLowerCase();
+    return {
+      actionId: action.id,
+      kind: action.kind,
+      resourceId,
+      requestSha256: canonicalSha256({
+        planSha256: plan.planSha256,
+        actionId: action.id,
+        kind: action.kind,
+        resourceId,
+        relayPlanSha256: relay.planSha256,
+      }),
+    };
+  }
   assertRecoverableAction(action);
   const resourceId = action.resourceId.toLowerCase();
   return {
@@ -424,12 +453,22 @@ function resourcePostcondition(plan: AzureCePlan, action: AzureCeAction, value: 
         action.kind,
       );
     }
-    case 'nic-update':
-      return requirePostcondition(
-        lower(nested(value, ['properties', 'ipConfigurations', '0', 'properties', 'subnet', 'id'])) ===
-          lower(option(args, '--subnet')),
+    case 'nic-update': {
+      const configurations = nested(value, ['properties', 'ipConfigurations']);
+      const configuration =
+        Array.isArray(configurations) && configurations.length === 1 ? configurations[0] : undefined;
+      const name = option(args, '--name');
+      requirePostcondition(
+        typeof name === 'string' &&
+          !/^__.*__$/.test(name) &&
+          nested(configuration, ['name']) === name &&
+          lower(nested(configuration, ['id'])) === lower(`${action.resourceId}/ipConfigurations/${name}`) &&
+          nested(configuration, ['properties', 'primary']) === true &&
+          nested(configuration, ['properties', 'provisioningState']) === 'Succeeded',
         action.kind,
       );
+      return lower(nested(configuration, ['properties', 'subnet', 'id'])) === lower(option(args, '--subnet'));
+    }
     case 'route-association-update':
       return requirePostcondition(
         lower(nested(value, ['properties', 'routeTable', 'id'])) === lower(option(args, '--route-table')),
@@ -459,6 +498,10 @@ export async function azureNativePendingActionConverged(
   );
   if (action.kind === 'vm-delete') return value === undefined;
   if (!value) return false;
+  if (action.kind === 'route-association-update' && plan.routing.udr) {
+    await assertAzureGreenfieldUdrAssociationOwnership(plan, action, api, signal);
+    return resourcePostcondition(plan, action, value);
+  }
   if (
     ['route-association-update', 'brownfield-restore'].includes(action.kind) ||
     (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0)

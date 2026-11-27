@@ -1,3 +1,4 @@
+import { requireQualifiedUpInterfaceEvidence } from '../../../platform/src/ce/interface-admission';
 import type { VerifiedRoutingContract } from '../../../platform/src/ce/routing-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AwsGreBinding } from '../../../platform/src/ce/wire-routing';
@@ -71,6 +72,7 @@ export async function configureAwsRouting(
     );
     const observed = await runtime.observeAwsInterfaces(binding, unique, signal);
     if (observed.status !== 'observed') throw new Error('XC GRE interface evidence has not converged');
+    requireQualifiedUpInterfaceEvidence(observed, unique);
     const interfaces: AwsGreBinding[] = peers.map((action, index) => {
       const peerId = checkpoint.resolvedValues[action.capture?.placeholder ?? ''];
       const transport = (facts.transports as Record<string, unknown>[]).find((item) => item.peerId === peerId);

@@ -71,10 +71,10 @@ export function connectPowerFixture(engine: 'native' | 'terraform' = 'native', s
   ];
   body.intent = { ...body.intent, siteName, topology: { nodeCount: 1, sites: [{ name: siteName, nodeIndexes: [1] }] } };
   body.siteName = siteName;
-  body.topology = body.intent.topology;
+  body.topology = { ...body.topology, nodeCount: body.intent.topology.nodeCount };
   const sha = canonicalSha256(body),
     base = { ...body, planSha256: sha, planId: `aws-ce-${sha.slice(0, 24)}` };
-  const values = {
+  const values: Record<string, string> = {
     ...f.resolved,
     __VPC_ID__: vpc,
     __TGW_TRANSPORT_ATTACHMENT__: transport,

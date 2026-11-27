@@ -5,6 +5,7 @@ import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../platform/src/ce/service';
 import { cancelUnsubmittedF5Resource } from './f5-cancellation';
 import { f5StageDeployment, requireF5StageActive } from './f5-retirement';
+import { renderVerifiedReplacementResource, verifiedReplacementProjection } from './replacement-renderer';
 import { renderObservedProviderResource, renderProviderResource } from './resource-renderer';
 import type { PlanReceipt } from './runner';
 import type { CeTerraformService } from './service';
@@ -206,6 +207,13 @@ export async function executeF5TerraformResource(
       object(before.system_metadata).uid !== book.resources[addressName].uid
     )
       throw new Error('F5 view was replaced outside its owning state');
+    if (
+      method === 'PUT' &&
+      type === 'xcsh_securemesh_site_v2' &&
+      !book.pending?.submitted &&
+      (!before || typeof request?.resource_version !== 'string' || request.resource_version !== before.resource_version)
+    )
+      throw new Error('F5 replacement resource version changed; replan required');
     const session = await terraform.open(owner, deployment, existed ? 'current' : false);
     if (!session.readProviderSchemas || !session.readConfigurationSha256 || !session.readResourceIdentities)
       throw new Error('Provider schema verification is unavailable');
@@ -236,7 +244,10 @@ export async function executeF5TerraformResource(
     else
       next[addressName] = {
         type,
-        values: renderProviderResource(object(request), resourceSchema, type),
+        values:
+          method === 'PUT'
+            ? renderVerifiedReplacementResource(object(request), object(before), resourceSchema, type)
+            : renderProviderResource(object(request), resourceSchema, type),
         path: itemPath,
         uid: book.resources[addressName]?.uid,
       };
@@ -247,15 +258,19 @@ export async function executeF5TerraformResource(
     }
     const configuration = JSON.stringify({ ...empty, ...(Object.keys(resource).length ? { resource } : {}) });
     // Compare the full writable provider projection; subset matching can retain an unwanted BGP policy.
-    const specMatches = (value: Json): boolean =>
-      canonical(
-        renderObservedProviderResource(
-          { metadata: object(request).metadata, spec: object(value.spec) },
-          object(request),
-          resourceSchema,
-          type,
-        ),
-      ) === canonical(next[addressName].values);
+    const specMatches = (value: Json): boolean => {
+      if (method === 'PUT') verifiedReplacementProjection(object(request), value, resourceSchema, type);
+      return (
+        canonical(
+          renderObservedProviderResource(
+            { metadata: object(request).metadata, spec: object(value.spec) },
+            object(request),
+            resourceSchema,
+            type,
+          ),
+        ) === canonical(next[addressName].values)
+      );
+    };
     const requestSha256 = hash({ owner, path, method, request });
     if (book.pending && book.pending.planSha256 !== auth.planSha256)
       throw new Error('Pending F5 operation belongs to another authorization');
@@ -324,6 +339,14 @@ export async function executeF5TerraformResource(
       (!before && latest)
     )
       throw new Error('F5 resource changed after saved-plan review');
+    if (method === 'PUT' && latest) verifiedReplacementProjection(object(request), latest, resourceSchema, type);
+    if (
+      method === 'PUT' &&
+      type === 'xcsh_securemesh_site_v2' &&
+      !reconciled &&
+      before?.resource_version !== latest?.resource_version
+    )
+      throw new Error('F5 resource version changed after saved-plan review');
     if (!reconciled) {
       if (execution === 'observe-only') throw new Error('Observed reconciliation cannot replay provider apply');
       book.pending.submitted = true;

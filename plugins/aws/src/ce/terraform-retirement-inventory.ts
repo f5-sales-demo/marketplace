@@ -1,3 +1,4 @@
+import type { AwsTerraformMetadataIdentity } from './terraform-metadata-retirement';
 /** Nonsensitive identities captured only after the live pre-destroy ownership guard succeeds. */
 export interface AwsTerraformRetirementInventory {
   schemaVersion: 1;
@@ -17,6 +18,7 @@ export interface AwsTerraformRetirementInventory {
     resourceProjectionSha256: string;
   };
   resources: Array<{ type: string; id: string }>;
+  metadata?: AwsTerraformMetadataIdentity[];
   tgwEdges: Array<{ kind: 'association' | 'propagation'; tableId: string; attachmentId: string }>;
   sha256: string;
 }

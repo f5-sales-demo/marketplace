@@ -49,6 +49,7 @@ function fixture() {
   const arn = `arn:aws:elasticloadbalancing:${plan.region}:${plan.accountId}:loadbalancer/net/ce/abcdef12`;
   const values = new Map<string, unknown>();
   const calls: string[][] = [];
+  let submissions = 0;
   const storage = {
     owner: {
       deploymentId: plan.deploymentName,
@@ -94,10 +95,10 @@ function fixture() {
               : operation === 'elbv2:describe-load-balancers'
                 ? { LoadBalancers: [{ LoadBalancerArn: arn, Scheme: 'internal', DNSName: 'internal-ce.example.aws' }] }
                 : operation === 'ssm:send-command'
-                  ? { Command: { CommandId: '12345678-1234-1234-1234-123456789abc' } }
+                  ? { Command: { CommandId: `12345678-1234-1234-1234-123456789ab${++submissions}` } }
                   : operation === 'ssm:get-command-invocation'
                     ? {
-                        CommandId: '12345678-1234-1234-1234-123456789abc',
+                        CommandId: args[args.indexOf('--command-id') + 1],
                         InstanceId: sourceInstanceId,
                         DocumentName: 'AWS-RunShellScript',
                         DocumentVersion: '1',
@@ -115,13 +116,14 @@ function fixture() {
   return { plan, arn, values, calls, storage, api };
 }
 
-test('collects content-bound SSM traffic evidence and resumes without another request', async () => {
+test('each completed traffic execution collects a new SSM sample and retains the previous receipt', async () => {
   const f = fixture();
   const first = await collectAwsTrafficProbe(f.plan, { resolvedValues: { __NLB_ARN__: f.arn } }, f.storage, f.api);
   const second = await collectAwsTrafficProbe(f.plan, { resolvedValues: { __NLB_ARN__: f.arn } }, f.storage, f.api);
-  expect(first).toEqual(second);
+  expect(first.commandId).not.toBe(second.commandId);
+  expect((f.values.get('aws-traffic-probe.json') as { receipts: unknown[] }).receipts).toEqual([first]);
   expect(first.status).toBe('healthy');
-  expect(f.calls.filter((args) => args[0] === 'ssm' && args[1] === 'send-command')).toHaveLength(1);
+  expect(f.calls.filter((args) => args[0] === 'ssm' && args[1] === 'send-command')).toHaveLength(2);
   const serialized = JSON.stringify(f.values.get('aws-traffic-probe.json'));
   expect(serialized).not.toContain('curl');
   expect(serialized).not.toContain('StandardOutputContent');
@@ -386,4 +388,72 @@ test('generated probe shell emits status peer digest and checks HTTP success', a
   } finally {
     await rm(directory, { recursive: true });
   }
+});
+
+test('a recent healthy sample cannot mask a failing new traffic execution', async () => {
+  const f = fixture(),
+    checkpoint = { resolvedValues: { __NLB_ARN__: f.arn } };
+  const first = await collectAwsTrafficProbe(f.plan, checkpoint, f.storage, f.api);
+  const original = f.api.exec;
+  const api = {
+    exec: async (command: string, args: string[]) => {
+      const response = await original(command, args);
+      if (args[1] !== 'get-command-invocation') return response;
+      return {
+        ...response,
+        stdout: JSON.stringify({
+          ...JSON.parse(response.stdout),
+          Status: 'Failed',
+          ResponseCode: 1,
+          StandardOutputContent: '',
+          StandardErrorContent: 'synthetic outage',
+        }),
+      };
+    },
+  };
+  await expect(collectAwsTrafficProbe(f.plan, checkpoint, f.storage, api)).rejects.toThrow('has not converged');
+  expect(f.calls.filter((args) => args[1] === 'send-command')).toHaveLength(2);
+  const state = f.values.get('aws-traffic-probe.json') as { receipts: unknown[]; phase: string };
+  expect(state.receipts).toEqual([first]);
+  expect(state.phase).toBe('ready');
+  expect((await readAwsTrafficProbeEvidence(f.plan, f.storage, checkpoint.resolvedValues)).status).toBe('unknown');
+});
+
+test('a replayed completed SSM command identity cannot establish a new sample', async () => {
+  const f = fixture(),
+    checkpoint = { resolvedValues: { __NLB_ARN__: f.arn } };
+  const first = await collectAwsTrafficProbe(f.plan, checkpoint, f.storage, f.api);
+  const original = f.api.exec;
+  const api = {
+    exec: async (command: string, args: string[]) =>
+      args[1] === 'send-command'
+        ? { exitCode: 0, stderr: '', stdout: JSON.stringify({ Command: { CommandId: first.commandId } }) }
+        : original(command, args),
+  };
+  await expect(collectAwsTrafficProbe(f.plan, checkpoint, f.storage, api)).rejects.toThrow('reused');
+  expect(f.calls.filter((args) => args[1] === 'get-command-invocation')).toHaveLength(1);
+  expect((await readAwsTrafficProbeEvidence(f.plan, f.storage, checkpoint.resolvedValues)).status).toBe('unknown');
+});
+
+test('an in-flight SSM command resumes without submitting another command', async () => {
+  const f = fixture(),
+    checkpoint = { resolvedValues: { __NLB_ARN__: f.arn } };
+  let interrupted = false;
+  const original = f.api.exec;
+  const api = {
+    exec: async (command: string, args: string[]) => {
+      if (args[1] === 'get-command-invocation' && !interrupted) {
+        interrupted = true;
+        throw Error('synthetic observation interruption');
+      }
+      return original(command, args);
+    },
+  };
+  await expect(collectAwsTrafficProbe(f.plan, checkpoint, f.storage, api)).rejects.toThrow('interruption');
+  const submitted = f.values.get('aws-traffic-probe.json') as { phase: string; commandId: string };
+  expect(submitted.phase).toBe('submitted');
+  const result = await collectAwsTrafficProbe(f.plan, checkpoint, f.storage, api);
+  expect(result.commandId).toBe(submitted.commandId);
+  expect(result.status).toBe('healthy');
+  expect(f.calls.filter((args) => args[1] === 'send-command')).toHaveLength(1);
 });

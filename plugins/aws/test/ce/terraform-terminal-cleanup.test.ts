@@ -16,6 +16,15 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
+function observationGate() {
+  let release: () => void = () => {
+    throw Error('Observation gate not initialized');
+  };
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release: () => release() };
+}
 async function fixture(mode = 'absent') {
   const original = foundationPlan();
   original.intent.partition = 'aws';
@@ -70,12 +79,29 @@ async function fixture(mode = 'absent') {
     sourcePlanSha256: sha,
     terraformPlanSha256: 'c'.repeat(64),
     resources: [{ type: 'aws_vpc', id: 'vpc-12345678' }],
+    metadata: [
+      {
+        type: 'aws_vpc',
+        id: 'vpc-12345678',
+        address: 'aws_vpc.ce',
+        tags: Object.entries({
+          'xcsh-managed-by': 'aws-ce',
+          'xcsh-execution-engine': 'terraform',
+          'xcsh-deployment-id': base.deploymentName,
+          'xcsh-plan-sha256': base.planSha256,
+        })
+          .map(([Key, Value]) => ({ Key, Value }))
+          .sort((a, b) => a.Key.localeCompare(b.Key)),
+      },
+    ],
     tgwEdges: [],
   };
   await store.write('terraform-cloud-teardown-inventory.json', {
     ...inventoryMaterial,
     sha256: canonicalSha256(inventoryMaterial),
   });
+  let metadataTags = mode === 'metadata' ? structuredClone(inventoryMaterial.metadata[0].tags) : [];
+  let metadataMutations = 0;
   let namespaces: string[] = [];
   let plans = 0,
     retirements = 0,
@@ -111,6 +137,7 @@ async function fixture(mode = 'absent') {
     retireArtifacts: async (r: unknown, evidence: string) => {
       expect(r).toEqual(receipt);
       retirements++;
+      if (mode === 'metadata') expect(metadataTags).toEqual([]);
       if (interrupted) {
         interrupted = false;
         throw Error('interrupted removal');
@@ -159,6 +186,24 @@ async function fixture(mode = 'absent') {
   const api = {
     exec: async (_cmd: string, args: string[]) => {
       const op = args[1];
+      const input = args.includes('--cli-input-json')
+        ? JSON.parse(args[args.indexOf('--cli-input-json') + 1])
+        : { Filters: [] };
+      if (op === 'delete-tags') {
+        const intent = (await store.read('aws-terraform-metadata-retirement.json')) as {
+          pending: { id: string; tags: unknown[] };
+        };
+        expect(intent.pending.id).toBe('vpc-12345678');
+        expect(intent.pending.tags).toEqual(input.Tags);
+        expect(input.Resources).toEqual(['vpc-12345678']);
+        metadataMutations++;
+        metadataTags = metadataTags.filter(
+          (tag) =>
+            !input.Tags.some(
+              (target: { Key: string; Value: string }) => target.Key === tag.Key && target.Value === tag.Value,
+            ),
+        );
+      }
       return {
         exitCode: mode === 'unauthorized' ? 1 : 0,
         stderr: mode === 'unauthorized' ? 'UnauthorizedOperation' : '',
@@ -166,7 +211,15 @@ async function fixture(mode = 'absent') {
           op === 'get-caller-identity'
             ? { Account: base.accountId }
             : op === 'describe-tags'
-              ? { Tags: [] }
+              ? {
+                  Tags: metadataTags
+                    .filter(
+                      (tag) =>
+                        !input.Filters.some((filter: { Name: string }) => filter.Name === 'key') ||
+                        tag.Key === 'xcsh-deployment-id',
+                    )
+                    .map((tag) => ({ ...tag, ResourceId: 'vpc-12345678', ResourceType: 'vpc' })),
+                }
               : op === 'get-resources'
                 ? { ResourceTagMappingList: [], PaginationToken: '' }
                 : op === 'describe-vpcs'
@@ -184,9 +237,129 @@ async function fixture(mode = 'absent') {
     runtime,
     api,
     contract: { fingerprint: 'ingress-contract' },
-    counts: () => ({ plans, retirements, observations, namespaces }),
+    counts: () => ({ plans, retirements, observations, namespaces, metadataMutations }),
   };
 }
+test('independent cleanup absence probes begin together before the platform response', async () => {
+  const f = await fixture();
+  const entered = observationGate(),
+    platformGate = observationGate();
+  const platform = f.runtime.unregisteredAbsence,
+    cloud = f.api.exec;
+  let first = true,
+    cloudStarted = false;
+  f.runtime.unregisteredAbsence = async (bindings, namespaces) => {
+    if (first) {
+      first = false;
+      entered.release();
+      await platformGate.promise;
+    }
+    return platform(bindings, namespaces);
+  };
+  f.api.exec = async (command, args) => {
+    cloudStarted = true;
+    return cloud(command, args);
+  };
+  const pending = finalizeAwsTerraformCleanup(
+    f.base,
+    f.teardown,
+    f.teardown.planSha256,
+    f.runtime as never,
+    f.contract as never,
+    f.session as never,
+    f.store,
+    f.api,
+    {},
+  );
+  const outcome = pending.then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  await entered.promise;
+  await Promise.resolve();
+  await Promise.resolve();
+  const startedBeforePlatformResponse = cloudStarted;
+  platformGate.release();
+  const result = await outcome;
+  if ('error' in result) throw result.error;
+  expect(startedBeforePlatformResponse).toBe(true);
+  expect(result.value.status).toBe('deployment-artifacts-retired');
+});
+test('a failed platform collection waits for its cloud probe and preserves source journals', async () => {
+  const f = await fixture();
+  const entered = observationGate(),
+    cloudGate = observationGate();
+  const cloud = f.api.exec,
+    failure = Error('platform collection unavailable');
+  let cloudStarted = false,
+    settled = false;
+  f.runtime.unregisteredAbsence = async () => {
+    entered.release();
+    throw failure;
+  };
+  f.api.exec = async (command, args) => {
+    cloudStarted = true;
+    await cloudGate.promise;
+    return cloud(command, args);
+  };
+  const pending = finalizeAwsTerraformCleanup(
+    f.base,
+    f.teardown,
+    f.teardown.planSha256,
+    f.runtime as never,
+    f.contract as never,
+    f.session as never,
+    f.store,
+    f.api,
+    {},
+  );
+  const outcome = pending.then(
+    (value) => {
+      settled = true;
+      return { value };
+    },
+    (error) => {
+      settled = true;
+      return { error };
+    },
+  );
+  await entered.promise;
+  await Promise.resolve();
+  await Promise.resolve();
+  const beforeRelease = { cloudStarted, settled };
+  cloudGate.release();
+  const result = await outcome;
+  expect(beforeRelease).toEqual({ cloudStarted: true, settled: false });
+  expect('error' in result && result.error).toBe(failure);
+  expect(f.counts().retirements).toBe(0);
+  expect(await readdir(f.store.directory)).toContain('terraform-admission.json');
+  expect(await readdir(f.store.directory)).not.toContain('aws-terraform-terminal-cleanup.json');
+});
+test('public terminal cleanup retires retained exact metadata before runner/parent artifacts and replays without another deletion', async () => {
+  const f = await fixture('metadata');
+  const run = () =>
+    finalizeAwsTerraformCleanup(
+      f.base,
+      f.teardown,
+      f.teardown.planSha256,
+      f.runtime as never,
+      f.contract as never,
+      f.session as never,
+      f.store,
+      f.api,
+      {},
+    );
+  expect((await run()).status).toBe('deployment-artifacts-retired');
+  expect(f.counts().metadataMutations).toBe(1);
+  expect(await f.store.read('aws-terraform-metadata-retirement.json')).toMatchObject({
+    phase: 'retired',
+    pending: null,
+    completed: ['vpc-12345678'],
+  });
+  expect((await run()).status).toBe('deployment-artifacts-retired');
+  expect(f.counts().metadataMutations).toBe(1);
+  expect(f.counts().retirements).toBe(1);
+});
 test('terminal absence covers distinct listener and nested origin snapshot namespaces', async () => {
   const f = await fixture('origin');
   const result = await finalizeAwsTerraformCleanup(

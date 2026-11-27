@@ -1,0 +1,186 @@
+{
+  "paths": {
+    "/api/operate/namespaces/{namespace}/sites/{site}/vpm/debug/global/list-service": {
+      "get": {
+        "summary": "List F5XC services",
+        "description": "Get List of services managed by Volterra",
+        "operationId": "ves.io.schema.operate.debug.CustomPublicAPI.ListVolterraServices",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/debugListServicesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returned when operation is not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Returned when there is no permission to access resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returned when resource is not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Returned when operation on resource is conflicting with current value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Returned when operation has been rejected as it is happening too frequently",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returned when server encountered an error in processing API",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Returned when service is unavailable temporarily",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Returned when server timed out processing request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "string"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "description": "Namespace\n\nx-example: \"value\"\nNamespace for which the request is sent (system)",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Namespace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "site",
+            "description": "Site Name\n\nx-example: \"value\"\nName of the site",
+            "in": "path",
+            "required": true,
+            "x-displayname": "Site Name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "externalDocs": {
+          "description": "Examples of this operation",
+          "url": "https://docs.cloud.f5.com/docs-v2/platform/reference/api-ref/ves-io-schema-operate-debug-custompublicapi-listvolterraservices"
+        },
+        "x-ves-proto-rpc": "ves.io.schema.operate.debug.CustomPublicAPI.ListVolterraServices",
+        "tags": ["operate"]
+      },
+      "x-displayname": "Debug",
+      "x-ves-proto-service": "ves.io.schema.operate.debug.CustomPublicAPI",
+      "x-ves-proto-service-type": "CUSTOM_PUBLIC"
+    }
+  },
+  "components": {
+    "schemas": {
+      "debugService": {
+        "type": "object",
+        "description": "Name and formal displayed name of the service",
+        "title": "Service",
+        "x-displayname": "Service",
+        "x-ves-proto-message": "ves.io.schema.operate.debug.Service",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": " Formal displayed name of service\n\nExample: ` \"F5XC Platform Manager\"`",
+            "title": "Name",
+            "x-displayname": "Name",
+            "x-ves-example": "F5XC Platform Manager"
+          },
+          "node": {
+            "type": "string",
+            "description": " Name of the node\n\nExample: ` \"master-0\"`",
+            "title": "Node Name",
+            "x-displayname": "Node Name",
+            "x-ves-example": "master-0"
+          },
+          "value": {
+            "type": "string",
+            "description": " Short name of service\n\nExample: ` \"vpm\"`",
+            "title": "Value",
+            "x-displayname": "Value",
+            "x-ves-example": "vpm"
+          }
+        }
+      },
+      "debugListServicesResponse": {
+        "type": "object",
+        "description": "List Services response",
+        "title": "List Services Response",
+        "x-displayname": "List Services Response",
+        "x-ves-proto-message": "ves.io.schema.operate.debug.ListServicesResponse",
+        "properties": {
+          "service": {
+            "type": "array",
+            "description": " List of services from site",
+            "title": "Services",
+            "items": {
+              "$ref": "#/components/schemas/debugService"
+            },
+            "x-displayname": "Services"
+          }
+        }
+      }
+    }
+  }
+}

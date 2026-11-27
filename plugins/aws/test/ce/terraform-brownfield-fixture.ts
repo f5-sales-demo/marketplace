@@ -67,7 +67,7 @@ export function brownfieldPlacementFixture() {
     ...draft.intent,
     vpc: { mode: 'brownfield', vpcId, cidr: '10.0.0.0/16' },
     topology: { nodeCount: 1, sites: [{ name: 'site', nodeIndexes: [1] }] },
-    routing: { profile: 'direct-eni' },
+    routing: { profile: 'direct-eni', destinationCidrs: [], associations: [], propagations: [] },
     routes: [],
     brownfield: { resourceIds: resources.map((r) => r.id), routeTableIds: tableIds, transitGatewayRouteTableIds: [] },
   };

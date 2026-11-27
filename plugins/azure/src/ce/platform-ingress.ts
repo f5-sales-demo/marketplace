@@ -1,16 +1,20 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
-import { type AzExecApi, detectAzError } from '../az/exec';
+import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import { observeAzureIngressInterface } from './ingress-interface-identity';
+import { persistAzureIngressSource, validateAzureIngressSource } from './ingress-source';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import { observeAzureTrafficSource } from './traffic-source';
 import type { AzureCePlan } from './types';
 
 type Json = Record<string, unknown>;
 interface Marker {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  sourcePlanSha256: string;
+  sourceArtifactSha256: string;
   engine: 'native' | 'terraform';
   configurationSha256: string;
   ingressPlanId: string;
@@ -29,83 +33,6 @@ async function optional(storage: Pick<CeDeploymentStore, 'read'>, name: string):
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
   }
-}
-
-async function read(api: AzExecApi, args: string[], signal?: AbortSignal): Promise<Json> {
-  const result = await api.exec('az', [...args, '--output', 'json'], signal ? { signal } : undefined);
-  if (result.exitCode !== 0) throw detectAzError(result.stderr, result.exitCode);
-  try {
-    return object(JSON.parse(result.stdout), 'Malformed Azure CE ingress identity observation');
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new Error('Malformed Azure CE ingress identity observation');
-    throw error;
-  }
-}
-
-async function observeAzureIngressInterface(plan: AzureCePlan, api: AzExecApi, signal?: AbortSignal) {
-  const sli = plan.nics.filter((nic) => nic.role === 'sli');
-  if (sli.length !== 1) throw new Error('Azure platform ingress requires exactly one SLI interface');
-  const node = `${plan.deploymentName}-1`;
-  const scope = `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/`;
-  const vmResourceId = `${scope}Microsoft.Compute/virtualMachines/${node}`;
-  const nicResourceId = `${scope}Microsoft.Network/networkInterfaces/${node}-nic${sli[0].index}`;
-  for (const id of [vmResourceId, nicResourceId])
-    if (
-      !plan.ownershipInventory.some(
-        (row) => row.resourceId.toLowerCase() === id.toLowerCase() && row.owned && row.action !== 'delete',
-      )
-    )
-      throw new Error('Azure platform ingress interface is outside the owned inventory');
-
-  const vm = await read(api, ['vm', 'show', '--ids', vmResourceId, '--subscription', plan.subscription.id], signal);
-  const nic = await read(
-    api,
-    ['network', 'nic', 'show', '--ids', nicResourceId, '--subscription', plan.subscription.id],
-    signal,
-  );
-  const vmTags = object(vm.tags, 'Azure platform ingress VM ownership is unavailable');
-  const nicTags = object(nic.tags, 'Azure platform ingress NIC ownership is unavailable');
-  const ownerPlanSha256 = vmTags['xcsh-plan-sha256'];
-  const attachments = object(
-    vm.networkProfile,
-    'Azure platform ingress VM network profile is unavailable',
-  ).networkInterfaces;
-  const attached =
-    Array.isArray(attachments) &&
-    attachments.filter(
-      (value) =>
-        value &&
-        typeof value === 'object' &&
-        !Array.isArray(value) &&
-        typeof (value as Json).id === 'string' &&
-        String((value as Json).id).toLowerCase() === nicResourceId.toLowerCase(),
-    );
-  const mac = typeof nic.macAddress === 'string' ? nic.macAddress.replaceAll('-', ':').toLowerCase() : '';
-  if (
-    typeof vm.id !== 'string' ||
-    vm.id.toLowerCase() !== vmResourceId.toLowerCase() ||
-    vm.provisioningState !== 'Succeeded' ||
-    !Array.isArray(attached) ||
-    attached.length !== 1 ||
-    typeof nic.id !== 'string' ||
-    nic.id.toLowerCase() !== nicResourceId.toLowerCase() ||
-    nic.provisioningState !== 'Succeeded' ||
-    typeof object(nic.virtualMachine, 'Azure platform ingress NIC attachment is unavailable').id !== 'string' ||
-    String(object(nic.virtualMachine, 'Azure platform ingress NIC attachment is unavailable').id).toLowerCase() !==
-      vmResourceId.toLowerCase() ||
-    !/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac) ||
-    typeof ownerPlanSha256 !== 'string' ||
-    !/^[a-f0-9]{64}$/.test(ownerPlanSha256) ||
-    nicTags['xcsh-plan-sha256'] !== ownerPlanSha256 ||
-    [vmTags, nicTags].some(
-      (tags) =>
-        tags['xcsh-managed-by'] !== 'azure-ce' ||
-        tags['xcsh-deployment-id'] !== plan.deploymentName ||
-        tags['xcsh-execution-engine'] !== plan.engine,
-    )
-  )
-    throw new Error('Azure platform ingress VM, NIC, or ownership identity differs');
-  return { node, mac };
 }
 
 /** Create or resume the exact platform listener after Azure registration and SLI discovery. */
@@ -134,32 +61,75 @@ export async function ensureAzurePlatformIngress(
   ];
   const intent = { ...ingress.listener, port: ingress.port, originAddress: source.privateAddress };
   const configurationSha256 = canonicalSha256({ owner: binding.owner, intent });
+  const journal = await persistAzureIngressSource(
+    plan,
+    source.identity,
+    selected.identity,
+    contract.fingerprint,
+    storage,
+    signal,
+  );
+  const provenance = {
+    schemaVersion: 1 as const,
+    kind: 'azure-ce-source' as const,
+    sourcePlanSha256: plan.planSha256,
+    sourceArtifactSha256: canonicalSha256(journal),
+  };
   const lifecycle = runtime.ingress(contract, storage);
   const saved = await optional(storage, 'azure-platform-ingress.json');
   let marker: Marker;
   if (saved !== undefined) {
     const candidate = object(saved, 'Malformed Azure platform ingress checkpoint') as unknown as Marker;
     if (
-      candidate.schemaVersion !== 1 ||
+      Object.keys(candidate).sort().join(',') !==
+        [
+          'schemaVersion',
+          'engine',
+          'sourcePlanSha256',
+          'sourceArtifactSha256',
+          'configurationSha256',
+          'ingressPlanId',
+          'contractFingerprint',
+        ]
+          .sort()
+          .join(',') ||
+      candidate.schemaVersion !== 2 ||
+      !/^[a-f0-9]{64}$/.test(candidate.sourcePlanSha256) ||
+      !/^[a-f0-9]{64}$/.test(candidate.sourceArtifactSha256) ||
       candidate.engine !== plan.engine ||
       candidate.configurationSha256 !== configurationSha256 ||
       candidate.contractFingerprint !== contract.fingerprint ||
       !/^[a-f0-9]{24}$/.test(candidate.ingressPlanId)
     )
       throw new Error('Platform ingress checkpoint differs from the owning Azure configuration');
+    const prior = await storage.read(`azure-ingress-source-${candidate.sourcePlanSha256}.json`);
+    const priorSource = validateAzureIngressSource(prior, binding.owner, contract.fingerprint);
+    if (
+      candidate.sourceArtifactSha256 !== canonicalSha256(prior) ||
+      priorSource.configurationSha256 !== configurationSha256 ||
+      priorSource.plan.planSha256 !== candidate.sourcePlanSha256
+    )
+      throw new Error('Platform ingress checkpoint source provenance differs');
     marker = candidate;
     if (!(await lifecycle.matchesAzure(marker.ingressPlanId, intent, selections, signal))) {
       if (!['replace-node', 'update-network'].includes(plan.intent.operation))
         throw new Error('Azure platform ingress identities changed outside an approved replacement operation');
       await lifecycle.retire(marker.ingressPlanId, signal);
-      const replacement = await lifecycle.planAzure(intent, selections, signal);
-      marker = { ...marker, ingressPlanId: replacement.id };
+      const replacement = await lifecycle.planAzure(intent, selections, signal, provenance);
+      marker = {
+        ...marker,
+        ingressPlanId: replacement.id,
+        sourcePlanSha256: plan.planSha256,
+        sourceArtifactSha256: canonicalSha256(journal),
+      };
       await storage.write('azure-platform-ingress.json', marker);
     }
   } else {
-    const ingressPlan = await lifecycle.planAzure(intent, selections, signal);
+    const ingressPlan = await lifecycle.planAzure(intent, selections, signal, provenance);
     marker = {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      sourcePlanSha256: plan.planSha256,
+      sourceArtifactSha256: canonicalSha256(journal),
       engine: plan.engine,
       configurationSha256,
       ingressPlanId: ingressPlan.id,

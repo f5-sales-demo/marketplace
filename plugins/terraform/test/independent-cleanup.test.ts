@@ -12,7 +12,7 @@ import {
   inspectEmptyState,
 } from '../src/cleanup-verifier-worker';
 import { cleanupRequest, executeIndependentCleanup, validateIndependentCleanup } from '../src/independent-cleanup';
-import { TerraformRunner } from '../src/runner';
+import { type Deployment, TerraformRunner } from '../src/runner';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -79,6 +79,44 @@ test('original input inventory binds present bytes and missing local state', asy
   expect(await inputDigests(root)).not.toEqual(before);
   expect(await readFile(join(root, 'main.tf.json'), 'utf8')).toBe('main.tf.json');
 });
+test('cleanup request retains one origin when the clock advances between timestamp fields', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cleanup-clock-'));
+  roots.push(root);
+  for (const name of [
+    'main.tf.json',
+    '.terraform.lock.hcl',
+    'deployment.tfrc',
+    'deployment.json',
+    'plan-receipt.json',
+    'saved.tfplan',
+  ])
+    await writeFile(join(root, name), name, { mode: 0o600 });
+  const RealDate = globalThis.Date,
+    origin = RealDate.now();
+  const identity = await executableIdentity(process.execPath);
+  class AdvancingDate extends RealDate {
+    constructor(value?: number) {
+      super(value ?? origin);
+    }
+    static now() {
+      return origin + 1;
+    }
+  }
+  globalThis.Date = AdvancingDate as DateConstructor;
+  try {
+    const request = await cleanupRequest(root, {
+      manifestSha256: 'a'.repeat(64),
+      evidenceSha256: 'b'.repeat(64),
+      finalPlanSha256: 'c'.repeat(64),
+      planReceiptSha256: 'd'.repeat(64),
+      terraform: identity,
+    });
+    expect(RealDate.parse(request.deadline) - RealDate.parse(request.startedAt)).toBe(300000);
+    expect(RealDate.parse(request.startedAt)).toBe(origin + 1);
+  } finally {
+    globalThis.Date = RealDate;
+  }
+});
 test('missing, malformed and replayed independent response cannot authorize deletion', () => {
   for (const response of [undefined, {}, { schemaVersion: 1, status: 'verified', nonce: 'old' }])
     expect(() => validateIndependentCleanup(response, {} as never)).toThrow();
@@ -99,26 +137,44 @@ const installedVersion = (() => {
 test.skipIf(!installedVersion)(
   'actual separate Terraform process verifies original local workspace before sensitive retirement',
   async () => {
+    if (!installedVersion) throw Error('Compatible Terraform executable is required');
     const root = await mkdtemp(join(tmpdir(), 'cleanup-real-'));
     roots.push(root);
     const runner = new TerraformRunner(root);
-    await runner.prepare({
+    const deployment = {
       schemaVersion: 1,
       deploymentId: 'local-cleanup',
       engine: 'terraform',
       scope: { cloud: 'aws', account: 'example-account', region: 'us-east-1' },
-      terraformVersion: installedVersion!,
+      terraformVersion: installedVersion,
       configuration: JSON.stringify({ terraform: { required_version: `= ${installedVersion}` } }),
       providerLock: '# no external providers',
       backendIdentity: 'local:local-cleanup',
-    });
+    } satisfies Deployment;
+    await runner.prepare(deployment);
     const receipt = await runner.plan({ ...process.env });
+    expect(await runner.readArtifactRetirement(receipt, 'a'.repeat(64))).toEqual({ status: 'absent' });
     const result = await runner.retireArtifacts(receipt, 'a'.repeat(64), { ...process.env });
     expect(result.status).toBe('runner-artifacts-retired');
     const marker = JSON.parse(await readFile(join(root, 'local-cleanup', 'artifact-retirement.json'), 'utf8'));
     expect(marker.independentCleanup.executorPid).not.toBe(process.pid);
     expect(marker.independentCleanup.terraformVersion).toBe(installedVersion);
     expect(marker.independentCleanup.commands.some((args: string[]) => args.includes('-refresh=true'))).toBe(true);
+    const recovered = new TerraformRunner(
+      root,
+      async () => {
+        throw Error('No CLI permitted after retirement');
+      },
+      async () => {
+        throw Error('No verifier permitted after retirement');
+      },
+    );
+    await recovered.resume('local-cleanup', deployment, 'current');
+    const provenance = await recovered.readArtifactRetirement(receipt, 'a'.repeat(64));
+    expect(provenance.status).toBe('runner-artifacts-retired');
+    if (provenance.status !== 'runner-artifacts-retired') throw Error('Retired provenance missing');
+    expect(provenance.receipt).toEqual(result);
+    await expect(recovered.plan({ ...process.env })).rejects.toThrow('retired');
   },
   30000,
 );
@@ -126,6 +182,7 @@ test.skipIf(!installedVersion)(
 test.skipIf(!installedVersion)(
   'actual original previously applied state is empty and retired only after separate execution',
   async () => {
+    if (!installedVersion) throw Error('Compatible Terraform executable is required');
     const root = await mkdtemp(join(tmpdir(), 'cleanup-applied-'));
     roots.push(root);
     const runner = new TerraformRunner(root);
@@ -135,7 +192,7 @@ test.skipIf(!installedVersion)(
       deploymentId: 'local-applied',
       engine: 'terraform',
       scope: { cloud: 'aws', account: 'example-account', region: 'us-east-1' },
-      terraformVersion: installedVersion!,
+      terraformVersion: installedVersion,
       configuration: JSON.stringify({
         terraform: { required_version: `= ${installedVersion}` },
         resource: { terraform_data: { fixture: { input: 'SYNTHETIC_PRIVATE_STAGING' } } },
@@ -157,6 +214,10 @@ test.skipIf(!installedVersion)(
     const marker = JSON.parse(await readFile(join(root, 'local-applied', 'artifact-retirement.json'), 'utf8'));
     expect(marker.independentCleanup.executorPid).not.toBe(process.pid);
     expect(JSON.stringify(marker.independentCleanup)).not.toContain('SYNTHETIC_PRIVATE_STAGING');
+    const provenance = await runner.readArtifactRetirement(receipt, 'a'.repeat(64));
+    expect(provenance.status).toBe('runner-artifacts-retired');
+    if (provenance.status !== 'runner-artifacts-retired') throw Error('Retired provenance missing');
+    expect(provenance.receipt).toEqual(result);
   },
   60000,
 );

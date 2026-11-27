@@ -45,7 +45,7 @@ async function fixture(update = false) {
   };
   const empty = {
     terraform: {
-      required_version: '= 1.16.5',
+      required_version: '= 1.17.1',
       required_providers: { xcsh: { source: 'f5-sales-demo/xcsh', version: `= ${XCSH_PROVIDER_VERSION}` } },
     },
     provider: { xcsh: {} },

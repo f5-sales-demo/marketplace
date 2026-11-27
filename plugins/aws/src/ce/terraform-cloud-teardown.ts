@@ -65,8 +65,18 @@ export async function runAwsTerraformCloudTeardown(
   api: AwsExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
+  expectedInitialInstanceIds?: string[],
 ) {
   verifyAwsCePlan(plan);
+  if (expectedInitialInstanceIds) {
+    expectedInitialInstanceIds = [...expectedInitialInstanceIds];
+    if (
+      plan.intent.topology.nodeCount !== 1 ||
+      expectedInitialInstanceIds.length !== 1 ||
+      !/^i-[0-9a-f]{8,17}$/.test(expectedInitialInstanceIds[0])
+    )
+      throw new Error('Initial registration requires one resolved original instance ID');
+  }
   const owner = storage.owner;
   if (
     plan.engine !== 'terraform' ||
@@ -189,6 +199,21 @@ export async function runAwsTerraformCloudTeardown(
       storage,
       'terraform-cloud-teardown-inventory.json',
     );
+    if (expectedInitialInstanceIds) {
+      const originalInstances = (originalInventory ?? ownership.inventory).resources
+        .filter((row) => row.type === 'aws_instance')
+        .map((row) => row.id)
+        .sort();
+      if (
+        expectedInitialInstanceIds.length !== 1 ||
+        !/^i-[0-9a-f]{8,17}$/.test(expectedInitialInstanceIds[0]) ||
+        JSON.stringify(originalInstances) !== JSON.stringify([...expectedInitialInstanceIds].sort()) ||
+        ownership.inventory.resources.some(
+          (row) => row.type === 'aws_instance' && !expectedInitialInstanceIds.includes(row.id),
+        )
+      )
+        throw new Error('Initial registration destroy plan substituted its original instance');
+    }
     if (originalInventory === undefined) {
       await storage.write('terraform-cloud-teardown-inventory.json', ownership.inventory);
     } else {
@@ -239,6 +264,21 @@ export async function runAwsTerraformCloudTeardown(
   }
   signal?.throwIfAborted();
   await storage.verify();
+  if (expectedInitialInstanceIds) {
+    const original = (await storage.read('terraform-cloud-teardown-inventory.json')) as AwsTerraformRetirementInventory;
+    const { sha256, ...material } = original;
+    if (
+      canonicalSha256(material) !== sha256 ||
+      original.sourcePlanSha256 !== plan.planSha256 ||
+      JSON.stringify(
+        original.resources
+          .filter((row) => row.type === 'aws_instance')
+          .map((row) => row.id)
+          .sort(),
+      ) !== JSON.stringify([...expectedInitialInstanceIds].sort())
+    )
+      throw new Error('Original initial-registration cloud retirement proof differs');
+  }
   await session.readConfiguration(source.retiredConfigurationSha256);
   const final = await session.plan(env, signal);
   if (

@@ -287,3 +287,21 @@ test('retained replacement metadata excludes old platform discovery labels and k
   await expect(f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {})).rejects.toThrow();
   expect(f.posts()).toBe(1);
 });
+
+test('rejects out-of-site-schema MTUs before configuration or replacement publication', async () => {
+  for (const mtu of [8001, 9000]) {
+    const f = fixture();
+    const invalid = expected.map((item) => ({ ...item, mtu }));
+    await expect(
+      f.runtime.ensureAwsInterfaceMtu(binding, { 'node-one': 'i-1234567890abcdef0' }, invalid, async () => {
+        throw Error('Unexpected checkpoint');
+      }),
+    ).rejects.toThrow('MTU');
+    await expect(
+      f.runtime.prepareAwsSiteReplacement(binding, { 'node-one': 'i-1234567890abcdef0' }, invalid),
+    ).rejects.toThrow('MTU');
+    expect(f.puts()).toBe(0);
+    expect(f.posts()).toBe(0);
+    expect(f.receipts).toEqual([]);
+  }
+});

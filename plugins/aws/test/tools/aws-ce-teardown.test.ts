@@ -91,7 +91,7 @@ for (const mode of ['greenfield', 'brownfield', 'foundation'] as const)
     } as unknown as CePlatformService;
     const terraform = {
       async open(_owner, deployment, resume) {
-        expect(resume).toBe('current');
+        expect(resume).toBe('recover-initialization');
         if (mode === 'brownfield') {
           const configuration = JSON.parse(deployment.configuration);
           expect(configuration.output.ce_vpc_id.value).toBe('vpc-12345678');

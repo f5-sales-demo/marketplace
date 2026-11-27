@@ -83,6 +83,8 @@ export function correlateRegistrationDevices(
     const device = matches[0].name;
     if (typeof device !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(device))
       throw new Error('Guest device identity is unavailable');
+    if (binding.device !== undefined && binding.device !== device)
+      throw new Error('Planned guest device differs from observed MAC inventory');
     const key = `${binding.node}/${device}`;
     if (seenDevices.has(key)) throw new Error('Duplicate guest device identity');
     seenDevices.add(key);

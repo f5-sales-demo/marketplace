@@ -79,6 +79,14 @@ platform, routing, and traffic-health states independent.
    observation. Apply only when the tool can collect both Route Server sessions, effective routes,
    and traffic before the outage, during withdrawal, and after recovery. A schema path or caller
    assertion cannot satisfy these gates. Do not power-cycle a Terraform-owned VM with generic `az`.
+For `reconcile` or `repair`, rediscover and plan the exact existing deployment. Both
+operations restore its owned nodes to running state in serial order, verify node health,
+and require configured ingress traffic to converge. They preserve VM and NIC identity;
+missing nodes require the explicit replacement workflow. Terraform uses isolated saved
+AzAPI lifecycle plans and finishes each stage with a refresh-enabled no-change plan.
+Resume interrupted work with its original plan ID/hash through `azure_ce_apply`; never
+rebuild an interrupted deployment under a new repair identity.
+
 8. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
    with the same Azure plan ID/hash. Rediscover and replan when source or cloud observations drift.
 9. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. Use

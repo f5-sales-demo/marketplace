@@ -7,7 +7,7 @@ test('direct import keeps the original target and exact import identity without 
   const f = directOwnershipFixture();
   const ownership = await collectAwsTerraformDirectRouteOwnership(f.base, f.values, f.api);
   const before = JSON.stringify({
-    terraform: { required_version: '= 1.16.5' },
+    terraform: { required_version: '= 1.17.1' },
     resource: { aws_instance: { node_1: { ami: 'ami-12345678' } } },
     output: { ce_vpc_id: { value: ownership.vpcId } },
   });

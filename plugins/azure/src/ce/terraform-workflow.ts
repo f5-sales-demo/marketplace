@@ -5,9 +5,17 @@ import type { CeTerraformService, TerraformSession } from '../../../terraform/sr
 import type { AzExecApi } from '../az/exec';
 import { assertAzureCeRoutingExecutable } from './apply';
 import { verifyAzureCePlan } from './artifacts';
+import { revalidateAzureAuxiliaryCatalogs } from './auxiliary-catalog';
+import { canonicalSha256 } from './canonical';
+import { configureAzureSelectedRelayRouting, requireAzureCeRoutingContract } from './relay-routing-dispatch';
 import { configureAzureRouteServerRouting } from './routing-workflow';
 import { azureTerraformFoundationDeployment, renderAzureTerraformFoundation } from './terraform-foundation';
 import { discoverAzureTerraformInterfaces } from './terraform-identities';
+import {
+  publishAzureTerraformOriginalReceipt,
+  readAzureTerraformOriginalReceiptInventory,
+  recoverAzureTerraformOriginalReceiptPublications,
+} from './terraform-original-receipt-inventory';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -20,6 +28,8 @@ interface WorkflowCheckpoint {
   bootstrapByNode: Record<string, string>;
   launchedAtByNode: Record<string, string>;
   stage: 'network-pending' | 'registration-pending' | 'registered';
+  originalReceiptInventorySha256?: string;
+  admissionReceiptSha256ByNode?: Record<string, string>;
 }
 
 const waitUntil = async (notBefore: number, signal?: AbortSignal) => {
@@ -48,6 +58,9 @@ export async function runAzureTerraformAdmission(
     | 'engine'
     | 'requireBootstrapContract'
     | 'requireRoutingContract'
+    | 'requireAzureRelayRoutingContract'
+    | 'ensureAzureRelayRouting'
+    | 'observeOwnedSite'
     | 'reserveSite'
     | 'bootstrap'
     | 'approveRegistrations'
@@ -58,7 +71,7 @@ export async function runAzureTerraformAdmission(
     | 'observeBgpSessions'
     | 'observeBgpRoutes'
   >,
-  storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
+  storage: Pick<CeDeploymentStore, 'directory' | 'owner' | 'read' | 'write' | 'verify'>,
   api: AzExecApi,
   revalidate: () => Promise<void>,
   env: Record<string, string | undefined>,
@@ -71,10 +84,17 @@ export async function runAzureTerraformAdmission(
     throw new Error('Azure Terraform workflow requires Terraform ownership');
   assertAzureCeRoutingExecutable(plan);
   runtime.requireBootstrapContract('azure');
-  if (plan.routing.mode === 'route-server') runtime.requireRoutingContract('azure');
+  requireAzureCeRoutingContract(plan, runtime);
   const binding = azureUpgradeBinding(plan);
   const initial = renderAzureTerraformFoundation(plan);
   await storage.verify();
+  const auxiliaryCatalogs = await revalidateAzureAuxiliaryCatalogs(plan, api, signal);
+  if (auxiliaryCatalogs.length)
+    await storage.write('azure-auxiliary-catalog-preflight.json', {
+      sourcePlanSha256: plan.planSha256,
+      catalogs: auxiliaryCatalogs,
+      ceSampleFreshnessQualified: false,
+    });
   let checkpoint: WorkflowCheckpoint;
   try {
     checkpoint = (await storage.read('terraform-workflow.json')) as WorkflowCheckpoint;
@@ -88,11 +108,10 @@ export async function runAzureTerraformAdmission(
       bootstrapByNode: {},
       launchedAtByNode: {},
       stage: 'network-pending',
+      admissionReceiptSha256ByNode: {},
     };
     await storage.write('terraform-workflow.json', checkpoint);
   }
-  // Checkpoints written before serial HA admission did not record launch boundaries.
-  checkpoint.launchedAtByNode ??= {};
   if (
     checkpoint.schemaVersion !== 1 ||
     checkpoint.engine !== 'terraform' ||
@@ -112,10 +131,45 @@ export async function runAzureTerraformAdmission(
         !checkpoint.bootstrapByNode[node] ||
         Number.isNaN(Date.parse(launchedAt)),
     ) ||
-    !['network-pending', 'registration-pending', 'registered'].includes(checkpoint.stage)
+    !['network-pending', 'registration-pending', 'registered'].includes(checkpoint.stage) ||
+    (checkpoint.admissionReceiptSha256ByNode !== undefined &&
+      (!checkpoint.admissionReceiptSha256ByNode ||
+        typeof checkpoint.admissionReceiptSha256ByNode !== 'object' ||
+        Array.isArray(checkpoint.admissionReceiptSha256ByNode) ||
+        Object.entries(checkpoint.admissionReceiptSha256ByNode).some(
+          ([node, bound], index) =>
+            node !== String(index + 1) ||
+            Number(node) > plan.topology.nodeCount ||
+            typeof bound !== 'string' ||
+            !/^[a-f0-9]{64}$/.test(bound) ||
+            !checkpoint.launchedAtByNode[node],
+        ))) ||
+    Object.keys(checkpoint.launchedAtByNode).some((node) => !checkpoint.admissionReceiptSha256ByNode?.[node])
   )
     throw new Error('Azure Terraform workflow checkpoint differs from the owning plan');
   const save = () => storage.write('terraform-workflow.json', checkpoint);
+  await recoverAzureTerraformOriginalReceiptPublications(
+    plan,
+    checkpoint.bootstrapByNode,
+    storage,
+    signal,
+    async () => {
+      const open = terraform.open,
+        session = await open.call(terraform, binding.owner, await azureTerraformFoundationDeployment(plan), 'current'),
+        readConfiguration = session.readConfigurationSha256,
+        readJournal = session.readCurrentPlanJournal;
+      if (!readConfiguration || !readJournal) throw Error('Native original publication recovery readers unavailable');
+      const configurationSha256 = await readConfiguration.call(session),
+        journal = await readJournal.call(session, configurationSha256, signal);
+      if (
+        terraform.open !== open ||
+        session.readConfigurationSha256 !== readConfiguration ||
+        session.readCurrentPlanJournal !== readJournal
+      )
+        throw Error('Native original publication recovery dependency changed');
+      return journal;
+    },
+  );
   signal?.throwIfAborted();
   let session: TerraformSession;
   if (checkpoint.stage === 'network-pending') {
@@ -139,23 +193,103 @@ export async function runAzureTerraformAdmission(
       checkpoint.configurationSha256 = nextHash;
       await save();
     };
-    await reviseConfiguration(renderAzureTerraformFoundation(plan, checkpoint.bootstrapByNode));
-    await revalidate();
-    const receipt = await session.plan(env, signal);
-    if (
-      receipt.changes.some((change) =>
-        change.actions.some(
-          (action) =>
-            !['create', 'read', 'no-op'].includes(action) &&
-            !(change.address === 'azapi_resource_action.marketplace_terms' && action === 'update'),
-        ),
+    // Native saved-plan journals, never launch timestamps or mutable plan names,
+    // authorize skipping an already completed original serial admission stage.
+    const readHistory = session.readPlanApplicationHistory;
+    if (!readHistory) throw Error('Azure Terraform original admission requires native receipt history');
+    const completedStages = async () => {
+      const inventory = await readAzureTerraformOriginalReceiptInventory(
+        plan,
+        checkpoint.bootstrapByNode,
+        storage,
+        signal,
+      );
+      if (inventory.status === 'partial') throw Error('Azure Terraform original receipt history is partial');
+      const completed = new Map<number, string>();
+      let foundation = false;
+      for (const row of inventory.records) {
+        if (session.readPlanApplicationHistory !== readHistory)
+          throw Error('Azure Terraform native receipt reader changed');
+        const record = structuredClone(row.record),
+          history = await readHistory.call(session, record.receipt, signal);
+        if (session.readPlanApplicationHistory !== readHistory)
+          throw Error('Azure Terraform native receipt reader changed');
+        if (
+          history.receiptSha256 !== record.receiptSha256 ||
+          history.incompleteArchives ||
+          !history.matches.length ||
+          history.matches.some(
+            (match) =>
+              match.savedPlanSha256 !== record.receipt.planSha256 ||
+              match.configurationSha256 !== record.receipt.configurationSha256 ||
+              match.state === 'applying',
+          )
+        )
+          throw Error('Azure Terraform original receipt native history is unavailable or requires reconciliation');
+        const done =
+          history.matches.some((match) => match.state === 'applied') ||
+          (record.receipt.noChanges && history.matches.every((match) => match.state === 'planned'));
+        if (done && record.stage.kind === 'foundation' && Object.keys(record.bootstrapSha256ByNode).length === 0)
+          foundation = true;
+        if (done && record.stage.kind === 'node-admission') {
+          const node = record.stage.node,
+            prior = completed.get(node),
+            bound = checkpoint.admissionReceiptSha256ByNode?.[String(node)];
+          if (bound && bound !== record.receiptSha256 && prior !== bound)
+            throw Error('Azure Terraform original admission receipt binding differs');
+          if (!prior || bound === record.receiptSha256) completed.set(node, record.receiptSha256);
+        }
+      }
+      if (
+        canonicalSha256(
+          await readAzureTerraformOriginalReceiptInventory(plan, checkpoint.bootstrapByNode, storage, signal),
+        ) !== canonicalSha256(inventory)
       )
-    )
-      throw new Error('Azure Terraform foundation would mutate existing resources');
-    await storage.write('terraform-foundation-plan.json', receipt);
-    await storage.verify();
-    await revalidate();
-    if (!receipt.noChanges) await session.apply(receipt, env, signal);
+        throw Error('Azure Terraform original receipts changed during native verification');
+      for (const node of completed.keys())
+        if (node > 1 && !completed.has(node - 1))
+          throw Error('Azure Terraform original admission completion is not serial');
+      for (const [node, bound] of Object.entries(checkpoint.admissionReceiptSha256ByNode ?? {}))
+        if (completed.get(Number(node)) !== bound)
+          throw Error('Azure Terraform original admission receipt binding is unverified');
+      return { foundation, completed };
+    };
+    const progress = await completedStages();
+    checkpoint.admissionReceiptSha256ByNode ??= {};
+    for (const [node, receiptSha256] of progress.completed) {
+      checkpoint.admissionReceiptSha256ByNode[String(node)] = receiptSha256;
+      // A recovered applied receipt proves completion; using the current time
+      // after a lost checkpoint conservatively preserves the serial delay.
+      checkpoint.launchedAtByNode[String(node)] ??= new Date().toISOString();
+    }
+    await save();
+    if (!progress.foundation) {
+      if (progress.completed.size) throw Error('Azure Terraform original foundation completion is unavailable');
+      await reviseConfiguration(renderAzureTerraformFoundation(plan, {}));
+      await revalidate();
+      const receipt = await session.plan(env, signal);
+      if (
+        receipt.changes.some((change) =>
+          change.actions.some(
+            (action) =>
+              !['create', 'read', 'no-op'].includes(action) &&
+              !(change.address === 'azapi_resource_action.marketplace_terms' && action === 'update'),
+          ),
+        )
+      )
+        throw new Error('Azure Terraform foundation would mutate existing resources');
+      await publishAzureTerraformOriginalReceipt(
+        { plan, bootstrapByNode: {}, stage: { kind: 'foundation' }, receipt },
+        storage,
+        signal,
+      );
+      await storage.write('terraform-foundation-plan.json', receipt);
+      await storage.verify();
+      await revalidate();
+      if (!receipt.noChanges) await session.apply(receipt, env, signal);
+      if (!(await completedStages()).foundation)
+        throw Error('Azure Terraform original foundation native completion is unavailable');
+    }
     await storage.verify();
     await revalidate();
     await runtime.reserveSite(
@@ -168,6 +302,7 @@ export async function runAzureTerraformAdmission(
       signal?.throwIfAborted();
       await storage.verify();
       await revalidate();
+      if (progress.completed.has(node)) continue;
       const previous = node - 1;
       if (plan.topology.ha && previous > 0) {
         const launchedAt = checkpoint.launchedAtByNode[String(previous)];
@@ -216,10 +351,19 @@ export async function runAzureTerraformAdmission(
         )
       )
         throw new Error('Azure Terraform admission would alter or replace an existing resource');
+      await publishAzureTerraformOriginalReceipt(
+        { plan, bootstrapByNode: admittedBootstrap, stage: { kind: 'node-admission', node }, receipt: admission },
+        storage,
+        signal,
+      );
       await storage.write(`terraform-admission-plan-node-${node}.json`, admission);
       await storage.verify();
       await revalidate();
       if (!admission.noChanges) await session.apply(admission, env, signal);
+      const completed = (await completedStages()).completed.get(node);
+      if (completed !== canonicalSha256(admission))
+        throw Error('Azure Terraform original admission native completion is unavailable');
+      checkpoint.admissionReceiptSha256ByNode[String(node)] = completed;
       checkpoint.launchedAtByNode[String(node)] ??= new Date().toISOString();
       await save();
     }
@@ -268,7 +412,14 @@ export async function runAzureTerraformAdmission(
   await save();
   let routing: 'healthy' | 'unknown' = 'unknown';
   if (plan.routing.mode === 'route-server' && checkpoint.stage === 'registered') {
-    const evidence = await configureAzureRouteServerRouting(plan, expectedInterfaces, runtime, storage, api, signal);
+    const evidence = plan.relayProfile
+      ? await configureAzureSelectedRelayRouting(plan, expectedInterfaces, runtime, storage, api, signal)
+      : await configureAzureRouteServerRouting(plan, expectedInterfaces, runtime, storage, api, signal);
+    if (
+      'observation' in evidence &&
+      (evidence.observation.ceRouteScope === 'unqualified' || evidence.observation.freshness === 'unqualified')
+    )
+      throw Error('Azure relay evidence was collected; CE route scope and publication freshness remain unqualified');
     if (evidence.status !== 'healthy') throw new Error('Azure Route Server BGP and learned routes have not converged');
     routing = 'healthy';
   }
@@ -282,10 +433,48 @@ export async function runAzureTerraformAdmission(
     if (!acceptIngress) throw new Error('Azure Terraform ingress acceptance driver is unavailable');
     traffic = (await acceptIngress(session)).traffic;
     const refresh = await session.plan(env, signal);
+    await publishAzureTerraformOriginalReceipt(
+      { plan, bootstrapByNode: checkpoint.bootstrapByNode, stage: { kind: 'ingress-final' }, receipt: refresh },
+      storage,
+      signal,
+    );
     if (!refresh.noChanges) throw new Error('Terraform changed after Azure platform ingress convergence');
     terraformNoChanges = true;
   }
+  const originalReceiptInventory = await readAzureTerraformOriginalReceiptInventory(
+    plan,
+    checkpoint.bootstrapByNode,
+    storage,
+    signal,
+  );
+  const originalRecords = originalReceiptInventory.records.map((row) => row.record);
+  if (
+    originalReceiptInventory.status !== 'complete' ||
+    !originalRecords.some(
+      (row) => row.stage.kind === 'foundation' && Object.keys(row.bootstrapSha256ByNode).length === 0,
+    ) ||
+    Array.from({ length: plan.topology.nodeCount }, (_, index) => index + 1).some(
+      (node) => !originalRecords.some((row) => row.stage.kind === 'node-admission' && row.stage.node === node),
+    ) ||
+    (terraformNoChanges && !originalRecords.some((row) => row.stage.kind === 'ingress-final'))
+  )
+    throw Error('Azure Terraform original deployment receipt inventory is incomplete');
+  const receiptInventorySha256 = canonicalSha256(originalReceiptInventory);
+  checkpoint.originalReceiptInventorySha256 = receiptInventorySha256;
+  await save();
+  const finalReceiptInventory = await readAzureTerraformOriginalReceiptInventory(
+    plan,
+    checkpoint.bootstrapByNode,
+    storage,
+    signal,
+  );
+  if (
+    canonicalSha256(finalReceiptInventory) !== receiptInventorySha256 ||
+    checkpoint.originalReceiptInventorySha256 !== receiptInventorySha256
+  )
+    throw Error('Azure Terraform original receipt inventory changed during completion publication');
   return {
+    originalReceiptInventorySha256: checkpoint.originalReceiptInventorySha256,
     planId: plan.planId,
     planSha256: plan.planSha256,
     engine: 'terraform' as const,

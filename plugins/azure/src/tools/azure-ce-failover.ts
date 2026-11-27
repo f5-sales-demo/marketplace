@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+import { acquireProcessLock } from '../../../platform/src/ce/process-lock';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
@@ -14,9 +16,13 @@ import {
   observeAzureFailoverVmState,
   requireAzureFailoverExecutionContract,
   runAzureCeFailover,
+  validateAzureFailoverCheckpoint,
   verifyAzureCeFailoverPlan,
 } from '../ce/failover';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
+import { collectAzureRelayFailoverAcceptance } from '../ce/relay-failover';
+import { assertAzureNativeRelayActive } from '../ce/relay-retirement';
+import { requireAzureCeRoutingContract } from '../ce/relay-routing-dispatch';
 import { createAzureTerraformFailoverController } from '../ce/terraform-failover';
 import { makeExecApi } from './shared';
 
@@ -44,7 +50,7 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
     name: 'azure_ce_failover',
     label: 'Validate Azure Customer Edge Failover',
     description:
-      'Prepare or execute an immutable, engine-owned Azure CE outage plan with exact VM identity, durable six-to-four-to-six Route Server evidence, effective routes, content-bound traffic, and Terraform state release.',
+      'Prepare or execute an immutable, engine-owned Azure CE outage plan with exact VM identity, topology-specific CE and cloud BGP evidence, effective routes, content-bound traffic, and Terraform state release.',
     parameters: Type.Object({
       operation: Type.Union([Type.Literal('prepare'), Type.Literal('apply')]),
       basePlanId: Type.String(),
@@ -67,6 +73,7 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
       _update: unknown,
       ctx: AzureCeToolContext,
     ) {
+      let releaseLifecycle: (() => Promise<void>) | undefined;
       try {
         const allowed =
           params.operation === 'prepare'
@@ -77,8 +84,22 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
         const { plan } = await loadPlanArtifact(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
         const platform = await dependencies.platform(pi, signal);
         const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
-        if (plan.routing.mode === 'route-server') runtime.requireRoutingContract('azure');
+        requireAzureCeRoutingContract(plan, runtime);
         const storage = await platform.storage(azureFailoverOwner(plan));
+        if (plan.relayProfile) {
+          releaseLifecycle = await acquireProcessLock(
+            join(
+              storage.directory,
+              plan.engine === 'native' ? '.azure-relay-native-mutation-lock' : '.azure-terraform-lifecycle-lock',
+            ),
+          );
+          signal?.throwIfAborted();
+          await storage.verify();
+          if (plan.engine === 'native') await assertAzureNativeRelayActive(storage);
+          else if ((await optional(storage, 'azure-terraform-lifecycle-retirement.json')) !== undefined)
+            throw Error('Azure Terraform relay lifecycle is retiring or retired; failover cannot execute');
+          signal?.throwIfAborted();
+        }
         const api = withAzureCeExecution(dependencies.makeApi(ctx.cwd), signal);
         if (params.operation === 'prepare') {
           if (!Number.isInteger(params.nodeIndex)) throw new Error('Failover preparation requires an exact nodeIndex');
@@ -126,8 +147,33 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
         verifyAzureCeFailoverPlan(plan, failover);
         if (failover.planId !== params.failoverPlanId || !safeHexEqual(failover.planSha256, params.failoverPlanSha256))
           throw new Error('Persisted Azure CE failover plan identity differs');
-        const routing = await storage.read('platform-routing.json');
-        requireAzureFailoverExecutionContract(plan, failover, routing);
+        const routing = plan.relayProfile ? undefined : await storage.read('platform-routing.json');
+        if (!plan.relayProfile) requireAzureFailoverExecutionContract(plan, failover, routing);
+        const collect = (phase: 'baseline' | 'outage' | 'recovered', currentSignal?: AbortSignal) =>
+          plan.relayProfile
+            ? collectAzureRelayFailoverAcceptance(plan, failover, phase, platform, runtime, storage, api, currentSignal)
+            : collectAzureFailoverAcceptance(plan, failover, routing, phase, runtime, storage, api, currentSignal);
+        const savedCheckpoint = await optional(storage, `${failover.planId}-checkpoint.json`);
+        const checkpoint =
+          savedCheckpoint === undefined ? undefined : validateAzureFailoverCheckpoint(plan, failover, savedCheckpoint);
+        if (
+          plan.relayProfile &&
+          (!checkpoint || checkpoint.phase === 'baseline' || (checkpoint.phase === 'stop' && !checkpoint.pending))
+        ) {
+          const baseline = await collect('baseline', signal);
+          signal?.throwIfAborted();
+          if (baseline.acceptance !== 'passed')
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Azure relay failover admission remains unknown: current routing, forwarding and original sample freshness must be qualified.',
+                },
+              ],
+              isError: true,
+              details: { tool: 'azure_ce_failover', operation: 'apply', ...baseline },
+            };
+        }
         const authorizationName = `${failover.planId}-authorization.json`;
         const expectedAuthorization = {
           schemaVersion: 1,
@@ -153,8 +199,6 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
           throw new Error('Persisted Azure CE failover authorization differs');
         const observe = (currentSignal?: AbortSignal) =>
           observeAzureFailoverVmState(plan, failover, api, currentSignal);
-        const collect = (phase: 'baseline' | 'outage' | 'recovered', currentSignal?: AbortSignal) =>
-          collectAzureFailoverAcceptance(plan, failover, routing, phase, runtime, storage, api, currentSignal);
         let mutate: (phase: 'stop' | 'start', currentSignal?: AbortSignal) => Promise<void>;
         let release: (currentSignal?: AbortSignal) => Promise<void> = async () => {};
         if (plan.engine === 'terraform') {
@@ -172,6 +216,7 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
         } else {
           mutate = async (phase, currentSignal) => {
             await observe(currentSignal);
+            currentSignal?.throwIfAborted();
             const result = await api.exec(
               'az',
               [
@@ -206,7 +251,7 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
           content: [
             {
               type: 'text' as const,
-              text: `Azure CE node ${failover.nodeIndex}: ${result.status}; BGP sessions 6 → 4 → 6 and content-bound traffic passed.`,
+              text: `Azure CE node ${failover.nodeIndex}: ${result.status}; CE BGP sessions 6 → 4 → 6 and content-bound traffic passed.`,
             },
           ],
           details: { tool: 'azure_ce_failover', operation: 'apply', artifactId, ...result },
@@ -223,6 +268,8 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
           isError: true,
           details: { tool: 'azure_ce_failover', operation: params.operation },
         };
+      } finally {
+        await releaseLifecycle?.();
       }
     },
   };

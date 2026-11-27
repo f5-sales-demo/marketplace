@@ -275,7 +275,7 @@ test('returns real unknown for absent, ambiguous, rebuilt, incomplete, or unauth
     expect(result.details.canSatisfyMutationGate).toBe(false);
   }
 });
-test('preserves explicit down and healthy observed status without inventing CE heartbeat age', async () => {
+test('preserves reported down while keeping unqualified freshness unknown and healthy observed unchanged', async () => {
   for (const status of ['observed', 'down', 'unknown']) {
     const f = fixture();
     f.runtime.observeAwsInterfaces = async () => ({
@@ -302,7 +302,12 @@ test('preserves explicit down and healthy observed status without inventing CE h
       undefined,
       context(),
     );
-    expect(result.details.status).toBe(status);
+    expect(result.details.status).toBe(status === 'down' ? 'unknown' : status);
+    if (status === 'down') {
+      expect(result.details.reportedLinkState).toBe('down');
+      expect(result.details.reason).toBe('interface-sample-freshness-unqualified');
+      expect(result.details.interfaces[0].linkUp).toBe(false);
+    }
     expect(result.details.ceSampleAge).toBe('unknown');
     expect(result.details.canSatisfyMutationGate).toBe(false);
   }

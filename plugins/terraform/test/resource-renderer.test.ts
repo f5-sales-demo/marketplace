@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { renderObservedProviderResource, renderProviderResource } from '../src/resource-renderer';
+import prebootSchema from './resource-renderer-preboot.fixture.json';
 
 const schema = {
   block: {
@@ -199,4 +200,102 @@ test('provider site labels exclude discovered hardware while retaining user and 
   const other = renderProviderResource(request, schema, 'xcsh_origin_pool');
   expect((other.labels as Record<string, string>).domain).toBe('discovered');
   expect((other.labels as Record<string, string>)['ves.io/provider']).toBeUndefined();
+});
+
+type PrebootInterface = {
+  ethernet_interface: { device: string; mac: string };
+  mtu: number;
+  network_option: Record<string, Record<string, never>>;
+  dhcp_client: Record<string, never>;
+  labels?: Record<string, string>;
+  priority?: number;
+};
+type PrebootNode = { hostname: string; interface_list: PrebootInterface[]; public_ip?: string };
+function prebootReadback() {
+  const request: {
+    metadata: { name: string; namespace: string; labels: Record<string, string> };
+    spec: { aws: { not_managed: { node_list: PrebootNode[] } } };
+  } = {
+    metadata: { name: 'sanitized-site', namespace: 'system', labels: { 'xcsh-ce-deployment': 'sanitized-site' } },
+    spec: {
+      aws: {
+        not_managed: {
+          node_list: [
+            {
+              hostname: 'sanitized-node',
+              interface_list: [
+                {
+                  ethernet_interface: { device: 'ens5', mac: '02:00:00:00:00:01' },
+                  mtu: 1500,
+                  network_option: { site_local_network: {} },
+                  dhcp_client: {},
+                },
+                {
+                  ethernet_interface: { device: 'ens6', mac: '02:00:00:00:00:02' },
+                  mtu: 1500,
+                  network_option: { site_local_inside_network: {} },
+                  dhcp_client: {},
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+  const observed = structuredClone(request);
+  const node = observed.spec.aws.not_managed.node_list[0];
+  node.public_ip = '';
+  for (const iface of node.interface_list) Object.assign(iface, { labels: {}, priority: 0 });
+  return { request, observed };
+}
+test('AWS preboot readback omits only identity-bound unrequested empty defaults', () => {
+  const { request, observed } = prebootReadback();
+  const copy = structuredClone(observed);
+  expect(renderObservedProviderResource(observed, request, prebootSchema, 'xcsh_securemesh_site_v2')).toEqual(
+    renderProviderResource(request, prebootSchema, 'xcsh_securemesh_site_v2'),
+  );
+  expect(observed).toEqual(copy);
+});
+test('AWS preboot readback keeps nondefault labels, priority, public IP, MTU and device drift', () => {
+  for (const change of [
+    (node: PrebootNode) => {
+      node.public_ip = '192.0.2.7';
+    },
+    (node: PrebootNode) => {
+      node.interface_list[0].labels = { policy: 'extra' };
+    },
+    (node: PrebootNode) => {
+      node.interface_list[0].priority = 1;
+    },
+    (node: PrebootNode) => {
+      node.interface_list[0].mtu = 1600;
+    },
+    (node: PrebootNode) => {
+      node.interface_list[0].ethernet_interface.device = 'ens9';
+    },
+    (node: PrebootNode) => {
+      node.interface_list[0].ethernet_interface.mac = '02:00:00:00:00:03';
+    },
+    (node: PrebootNode) => {
+      node.hostname = 'foreign-node';
+    },
+  ]) {
+    const { request, observed } = prebootReadback();
+    change(observed.spec.aws.not_managed.node_list[0]);
+    expect(renderObservedProviderResource(observed, request, prebootSchema, 'xcsh_securemesh_site_v2')).not.toEqual(
+      renderProviderResource(request, prebootSchema, 'xcsh_securemesh_site_v2'),
+    );
+  }
+});
+test('AWS preboot readback preserves explicitly configured defaults and rejects their disappearance', () => {
+  const { request, observed } = prebootReadback();
+  request.spec.aws.not_managed.node_list[0] = structuredClone(observed.spec.aws.not_managed.node_list[0]);
+  expect(renderObservedProviderResource(observed, request, prebootSchema, 'xcsh_securemesh_site_v2')).toEqual(
+    renderProviderResource(request, prebootSchema, 'xcsh_securemesh_site_v2'),
+  );
+  delete observed.spec.aws.not_managed.node_list[0].interface_list[0].priority;
+  expect(renderObservedProviderResource(observed, request, prebootSchema, 'xcsh_securemesh_site_v2')).not.toEqual(
+    renderProviderResource(request, prebootSchema, 'xcsh_securemesh_site_v2'),
+  );
 });

@@ -1,5 +1,6 @@
 import type { AzExecApi } from '../az/exec';
 import { safeHexEqual } from './canonical';
+import { assertAzureGreenfieldUdrAssociationOwnership } from './greenfield-udr-ownership';
 import { fingerprintCurrentObservation } from './recovery';
 import type { AzureCeAction, AzureCeCheckpoint, AzureCeObservation, AzureCePlan } from './types';
 
@@ -57,7 +58,8 @@ export function assertAzureCeRoutingExecutable(plan: AzureCePlan): void {
   if (
     plan.routing.mode === 'udr' &&
     plan.routing.destinationCidrs.length > 0 &&
-    plan.intent.brownfield.routeChanges.length === 0
+    plan.intent.brownfield.routeChanges.length === 0 &&
+    !plan.routing.udr
   )
     throw new Error(
       'Azure UDR destinations require explicit routeChanges with the target subnet association; an unattached route table is not executable',
@@ -139,7 +141,12 @@ async function assertBrownfieldOwnership(plan: AzureCePlan, action: AzureCeActio
     throw new Error('Brownfield resource belongs to another or unknown CE deployment owner');
 }
 
-export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
+export async function assertActionOwnership(
+  plan: AzureCePlan,
+  action: AzureCeAction,
+  api: AzExecApi,
+  signal?: AbortSignal,
+): Promise<void> {
   if (!action.mutates || action.kind === 'marketplace-terms-accept') return;
   // Platform ingress is scoped and revalidated by CeDeploymentStore and CeIngressLifecycle,
   // not by an Azure resource ID.
@@ -147,6 +154,10 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
   if (!action.resourceId) throw new Error(`Mutating action ${action.id} has no canonical resource ID`);
   if (!action.resourceId.toLowerCase().startsWith(`/subscriptions/${plan.subscription.id}/`.toLowerCase()))
     throw new Error('Mutation target is outside the selected subscription');
+  if (action.kind === 'route-association-update' && plan.routing.udr) {
+    await assertAzureGreenfieldUdrAssociationOwnership(plan, action, api, signal);
+    return;
+  }
   if (['route-association-update', 'brownfield-restore'].includes(action.kind)) {
     const allowed = plan.ownershipInventory.some(
       (item) => item.action === 'modify-approved' && item.resourceId.toLowerCase() === action.resourceId?.toLowerCase(),

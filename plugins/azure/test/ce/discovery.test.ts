@@ -14,7 +14,7 @@ const officialFetch = (async (input: RequestInfo | URL) => {
       'provider-neutral guidance '.repeat(12)
     : 'official guidance '.repeat(20);
   return new Response(body, { status: 200 });
-}) as typeof fetch;
+}) as unknown as typeof fetch;
 
 function discoverAzureCompute(input: AzureComputeDiscoveryInput, azureApi: AzExecApi) {
   return discoverAzureComputeWithOfficialResearch(input, azureApi, officialFetch);
@@ -29,7 +29,21 @@ function api(fixtures: Record<string, unknown>, calls: string[] = []): AzExecApi
       const value = fixtures[fixtureKey];
       if (value === undefined && key.startsWith('group show '))
         return { stdout: '', stderr: 'ResourceGroupNotFound', exitCode: 1 };
-      if (value === undefined && key.startsWith('vm image show ')) return { stdout: '{}', stderr: '', exitCode: 0 };
+      if (value === undefined && key.startsWith('vm image show ')) {
+        const region = args[args.indexOf('--location') + 1],
+          [publisher, offer, sku, version] = args[args.indexOf('--urn') + 1].split(':');
+        return {
+          stdout: JSON.stringify({
+            id: `/subscriptions/${subscriptionId}/providers/Microsoft.Compute/locations/${region}/publishers/${publisher}/artifacttypes/VMImage/offers/${offer}/skus/${sku}/versions/${version}`,
+            name: version,
+            location: region,
+            architecture: 'x64',
+            hyperVGeneration: 'V1',
+          }),
+          stderr: '',
+          exitCode: 0,
+        };
+      }
       if (value === undefined) return { stdout: '', stderr: `missing fixture: ${key}`, exitCode: 1 };
       return { stdout: JSON.stringify(value), stderr: '', exitCode: 0 };
     },
@@ -115,6 +129,8 @@ const baseFixtures: Record<string, unknown> = {
         { name: 'MaxNetworkInterfaces', value: '8' },
         { name: 'vCPUs', value: '8' },
         { name: 'MemoryGB', value: '32' },
+        { name: 'CpuArchitectureType', value: 'x64' },
+        { name: 'HyperVGenerations', value: 'V1,V2' },
       ],
       locationInfo: [
         { location: 'eastus', zones: ['1', '2', '3'] },
@@ -152,7 +168,7 @@ describe('discoverAzureCompute', () => {
   });
 
   it('fails closed when current official guidance cannot be retrieved', async () => {
-    const unavailable = (async () => new Response('unavailable', { status: 503 })) as typeof fetch;
+    const unavailable = (async () => new Response('unavailable', { status: 503 })) as unknown as typeof fetch;
     const calls: string[] = [];
     await expect(
       discoverAzureComputeWithOfficialResearch(
@@ -197,6 +213,8 @@ describe('discoverAzureCompute', () => {
       version: '20260201.0178.1',
       urn: 'f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1',
       termsAccepted: true,
+      architecture: 'x64',
+      hyperVGeneration: 'V1',
     });
     expect(result.regions[0].vmSizes[0].name).toBe('Standard_D8s_v5');
     expect(result.research.method).toBe('azure-cli-live');
@@ -254,6 +272,8 @@ describe('discoverAzureCompute', () => {
         { name: 'MaxNetworkInterfaces', value: '8' },
         { name: 'vCPUs', value: '8' },
         { name: 'MemoryGB', value: '64' },
+        { name: 'CpuArchitectureType', value: 'x64' },
+        { name: 'HyperVGenerations', value: 'V1,V2' },
       ],
       locationInfo: [
         { location: 'eastus', zones: ['1', '2', '3'] },
@@ -342,6 +362,8 @@ describe('discoverAzureCompute', () => {
         { name: 'MaxNetworkInterfaces', value: '8' },
         { name: 'vCPUs', value: '8' },
         { name: 'MemoryGB', value: '64' },
+        { name: 'CpuArchitectureType', value: 'x64' },
+        { name: 'HyperVGenerations', value: 'V1,V2' },
       ],
       locationInfo: [{ location: 'canadacentral', zones: ['1', '2', '3'] }],
     });
@@ -394,6 +416,8 @@ describe('discoverAzureCompute', () => {
           { name: 'MaxNetworkInterfaces', value: '8' },
           { name: 'vCPUs', value: '8' },
           { name: 'MemoryGB', value: '32' },
+          { name: 'CpuArchitectureType', value: 'x64' },
+          { name: 'HyperVGenerations', value: 'V1,V2' },
         ],
         locationInfo: [{ location: 'eastus', zones: ['1'] }],
       },
@@ -405,6 +429,8 @@ describe('discoverAzureCompute', () => {
           { name: 'MaxNetworkInterfaces', value: '8' },
           { name: 'vCPUs', value: '8' },
           { name: 'MemoryGB', value: '32' },
+          { name: 'CpuArchitectureType', value: 'x64' },
+          { name: 'HyperVGenerations', value: 'V1,V2' },
         ],
         locationInfo: [{ location: 'canadacentral', zones: ['1', '2', '3'] }],
       },
@@ -459,3 +485,40 @@ describe('discoverAzureCompute', () => {
     ).rejects.toThrow(/subscription/i);
   });
 });
+
+for (const fault of ['arm', 'v2', 'missing', 'conflicting'])
+  it(`discovery keeps ${fault} SKU hardware out of eligible regions`, async () => {
+    const fixtures = structuredClone(baseFixtures);
+    const rows = fixtures['vm list-skus --all --subscription __SUBSCRIPTION__'] as Array<{
+      capabilities: Array<{ name: string; value: string }>;
+    }>;
+    const cpu = rows[0].capabilities.find((row) => row.name === 'CpuArchitectureType');
+    const generation = rows[0].capabilities.find((row) => row.name === 'HyperVGenerations');
+    if (!cpu || !generation) throw Error('Modeled hardware fixture incomplete');
+    if (fault === 'arm') cpu.value = 'Arm64';
+    if (fault === 'v2') generation.value = 'V2';
+    if (fault === 'missing')
+      rows[0].capabilities = rows[0].capabilities.filter((row) => row.name !== 'CpuArchitectureType');
+    if (fault === 'conflicting') {
+      const duplicate = structuredClone(rows[0]);
+      const duplicateCpu = duplicate.capabilities.find((row) => row.name === 'CpuArchitectureType');
+      if (!duplicateCpu) throw Error('Modeled duplicate CPU capability missing');
+      duplicateCpu.value = 'Arm64';
+      rows.push(duplicate);
+    }
+    const result = await discoverAzureCompute(
+      {
+        subscriptionId,
+        deploymentName: 'ce-demo',
+        resourceGroup: 'rg-ce-demo',
+        requiredNics: 2,
+        nodeCount: 1,
+        brownfieldResourceIds: [],
+      },
+      api(fixtures),
+    );
+    expect(result.regions.every((region) => !region.eligible)).toBe(true);
+    expect(result.regions.find((region) => region.name === 'canadacentral')?.reasons).toContain(
+      fault === 'missing' || fault === 'conflicting' ? 'vm-image-compatibility-unverified' : 'vm-image-incompatible',
+    );
+  });

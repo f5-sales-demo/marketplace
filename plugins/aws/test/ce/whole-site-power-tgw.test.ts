@@ -56,7 +56,7 @@ function fixture(engine: 'native' | 'terraform' = 'native') {
   };
   const sha = canonicalSha256(body);
   const base = { ...body, planSha256: sha, planId: `aws-ce-${sha.slice(0, 24)}` };
-  const values = {
+  const values: Record<string, string> = {
     ...f.resolved,
     __VPC_ID__: 'vpc-12345678',
     __TGW_TRANSPORT_ATTACHMENT__: 'tgw-attach-12345678',
@@ -336,7 +336,7 @@ export async function staticRevisionFixture() {
   const observed = await collectAwsPowerStaticTgwRoutes(f.base, f.values, f.api);
   const original = JSON.stringify({
     terraform: {
-      required_version: '= 1.16.5',
+      required_version: '= 1.17.1',
       required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
     },
     provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },

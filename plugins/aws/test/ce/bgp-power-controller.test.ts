@@ -523,7 +523,9 @@ for (const engine of ['native', 'terraform'] as const)
     };
     expect(outcome.marker.planSha256).toBe(f.plan.planSha256);
     expect(outcome.marker.bindingsSha256).toBe(f.plan.bindingsSha256);
-    expect(outcome.marker.servicesSha256).toBe(f.plan.bindings.servicesInventory?.components[0].servicesSha256);
+    const inventory = f.plan.bindings.servicesInventory;
+    if (!inventory?.components.length) throw Error('Missing fixture service inventory');
+    expect(outcome.marker.servicesSha256).toBe(inventory.components[0].servicesSha256);
     expect(outcome.marker.attempt).toEqual(f.attempt);
   });
 

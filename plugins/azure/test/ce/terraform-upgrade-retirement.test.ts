@@ -129,7 +129,44 @@ async function fixture() {
     interrupted = false;
   let state = 'applied',
     changing = false;
+  const { configuration, providerLock, ...identity } = upgrade.deployment;
+  const manifestSha256 = canonicalSha256({
+    ...identity,
+    configurationSha256: sha256Hex(configuration),
+    providerLockSha256: sha256Hex(providerLock),
+  });
+  let nativeReceipt: Record<string, unknown> | undefined;
   const session = {
+    // Synthetic native evidence is unit-test input, never live acceptance.
+    readPlanApplicationHistory: async (receipt: unknown) => {
+      expect(canonicalSha256(receipt)).toBe(canonicalSha256(action));
+      return {
+        schemaVersion: 1,
+        scope: 'exact-saved-plan-journal-history',
+        receiptSha256: canonicalSha256(action),
+        manifestSha256,
+        matches: [
+          {
+            location: 'plan-history',
+            archiveSha256: '0'.repeat(64),
+            state: 'applied',
+            journalSha256: '1'.repeat(64),
+            savedPlanSha256: action.planSha256,
+            configurationSha256: action.configurationSha256,
+            manifestSha256,
+          },
+        ],
+        incompleteArchives: 0,
+        applicationOutcomeQualified: false,
+        retirementQualified: false,
+      };
+    },
+    readArtifactRetirement: async (receipt: { planSha256: string }, evidence: string) => {
+      if (!nativeReceipt) return { status: 'absent' };
+      expect(receipt.planSha256).toBe(String(nativeReceipt.finalPlanSha256));
+      expect(evidence).toBe(String(nativeReceipt.evidenceSha256));
+      return { status: 'runner-artifacts-retired', markerSha256: '3'.repeat(64), receipt: nativeReceipt };
+    },
     readPlanApplicationState: async () => state,
     readConfigurationSha256: async () => action.configurationSha256,
     plan: async () => {
@@ -142,14 +179,21 @@ async function fixture() {
         interrupted = false;
         throw Error('retirement interrupted');
       }
-      return {
+      nativeReceipt = {
         status: 'runner-artifacts-retired',
         evidenceSha256: evidence,
         finalPlanSha256: receipt.planSha256,
-        manifestSha256: 'e'.repeat(64),
-        inventorySha256: 'f'.repeat(64),
-        retiredArtifacts: 3,
+        manifestSha256,
+        independentCleanupSha256: independentRetirementFixture({
+          manifestSha256,
+          evidenceSha256: evidence,
+          finalPlanSha256: receipt.planSha256,
+          planReceiptSha256: canonicalSha256(receipt),
+        }).independentCleanupSha256,
+        inventorySha256: sha256Hex('[]'),
+        retiredArtifacts: 0,
       };
+      return nativeReceipt;
     },
   };
   const terraform = {
@@ -158,13 +202,14 @@ async function fixture() {
       return session;
     },
   };
-  const run = () =>
-    retireAzureTerraformUpgradeStage(base, upgrade, contract, terraform as never, store, 'b'.repeat(64), {});
+  const run = (evidence = 'b'.repeat(64)) =>
+    retireAzureTerraformUpgradeStage(base, upgrade, contract, terraform as never, store, evidence, {});
   return {
     base,
     upgrade,
     store,
     run,
+    session,
     counts: () => ({ plans, retires, opens }),
     setState: (s: string) => {
       state = s;
@@ -183,26 +228,11 @@ test('retires the exact complete upgrade from an ordinary plan and resumes its r
   await expect(f.run()).rejects.toThrow('retirement interrupted');
   expect(f.counts().plans).toBe(1);
   expect((await f.run()).status).toBe('runner-artifacts-retired');
-  await f.store.write('terraform-ce-upgrade-serial.json', { schemaVersion: 2, engine: 'terraform', status: 'active' });
-  await expect(f.run()).rejects.toThrow('serial upgrade');
-  await f.store.write('terraform-ce-upgrade-serial.json', {
-    schemaVersion: 2,
-    engine: 'terraform',
-    status: 'idle',
-    lastPlanId: f.upgrade.planId,
-    lastPlanSha256: f.upgrade.planSha256,
-  });
+  f.session.readPlanApplicationHistory = async () => {
+    throw Error('retired journals must stay closed');
+  };
   expect((await f.run()).status).toBe('runner-artifacts-retired');
-  await f.store.write('terraform-ce-upgrade-serial.json', { schemaVersion: 2, engine: 'terraform', status: 'active' });
-  await expect(f.run()).rejects.toThrow('serial upgrade');
-  await f.store.write('terraform-ce-upgrade-serial.json', {
-    schemaVersion: 2,
-    engine: 'terraform',
-    status: 'idle',
-    lastPlanId: f.upgrade.planId,
-    lastPlanSha256: f.upgrade.planSha256,
-  });
-  expect(f.counts().plans).toBe(1);
+  expect(f.counts()).toEqual({ plans: 1, retires: 2, opens: 3 });
 });
 for (const mode of [
   'active',
@@ -292,15 +322,7 @@ test('retirement preparation survives response loss after ordinary planning over
   };
   await expect(f.run()).rejects.toThrow('receipt write lost');
   expect((await f.run()).status).toBe('runner-artifacts-retired');
-  await f.store.write('terraform-ce-upgrade-serial.json', { schemaVersion: 2, engine: 'terraform', status: 'active' });
-  await expect(f.run()).rejects.toThrow('serial upgrade');
-  await f.store.write('terraform-ce-upgrade-serial.json', {
-    schemaVersion: 2,
-    engine: 'terraform',
-    status: 'idle',
-    lastPlanId: f.upgrade.planId,
-    lastPlanSha256: f.upgrade.planSha256,
-  });
+  expect(f.counts()).toEqual({ plans: 1, retires: 1, opens: 2 });
 });
 
 test('stage discovery joins exact source identity and rejects absent or forged stage owners', async () => {
@@ -317,95 +339,126 @@ test('stage discovery joins exact source identity and rejects absent or forged s
   await expect(qualifiedAzureTerraformUpgradeStages(f.base, f.store, [stage], contract)).rejects.toThrow();
 });
 
-test('Azure parent preserves exact retired upgrade provenance and rejects changed stage markers', async () => {
-  const f = await fixture();
-  await f.run();
-  const evidence = 'b'.repeat(64);
-  const teardown = {
-    kind: 'azure-ce-terraform-teardown',
-    sourcePlanSha256: f.base.planSha256,
-    planSha256: '1'.repeat(64),
-    planId: 'azure-ce-teardown-stage-test',
-    drain: { siteContractFingerprint: 'fingerprint' },
-    retirement: [],
-  };
-  await f.store.write(`${teardown.planId}.json`, teardown);
-  await f.store.write(`${teardown.planId}-authorization.json`, {
-    schemaVersion: 1,
-    engine: 'terraform',
-    sourcePlanSha256: f.base.planSha256,
-    teardownPlanSha256: teardown.planSha256,
-    mutations: true,
-  });
-  await beginAzureTerraformRetirement(f.base, teardown, f.store);
-  const retired = (await f.store.read(`${f.upgrade.planId}-stage-retirement.json`)) as Record<string, unknown>;
-  const final = retired.receipt as Record<string, unknown>;
-  const rootDeployment = await azureTerraformCurrentDeployment(f.base);
-  const make = async (
-    deployment: typeof rootDeployment,
-    path: string,
-    finalPlan: string,
-    planReceiptSha256: string,
-  ) => {
-    await mkdir(path, { recursive: true, mode: 0o700 });
-    const { configuration, providerLock, ...identity } = deployment;
-    const manifest = {
-      ...identity,
-      configurationSha256: sha256Hex(configuration),
-      providerLockSha256: sha256Hex(providerLock),
+for (const fault of ['none', 'envelope', 'history', 'root-bytes', 'extra-field', 'result', 'legacy'] as const)
+  test(`Azure parent preserves original upgrade custody and rejects ${fault} provenance`, async () => {
+    const f = await fixture();
+    const retirementEvidence = { platform: { status: 'absent' }, cloud: { status: 'absent' } };
+    const evidence = canonicalSha256(retirementEvidence);
+    await f.run('a'.repeat(64));
+    const teardown = {
+      kind: 'azure-ce-terraform-teardown',
+      sourcePlanSha256: f.base.planSha256,
+      planSha256: '1'.repeat(64),
+      planId: 'azure-ce-teardown-stage-test',
+      drain: { siteContractFingerprint: 'fingerprint' },
+      retirement: [],
     };
-    const marker = {
+    await f.store.write(`${teardown.planId}.json`, teardown);
+    await f.store.write(`${teardown.planId}-authorization.json`, {
       schemaVersion: 1,
-      status: 'runner-artifacts-retired',
-      manifestSha256: canonicalSha256(manifest),
-      evidenceSha256: evidence,
-      finalPlanSha256: finalPlan,
-      planReceiptSha256,
-      artifacts: [],
-      inventorySha256: sha256Hex('[]'),
-    };
-    Object.assign(
-      marker,
-      independentRetirementFixture({
-        manifestSha256: marker.manifestSha256,
-        evidenceSha256: evidence,
+      engine: 'terraform',
+      sourcePlanSha256: f.base.planSha256,
+      teardownPlanSha256: teardown.planSha256,
+      mutations: true,
+    });
+    await beginAzureTerraformRetirement(f.base, teardown, f.store);
+    const retired = (await f.store.read(`${f.upgrade.planId}-stage-retirement.json`)) as Record<string, unknown>;
+    const final = retired.receipt as Record<string, unknown>;
+    const rootDeployment = await azureTerraformCurrentDeployment(f.base);
+    const make = async (
+      deployment: typeof rootDeployment,
+      path: string,
+      finalPlan: string,
+      planReceiptSha256: string,
+      nativeEvidence = evidence,
+    ) => {
+      await mkdir(path, { recursive: true, mode: 0o700 });
+      const { configuration, providerLock, ...identity } = deployment;
+      const manifest = {
+        ...identity,
+        configurationSha256: sha256Hex(configuration),
+        providerLockSha256: sha256Hex(providerLock),
+      };
+      const marker = {
+        schemaVersion: 1,
+        status: 'runner-artifacts-retired',
+        manifestSha256: canonicalSha256(manifest),
+        evidenceSha256: nativeEvidence,
         finalPlanSha256: finalPlan,
         planReceiptSha256,
-      }),
+        artifacts: [],
+        inventorySha256: sha256Hex('[]'),
+      };
+      Object.assign(
+        marker,
+        independentRetirementFixture({
+          manifestSha256: marker.manifestSha256,
+          evidenceSha256: nativeEvidence,
+          finalPlanSha256: finalPlan,
+          planReceiptSha256,
+        }),
+      );
+      await writeFile(join(path, 'deployment.json'), JSON.stringify(manifest), { mode: 0o600 });
+      await writeFile(join(path, 'artifact-retirement.json'), JSON.stringify(marker), { mode: 0o600 });
+      return marker;
+    };
+    const rootMarker = await make(
+      rootDeployment,
+      join(f.store.directory, f.base.deploymentName),
+      'c'.repeat(64),
+      canonicalSha256({ planSha256: 'c'.repeat(64) }),
     );
-    await writeFile(join(path, 'deployment.json'), JSON.stringify(manifest), { mode: 0o600 });
-    await writeFile(join(path, 'artifact-retirement.json'), JSON.stringify(marker), { mode: 0o600 });
-    return marker;
-  };
-  const rootMarker = await make(
-    rootDeployment,
-    join(f.store.directory, f.base.deploymentName),
-    'c'.repeat(64),
-    canonicalSha256({ planSha256: 'c'.repeat(64) }),
-  );
-  const stagePath = join(
-    f.store.directory,
-    'terraform-stages',
-    String(f.upgrade.deployment.stage),
-    f.base.deploymentName,
-  );
-  const stageMarker = await make(f.upgrade.deployment, stagePath, String(final.planSha256), canonicalSha256(final));
-  await f.store.write('azure-terraform-terminal-cleanup.json', {
-    phase: 'retired',
-    sourcePlanSha256: f.base.planSha256,
-    teardownPlanSha256: teardown.planSha256,
-    retirementEvidenceSha256: evidence,
-    final: { planSha256: 'c'.repeat(64) },
-    artifacts: rootMarker,
+    const stagePath = join(
+      f.store.directory,
+      'terraform-stages',
+      String(f.upgrade.deployment.stage),
+      f.base.deploymentName,
+    );
+    const stageMarker = await make(
+      f.upgrade.deployment,
+      stagePath,
+      String(final.planSha256),
+      canonicalSha256(final),
+      String(retired.evidenceSha256),
+    );
+    await f.store.write('azure-terraform-terminal-cleanup.json', {
+      phase: 'retired',
+      sourcePlanSha256: f.base.planSha256,
+      teardownPlanSha256: teardown.planSha256,
+      retirementEvidence,
+      retirementEvidenceSha256: evidence,
+      final: { planSha256: 'c'.repeat(64) },
+      artifacts: rootMarker,
+    });
+    const run = () => retireAzureTerraformParentArtifacts(f.base, teardown, evidence, f.store);
+    if (fault !== 'none') {
+      if (fault === 'envelope') retired.externalEvidenceSha256 = 'b'.repeat(64);
+      if (fault === 'history') {
+        const proof = retired.appliedJournal as Record<string, unknown>;
+        const history = proof.history as { matches: Array<Record<string, unknown>> };
+        history.matches[0].state = 'planned';
+        proof.historySha256 = canonicalSha256(history);
+        retired.appliedJournalSha256 = canonicalSha256(proof);
+        (retired.retirementEvidence as Record<string, unknown>).appliedJournalSha256 = retired.appliedJournalSha256;
+        retired.evidenceSha256 = canonicalSha256(retired.retirementEvidence);
+      }
+      if (fault === 'root-bytes') await f.store.write(`${f.upgrade.planId}-receipt.json`, {});
+      if (fault === 'extra-field') retired.foreign = true;
+      if (fault === 'result') (retired.result as Record<string, unknown>).retiredArtifacts = 1;
+      if (fault === 'legacy') retired.schemaVersion = 1;
+      if (fault !== 'root-bytes') await f.store.write(`${f.upgrade.planId}-stage-retirement.json`, retired);
+      await expect(run()).rejects.toThrow();
+      expect(await readdir(f.store.directory)).not.toContain('azure-terraform-parent-artifact-retirement.json');
+      expect((await readdir(stagePath)).sort()).toEqual(['artifact-retirement.json', 'deployment.json']);
+      return;
+    }
+    expect((await run()).status).toBe('deployment-artifacts-retired');
+    expect(await readdir(f.store.directory)).toContain(`${f.upgrade.planId}-stage-retirement.json`);
+    expect((await run()).status).toBe('deployment-artifacts-retired');
+    await writeFile(
+      join(stagePath, 'artifact-retirement.json'),
+      JSON.stringify({ ...stageMarker, evidenceSha256: 'f'.repeat(64) }),
+      { mode: 0o600 },
+    );
+    await expect(run()).rejects.toThrow('provenance');
   });
-  const run = () => retireAzureTerraformParentArtifacts(f.base, teardown, evidence, f.store);
-  expect((await run()).status).toBe('deployment-artifacts-retired');
-  expect(await readdir(f.store.directory)).toContain(`${f.upgrade.planId}-stage-retirement.json`);
-  expect((await run()).status).toBe('deployment-artifacts-retired');
-  await writeFile(
-    join(stagePath, 'artifact-retirement.json'),
-    JSON.stringify({ ...stageMarker, evidenceSha256: 'f'.repeat(64) }),
-    { mode: 0o600 },
-  );
-  await expect(run()).rejects.toThrow('provenance');
-});

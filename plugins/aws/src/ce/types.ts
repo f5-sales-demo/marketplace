@@ -53,6 +53,8 @@ export type AwsCeIngress =
         domain: string;
         /** One secondary SLI service address for each independent site, in site order. */
         privateAddresses?: string[];
+        /** Advertise the primary inside interface of every CE node, without a floating alias. */
+        usePrimaryInterfaceAddress?: true;
         originPool: { name: string; namespace: string };
       };
       probe: {

@@ -74,8 +74,8 @@ test('renders only the selected Azure VM power action and an empty release confi
   const start = await azureTerraformFailoverDeployment(f.plan, f.failover, 'start');
   const release = await azureTerraformFailoverDeployment(f.plan, f.failover, 'release');
   for (const deployment of [stop, start, release]) {
-    expect(deployment.terraformVersion).toBe('1.16.5');
-    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.16.5');
+    expect(deployment.terraformVersion).toBe('1.17.1');
+    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.17.1');
   }
   expect(JSON.parse(stop.configuration).resource.azapi_resource_action.ce_failover).toMatchObject({
     resource_id: f.failover.vmResourceId,
@@ -84,7 +84,7 @@ test('renders only the selected Azure VM power action and an empty release confi
     when: 'apply',
   });
   expect(JSON.parse(start.configuration).resource.azapi_resource_action.ce_failover.action).toBe('start');
-  expect(JSON.parse(release.configuration).resource).toEqual({});
+  expect(JSON.parse(release.configuration).resource).toBeUndefined();
   expect(new Set([stop.backendIdentity, start.backendIdentity, release.backendIdentity]).size).toBe(1);
 });
 
@@ -112,7 +112,7 @@ test('saves exact stop/start plans, releases the temporary control and finishes 
     },
     async plan() {
       const parsed = JSON.parse(configuration);
-      const action = parsed.resource.azapi_resource_action?.ce_failover?.action as 'deallocate' | 'start' | undefined;
+      const action = parsed.resource?.azapi_resource_action?.ce_failover?.action as 'deallocate' | 'start' | undefined;
       const phase = action === 'deallocate' ? 'stop' : action === 'start' ? 'start' : 'release';
       const changes =
         phase === 'release'
@@ -139,7 +139,7 @@ test('saves exact stop/start plans, releases the temporary control and finishes 
       } as PlanReceipt;
     },
     async apply(receipt: PlanReceipt) {
-      const action = JSON.parse(configuration).resource.azapi_resource_action?.ce_failover?.action;
+      const action = JSON.parse(configuration).resource?.azapi_resource_action?.ce_failover?.action;
       applied = action === 'deallocate' ? 'stop' : action === 'start' ? 'start' : 'release';
       calls.push(applied);
       expect(receipt.configurationSha256).toBe(digest(configuration));

@@ -2,7 +2,7 @@
 # Install the pinned CI Bun release without mutating a persistent runner user's home.
 set -euo pipefail
 
-bun_version=1.4.2
+bun_version=1.4.4
 node_gyp_version=13.0.2
 
 if [[ -z "${RUNNER_TEMP:-}" || "$RUNNER_TEMP" != /* || "$RUNNER_TEMP" == *$'\n'* ]]; then
@@ -24,11 +24,11 @@ done
 case "$(uname -m)" in
 x86_64)
   bun_asset=bun-linux-x64.zip
-  expected_sha256=36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913
+  expected_sha256=bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c
   ;;
 aarch64 | arm64)
   bun_asset=bun-linux-aarch64.zip
-  expected_sha256=54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7
+  expected_sha256=baa6bb36f51d6e58561e02bbea825038a9df454f673d6d776e8bbf86f8c7850e
   ;;
 *)
   echo "Unsupported Linux architecture: $(uname -m)" >&2

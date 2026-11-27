@@ -5,9 +5,9 @@ import type { CeOwner, CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import { collectAzureFailoverTraffic } from './failover-traffic';
 import { collectAzureRouteServerFailoverHealth } from './route-server-health';
 import { azureUpgradeBinding } from './terraform-upgrade';
-import { collectAzureTrafficProbe } from './traffic-probe';
 import type { AzureCePlan } from './types';
 
 const object = (value: unknown): Record<string, unknown> => {
@@ -67,6 +67,64 @@ interface AzureFailoverCheckpoint {
   failoverPlanSha256: string;
   phase: 'baseline' | 'stop' | 'outage' | 'start' | 'recovered' | 'release' | 'complete';
   pending?: { phase: 'stop' | 'start'; requestSha256: string };
+}
+
+export interface AzureFailoverReceipt {
+  status: 'failover-complete';
+  engine: 'native' | 'terraform';
+  planId: string;
+  planSha256: string;
+  nodeIndex: number;
+  sessionSequence: readonly [6, 4, 6];
+  traffic: 'healthy';
+  observedAt: string;
+}
+export function validateAzureFailoverCheckpoint(base: AzureCePlan, failover: AzureCeFailoverPlan, input: unknown) {
+  verifyAzureCeFailoverPlan(base, failover);
+  const value = object(input);
+  const required = ['schemaVersion', 'engine', 'sourcePlanSha256', 'failoverPlanSha256', 'phase'];
+  if (
+    required.some((key) => !(key in value)) ||
+    Object.keys(value).some((key) => ![...required, 'pending'].includes(key)) ||
+    value.schemaVersion !== 1 ||
+    value.engine !== base.engine ||
+    value.sourcePlanSha256 !== base.planSha256 ||
+    value.failoverPlanSha256 !== failover.planSha256 ||
+    !['baseline', 'stop', 'outage', 'start', 'recovered', 'release', 'complete'].includes(String(value.phase))
+  )
+    throw Error('Azure failover checkpoint differs');
+  if (value.pending !== undefined) {
+    const pending = object(value.pending);
+    if (
+      Object.keys(pending).sort().join(',') !== 'phase,requestSha256' ||
+      !['stop', 'start'].includes(String(pending.phase)) ||
+      pending.phase !== value.phase ||
+      pending.requestSha256 !==
+        canonicalSha256({ phase: pending.phase, vmResourceId: failover.vmResourceId, vmId: failover.vmId })
+    )
+      throw Error('Azure failover pending request differs');
+  }
+  return structuredClone(value) as unknown as AzureFailoverCheckpoint;
+}
+export function validateAzureFailoverReceipt(base: AzureCePlan, failover: AzureCeFailoverPlan, input: unknown) {
+  verifyAzureCeFailoverPlan(base, failover);
+  const value = object(input);
+  if (
+    Object.keys(value).sort().join(',') !==
+      'engine,nodeIndex,observedAt,planId,planSha256,sessionSequence,status,traffic' ||
+    value.status !== 'failover-complete' ||
+    value.engine !== base.engine ||
+    value.planId !== failover.planId ||
+    value.planSha256 !== failover.planSha256 ||
+    value.nodeIndex !== failover.nodeIndex ||
+    value.traffic !== 'healthy' ||
+    canonicalSha256(value.sessionSequence) !== canonicalSha256([6, 4, 6]) ||
+    typeof value.observedAt !== 'string' ||
+    !Number.isFinite(Date.parse(value.observedAt)) ||
+    Date.parse(value.observedAt) > Date.now()
+  )
+    throw Error('Azure failover receipt differs');
+  return structuredClone(value) as unknown as AzureFailoverReceipt;
 }
 
 export function azureFailoverOwner(plan: AzureCePlan): CeOwner {
@@ -357,7 +415,8 @@ export async function collectAzureFailoverAcceptance(
     api,
     signal,
   );
-  const traffic = await collectAzureTrafficProbe(base, storage, api, signal, `${failover.planId}-${phase}-traffic`);
+  const trafficObservation = await collectAzureFailoverTraffic(base, failover, phase, storage, api, signal);
+  const traffic = trafficObservation.evidence;
   const expected = phase === 'outage' ? 4 : 6;
   if (
     sessions.status !== 'healthy' ||
@@ -380,6 +439,8 @@ export async function collectAzureFailoverAcceptance(
     effectiveRoutes: routes,
     routeServer: cloud,
     traffic,
+    trafficCheckpointKey: trafficObservation.checkpointKey,
+    trafficRequestedAt: trafficObservation.requestedAt,
     observedAt: new Date().toISOString(),
   };
 }
@@ -401,6 +462,9 @@ export async function runAzureCeFailover(
     wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   },
 ) {
+  base = structuredClone(base);
+  failover = structuredClone(failover);
+  signal?.throwIfAborted();
   verifyAzureCeFailoverPlan(base, failover);
   if (authorizedPlanSha256 !== failover.planSha256) throw new Error('Exact Azure failover authorization is required');
   if (canonicalSha256(storage.owner) !== canonicalSha256(azureFailoverOwner(base)))
@@ -427,35 +491,38 @@ export async function runAzureCeFailover(
       };
       await storage.write(checkpointName, active);
     }
-    if (
-      active.schemaVersion !== 1 ||
-      active.engine !== base.engine ||
-      active.sourcePlanSha256 !== base.planSha256 ||
-      active.failoverPlanSha256 !== failover.planSha256 ||
-      !['baseline', 'stop', 'outage', 'start', 'recovered', 'release', 'complete'].includes(active.phase) ||
-      (active.pending !== undefined &&
-        (active.pending.phase !== active.phase ||
-          active.pending.requestSha256 !==
-            canonicalSha256({ phase: active.pending.phase, vmResourceId: failover.vmResourceId, vmId: failover.vmId })))
-    )
-      throw new Error('Azure failover checkpoint differs');
+    active = validateAzureFailoverCheckpoint(base, failover, active);
+    const receiptName = `${failover.planId}-receipt.json`;
+    const savedReceipt = await optional<unknown>(storage, receiptName);
+    let receipt = savedReceipt === undefined ? undefined : validateAzureFailoverReceipt(base, failover, savedReceipt);
+    if (receipt && !['release', 'complete'].includes(active.phase))
+      throw Error('Azure failover receipt precedes durable release');
+    if (active.phase === 'complete' && !receipt)
+      throw Error('Azure failover complete checkpoint has no durable receipt');
+    signal?.throwIfAborted();
     let current: AzureFailoverCheckpoint = active;
     const save = async (next: AzureFailoverCheckpoint) => {
-      current = next;
+      signal?.throwIfAborted();
+      current = validateAzureFailoverCheckpoint(base, failover, next);
       await storage.write(checkpointName, current);
+      signal?.throwIfAborted();
     };
     const convergeVm = async (expected: 'running' | 'deallocated') => {
       for (let attempt = 0; attempt < polling.attempts; attempt++) {
         signal?.throwIfAborted();
-        if ((await observeVm(signal)) === expected) return;
+        const observed = await observeVm(signal);
+        signal?.throwIfAborted();
+        if (observed === expected) return;
         if (attempt + 1 < polling.attempts) await polling.wait(polling.intervalMs);
       }
       throw new Error(`Azure failover VM ${expected} convergence deadline exceeded`);
     };
     const change = async (phase: 'stop' | 'start', next: AzureFailoverCheckpoint['phase']) => {
       const expected = phase === 'stop' ? 'deallocated' : 'running';
+      signal?.throwIfAborted();
       if (!current.pending) {
         const before = await observeVm(signal);
+        signal?.throwIfAborted();
         if (before === expected) throw new Error(`Azure failover VM was already ${expected} before authorization`);
         if (before !== (phase === 'stop' ? 'running' : 'deallocated'))
           throw new Error('Azure failover VM state is unavailable');
@@ -466,10 +533,16 @@ export async function runAzureCeFailover(
             requestSha256: canonicalSha256({ phase, vmResourceId: failover.vmResourceId, vmId: failover.vmId }),
           },
         });
+        signal?.throwIfAborted();
         await mutate(phase, signal);
+        signal?.throwIfAborted();
       } else {
         const before = await observeVm(signal);
-        if (before === (phase === 'stop' ? 'running' : 'deallocated')) await mutate(phase, signal);
+        signal?.throwIfAborted();
+        if (before === (phase === 'stop' ? 'running' : 'deallocated')) {
+          await mutate(phase, signal);
+          signal?.throwIfAborted();
+        }
       }
       await convergeVm(expected);
       await save({ ...current, phase: next, pending: undefined });
@@ -481,8 +554,10 @@ export async function runAzureCeFailover(
       for (let attempt = 0; attempt < polling.attempts; attempt++) {
         signal?.throwIfAborted();
         const evidence = await collect(phase, signal);
+        signal?.throwIfAborted();
         if (evidence.acceptance === 'passed') {
           await storage.write(`${failover.planId}-${phase}-evidence.json`, evidence);
+          signal?.throwIfAborted();
           await save({ ...current, phase: next });
           return;
         }
@@ -490,26 +565,35 @@ export async function runAzureCeFailover(
       }
       throw new Error(`Azure failover ${phase} convergence deadline exceeded`);
     };
+    // An unsubmitted stop resumed in a later invocation must not reuse historical admission traffic.
+    if (active.phase === 'stop' && !active.pending) await convergeNetwork('baseline', 'stop');
     if (current.phase === 'baseline') await convergeNetwork('baseline', 'stop');
     if (current.phase === 'stop') await change('stop', 'outage');
     if (current.phase === 'outage') await convergeNetwork('outage', 'start');
     if (current.phase === 'start') await change('start', 'recovered');
     if (current.phase === 'recovered') await convergeNetwork('recovered', 'release');
     if (current.phase === 'release') {
-      await release(signal);
+      if (!receipt) {
+        signal?.throwIfAborted();
+        await release(signal);
+        signal?.throwIfAborted();
+        receipt = validateAzureFailoverReceipt(base, failover, {
+          status: 'failover-complete',
+          engine: base.engine,
+          planId: failover.planId,
+          planSha256: failover.planSha256,
+          nodeIndex: failover.nodeIndex,
+          sessionSequence: [6, 4, 6],
+          traffic: 'healthy',
+          observedAt: new Date().toISOString(),
+        });
+        await storage.write(receiptName, receipt);
+        signal?.throwIfAborted();
+      }
       await save({ ...current, phase: 'complete' });
     }
-    const receipt = {
-      status: 'failover-complete' as const,
-      engine: base.engine,
-      planId: failover.planId,
-      planSha256: failover.planSha256,
-      nodeIndex: failover.nodeIndex,
-      sessionSequence: [6, 4, 6] as const,
-      traffic: 'healthy' as const,
-      observedAt: new Date().toISOString(),
-    };
-    await storage.write(`${failover.planId}-receipt.json`, receipt);
+    if (!receipt) throw Error('Azure failover completion receipt unavailable');
+    signal?.throwIfAborted();
     return receipt;
   } finally {
     await unlock();

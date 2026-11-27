@@ -5,6 +5,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformDrainPlan } from '../../../platform/src/ce/platform-drain';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
+import { readInitializationManifest } from '../../../terraform/src/initialization';
 import type { Deployment, PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
@@ -12,7 +13,8 @@ import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { runAzureTerraformCloudTeardown } from './terraform-cloud-teardown';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
-import { azureTerraformFoundationDeployment } from './terraform-foundation';
+import { AZURE_CE_TERRAFORM_VERSION, azureTerraformFoundationDeployment } from './terraform-foundation';
+import { readAzureTerraformOriginalReceiptInventory } from './terraform-original-receipt-inventory';
 import { beginAzureTerraformRetirement } from './terraform-retirement';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
@@ -46,7 +48,8 @@ export interface AzureFoundationTeardownPlan {
 }
 async function deployment(base: AzureCePlan, version: string): Promise<Deployment> {
   // Historical 1.16.1 is admitted only for retirement of its exact frozen foundation.
-  if (!['1.16.1', '1.16.5'].includes(version)) throw Error('Azure foundation retirement runtime is unqualified');
+  if (!['1.16.1', '1.16.5', AZURE_CE_TERRAFORM_VERSION].includes(version))
+    throw Error('Azure foundation retirement runtime is unqualified');
   const value = await azureTerraformFoundationDeployment(base);
   const config = JSON.parse(value.configuration);
   config.terraform.required_version = `= ${version}`;
@@ -63,26 +66,31 @@ const emptyConfiguration = (value: Deployment) => {
 };
 async function privateManifest(store: CeDeploymentStore, name: string) {
   await store.verify();
-  const directory = join(store.directory, name);
-  const dir = await lstat(directory);
-  if (
-    !dir.isDirectory() ||
-    dir.isSymbolicLink() ||
-    dir.uid !== process.getuid?.() ||
-    (await realpath(directory)) !== directory
-  )
-    throw Error('Azure foundation workspace ownership differs');
-  const file = join(directory, 'deployment.json');
-  const stat = await lstat(file);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.nlink !== 1 ||
-    stat.uid !== process.getuid?.() ||
-    stat.mode & 0o077
-  )
-    throw Error('Azure foundation manifest ownership differs');
-  return object(JSON.parse(await readFile(file, 'utf8')));
+  try {
+    const directory = join(store.directory, name);
+    const dir = await lstat(directory);
+    if (
+      !dir.isDirectory() ||
+      dir.isSymbolicLink() ||
+      dir.uid !== process.getuid?.() ||
+      (await realpath(directory)) !== directory
+    )
+      throw Error('Azure foundation workspace ownership differs');
+    const file = join(directory, 'deployment.json');
+    const stat = await lstat(file);
+    if (
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.nlink !== 1 ||
+      stat.uid !== process.getuid?.() ||
+      stat.mode & 0o077
+    )
+      throw Error('Azure foundation manifest ownership differs');
+    return object(JSON.parse(await readFile(file, 'utf8')));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return readInitializationManifest(store.directory, name, store.owner);
+  }
 }
 async function journal(
   base: AzureCePlan,
@@ -151,8 +159,25 @@ async function journal(
     receiptName,
   ]);
   for (const entry of await readdir(store.directory, { withFileTypes: true })) {
+    if (entry.name === `.initialization-${base.deploymentName}.json`) {
+      if (!entry.isFile()) throw Error('Azure initialization intent type differs');
+      await readInitializationManifest(store.directory, base.deploymentName, store.owner);
+      continue;
+    }
     if (reservedSite && ['terraform-site.json', `site-binding-${base.siteName}.json`].includes(entry.name)) {
       if (!entry.isFile()) throw Error('Reserved Azure site artifact type differs');
+      continue;
+    }
+    if (entry.name === 'terraform-original-deployment-receipts') {
+      if (!entry.isDirectory()) throw Error('Azure foundation original receipt namespace type differs');
+      const inventory = await readAzureTerraformOriginalReceiptInventory(base, {}, store);
+      if (
+        inventory.status !== 'complete' ||
+        inventory.records.some(
+          (row) => row.record.stage.kind !== 'foundation' || Object.keys(row.record.bootstrapSha256ByNode).length !== 0,
+        )
+      )
+        throw Error('Azure foundation original receipt metadata is incomplete or contains admission');
       continue;
     }
     if (allowed.has(entry.name)) {

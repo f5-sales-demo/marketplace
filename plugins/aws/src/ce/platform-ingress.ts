@@ -1,7 +1,9 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
+import type { CeIngressPlan } from '../../../platform/src/ce/ingress-lifecycle';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { type AwsExecApi, detectAwsError } from '../aws/exec';
+import { awsCeInterfacePrivateAddresses } from './planner';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -68,18 +70,67 @@ export async function ensureAwsPlatformIngress(
   await storage.verify();
   const sli = plan.interfaces.find((item) => item.role === 'sli');
   if (!sli) throw new Error('AWS NLB ingress requires an SLI interface');
-  const selections = siteBindings(plan).map(({ site, binding }, siteIndex) => {
-    if (site.nodeIndexes.length !== 1) throw new Error('AWS NLB ingress requires independent one-node sites');
-    const nodeIndex = site.nodeIndexes[0];
-    const mac = resolved[`__ENI_${nodeIndex}_${sli.index}_MAC__`];
-    if (!mac) throw new Error('Observed SLI MAC identity is unavailable for platform ingress');
-    return {
-      binding,
-      node: `${plan.deploymentName}-${nodeIndex}`,
-      mac,
-      insideAddress: ingress.listener.privateAddresses?.[siteIndex],
-    };
+  const primary = ingress.listener.usePrimaryInterfaceAddress === true;
+  const selections = siteBindings(plan).flatMap(({ site, binding }, siteIndex) => {
+    if (!primary && site.nodeIndexes.length !== 1)
+      throw new Error('AWS NLB ingress requires independent one-node sites');
+    return site.nodeIndexes.map((nodeIndex) => {
+      const mac = resolved[`__ENI_${nodeIndex}_${sli.index}_MAC__`];
+      if (!mac) throw new Error('Observed SLI MAC identity is unavailable for platform ingress');
+      if (
+        primary &&
+        (!/^eni-[0-9a-f]{8,17}$/.test(resolved[`__ENI_${nodeIndex}_${sli.index}__`] ?? '') ||
+          !sli.guestDevice ||
+          resolved[`__NODE_${nodeIndex}_SLI_IP__`] !==
+            awsCeInterfacePrivateAddresses(plan.intent, nodeIndex, sli.index)[0])
+      )
+        throw new Error('Primary SLI cloud address, ENI or device binding is unavailable');
+      return {
+        binding,
+        node: `${plan.deploymentName}-${nodeIndex}`,
+        mac,
+        ...(primary ? {} : { insideAddress: ingress.listener.privateAddresses?.[siteIndex] }),
+      };
+    });
   });
+  if (
+    primary &&
+    (new Set(selections.map((row) => row.mac.toLowerCase())).size !== selections.length ||
+      new Set(
+        siteBindings(plan).flatMap(({ site }) =>
+          site.nodeIndexes.map((node) => resolved[`__ENI_${node}_${sli.index}__`]),
+        ),
+      ).size !== selections.length)
+  )
+    throw new Error('Primary SLI MAC or ENI bindings are duplicated');
+  async function verifyPrimaryPlacement(id: string) {
+    if (!primary) return;
+    const savedPlan = (await storage.read(`ingress-plan-${id}.json`)) as CeIngressPlan;
+    const placements = savedPlan?.material?.placements;
+    if (
+      savedPlan?.material?.intent?.usePrimaryInterfaceAddress !== true ||
+      !Array.isArray(placements) ||
+      placements.length !== selections.length
+    )
+      throw new Error('Primary SLI platform placement is incomplete');
+    for (const selected of selections) {
+      const nodeIndex = selected.binding.nodes.indexOf(selected.node);
+      const node = siteBindings(plan).find((row) => row.binding.siteName === selected.binding.siteName)?.site
+        .nodeIndexes[nodeIndex];
+      const matches = placements.filter((row) => row.interface?.node === selected.node);
+      if (
+        matches.length !== 1 ||
+        matches[0].siteName !== selected.binding.siteName ||
+        matches[0].interface.role !== 'sli' ||
+        matches[0].interface.mac !== selected.mac.toLowerCase() ||
+        matches[0].interface.device !== sli?.guestDevice ||
+        !matches[0].interface.linkUp ||
+        matches[0].interface.ipv4?.address !== resolved[`__NODE_${node}_SLI_IP__`] ||
+        matches[0].insideAddress !== resolved[`__NODE_${node}_SLI_IP__`]
+      )
+        throw new Error('Primary SLI CE observation differs from the cloud node, MAC, device or address binding');
+    }
+  }
   const lifecycle = runtime.ingress(contract, storage);
   const saved = await optional(storage, 'aws-platform-ingress.json');
   let marker: Marker;
@@ -126,6 +177,7 @@ export async function ensureAwsPlatformIngress(
     };
     await storage.write('aws-platform-ingress.json', marker);
   }
+  await verifyPrimaryPlacement(marker.ingressPlanId);
   const receipt = await lifecycle.apply(marker.ingressPlanId, signal);
   return {
     ingressPlanId: marker.ingressPlanId,

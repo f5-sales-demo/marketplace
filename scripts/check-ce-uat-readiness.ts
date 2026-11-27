@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolveHistoricalEvidence } from './ce-uat-history';
+import { expandCeUatLedger } from './ce-uat-ledger';
 
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => {
@@ -51,8 +52,7 @@ const REQUIRED_GATES = [
   'human-uat',
 ];
 export function ceUatReadiness(value: unknown) {
-  const ledger = object(value);
-  if (ledger.schemaVersion !== 1) throw Error('Unsupported CE UAT ledger version');
+  const ledger = expandCeUatLedger(value);
   const features = strings(ledger.requiredFeatures);
   if (features.length !== REQUIRED_FEATURES.length || REQUIRED_FEATURES.some((f) => !features.includes(f)))
     throw Error('Required CE UAT feature scope changed');

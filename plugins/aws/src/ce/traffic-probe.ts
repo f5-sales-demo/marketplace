@@ -160,7 +160,8 @@ export async function collectAwsTrafficProbe(
         throw new Error('Persisted traffic evidence differs from the owning plan');
       if (evidence.loadBalancerArn !== arn || evidence.endpointDns !== dns)
         throw new Error('Persisted traffic endpoint differs from the current deployment');
-      if (validSampleTimes(evidence, Date.now(), true)) return evidence;
+      // Execution starts a new sample after a completed command, even while its receipt
+      // remains recent. Read-only inspection is the separate receipt-reuse interface.
       const receipts = Array.isArray(state.receipts) ? state.receipts.map(object) : [];
       state = {
         ...state,
@@ -210,6 +211,12 @@ export async function collectAwsTrafficProbe(
     commandId = object(submitted.Command).CommandId;
     if (typeof commandId !== 'string' || !COMMAND_ID.test(commandId))
       throw new Error('Traffic probe command identity is unavailable');
+    const previousCommands = [
+      ...(Array.isArray(state.receipts) ? state.receipts.map(object) : []),
+      ...(Array.isArray(state.attempts) ? state.attempts.map(object) : []),
+    ];
+    if (previousCommands.some((receipt) => receipt.commandId === commandId))
+      throw new Error('Traffic probe command identity was reused');
     state = { ...state, phase: 'submitted', commandId };
     await storage.write(file, state);
   }

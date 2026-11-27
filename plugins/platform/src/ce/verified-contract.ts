@@ -1,4 +1,16 @@
 import { createHash } from 'node:crypto';
+import { componentCatalogPath, componentCatalogRequest } from './component-catalog';
+import { componentStatusPath, componentStatusRequest } from './component-status';
+import { forwardingRoutePath, forwardingRouteRequest, forwardingRouteSchemas } from './forwarding-route';
+import {
+  type ExpectedCeNodeHealth,
+  type ExpectedCeNodeHealthIdentity,
+  nodeHealthPath,
+  nodeHealthRequest,
+  nodeHealthSchemaClosure,
+  parseNodeHealthBindingResponse,
+  parseNodeHealthResponse,
+} from './node-health';
 import { parseKvmImageResolution, type Smsv2KvmImageResolution } from './release-contract';
 import { CE_API_RELEASE, loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { projectReplaceSnapshot } from './wire-replace';
@@ -53,6 +65,8 @@ export class VerifiedCeContract {
   readonly publication: 'published-release';
   readonly #contract: Json;
   readonly #schemas: Json;
+  readonly #readOnlyOperationalApi?: Json;
+  readonly #registrationDeletionApi?: Json;
   readonly #validate: (spec: unknown) => void;
   readonly #routing?: ReturnType<typeof routingValidators>;
   readonly #routingSchemas?: { network: Json; marketplace: Json };
@@ -64,15 +78,57 @@ export class VerifiedCeContract {
     networking: { network: Json; marketplace: Json } | undefined,
     publication: 'published-release',
     readonly kvmImageResolution?: Smsv2KvmImageResolution,
+    readOnlyOperationalApi?: Json,
+    registrationDeletionApi?: Json,
   ) {
     this.publication = publication;
     this.#contract = contract;
     this.#schemas = schemas;
+    this.#readOnlyOperationalApi = readOnlyOperationalApi ? structuredClone(readOnlyOperationalApi) : undefined;
+    this.#registrationDeletionApi = registrationDeletionApi ? structuredClone(registrationDeletionApi) : undefined;
     this.#validate = createWireValidator(schemas);
     if (networking) {
       this.#routing = routingValidators(networking.network, networking.marketplace);
       this.#routingSchemas = networking;
     }
+  }
+  registrationDeletionRequest(name: string): { method: 'DELETE'; path: string } {
+    const path = '/api/register/namespaces/{namespace}/registrations/{name}';
+    const operation = object(object(object(this.#registrationDeletionApi).paths)[path]).delete;
+    const definition = object(operation);
+    const parameters = definition.parameters;
+    if (
+      !/^r-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(name) ||
+      definition.operationId !== 'ves.io.schema.registration.CustomAPI.Delete' ||
+      !Array.isArray(parameters) ||
+      !Object.hasOwn(object(definition.responses), '200')
+    )
+      throw new Error('Pinned registration deletion operation is unavailable or differs');
+    if (
+      (definition.requestBody && object(definition.requestBody).required === true) ||
+      parameters
+        .map(object)
+        .some(
+          (parameter) =>
+            parameter.required === true &&
+            !['path:namespace', 'path:name', 'query:fail_if_referred'].includes(`${parameter.in}:${parameter.name}`),
+        )
+    )
+      throw new Error('Pinned registration deletion requires unsupported additional inputs');
+    for (const [key, location, type] of [
+      ['namespace', 'path', 'string'],
+      ['name', 'path', 'string'],
+      ['fail_if_referred', 'query', 'boolean'],
+    ]) {
+      const matches = parameters.map(object).filter((parameter) => parameter.name === key && parameter.in === location);
+      if (
+        matches.length !== 1 ||
+        object(matches[0].schema).type !== type ||
+        (location === 'path' && matches[0].required !== true)
+      )
+        throw new Error('Pinned registration deletion parameters differ');
+    }
+    return { method: 'DELETE', path: `/api/register/namespaces/system/registrations/${name}?fail_if_referred=true` };
   }
   static async published(fetcher: PublishedApiFetcher = fetch, signal?: AbortSignal): Promise<VerifiedCeContract> {
     const api = await loadPublishedCeApi(fetcher, signal);
@@ -118,7 +174,50 @@ export class VerifiedCeContract {
           sha256: CE_API_RELEASE.fingerprint,
         },
       },
+      {
+        paths: {
+          [componentStatusPath]: object(api.paths)[componentStatusPath],
+          [componentCatalogPath]: object(api.paths)[componentCatalogPath],
+          [forwardingRoutePath]: object(api.paths)[forwardingRoutePath],
+          [nodeHealthPath]: object(api.paths)[nodeHealthPath],
+        },
+        components: {
+          schemas: {
+            debugStatus: schemas.debugStatus,
+            debugService: schemas.debugService,
+            debugListServicesResponse: schemas.debugListServicesResponse,
+            debugStatusResponse: schemas.debugStatusResponse,
+            ...Object.fromEntries(forwardingRouteSchemas.map((name) => [name, schemas[name]])),
+            ...nodeHealthSchemaClosure(schemas),
+          },
+        },
+      },
+      {
+        paths: {
+          '/api/register/namespaces/{namespace}/registrations/{name}': object(api.paths)[
+            '/api/register/namespaces/{namespace}/registrations/{name}'
+          ],
+        },
+      },
     );
+  }
+  componentCatalogRequest(site: string) {
+    return componentCatalogRequest(this.#readOnlyOperationalApi, site);
+  }
+  nodeHealthRequest(site: string, node: string) {
+    return nodeHealthRequest(this.#readOnlyOperationalApi, site, node);
+  }
+  parseNodeHealthResponse(response: unknown, expected: ExpectedCeNodeHealth) {
+    return parseNodeHealthResponse(this.#readOnlyOperationalApi, response, expected);
+  }
+  parseNodeHealthBindingResponse(response: unknown, expected: ExpectedCeNodeHealthIdentity, nodes: string[]) {
+    return parseNodeHealthBindingResponse(this.#readOnlyOperationalApi, response, expected, nodes);
+  }
+  componentStatusRequest(site: string, namespace: string) {
+    return componentStatusRequest(this.#readOnlyOperationalApi, site, namespace);
+  }
+  forwardingRouteRequest(site: string, node: string, role: 'slo' | 'sli') {
+    return forwardingRouteRequest(this.#readOnlyOperationalApi, site, node, role);
   }
   get awsRoutingAvailable(): boolean {
     return this.#routing !== undefined;
@@ -182,6 +281,14 @@ export class VerifiedCeContract {
   validateRouting(kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json): void {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     this.#routing(kind, spec);
+  }
+  /** Ordinary CE-to-relay BGP uses the published single-hop contract, independently of direct Route Server multihop. */
+  requireAzureRelayRoutingContract(): void {
+    if (!this.#routing || !this.#routingSchemas) throw new Error('Pinned CE relay routing schemas are unavailable');
+    createWireValidator(this.#routingSchemas.network, 'bgpCreateRequest');
+    this.configurationPath('azure', 'contract-check');
+    this.bgpPeersPath('azure', 'contract-check');
+    this.bgpRoutesPath('azure', 'contract-check');
   }
   requireRoutingContract(providerName: 'aws' | 'azure'): void {
     if (providerName === 'azure') this.requireAzureRouteServerEbgpMultihop();

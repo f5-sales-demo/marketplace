@@ -21,7 +21,7 @@ export const historicalEvidenceSha256 = (value: unknown) =>
 
 /** Additive history references preserve complete evidence; they never qualify current rows. */
 export function resolveHistoricalEvidence(ledger: unknown, value: unknown): Record<string, unknown> {
-  const entry = object(value);
+  const entry = typeof value === 'string' ? { evidenceStateSha256: value } : object(value);
   if (!Object.hasOwn(entry, 'evidenceStateSha256')) return structuredClone(entry);
   const digest = entry.evidenceStateSha256;
   if (Object.keys(entry).length !== 1 || typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest))

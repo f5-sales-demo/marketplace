@@ -17,6 +17,7 @@ import {
 } from '../ce/terraform-brownfield-binding';
 import { awsTerraformFoundationDeployment } from '../ce/terraform-foundation';
 import type { AwsFoundationTeardownPlan } from '../ce/terraform-foundation-teardown';
+import { readAwsInitialRegistrationRetirementBindings } from '../ce/terraform-initial-registration-bindings';
 import type { AwsPendingTeardownPlan } from '../ce/terraform-pending-teardown';
 import { type AwsTerraformTeardownPlan, runAwsTerraformTeardown } from '../ce/terraform-teardown';
 import { prepareAwsTerraformTeardown } from '../ce/terraform-teardown-plan';
@@ -123,7 +124,22 @@ export function createAwsCeTeardownTool(
             throw new Error('Terraform teardown does not accept a separate native cloud plan');
           const teardown =
             plan.engine === 'terraform'
-              ? await dependencies.prepare(plan, runtime, contract, storage, signal)
+              ? await dependencies.prepare(plan, runtime, contract, storage, signal, async (readSignal) => {
+                  const service = await dependencies.terraform(pi, readSignal);
+                  const placement =
+                    plan.intent.vpc.mode === 'brownfield'
+                      ? await loadAwsTerraformBrownfieldBinding(plan, storage, makeApi(ctx.cwd), readSignal)
+                      : undefined;
+                  const deployment = await awsTerraformFoundationDeployment(plan, {}, placement);
+                  const session = await service.open(owner, deployment, 'current');
+                  return readAwsInitialRegistrationRetirementBindings(
+                    plan,
+                    session,
+                    makeApi(ctx.cwd),
+                    process.env,
+                    readSignal,
+                  );
+                })
               : await dependencies.prepareNative(plan, cloud as never, runtime, contract, storage, signal);
           const artifactId = await ctx.sessionManager.saveArtifact(
             JSON.stringify({
@@ -217,7 +233,7 @@ export function createAwsCeTeardownTool(
                       ? await loadAwsTerraformBrownfieldBinding(plan, storage, makeApi(ctx.cwd), signal)
                       : undefined,
                   ),
-                  'current',
+                  'recover-initialization',
                 ),
                 storage,
                 makeApi(ctx.cwd),

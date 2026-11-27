@@ -248,3 +248,14 @@ test('verifies selected static CIDR and gateway while rejecting DHCP or mismatch
     ),
   ).toThrow();
 });
+
+test('requires explicitly planned devices to match the observed MAC inventory', () => {
+  const bound = expected.map((item, index) => ({
+    ...item,
+    device: index === 0 ? 'observed-outside' : 'observed-inside',
+  }));
+  expect(correlateRegistrationDevices(fixture(), 'site-one', instances, bound)).toHaveLength(2);
+  expect(() =>
+    correlateRegistrationDevices(fixture(), 'site-one', instances, [{ ...bound[0], device: 'wrong-device' }, bound[1]]),
+  ).toThrow('Planned guest device');
+});

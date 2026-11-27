@@ -12,7 +12,7 @@ async function fixture() {
   const f = directOwnershipFixture();
   const ownership = await collectAwsTerraformDirectRouteOwnership(f.base, f.values, f.api);
   const foundation = JSON.stringify({
-    terraform: { required_version: '= 1.16.5' },
+    terraform: { required_version: '= 1.17.1' },
     resource: { aws_instance: { node_1: { ami: 'ami-12345678' } } },
     output: { ce_vpc_id: { value: ownership.vpcId } },
   });

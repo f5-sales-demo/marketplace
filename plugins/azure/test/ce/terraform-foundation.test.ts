@@ -5,6 +5,11 @@ import {
   azureTerraformFoundationDeployment,
   renderAzureTerraformFoundation,
 } from '../../src/ce/terraform-foundation';
+import {
+  azureWorkloadSelection,
+  compileAzureWorkloadDeploymentPlan,
+  resolveAzureWorkloadCatalog,
+} from '../../src/ce/workload-plan';
 import { intent, observation } from './fixtures';
 
 function plan(ha = false, termsAccepted = true) {
@@ -28,8 +33,8 @@ it('pins foundation and current workspaces to the qualified Terraform runtime', 
     await azureTerraformFoundationDeployment(plan()),
     await azureTerraformCurrentDeployment(plan()),
   ]) {
-    expect(deployment.terraformVersion).toBe('1.16.5');
-    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.16.5');
+    expect(deployment.terraformVersion).toBe('1.17.1');
+    expect(JSON.parse(deployment.configuration).terraform.required_version).toBe('= 1.17.1');
   }
 });
 
@@ -142,14 +147,57 @@ it('accepts only the exact discovered Marketplace plan through the idempotent cu
   expect(accepted.resource.azurerm_resource_group.ce.depends_on).toBeUndefined();
 });
 
-it('renders an isolated private workload fixture for the exact Route Server advertised prefix', () => {
+it('renders an isolated private workload fixture for the exact Route Server advertised prefix', async () => {
   const input = structuredClone(intent);
   input.engine = 'terraform';
   input.routing = { mode: 'route-server', destinationCidrs: ['10.253.0.0/24'], localAsn: 64512 };
-  input.workloadFixture = { subnetName: 'workload', cidr: '10.253.0.0/24', privateIp: '10.253.0.4', port: 8080 };
+  input.workloadFixture = {
+    imageVersion: '22.04.202610010',
+    subnetName: 'workload',
+    cidr: '10.253.0.0/24',
+    privateIp: '10.253.0.4',
+    port: 8080,
+  };
   const observed = structuredClone(observation);
   observed.regions[0].quotaAvailable = 24;
-  const fixturePlan = compileAzureCePlan(input, observed);
+  const foundation = compileAzureCePlan(input, observed);
+  const selected = azureWorkloadSelection(foundation);
+  const image = selected.hostImage;
+  const imageId = `/subscriptions/${foundation.subscription.id}/providers/Microsoft.Compute/locations/${foundation.region}/publishers/${image.publisher}/artifacttypes/vmimage/offers/${image.offer}/skus/${image.sku}/versions/${image.version}`;
+  const catalog = await resolveAzureWorkloadCatalog(foundation, {
+    async exec(_command, args) {
+      return {
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify(
+          args[0] === 'account'
+            ? {
+                id: foundation.subscription.id,
+                tenantId: foundation.subscription.tenantId,
+                environmentName: 'AzureCloud',
+              }
+            : args.includes('image')
+              ? { id: imageId, osDiskImage: { operatingSystem: 'Linux' }, architecture: 'x64' }
+              : [
+                  {
+                    name: selected.vmSize,
+                    resourceType: 'virtualMachines',
+                    locations: [foundation.region],
+                    locationInfo: [{ location: foundation.region }],
+                    restrictions: [],
+                    capabilities: [
+                      { name: 'CpuArchitectureType', value: 'x64' },
+                      { name: 'vCPUs', value: '1' },
+                      { name: 'MemoryGB', value: '1' },
+                      { name: 'MaxNetworkInterfaces', value: '2' },
+                    ],
+                  },
+                ],
+        ),
+      };
+    },
+  });
+  const fixturePlan = compileAzureWorkloadDeploymentPlan(foundation, catalog);
   expect(fixturePlan.billableResources).toContainEqual({ type: 'virtual-machine', count: 2 });
   expect(fixturePlan.billableResources).toContainEqual({ type: 'managed-disk', count: 2 });
   const config = JSON.parse(renderAzureTerraformFoundation(fixturePlan));

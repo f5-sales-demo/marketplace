@@ -9,14 +9,18 @@ import { verifyAzureCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { runAzureTerraformCloudTeardown } from './terraform-cloud-teardown';
 import { observeAzureTerraformDestroyBoundary } from './terraform-destroy-ownership';
+import { collectAzureHistoricalEnrollmentTokens } from './terraform-enrollment-history';
 import {
   type AzureFoundationTeardownPlan,
   prepareAzureFoundationTeardown,
   runAzureFoundationTeardown,
 } from './terraform-foundation-teardown';
+import type { AzureTerraformNetworkDestroyJournalContext } from './terraform-network-destroy-journal-custody';
 import { azurePendingAdmissionJournal, observeAzurePendingAdmission } from './terraform-pending-admission';
 import { beginAzureTerraformRetirement } from './terraform-retirement';
+import { qualifyAzureTerraformTeardownStageHistory } from './terraform-teardown-stage-history';
 import { finalizeAzureTerraformRunnerCleanup, hasAzureTerraformTerminalCleanup } from './terraform-terminal-cleanup';
+import { sealAzureTerraformTerminalSnapshot } from './terraform-terminal-snapshot';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -199,22 +203,9 @@ export async function collectAzureTeardownMaterial(
       name: row.name,
       uid: row.uid,
     }));
-  const tokenRows = new Map<string, { node: string; name: string; uid?: string }>();
-  for (const [index, node] of binding.nodes.entries()) {
-    const prefixes = [
-      `${base.deploymentName.slice(0, 40)}-${index + 1}-`,
-      `${base.siteName.slice(0, 36)}-${index + 1}-r-`,
-    ];
-    for (const entry of entries) {
-      const prefix = prefixes.find((candidate) => entry.name.startsWith(candidate));
-      if (!prefix || !/^[a-f0-9]{12}\.json$/.test(entry.name.slice(prefix.length))) continue;
-      if (!entry.isFile()) throw new Error('Azure teardown enrollment artifact is not a regular file');
-      const record = object(await storage.read(entry.name));
-      if (record.tokenName !== entry.name.slice(0, -5) || record.siteName !== binding.siteName || record.node !== node)
-        throw new Error('Azure teardown historical enrollment identity differs');
-      tokenRows.set(String(record.tokenName), { node, name: String(record.tokenName) });
-    }
-  }
+  const tokenRows = new Map<string, { node: string; name: string; uid?: string }>(
+    (await collectAzureHistoricalEnrollmentTokens(base, storage, signal)).map((token) => [token.name, token]),
+  );
   for (const row of before.resources.filter((row) => row.kind === 'tokens' && row.siteName === binding.siteName)) {
     if (!row.node) throw new Error('Azure teardown token node identity is unavailable');
     const existing = tokenRows.get(row.name);
@@ -296,7 +287,34 @@ export async function runAzureTerraformTeardown(
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
   terraform?: CeTerraformService,
+  networkContext?: AzureTerraformNetworkDestroyJournalContext,
 ) {
+  const validateNetworkContext = () => {
+    if (networkContext === undefined) return;
+    const context = networkContext;
+    if (
+      input.kind === 'azure-ce-terraform-foundation-teardown' ||
+      base.engine !== 'terraform' ||
+      runtime.engine !== 'terraform' ||
+      !terraform ||
+      context.terraform !== terraform ||
+      canonicalSha256(context.destroyTeardown) !== canonicalSha256(input) ||
+      input.sourcePlanSha256 !== base.planSha256 ||
+      input.retirement.length !== 1 ||
+      input.retirement[0].siteName !== base.siteName ||
+      context.site?.siteUid !== input.retirement[0].siteUid ||
+      !/^[a-f0-9]{64}$/.test(context.site?.siteConfigurationSha256 ?? '') ||
+      typeof context.loaders?.loadSource !== 'function' ||
+      typeof context.loaders?.loadOutcome !== 'function' ||
+      typeof context.verifier !== 'function' ||
+      (context.replacementVerifier !== undefined && typeof context.replacementVerifier !== 'function') ||
+      !['getSessionId', 'getArtifactsDir', 'getArtifactPath', 'saveArtifact'].every(
+        (key) => typeof Reflect.get(context.publicSession ?? {}, key) === 'function',
+      )
+    )
+      throw Error('Azure network teardown context differs');
+  };
+  validateNetworkContext();
   if (input.kind === 'azure-ce-terraform-foundation-teardown')
     return runAzureFoundationTeardown(
       base,
@@ -316,8 +334,35 @@ export async function runAzureTerraformTeardown(
     input.retirement,
     input.pendingAdmissionJournalSha256,
   );
+  let stageHistorySha256: string | undefined;
+  let stageAdmission: Parameters<typeof finalizeAzureTerraformRunnerCleanup>[11];
   const validate = async () => {
+    validateNetworkContext();
     signal?.throwIfAborted();
+    let terminalCleanup: unknown;
+    if (networkContext) {
+      try {
+        terminalCleanup = await storage.read('azure-terraform-terminal-cleanup.json');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    const stageContext =
+      networkContext && terminalCleanup !== undefined
+        ? { ...networkContext, terminalCleanup: sealAzureTerraformTerminalSnapshot(terminalCleanup) }
+        : networkContext;
+    const history = await qualifyAzureTerraformTeardownStageHistory(base, storage, signal, stageContext);
+    if (history.stages.length && !terraform) throw Error('Owning Azure upgrade retirement service unavailable');
+    if (stageHistorySha256 !== undefined && stageHistorySha256 !== history.sourceSha256)
+      throw Error('Azure teardown stage history changed between actions');
+    stageHistorySha256 = history.sourceSha256;
+    stageAdmission =
+      networkContext &&
+      !history.failovers.length &&
+      !history.upgrades.length &&
+      (history.network || history.retiredNetwork)
+        ? { history, context: stageContext }
+        : undefined;
     await storage.verify();
     if (
       canonicalSha256(expected) !== canonicalSha256(input) ||
@@ -360,6 +405,8 @@ export async function runAzureTerraformTeardown(
       env,
       signal,
       terraform,
+      networkContext,
+      stageAdmission,
     );
   let completed: unknown;
   try {
@@ -395,6 +442,8 @@ export async function runAzureTerraformTeardown(
       env,
       signal,
       terraform,
+      networkContext,
+      stageAdmission,
     );
   }
   const drained = await runtime.drainPlatform(input.drain, contract, storage, signal);
@@ -449,5 +498,7 @@ export async function runAzureTerraformTeardown(
     env,
     signal,
     terraform,
+    networkContext,
+    stageAdmission,
   );
 }

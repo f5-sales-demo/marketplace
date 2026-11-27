@@ -79,7 +79,7 @@ test('Terraform membership revisions remove and restore only exact retained atta
   };
   const configuration = JSON.stringify({
     terraform: {
-      required_version: '= 1.16.5',
+      required_version: '= 1.17.1',
       required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
     },
     provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },
@@ -118,7 +118,7 @@ for (const mode of [
     const binding = await collectAwsPowerNlbServices(f.base, f.values, f.api);
     const configuration = {
       terraform: {
-        required_version: '= 1.16.5',
+        required_version: '= 1.17.1',
         required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
       },
       provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },
@@ -165,7 +165,7 @@ for (const effect of ['withdraw', 'restore'] as const)
     };
     const c = JSON.stringify({
       terraform: {
-        required_version: '= 1.16.5',
+        required_version: '= 1.17.1',
         required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
       },
       provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },
@@ -354,7 +354,7 @@ async function terraformFixture(effect: 'withdraw' | 'restore' = 'withdraw', com
   const observed = await collectAwsPowerNlbServices(f.base, f.values, f.api);
   const configuration = JSON.stringify({
     terraform: {
-      required_version: '= 1.16.5',
+      required_version: '= 1.17.1',
       required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
     },
     provider: { aws: { region: f.base.region, allowed_account_ids: [f.base.accountId] } },

@@ -36,6 +36,7 @@ function fixture() {
   };
   const physical = {
     metadata,
+    system_metadata: { uid: 'physical-site-uid' },
     status: [
       {
         metadata: {
@@ -43,8 +44,11 @@ function fixture() {
           publish: 'STATUS_PUBLISH',
           vtrp_stale: false,
           creator_id: 'node-a.example.test',
+          status_id: 'node-a_SiteStatusMgr',
         },
+        object_refs: [{ kind: 'ves.io.vega.cfg.site.Object', uid: 'physical-site-uid' }],
         ver_status: {
+          ver_instance_name: 'node-a-site-a',
           intf_status: [
             {
               name: 'eth0',
@@ -61,7 +65,7 @@ function fixture() {
   const expected = [{ node: 'node-a', role: 'slo' as const, mac: mac.toUpperCase() }];
   return { configuration, objects, physical, expected };
 }
-test('resolves the authoritative object only through configured MAC, site UID, device and fresh physical link', () => {
+test('resolves the authoritative object only through configured MAC, site UID, device and identity-verified physical link', () => {
   const f = fixture();
   const result = correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected);
   expect(result).toEqual([
@@ -281,4 +285,39 @@ test('rejects incomplete, duplicate, stale, foreign and partially discovered six
     const expected = f.expected.map((row) => ({ ...row, role: row.role as 'slo' | 'sli' }));
     expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, expected)).toThrow();
   }
+});
+
+test('node creator cannot bypass exact physical reference and publisher node identities', () => {
+  for (const mutate of [
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].object_refs = [];
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].object_refs[0].uid = 'foreign-physical-site';
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].metadata.status_id = 'foreign-node_SiteStatusMgr';
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].ver_status.ver_instance_name = 'foreign-node-site-a';
+    },
+  ]) {
+    const f = sitePublisherFixture();
+    f.physical.status[0].metadata.creator_id = 'node-a.example.test';
+    mutate(f);
+    expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow();
+  }
+});
+
+test('rejects generated-object MTUs that exceed the owning site schema', () => {
+  for (const mtu of [8001, 9000]) {
+    const f = fixture();
+    f.configuration.spec.aws.not_managed.node_list[0].interface_list[0].mtu = mtu;
+    f.objects.items[0].get_spec.ethernet_interface.mtu = mtu;
+    expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow('MTU');
+  }
+  const f = fixture();
+  f.configuration.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 8000;
+  f.objects.items[0].get_spec.ethernet_interface.mtu = 8000;
+  expect(correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0].mtu).toBe(8000);
 });

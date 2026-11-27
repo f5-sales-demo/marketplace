@@ -194,7 +194,7 @@ test('reconciles a lost destroy response from exact group absence and finishes n
       groupExists = false;
       throw new Error('destroy response lost');
     },
-    async reconcileApplyFromEvidence(receipt, evidenceSha256) {
+    async reconcileApplyFromEvidence(receipt: PlanReceipt, evidenceSha256: string) {
       expect(receipt.planSha256).toBe(f.receipt.planSha256);
       expect(evidenceSha256).toMatch(/^[a-f0-9]{64}$/);
       reconciliations++;
@@ -220,3 +220,69 @@ test('reconciles a lost destroy response from exact group absence and finishes n
   expect({ applies, reconciliations, plans }).toEqual({ applies: 1, reconciliations: 1, plans: 2 });
   expect(await storage.read('azure-terraform-cloud-destroy-reconciliation.json')).toMatchObject({ status: 'absent' });
 });
+
+function udrFixture() {
+  const f = fixture();
+  f.plan = compileAzureCePlan(
+    {
+      ...intent,
+      engine: 'terraform',
+      routing: {
+        mode: 'udr',
+        destinationCidrs: ['10.253.0.0/24'],
+        udr: { subnetNames: ['slo'], nextHop: { node: 1, nicIndex: 0 } },
+      },
+    },
+    observation,
+  );
+  const tableId = `${f.groupId}/providers/Microsoft.Network/routeTables/${f.plan.deploymentName}-rt`;
+  const subnetId = `${f.groupId}/providers/Microsoft.Network/virtualNetworks/${f.plan.deploymentName}-vnet/subnets/slo`;
+  const changes: PlanReceipt['changes'] = [
+    { address: 'azurerm_route_table.ce', type: 'azurerm_route_table', actions: ['delete'] },
+    { address: 'azurerm_route.route_0', type: 'azurerm_route', actions: ['delete'] },
+    {
+      address: 'azurerm_subnet_route_table_association.udr_0',
+      type: 'azurerm_subnet_route_table_association',
+      actions: ['delete'],
+    },
+  ];
+  f.receipt.changes.push(...changes);
+  f.fields[changes[0].address] = { id: tableId };
+  f.fields[changes[1].address] = {
+    id: `${tableId}/routes/ce-route-1`,
+    name: 'ce-route-1',
+    address_prefix: '10.253.0.0/24',
+    route_table_name: `${f.plan.deploymentName}-rt`,
+  };
+  f.fields[changes[2].address] = { id: subnetId, subnet_id: subnetId, route_table_id: tableId };
+  const api: AzExecApi = {
+    async exec(command, args, options) {
+      const result = await f.api.exec(command, args, options);
+      if (args[0] === 'group' && args[1] === 'show') {
+        const value = JSON.parse(result.stdout);
+        value.tags['xcsh-plan-sha256'] = f.plan.planSha256;
+        return { ...result, stdout: JSON.stringify(value) };
+      }
+      return result;
+    },
+  };
+  return { ...f, api };
+}
+test('qualifies exact UDR route/table/subnet association fields for owned Terraform teardown', async () => {
+  const f = udrFixture();
+  expect((await verifyAzureTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).resourceCount).toBe(6);
+});
+for (const [label, address, key, value] of [
+  ['foreignTable', 'azurerm_subnet_route_table_association.udr_0', 'route_table_id', 'foreign'],
+  ['foreignSubnet', 'azurerm_subnet_route_table_association.udr_0', 'subnet_id', 'foreign'],
+  ['foreignRoute', 'azurerm_route.route_0', 'id', 'foreign'],
+  ['differentDestination', 'azurerm_route.route_0', 'address_prefix', '10.254.0.0/24'],
+  ['differentTable', 'azurerm_route_table.ce', 'id', 'foreign'],
+] as const)
+  test(`rejects ${label} UDR destroy projection`, async () => {
+    const f = udrFixture(),
+      field = f.fields[address];
+    if (!field) throw Error('missing projection');
+    field[key] = value;
+    await expect(verifyAzureTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).rejects.toThrow();
+  });

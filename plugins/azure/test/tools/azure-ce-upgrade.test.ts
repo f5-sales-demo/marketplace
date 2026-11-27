@@ -277,4 +277,22 @@ test('public Azure upgrade tool executes a native upgrade without opening Terraf
       .status,
   ).toBe('upgrade-complete');
   expect({ submissions, confirms, terraformCalls }).toEqual({ submissions: 1, confirms: 1, terraformCalls: 0 });
+  await storage.write('azure-native-lifecycle-retirement.json', { schemaVersion: 1, engine: 'native' });
+  const before = observations;
+  for (const params of [
+    input,
+    {
+      operation: 'prepare' as const,
+      basePlanId: plan.planId,
+      basePlanSha256: plan.planSha256,
+      kind: 'software' as const,
+      version: target,
+    },
+  ]) {
+    const blocked = await tool.execute('retired-upgrade', params, undefined, undefined, ctx);
+    expect('isError' in blocked && blocked.isError).toBe(true);
+    expect(blocked.content[0].text).toContain('lifecycle is retired');
+  }
+  expect(observations).toBe(before);
+  expect({ submissions, confirms, terraformCalls }).toEqual({ submissions: 1, confirms: 1, terraformCalls: 0 });
 });

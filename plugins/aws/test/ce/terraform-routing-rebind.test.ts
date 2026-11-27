@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import type { CeInterfaceObservation } from '../../../platform/src/ce/interface-evidence';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { TerraformSession } from '../../../terraform/src/service';
 import { canonicalSha256 } from '../../src/ce/canonical';
@@ -7,7 +8,7 @@ import { configureAwsTerraformRouting } from '../../src/ce/terraform-routing';
 import type { AwsCeCheckpoint, AwsCePlan } from '../../src/ce/types';
 import { foundationPlan } from './terraform-fixtures';
 
-function fixture() {
+function fixture(observationOverride: Partial<CeInterfaceObservation> = {}) {
   const { planId: _id, planSha256: _sha, ...base } = foundationPlan();
   const actions = [1, 2, 3].flatMap((node) =>
     [0, 1].map((role) => {
@@ -151,12 +152,21 @@ function fixture() {
     observeAwsInterfaces: async (binding, expected) => {
       expect(binding.siteName).toBe('site-2');
       return {
+        // Synthetic trusted-observer evidence keeps this routing rebind fixture eligible.
+        // It establishes no live CE sample freshness or installed qualification.
         status: 'observed',
+        observedAt: '2026-01-01T00:00:00.000Z',
+        freshness: 'verified',
+        canSatisfyInterfaceMutationGate: true,
         interfaces: expected.map((item) => ({
           ...item,
+          device: item.role === 'slo' ? 'ens5' : 'ens6',
           interfaceName: item.role === 'slo' ? 'ens5' : 'ens6',
           mtu: 1500,
+          linkUp: true,
+          ipv4: null,
         })),
+        ...observationOverride,
       };
     },
     ensureAwsRouting: async (...args) => {
@@ -232,3 +242,16 @@ test('Terraform rebind rejects stale replacement attachment outputs before writi
   expect(f.saved).toHaveLength(0);
   expect(f.calls).toHaveLength(0);
 });
+
+for (const observationOverride of [
+  { freshness: 'unqualified', canSatisfyInterfaceMutationGate: true },
+  { freshness: 'verified', canSatisfyInterfaceMutationGate: false },
+] satisfies Partial<CeInterfaceObservation>[]) {
+  test(`Terraform rebind rejects freshness=${observationOverride.freshness} gate=${observationOverride.canSatisfyInterfaceMutationGate} before restoring routing`, async () => {
+    const f = fixture(observationOverride);
+    await expect(f.run()).rejects.toThrow(
+      'Qualified current up interface evidence is required before routing mutation',
+    );
+    expect(f.calls).toHaveLength(0);
+  });
+}
