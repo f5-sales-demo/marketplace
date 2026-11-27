@@ -13,7 +13,7 @@ commands exited successfully and selected 2.3.2 in their actual user registries.
 All 41 installed files match the independently verified archive on both hosts.
 
 Mac resolves `/opt/homebrew/Caskroom/xcsh/23.9.3/bin/xcsh`; Ubuntu resolves
-`/home/robin/.local/bin/xcsh`. Both report `xcsh/23.9.3`. These observations
+`/home/<user>/.local/bin/xcsh`. Both report `xcsh/23.9.3`. These observations
 establish installed plugin provenance only. They do not establish presentation
 acceptance on the latest stable runtime. Version-scoped runtime qualification,
 complete guidance and lifecycle observations remain in #1722 and #1723.
