@@ -1,0 +1,117 @@
+{
+  "candidateRevision": 119,
+  "sourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+  "scope": "ce-r119-q-7235ec61",
+  "discovery": {
+    "candidateRevision": 119,
+    "sourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+    "cloud": "aws",
+    "profile": "single-site",
+    "component": null,
+    "cliVersion": "23.9.3",
+    "installedRuntimeDigests": [
+      {
+        "plugin": "platform",
+        "sha256": "bea2a2c1e8b6636564f2d2078ec00f765a53ec7dfd91f8e94523c85b82f4e5ed"
+      },
+      {
+        "plugin": "aws",
+        "sha256": "1591efc9ab0fdc3b2e19265674abc05db8870b3d49590d686ceda3f723547c84"
+      },
+      {
+        "plugin": "azure",
+        "sha256": "ecc2d10614e7d6cd56f980fb47bc2c76052cc23d5c9e1bec9239d5a666d7e21c"
+      },
+      {
+        "plugin": "terraform",
+        "sha256": "39054b9f4b0c58e412db96d85568cd237e11a50b72e7f2bfad041b513b414352"
+      }
+    ],
+    "trace": [
+      {
+        "tool": "aws_compute_discover",
+        "startedAt": "2026-10-23T16:10:53.552Z",
+        "completedAt": "2026-10-23T16:12:42.191Z",
+        "isError": false
+      }
+    ],
+    "plans": [],
+    "cloudMutationPerformed": false,
+    "liveLifecycleQualified": false,
+    "fullCeAcceptance": false
+  },
+  "planning": {
+    "candidateRevision": 119,
+    "sourceCommit": "c89bf28e62f7a61ded6ead624a4b33aa081d5957",
+    "cloud": "aws",
+    "profile": "single-site",
+    "component": null,
+    "cliVersion": "23.9.3",
+    "installedRuntimeDigests": [
+      {
+        "plugin": "platform",
+        "sha256": "bea2a2c1e8b6636564f2d2078ec00f765a53ec7dfd91f8e94523c85b82f4e5ed"
+      },
+      {
+        "plugin": "aws",
+        "sha256": "1591efc9ab0fdc3b2e19265674abc05db8870b3d49590d686ceda3f723547c84"
+      },
+      {
+        "plugin": "azure",
+        "sha256": "ecc2d10614e7d6cd56f980fb47bc2c76052cc23d5c9e1bec9239d5a666d7e21c"
+      },
+      {
+        "plugin": "terraform",
+        "sha256": "39054b9f4b0c58e412db96d85568cd237e11a50b72e7f2bfad041b513b414352"
+      }
+    ],
+    "trace": [
+      {
+        "tool": "aws_ce_plan",
+        "startedAt": "2026-10-23T16:12:44.975Z",
+        "completedAt": "2026-10-23T16:12:44.993Z",
+        "isError": false
+      },
+      {
+        "tool": "aws_ce_plan",
+        "startedAt": "2026-10-23T16:12:44.993Z",
+        "completedAt": "2026-10-23T16:12:45.006Z",
+        "isError": false
+      }
+    ],
+    "plans": [
+      {
+        "engine": "native",
+        "profile": "single-site",
+        "component": null,
+        "nodeCount": 1,
+        "region": "us-east-2",
+        "planId": "aws-ce-d15a817ecfbf2549714b32d0",
+        "planSha256": "d15a817ecfbf2549714b32d012f5dcbda832bbde89be86111684ab10cedf2b96",
+        "interfaceRoles": ["slo", "sli"],
+        "actions": 21,
+        "independentSites": 1
+      },
+      {
+        "engine": "terraform",
+        "profile": "single-site",
+        "component": null,
+        "nodeCount": 1,
+        "region": "us-east-2",
+        "planId": "aws-ce-86ca37457e65fdee6803becb",
+        "planSha256": "86ca37457e65fdee6803becbdf37c7018b110fd6e66c5160edf8b364a2c073b8",
+        "interfaceRoles": ["slo", "sli"],
+        "actions": 21,
+        "independentSites": 1
+      }
+    ],
+    "cloudMutationPerformed": false,
+    "liveLifecycleQualified": false,
+    "fullCeAcceptance": false
+  },
+  "installedPublicExecution": true,
+  "cloudMutationPerformed": false,
+  "liveLifecycleQualified": false,
+  "fullCeAcceptance": false,
+  "releaseReady": false
+}
