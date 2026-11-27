@@ -42,9 +42,24 @@ const records = Array.from({ length: 12 }, (_, index) => ({
   Id: `006000000000${String(index).padStart(3, '0')}`,
 }));
 const schema = {
-  name: 'Opportunity', queryable: true,
+  name: 'Opportunity',
+  queryable: true,
   fields: [
-    ...['Name','Amount','OwnerId','AccountId','IsClosed','IsWon','CloseDate'].map(name => ({ name, label: name, type: name === 'Amount' ? 'currency' : name.startsWith('Is') ? 'boolean' : name.endsWith('Id') ? 'reference' : 'string', custom: false, filterable: true, groupable: true })),
+    ...['Name', 'Amount', 'OwnerId', 'AccountId', 'IsClosed', 'IsWon', 'CloseDate'].map((name) => ({
+      name,
+      label: name,
+      type:
+        name === 'Amount'
+          ? 'currency'
+          : name.startsWith('Is')
+            ? 'boolean'
+            : name.endsWith('Id')
+              ? 'reference'
+              : 'string',
+      custom: false,
+      filterable: true,
+      groupable: true,
+    })),
     { name: 'Id', label: 'Identifier', type: 'id', custom: false },
     ...Array.from({ length: 65 }, (_, i) => ({
       name: `SyntheticProduct${i}__c`,
