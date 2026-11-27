@@ -156,7 +156,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   case "$plugin" in
   aws | azure | github | gitlab) retained_development_xcsh="23.9.3" ;;
   # Keep the separately qualified GCP lane independent of other plugin families.
-  gcloud | platform) retained_development_xcsh="25.1.1" ;;
+  gcloud | platform) retained_development_xcsh="25.1.2" ;;
   esac
   if ! $salesforce_configuration && [ "$development_xcsh" != "23.5.1" ] && [ "$development_xcsh" != "23.8.0" ] &&
     [ "$development_xcsh" != "$SHARED_DEVELOPMENT_XCSH" ] &&
@@ -183,7 +183,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   expected_bun_types_range="$EXPECTED_BUN_TYPES_RANGE"
   expected_bun_types="$EXPECTED_BUN_TYPES"
   case "$plugin:$development_xcsh" in
-  gcloud:25.1.1 | platform:25.1.1)
+  gcloud:25.1.2 | platform:25.1.2)
     # Latest stable GCP graph is qualified immediately; release age is not an admission condition.
     expected_anthropic="1.8.0"
     expected_acp="2.6.0"
@@ -231,7 +231,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     require_installed_json_value "$node_modules/@google/genai/package.json" '.version' \
       "$expected_google_genai" "$plugin installed Google GenAI version"
     case "$plugin:$development_xcsh" in
-    gcloud:25.1.1 | platform:25.1.1)
+    gcloud:25.1.2 | platform:25.1.2)
       installed_google_auth=$(resolve_runtime_package_manifest "$node_modules" "google-auth-library") || {
         fail_installed "$plugin Google auth cannot be resolved from its runtime graph"
         continue

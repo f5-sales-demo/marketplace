@@ -1,6 +1,6 @@
 {
   "name": "platform",
-  "version": "6.3.43",
+  "version": "6.3.44",
   "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
   "license": "Apache-2.0",
   "main": "src/index.ts",
@@ -10,16 +10,16 @@
   },
   "xcsh": {
     "name": "Platform",
-    "version": "6.3.43",
+    "version": "6.3.44",
     "extensions": [
       "runtime/index.js"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=25.1.1"
+    "@f5-sales-demo/xcsh": ">=25.1.2"
   },
   "devDependencies": {
-    "@f5-sales-demo/xcsh": "25.1.1",
+    "@f5-sales-demo/xcsh": "25.1.2",
     "@sinclair/typebox": "0.34.52",
     "@tobilu/qmd": "2.9.0",
     "@types/bun": "1.4.5",

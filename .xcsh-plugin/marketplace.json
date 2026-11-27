@@ -143,13 +143,13 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "6.3.43",
+      "version": "6.3.44",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "25.1.1",
+      "minimumRuntimeVersion": "25.1.2",
       "extensions": ["runtime/index.js"],
       "source": "./plugins/platform",
       "category": "productivity",
@@ -395,13 +395,13 @@
     {
       "name": "gcloud",
       "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
-      "version": "1.7.100",
+      "version": "1.7.101",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "25.1.1",
+      "minimumRuntimeVersion": "25.1.2",
       "extensions": ["runtime/index.js"],
       "source": "./plugins/gcloud",
       "category": "development",
@@ -529,13 +529,13 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.4.201",
+      "version": "2.4.202",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/terraform",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
-      "minimumRuntimeVersion": "25.1.1",
+      "minimumRuntimeVersion": "25.1.2",
       "extensions": ["extensions/integration.ts", "runtime/index.js"],
       "source": "./plugins/terraform",
       "category": "development",

@@ -1,7 +1,7 @@
 {
   "name": "gcloud",
   "description": "Google Cloud authentication and Customer Edge saved-plan deployment, recovery and owned cleanup",
-  "version": "1.7.100",
+  "version": "1.7.101",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
   "license": "Apache-2.0",
   "author": {
@@ -31,6 +31,6 @@
     "collectedData": ["accounts"],
     "pluginDependencies": ["platform"]
   },
-  "minimumRuntimeVersion": "25.1.1",
+  "minimumRuntimeVersion": "25.1.2",
   "extensions": ["runtime/index.js"]
 }

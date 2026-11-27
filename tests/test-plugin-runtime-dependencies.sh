@@ -52,10 +52,10 @@ fi
 # The GCP lane was qualified independently; it must not admit other plugins or future pins.
 UNQUALIFIED_GCP="$WORK/unqualified-gcp-development"
 copy_runtime_state "$UNQUALIFIED_GCP"
-jq '.devDependencies["@f5-sales-demo/xcsh"] = "25.1.2"' \
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "25.1.3"' \
   "$UNQUALIFIED_GCP/plugins/gcloud/package.json" >"$UNQUALIFIED_GCP/package.tmp"
 mv "$UNQUALIFIED_GCP/package.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/package.json"
-sed 's/@f5-sales-demo\/xcsh@25\.1\.1/@f5-sales-demo\/xcsh@25.1.2/g; s/@f5-sales-demo\/pi-utils@25\.1\.1/@f5-sales-demo\/pi-utils@25.1.2/g' \
+sed 's/@f5-sales-demo\/xcsh@25\.1\.2/@f5-sales-demo\/xcsh@25.1.3/g; s/@f5-sales-demo\/pi-utils@25\.1\.2/@f5-sales-demo\/pi-utils@25.1.3/g' \
   "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock" >"$UNQUALIFIED_GCP/lock.tmp"
 mv "$UNQUALIFIED_GCP/lock.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock"
 if REPO_ROOT="$UNQUALIFIED_GCP" bash "$CHECK" >"$UNQUALIFIED_GCP/check.log" 2>&1; then
@@ -298,12 +298,12 @@ anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"
 bun_types_version="1.4.4"
-if [ "$xcsh_version" = "25.1.0" ] || [ "$xcsh_version" = "25.1.1" ]; then
+if [ "$xcsh_version" = "25.1.0" ] || [ "$xcsh_version" = "25.1.2" ]; then
   anthropic_version="1.8.0"
   acp_version="2.6.0"
   google_genai_version="3.3.0"
 fi
-if [ "$xcsh_version" = "25.1.1" ]; then
+if [ "$xcsh_version" = "25.1.2" ]; then
   bun_types_version="1.4.5"
   mkdir -p node_modules/google-auth-library
   printf '{"version":"11.3.4"}\n' >node_modules/google-auth-library/package.json

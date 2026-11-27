@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 // Exact versions come from current stable registry metadata; no release-age hold applies.
 const latest = {
-  '@f5-sales-demo/xcsh': '25.1.1',
+  '@f5-sales-demo/xcsh': '25.1.2',
   '@sinclair/typebox': '0.34.52',
   '@tobilu/qmd': '2.9.0',
   '@types/bun': '1.4.5',
