@@ -707,17 +707,6 @@ export async function executeAwsCeApply(
   )
     throw new Error('Caller-supplied capability or health assertions are unsupported');
   const { plan, observation } = await loadAwsPlan(ctx.sessionManager, input.planId, input.planSha256);
-  const existing = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
-  const authorized =
-    existing?.authorization?.planSha256 === plan.planSha256 && existing.authorization.mutations === true;
-  assertAwsApplyAllowed(plan, {
-    planId: input.planId,
-    planSha256: input.planSha256,
-    hasUI: ctx.hasUI,
-    env: process.env,
-    authorized,
-    destructionAuthorized: authorized && existing?.authorization?.destruction,
-  });
   assertAwsAdminPrebootDevices(plan.intent);
   api = scopedAwsApi(api, plan.intent.awsProfile, signal);
   if (plan.intent.operation === 'deploy' && plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role)))
@@ -735,6 +724,18 @@ export async function executeAwsCeApply(
     region: plan.region,
   });
   const execute = async () => {
+    // Resolve and authorize the current checkpoint only after acquiring the native lease.
+    const existing = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+    const authorized =
+      existing?.authorization?.planSha256 === plan.planSha256 && existing.authorization.mutations === true;
+    assertAwsApplyAllowed(plan, {
+      planId: input.planId,
+      planSha256: input.planSha256,
+      hasUI: ctx.hasUI,
+      env: process.env,
+      authorized,
+      destructionAuthorized: authorized && existing?.authorization?.destruction,
+    });
     const ingressContract =
       plan.intent.ingress?.mode === 'nlb' ? await VerifiedIngressContract.release(fetcher, signal) : undefined;
 

@@ -2,7 +2,8 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { assertAwsBootstrapKeyPair } from './bootstrap-key-pair';
 import { awsCeObservationRegion, canonicalSha256, safeHexEqual } from './canonical';
-import type { AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
+import { publishAwsCheckpointJournal, readAwsCheckpointJournal } from './checkpoint-journal';
+import type { AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_SCHEMA_VERSION } from './types';
 
 export interface AwsCeSessionManager {
@@ -119,44 +120,5 @@ export async function loadAwsPlan(
   throw new Error('No exact, integrity-valid AWS CE plan was found in this session');
 }
 
-export async function saveAwsCheckpoint(session: AwsCeSessionManager, checkpoint: AwsCeCheckpoint) {
-  const id = await session.saveArtifact(JSON.stringify({ kind: 'aws-ce-checkpoint', checkpoint }), 'aws-ce-checkpoint');
-  if (!id) throw new Error('AWS CE checkpoint could not be persisted');
-  return id;
-}
-
-export async function loadAwsCheckpoint(
-  session: AwsCeSessionManager,
-  planId: string,
-  planSha256: string,
-): Promise<AwsCeCheckpoint | undefined> {
-  const directory = session.getArtifactsDir();
-  if (!directory) return undefined;
-  let files: string[] = [];
-  try {
-    files = (await readdir(directory))
-      .filter((file) => file.endsWith('.aws-ce-checkpoint.log'))
-      .sort()
-      .reverse();
-  } catch {
-    return undefined;
-  }
-  for (const file of files) {
-    try {
-      const envelope = JSON.parse(await Bun.file(join(directory, file)).text()) as {
-        kind: string;
-        checkpoint: AwsCeCheckpoint;
-      };
-      if (
-        envelope.kind === 'aws-ce-checkpoint' &&
-        envelope.checkpoint.schemaVersion === AWS_CE_SCHEMA_VERSION &&
-        envelope.checkpoint.planId === planId &&
-        envelope.checkpoint.planSha256 === planSha256
-      )
-        return envelope.checkpoint;
-    } catch {
-      // Continue to an older checkpoint.
-    }
-  }
-  return undefined;
-}
+export const saveAwsCheckpoint = publishAwsCheckpointJournal;
+export const loadAwsCheckpoint = readAwsCheckpointJournal;
