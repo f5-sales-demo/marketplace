@@ -1,0 +1,320 @@
+import { expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
+import { buildWireSite, type WireSiteIntent } from '../../../platform/src/ce/wire-site';
+import { resolveCeSchemaFixture } from '../../../platform/test/fixtures/resolve-schema-fixture';
+import schemaCompact from '../../../platform/test/fixtures/smsv2-create-schema.json';
+import { admitAwsTerraformSites } from '../../src/ce/terraform-admission';
+import { admissionFixture as fixture } from './terraform-admission-fixture';
+
+// Partial observer fixtures do not claim installed/live evidence.
+const admissionRuntime = (value: unknown) => value as Parameters<typeof admitAwsTerraformSites>[2];
+const schema = resolveCeSchemaFixture(schemaCompact);
+
+it('persists initial admission before a site mutation can fail', async () => {
+  for (const staticAddressing of [false, true]) {
+    const f = fixture(false, staticAddressing);
+    const fail = async () => {
+      const checkpoint = await f.storage.read('terraform-admission.json');
+      expect(checkpoint).toMatchObject({
+        planSha256: f.plan.planSha256,
+        bootstrapByNode: {},
+        launchedAtByNode: {},
+        admittedSites: [],
+      });
+      throw Error('site submission interrupted');
+    };
+    const runtime = { ...f.runtime, reserveSite: fail, ensureSite: fail };
+    await expect(
+      admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {}),
+    ).rejects.toThrow('site submission interrupted');
+    expect(f.bootstrapped).toEqual([]);
+    expect([...f.nodes]).toEqual([]);
+  }
+});
+
+it('admits independent sites cumulatively and waits for registration before the next site', async () => {
+  const f = fixture();
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('pending-registration');
+  expect([...f.nodes]).toEqual([1]);
+  f.healthy();
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('registered');
+  expect([...f.nodes]).toEqual([1, 2, 3]);
+  expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
+  const checkpoint = (await f.storage.read('terraform-admission.json')) as { bootstrapByNode: Record<string, string> };
+  expect(checkpoint.bootstrapByNode['1']).toContain('hostname: ce-1');
+});
+it('mints and launches all HA nodes through resumable serial boundaries before registration', async () => {
+  const f = fixture(true);
+  const result = await admitAwsTerraformSites(
+    f.plan,
+    f.session,
+    admissionRuntime(f.runtime),
+    f.storage,
+    f.api,
+    {},
+    undefined,
+    0,
+  );
+  expect(result.status).toBe('pending-registration');
+  expect([...f.nodes]).toEqual([1, 2, 3]);
+  expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
+  expect(f.ensuredSites).toHaveLength(1);
+  expect(f.ensuredSites[0]?.haMode).toBe('three-node');
+  expect(
+    f.ensuredSites[0]?.nodes.map((node) => ({
+      hostname: node.hostname,
+      interfaces: node.interfaces.map(({ ethernet_interface }) => ethernet_interface),
+    })),
+  ).toEqual([
+    {
+      hostname: 'ce-1',
+      interfaces: [
+        { device: 'ens5', mac: '00:11:22:33:01:00' },
+        { device: 'ens6', mac: '00:11:22:33:01:01' },
+      ],
+    },
+    {
+      hostname: 'ce-2',
+      interfaces: [
+        { device: 'ens5', mac: '00:11:22:33:02:00' },
+        { device: 'ens6', mac: '00:11:22:33:02:01' },
+      ],
+    },
+    {
+      hostname: 'ce-3',
+      interfaces: [
+        { device: 'ens5', mac: '00:11:22:33:03:00' },
+        { device: 'ens6', mac: '00:11:22:33:03:01' },
+      ],
+    },
+  ]);
+  const checkpoint = (await f.storage.read('terraform-admission.json')) as {
+    launchedAtByNode: Record<string, string>;
+  };
+  expect(Object.keys(checkpoint.launchedAtByNode)).toEqual(['1', '2', '3']);
+});
+it('resumes after interrupted apply without minting bootstrap again or omitting earlier nodes', async () => {
+  const f = fixture();
+  f.interrupt();
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('interrupted');
+  f.healthy();
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('registered');
+  expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
+  expect([...f.nodes]).toEqual([1, 2, 3]);
+});
+
+it('rejects update/replacement work during initial admission', async () => {
+  const f = fixture();
+  const plan = f.session.plan.bind(f.session);
+  f.session.plan = async (...args) => ({
+    ...(await plan(...args)),
+    changes: [{ address: 'aws_instance.existing', type: 'aws_instance', actions: ['delete', 'create'] }],
+  });
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('alter or replace');
+  expect([...f.nodes]).toEqual([]);
+});
+
+it('does not admit the next site when server-populated interface configuration is unverified', async () => {
+  const f = fixture();
+  f.healthy();
+  const runtime = {
+    ...f.runtime,
+    async observeAwsRegisteredConfiguration() {
+      return { status: 'unknown' as const };
+    },
+  };
+  const result = await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {});
+  expect(result.status).toBe('pending-interface-configuration');
+  expect([...f.nodes]).toEqual([1]);
+});
+
+it('configures static independent sites through the pinned SMSv2 schema before bootstrap', async () => {
+  const f = fixture(false, true);
+  const order: string[] = [];
+  const originalEnsure = f.runtime.ensureSite.bind(f.runtime);
+  const originalBootstrap = f.runtime.bootstrap.bind(f.runtime);
+  f.runtime.ensureSite = async (binding, value) => {
+    const intent = value as WireSiteIntent;
+    const wire = buildWireSite(intent, schema.schemas);
+    expect(wire.disable_ha).toEqual({});
+    const interfaces = intent.nodes[0].interfaces;
+    expect(interfaces[0].static_ip).toEqual({
+      ip_address: '10.0.1.20/24',
+      default_gw: '10.0.1.1',
+      dns_server: '10.0.0.2',
+    });
+    expect(interfaces[1].static_ip).toEqual({ ip_address: '10.0.4.20/24' });
+    expect(interfaces.every((item) => !Object.hasOwn(item, 'dhcp_client'))).toBe(true);
+    order.push('ensure');
+    await originalEnsure(binding, value);
+  };
+  f.runtime.bootstrap = async (binding, node) => {
+    order.push('bootstrap');
+    return originalBootstrap(binding, node);
+  };
+  await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {});
+  expect(order).toEqual(['ensure', 'bootstrap']);
+  expect(f.ensuredSites).toHaveLength(1);
+});
+
+it('rejects a cloud/output address that agrees with itself but differs from the static plan', async () => {
+  const f = fixture(false, true);
+  const originalOutputs = f.session.readOutputs.bind(f.session);
+  f.session.readOutputs = async (...args) => {
+    const output = await originalOutputs(...args);
+    const interfaces = output.ce_interfaces as Record<string, { private_ip: string }>;
+    interfaces['1:0'].private_ip = '10.0.1.21';
+    return output;
+  };
+  const originalExec = f.api.exec.bind(f.api);
+  f.api.exec = async (...args) => {
+    const result = await originalExec(...args);
+    const response = JSON.parse(result.stdout);
+    if (response.NetworkInterfaces) response.NetworkInterfaces[0].PrivateIpAddress = '10.0.1.21';
+    return { ...result, stdout: JSON.stringify(response) };
+  };
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('resource binding');
+  expect(f.bootstrapped).toEqual([]);
+});
+
+it('installs explicit DHCP device and MTU configuration before minting bootstrap', async () => {
+  const f = fixture();
+  const original = f.runtime.ensureSite.bind(f.runtime);
+  f.runtime.ensureSite = async (binding, intent) => {
+    expect(f.bootstrapped).toEqual([]);
+    expect([...f.nodes]).toEqual([]);
+    expect(intent).toMatchObject({
+      haMode: 'one-node',
+      nodes: [
+        {
+          hostname: 'ce-1',
+          interfaces: [
+            { mtu: 1500, ethernet_interface: { device: 'ens5', mac: '00:11:22:33:01:00' }, dhcp_client: {} },
+            { mtu: 1500, ethernet_interface: { device: 'ens6', mac: '00:11:22:33:01:01' }, dhcp_client: {} },
+          ],
+        },
+      ],
+    });
+    expect(() => buildWireSite(intent as WireSiteIntent, schema.schemas)).not.toThrow();
+    await original(binding, intent);
+  };
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('pending-registration');
+  expect(f.ensuredSites).toHaveLength(1);
+});
+
+it('rejects duplicate planned devices before site mutation or bootstrap', async () => {
+  const f = fixture();
+  const { canonicalSha256 } = await import('../../src/ce/canonical');
+  const { planId: _id, planSha256: _sha, ...draft } = structuredClone(f.plan);
+  draft.intent.interfaces[1].guestDevice = draft.intent.interfaces[0].guestDevice;
+  const planSha256 = canonicalSha256(draft);
+  const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
+  await expect(
+    admitAwsTerraformSites(plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}),
+  ).rejects.toThrow('planned guest devices must be distinct');
+  expect(f.ensuredSites).toEqual([]);
+  expect(f.bootstrapped).toEqual([]);
+  expect([...f.nodes]).toEqual([]);
+});
+
+it('leaves partial device input to authoritative registration discovery', async () => {
+  const f = fixture(false, false, false, (interfaces) => {
+    delete interfaces[1].guestDevice;
+  });
+  expect(
+    (await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {})).status,
+  ).toBe('pending-registration');
+  expect(f.ensuredSites).toEqual([]);
+  expect(f.bootstrapped).toEqual(['ce-1']);
+});
+
+it('configures the administrator public key before Terraform bootstrap begins', async () => {
+  const bytes = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+  const head = Buffer.from('ssh-ed25519');
+  const a = Buffer.alloc(4);
+  a.writeUInt32BE(head.length);
+  const b = Buffer.alloc(4);
+  b.writeUInt32BE(bytes.length);
+  const key = `ssh-ed25519 ${Buffer.concat([a, head, b, bytes]).toString('base64')}`;
+  const f = fixture(true, false, false, undefined, key);
+  const calls: string[] = [];
+  const runtime = {
+    ...f.runtime,
+    ensureSite: async (...args: Parameters<typeof f.runtime.ensureSite>) => {
+      calls.push('site');
+      expect(args[1].settings).toMatchObject({ admin_user_credentials: { ssh_key: key } });
+      return f.runtime.ensureSite(...args);
+    },
+    bootstrap: async (...args: Parameters<typeof f.runtime.bootstrap>) => {
+      expect(calls[0]).toBe('site');
+      calls.push('bootstrap');
+      return f.runtime.bootstrap(...args);
+    },
+  };
+  await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {}, undefined, 0);
+  expect(calls).toEqual(['site', 'bootstrap', 'bootstrap', 'bootstrap']);
+});
+
+it('rejects unresolved preboot administrator device identities before site or bootstrap effects', async () => {
+  const raw = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+  const head = Buffer.from('ssh-ed25519'),
+    a = Buffer.alloc(4),
+    b = Buffer.alloc(4);
+  a.writeUInt32BE(head.length);
+  b.writeUInt32BE(raw.length);
+  const key = `ssh-ed25519 ${Buffer.concat([a, head, b, raw]).toString('base64')}`;
+  const f = fixture(
+    true,
+    false,
+    false,
+    (interfaces) => {
+      delete interfaces[0].guestDevice;
+    },
+    key,
+  );
+  await expect(
+    admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {}, undefined, 0),
+  ).rejects.toThrow('preboot administrator');
+  expect(f.bootstrapped).toEqual([]);
+  expect(f.ensuredSites).toEqual([]);
+});
+
+it('Terraform admission verifies a borrowed boot key immediately before node creation', async () => {
+  const f = fixture(false, false, false, undefined, undefined, 'borrowed-key');
+  const result = await admitAwsTerraformSites(f.plan, f.session, admissionRuntime(f.runtime), f.storage, f.api, {});
+  expect(result.status).toBe('pending-registration');
+  expect(f.keyState.reads).toBe(1);
+  expect([...f.nodes]).toEqual([1]);
+});
+for (const failure of ['changed', 'denied'] as const) {
+  it(`Terraform admission refuses a ${failure} borrowed key after bootstrap preparation and before node apply`, async () => {
+    const f = fixture(false, false, false, undefined, undefined, 'borrowed-key');
+    const runtime = {
+      ...f.runtime,
+      bootstrap: async (...args: Parameters<typeof f.runtime.bootstrap>) => {
+        const value = await f.runtime.bootstrap(...args);
+        f.keyState[failure] = true;
+        return value;
+      },
+    };
+    await expect(
+      admitAwsTerraformSites(f.plan, f.session, admissionRuntime(runtime), f.storage, f.api, {}),
+    ).rejects.toThrow('key-pair');
+    expect([...f.nodes]).toEqual([]);
+    expect(f.keyState.reads).toBe(1);
+  });
+}
