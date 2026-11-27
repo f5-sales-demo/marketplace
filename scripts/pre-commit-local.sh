@@ -15,3 +15,6 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Auto patch-bump any plugin whose content files are staged (unless already bumped).
 "$REPO_ROOT/scripts/auto-bump-version.sh"
+
+# Version changes and formatting invalidate byte-bound presentation evidence.
+node "$REPO_ROOT/scripts/check-presentation-fingerprints.mjs" "$REPO_ROOT"
