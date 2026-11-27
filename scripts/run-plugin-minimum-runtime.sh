@@ -11,7 +11,7 @@ SOURCE="$REPO_ROOT/plugins/$PLUGIN"
 MINIMUM=$(jq -er '.minimumRuntimeVersion | select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' \
   "$SOURCE/.xcsh-plugin/plugin.json")
 command -v bun >/dev/null
-command -v rsync >/dev/null
+command -v tar >/dev/null
 WORK=$(mktemp -d)
 LOG=$(mktemp "${TMPDIR:-/tmp}/marketplace-minimum-$PLUGIN.XXXXXX")
 chmod 600 "$LOG"
@@ -19,9 +19,12 @@ RM_BIN=$(command -v rm)
 trap '"$RM_BIN" -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/plugins/$PLUGIN" "$WORK/bin"
 # Repository-relative test helpers must retain their original directory depth.
-rsync -a --exclude=node_modules --exclude=.git "$REPO_ROOT/benchmarks/" "$WORK/repo/benchmarks/"
+mkdir -p "$WORK/repo/benchmarks"
+tar -C "$REPO_ROOT/benchmarks" --exclude=node_modules --exclude=.git -cf - . |
+  tar -C "$WORK/repo/benchmarks" -xf -
 COPY="$WORK/repo/plugins/$PLUGIN"
-rsync -a --exclude=node_modules --exclude=.git "$SOURCE/" "$COPY/"
+tar -C "$SOURCE" --exclude=node_modules --exclude=.git -cf - . |
+  tar -C "$COPY" -xf -
 jq --arg minimum "$MINIMUM" '.devDependencies["@f5-sales-demo/xcsh"] = $minimum' \
   "$COPY/package.json" >"$WORK/package.tmp"
 mv "$WORK/package.tmp" "$COPY/package.json"

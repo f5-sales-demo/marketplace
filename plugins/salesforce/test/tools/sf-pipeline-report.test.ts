@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Type } from '@sinclair/typebox';
 import { configurePersonProfile, configureSalesforceContext } from '../../src/context/salesforce-context';
 import { createSfPipelineReportTool } from '../../src/tools/sf-pipeline-report';
+import { syntheticApi } from '../synthetic';
 
 // Validation tests must never reach a real CLI: whether one is installed, and how long it
 // takes to answer, is not part of what they are asserting.
@@ -74,64 +75,12 @@ describe('sf_pipeline_report execute — validation', () => {
   });
 });
 
-it('uses the verified integration user ID when the legacy profile identifier is absent', async () => {
-  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'synthetic' }) as never);
+it('uses the freshly verified user and never a stale person-profile ID', async () => {
+  configurePersonProfile(async () => ({ identifiers: { salesforceId: '005000000000002' } }));
   const calls: string[][] = [];
-  const tool = createSfPipelineReportTool(mockPi, () => ({
-    exec: async (_command, args) => {
-      calls.push(args);
-      return {
-        stdout: JSON.stringify({
-          status: 0,
-          result: {
-            records: args.includes(
-              "SELECT Type, StartDate, EndDate FROM Period WHERE Type IN ('Quarter', 'Year') AND StartDate <= TODAY AND EndDate >= TODAY",
-            )
-              ? [
-                  { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
-                  { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
-                ]
-              : [],
-            done: true,
-          },
-        }),
-        stderr: '',
-        exitCode: 0,
-      };
-    },
-  }));
-  const result = await tool.execute('identity-fixture', {}, undefined, undefined, { cwd: '/tmp' });
+  const tool = createSfPipelineReportTool(mockPi, () => syntheticApi(calls));
+  const result = await tool.execute('verified', {}, undefined, undefined, { cwd: '/tmp' });
   expect(result.isError).not.toBe(true);
   expect(calls.flat().join(' ')).toContain('005000000000001');
-});
-it('keeps an explicit profile identifier ahead of the integration identity', async () => {
-  configurePersonProfile(async () => ({ identifiers: { salesforceId: '005000000000002' } }));
-  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'synthetic' }) as never);
-  const calls: string[][] = [];
-  const tool = createSfPipelineReportTool(mockPi, () => ({
-    exec: async (_command, args) => {
-      calls.push(args);
-      return {
-        stdout: JSON.stringify({
-          status: 0,
-          result: {
-            records: args.includes(
-              "SELECT Type, StartDate, EndDate FROM Period WHERE Type IN ('Quarter', 'Year') AND StartDate <= TODAY AND EndDate >= TODAY",
-            )
-              ? [
-                  { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
-                  { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
-                ]
-              : [],
-            done: true,
-          },
-        }),
-        stderr: '',
-        exitCode: 0,
-      };
-    },
-  }));
-  await tool.execute('identity-fixture', {}, undefined, undefined, { cwd: '/tmp' });
-  expect(calls.flat().join(' ')).toContain('005000000000002');
-  expect(calls.flat().join(' ')).not.toContain('005000000000001');
+  expect(calls.flat().join(' ')).not.toContain('005000000000002');
 });

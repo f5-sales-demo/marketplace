@@ -62,7 +62,7 @@ describe('buildSalesforceHint', () => {
       userId: '005xxx',
       username: 'user@example.com',
       instanceUrl: 'https://test.salesforce.com',
-      orgAlias: 'SFDC',
+      orgAlias: 'example-org',
       pipelineSummary: {
         total: 5000000,
         dealCount: 25,
@@ -84,7 +84,7 @@ describe('buildSalesforceHint', () => {
     expect(hint?.pipelineTotal).toContain('5,000,000');
     expect(hint?.dealCount).toBe(25);
     expect(hint?.accountCount).toBe(2);
-    expect(hint?.orgAlias).toBe('SFDC');
+    expect(hint?.orgAlias).toBe('example-org');
     expect(hint?.forecastBreakdown).toContain('Commit');
     expect(hint?.forecastBreakdown).toContain('BC');
     expect(hint?.forecastBreakdown).toContain('Pipe');

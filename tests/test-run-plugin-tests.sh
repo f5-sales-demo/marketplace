@@ -118,3 +118,19 @@ if [ -e "$MISSING_LOCK/state/test-ran" ]; then
 else
   pass "a missing lockfile stops before bun tests"
 fi
+
+# Exercise the runner's actual final lane without repeating unrelated plugin suites.
+# A failing minimum-runtime check must not fall through to the success message.
+sed -n '/^# Salesforce.*reviewed configuration API/,$p' \
+  "$SOURCE_ROOT/scripts/run-plugin-tests.sh" >"$WORK/minimum-tail.sh"
+test -s "$WORK/minimum-tail.sh" || fail "minimum-runtime lane is missing"
+mkdir -p "$WORK/minimum-bin"
+printf '#!/bin/sh\nexit 7\n' >"$WORK/minimum-bin/bash"
+chmod +x "$WORK/minimum-bin/bash"
+if PATH="$WORK/minimum-bin:$PATH" "$(command -v bash)" "$WORK/minimum-tail.sh" >"$WORK/minimum.log" 2>&1; then
+  fail "a minimum-runtime failure must fail the runner"
+fi
+if grep -Fq 'All plugin suites passed.' "$WORK/minimum.log"; then
+  fail "a minimum-runtime failure must not print success"
+fi
+pass "a minimum-runtime failure stops the runner before success"

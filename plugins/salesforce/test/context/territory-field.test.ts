@@ -13,7 +13,7 @@ function field(partial: Partial<SfFieldDescription> & { name: string }): SfField
   } as SfFieldDescription;
 }
 
-// Every territory-ish field on a real, heavily customised Opportunity. Twenty-one candidates is
+// Synthetic territory candidates on a customized Opportunity. Twenty-one candidates is
 // why the old hardcoded pick was wrong twice over: it named one org's field, and that field
 // (Territory_Credited_District_del__c) is not even groupable, so it could not back a GROUP BY.
 const REAL_TERRITORY_FIELDS: SfFieldDescription[] = [
@@ -31,10 +31,10 @@ const REAL_TERRITORY_FIELDS: SfFieldDescription[] = [
   field({ name: 'Territory_Name__c', label: 'Territory Name' }),
   field({ name: 'Territory_Grouping_SVC__c', label: 'Territory Grouping (SVC)', type: 'picklist' }),
   field({ name: 'Territory_Credited_Category__c', label: 'Territory Credited Category', groupable: false }),
-  field({ name: 'ETM_Core_Territory_Code__c', label: 'ETM Core Territory Code' }),
-  field({ name: 'ETM_Core_Territory__c', label: 'ETM Core Territory' }),
-  field({ name: 'ETM_PS_Territory_Code__c', label: 'ETM PS Territory Code' }),
-  field({ name: 'ETM_PS_Territory__c', label: 'ETM PS Territory' }),
+  field({ name: 'SyntheticTerritoryCode__c', label: 'ETM Core Territory Code' }),
+  field({ name: 'SyntheticTerritory__c', label: 'ETM Core Territory' }),
+  field({ name: 'SyntheticSecondaryCode__c', label: 'ETM PS Territory Code' }),
+  field({ name: 'SyntheticSecondaryTerritory__c', label: 'ETM PS Territory' }),
   field({ name: 'Opportunity_Territory_Type__c', label: 'Opportunity Territory Type', type: 'picklist' }),
   field({ name: 'Old_Territory_Credited__c', label: 'Old Territory Credited', type: 'reference' }),
   field({ name: 'Territory_Assignment_Error__c', label: 'Territory Assignment Error' }),
@@ -66,7 +66,7 @@ describe('rankTerritoryFieldCandidates', () => {
     expect(ranked).not.toContain('Old_Territory_Credited__c');
     expect(ranked).not.toContain('Exclude_From_Territory_Assignment__c');
     expect(ranked).not.toContain('IsExcludedFromTerritory2Filter');
-    expect(ranked).not.toContain('ETM_Core_Territory_Code__c');
+    expect(ranked).not.toContain('SyntheticTerritoryCode__c');
     expect(ranked).not.toContain('Territory_Assignment_Error__c');
     expect(ranked).not.toContain('Opportunity_Territory_Type__c');
   });
@@ -79,7 +79,7 @@ describe('rankTerritoryFieldCandidates', () => {
 
   it('keeps the plausible groupable name fields', () => {
     expect(ranked).toContain('Territory__c');
-    expect(ranked).toContain('ETM_Core_Territory__c');
+    expect(ranked).toContain('SyntheticTerritory__c');
     expect(ranked).toContain('Territory_Grouping__c');
   });
 
@@ -123,7 +123,7 @@ describe('rankTerritoryFieldCandidates', () => {
     ];
     const out = rankTerritoryFieldCandidates(withEtm);
     expect(out).toContain('Territory2.Name');
-    expect(out).toContain('ETM_Core_Territory__c');
+    expect(out).toContain('SyntheticTerritory__c');
   });
 
   // Ranking by API-name length then truncating discarded a populated authoritative field in
@@ -149,21 +149,19 @@ describe('pickBestTerritoryField', () => {
     const best = pickBestTerritoryField([
       { field: 'Territory__c', counts: new Map([['A', 2]]) },
       {
-        field: 'ETM_Core_Territory__c',
+        field: 'SyntheticTerritory__c',
         counts: new Map([
-          ['AMER Red 9', 40],
+          ['Synthetic territory 9', 40],
           ['EMEA Blue 2', 35],
         ]),
       },
       { field: 'Territory_Grouping__c', counts: new Map([['USA', 10]]) },
     ]);
-    expect(best?.field).toBe('ETM_Core_Territory__c');
+    expect(best?.field).toBe('SyntheticTerritory__c');
   });
 
-  // Observed against a real org: ETM_PS_Territory__c and ETM_Core_Territory__c both cover 48
-  // opportunities, but the first is a professional-services rollup. The finer partition is the
-  // more informative territory; the degenerate case — one value covering everything — separates
-  // nothing at all.
+  // Synthetic candidates may tie on coverage while differing in granularity.
+  // A finer partition is a useful review suggestion; business meaning still requires confirmation.
   it('prefers the finer partition when coverage ties', () => {
     const best = pickBestTerritoryField([
       {

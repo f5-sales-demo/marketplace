@@ -52,6 +52,8 @@ test('canonical presentation tracker covers actual registrations and every shipp
       'utf8',
     ),
   ).version;
+  const salesforceRuntimeRoot = join(root, 'plugins/salesforce/node_modules/@f5-sales-demo/xcsh');
+  const salesforceRuntime = JSON.parse(readFileSync(join(salesforceRuntimeRoot, 'package.json'), 'utf8')).version;
   expect(catalog.plugins).toHaveLength(22);
   const registeredEntrypoints = new Set<string>();
   expect(new Set(catalog.plugins.map((p) => p.name)).size).toBe(22);
@@ -71,7 +73,7 @@ test('canonical presentation tracker covers actual registrations and every shipp
       .sort();
     // Include all shipped dependencies/references; changes reopen acceptance conservatively.
     const fingerprint = hash(
-      `${runtime}\n${paths.map((path) => `${path}\n${hash(readFileSync(join(root, path)))}`).join('\n')}`,
+      `${plugin.name === 'salesforce' ? salesforceRuntime : runtime}\n${paths.map((path) => `${path}\n${hash(readFileSync(join(root, path)))}`).join('\n')}`,
     );
     const surfaces = shippedFiles(root, plugin).map((surface: Surface) => ({ ...surface, fingerprint }));
     surfaces.push({
@@ -101,12 +103,41 @@ test('canonical presentation tracker covers actual registrations and every shipp
     JSON.stringify({
       version: 2,
       plugins: Object.fromEntries(
-        catalog.plugins.map((p) => [
-          `${p.name}@fixture`,
-          [{ scope: 'user', installPath: resolve(root, p.source), version: p.version }],
-        ]),
+        catalog.plugins
+          .filter((p) => p.name !== 'salesforce')
+          .map((p) => [
+            `${p.name}@fixture`,
+            [{ scope: 'user', installPath: resolve(root, p.source), version: p.version }],
+          ]),
       ),
     }),
+  );
+  const salesforceHome = join(home, 'salesforce-runtime');
+  await mkdir(join(salesforceHome, '.xcsh/plugins'), { recursive: true });
+  const salesforce = catalog.plugins.find((plugin) => plugin.name === 'salesforce');
+  if (!salesforce) throw new Error('Salesforce catalog entry is missing');
+  await writeFile(
+    join(salesforceHome, '.xcsh/plugins/installed_plugins.json'),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'salesforce@fixture': [
+          { scope: 'user', installPath: resolve(root, salesforce.source), version: salesforce.version },
+        ],
+      },
+    }),
+  );
+  const selectedSnapshots = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        join(root, 'scripts/presentation-inventory-selected-runtime.ts'),
+        salesforceRuntimeRoot,
+        salesforceHome,
+        'salesforce',
+      ],
+      { cwd: root, encoding: 'utf8' },
+    ),
   );
   const which = spyOn(Bun, 'which');
   const sync = spyOn(Bun, 'spawnSync').mockReturnValue({
@@ -122,7 +153,25 @@ test('canonical presentation tracker covers actual registrations and every shipp
     for (const available of [true, false]) {
       clearXcshPluginRootsCache({ rewarm: false });
       which.mockImplementation((name) => (available ? `/synthetic/${name}` : null));
-      const loaded = await discoverAndLoadExtensions([], home, undefined, [], home);
+      const legacy = await discoverAndLoadExtensions([], home, undefined, [], home);
+      const snapshot = selectedSnapshots.find((entry: any) => entry.available === available);
+      const selected = {
+        errors: snapshot.errors,
+        extensions: snapshot.extensions.map((entry: any) => ({
+          path: entry.path,
+          rendererErrors: entry.rendererErrors,
+          ...Object.fromEntries(
+            Object.entries(entry.collections).map(([key, names]) => [
+              key,
+              new Map((names as string[]).map((name) => [name, {}])),
+            ]),
+          ),
+        })),
+      };
+      const loaded = {
+        errors: [...legacy.errors, ...selected.errors],
+        extensions: [...legacy.extensions, ...selected.extensions],
+      };
       expect(loaded.errors).toEqual([]);
       for (const extension of loaded.extensions.filter((e) => e.path.startsWith(`${root}/plugins/`))) {
         const plugin = inventory.find((p) => extension.path.startsWith(`${resolve(root, p.source)}/`));
@@ -130,10 +179,11 @@ test('canonical presentation tracker covers actual registrations and every shipp
         const origin = relative(root, extension.path);
         registeredEntrypoints.add(extension.path);
         expect(
-          rendererOwnershipErrors(
-            plugin.name,
-            [...extension.tools.values()].map((tool) => tool.definition),
-          ),
+          (extension as any).rendererErrors ??
+            rendererOwnershipErrors(
+              plugin.name,
+              [...extension.tools.values()].map((tool) => tool.definition),
+            ),
         ).toEqual([]);
         for (const [collection, kind] of [
           ['tools', 'tool'],
@@ -184,6 +234,8 @@ test('canonical presentation tracker covers actual registrations and every shipp
   expect(metadata).toBeTruthy();
   metadata.startingRuntime ??= metadata.runtime;
   if (action === 'update') metadata.runtime = runtime;
+  if (action === 'update')
+    metadata.pluginRuntimes = { ...(metadata.pluginRuntimes ?? {}), salesforce: salesforceRuntime };
   expect(metadata.runtime).toBe(runtime);
   for (const key of ['umbrella', 'tracking', 'shared', ...inventory.map((p) => p.name)])
     expect(metadata.links[key]).toMatch(/^https:\/\/github.com\/f5-sales-demo\/marketplace\/issues\/\d+$/);

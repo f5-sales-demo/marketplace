@@ -1,8 +1,8 @@
-# Example Northern Assurance
+# Synthetic assurance account
 
 Canadian insurer used exclusively for acceptance fixtures. The Salesforce account ID is
 001000000000000; verify it against current synthetic Salesforce data before relying on it.
-Investigate recent F5 Distributed Cloud opportunities. The local project expects production
+Investigate recent Salesforce opportunities. The local project expects production
 in December 2026; a different Salesforce close date should be reported as a discrepancy,
 not explained by inventing a reason. Do not combine CAD and USD amounts.
 

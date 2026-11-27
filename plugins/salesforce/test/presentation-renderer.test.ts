@@ -88,8 +88,18 @@ const fixtures = [
       details: {
         pipelineReport: {
           currencyBreakdown: [
-            { currency: 'CAD', netNew: { totals: { platform: 123456.78, shape: 0, other: 0 }, quotaTotal: 123456.78 } },
-            { currency: 'USD', booked: { totals: { platform: 0, shape: 0, other: 0 }, quotaTotal: 0 } },
+            {
+              currency: 'CAD',
+              netNew: {
+                totals: { Services: 123456.78, Hardware: 0, Uncategorized: 0 },
+                total: 123456.78,
+                quotaTotal: 123456.78,
+              },
+            },
+            {
+              currency: 'USD',
+              booked: { totals: { Services: 0, Hardware: 0, Uncategorized: 0 }, total: 0, quotaTotal: 0 },
+            },
           ],
           closeDistribution: [
             { label: 'January 2029', amount: 123456.78, commit: 0, bestCase: 0, pipeline: 123456.78, oppCount: 2 },

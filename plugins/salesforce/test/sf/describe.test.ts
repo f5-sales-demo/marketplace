@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { DESCRIBE_MAX_ROWS, formatDescribe, normalizeDescribe } from '../../src/sf/describe';
 
-// Shaped after a real `sf sobject describe --sobject Opportunity --json` payload. The field
+// Synthetic structure matching a `sf sobject describe --sobject Opportunity --json` payload. The field
 // names are the ones this org actually has — the bug that motivated this tool was an agent
 // querying `Competitor__c`, which does not exist, because nothing let it look them up.
 const OPPORTUNITY_RAW = {
@@ -27,7 +27,7 @@ const OPPORTUNITY_RAW = {
     { name: 'Competition_Notes__c', label: 'Competition Notes', type: 'textarea', custom: true, filterable: false },
     { name: 'Other_Competitor__c', label: 'Other Competitor', type: 'string', custom: true, filterable: true },
     { name: 'LID__MainCompetitors__c', label: 'Main Competitor(s)', type: 'string', custom: true, filterable: true },
-    { name: 'ETM_Core_Territory__c', label: 'Core Territory', type: 'string', custom: true, filterable: true },
+    { name: 'SyntheticTerritory__c', label: 'Core Territory', type: 'string', custom: true, filterable: true },
     {
       name: 'AccountId',
       label: 'Account ID',
@@ -71,7 +71,7 @@ describe('formatDescribe — match filtering', () => {
     expect(out).toContain('Competitor_1__c');
     expect(out).toContain('Other_Competitor__c');
     expect(out).toContain('LID__MainCompetitors__c');
-    expect(out).not.toContain('ETM_Core_Territory__c');
+    expect(out).not.toContain('SyntheticTerritory__c');
   });
 
   it('matches on the LABEL as well as the API name', () => {

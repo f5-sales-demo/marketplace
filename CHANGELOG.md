@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v3.0.0 discovers reviewed private org configuration, reuses valid authentication, pins verified user/org scope and reports generic owner-or-team pipeline with separate currencies and product values. Requires xcsh 25.1.0 (#1941).
+  Breaking change: embedded organization aliases, custom-field/product assumptions and inferred renewal/quota rules are removed; optional business mappings require confirmation.
+
 - **`zoom`** v1.3.2 retains automatic opaque-result evidence once, with scope and unverified-readiness guidance for malformed observations (#1759).
 - **`herdr`** v1.3.4 derives setup receipt versions from the shipped manifest and pins independently verified Herdr 0.19.4/protocol 27 assets on all supported platforms (#1800).
 

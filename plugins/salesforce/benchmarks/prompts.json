@@ -16,7 +16,7 @@
   },
   {
     "id": "project-account-opportunities",
-    "prompt": "can you analyse the files in this project, find the customer account and lookup in salesforce to find any recent opportunity related to F5 Distributed cloud",
+    "prompt": "can you analyse the files in this project, find the customer account and lookup in salesforce to find any recent opportunity related to configured products",
     "acceptance": "Read local evidence, verify account, define recent window, query by AccountId, confirm product/currency and report coverage."
   },
   {

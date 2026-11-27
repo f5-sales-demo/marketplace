@@ -1,798 +1,378 @@
-import { $ } from 'bun';
-import type { PipelinePlan } from './capabilities';
+import { type ProductGroup, type ReportMappings, soqlString } from '../configuration';
+import { execSfJson } from '../sf/exec';
+import { sanitize } from '../sf/sanitize';
+import { makeExecApi } from '../tools/shared';
 import { planPipelineQueries } from './capabilities';
 import type {
-  AccountRow,
   CloseMonthBucket,
-  DataAnomaly,
+  CurrencyReport,
   DealSummary,
-  ForecastSummary,
-  LineItemRecord,
-  PipelineChange,
   PipelineReportData,
   PipelineReportOptions,
   SectionData,
-  SectionTotals,
-  SkuClassification,
 } from './types';
-import { DEFAULT_SKU_CLASSIFICATION, DEFAULT_SKU_PREFIXES } from './types';
-
-// ---------------------------------------------------------------------------
-// SOQL helper
-// ---------------------------------------------------------------------------
-
-async function runSfQuery(soql: string, orgAlias?: string): Promise<Record<string, unknown>[]> {
-  const cmd = orgAlias
-    ? $`sf data query --query ${soql} --json --target-org ${orgAlias}`
-    : $`sf data query --query ${soql} --json`;
-  const result = await cmd.quiet().nothrow();
-  if (result.exitCode !== 0)
-    throw new Error(
-      result.stderr.toString() || result.stdout.toString() || 'Salesforce query failed; totals are not verified.',
-    );
-  const parsed = JSON.parse(result.stdout.toString()) as {
-    status?: number;
-    message?: string;
-    result?: { records?: Record<string, unknown>[]; done?: boolean };
-  };
-  if (parsed.status !== 0 || !Array.isArray(parsed.result?.records))
-    throw new Error(parsed.message || 'Invalid Salesforce response; totals are not verified.');
-  if (parsed.result.done === false) throw new Error('Incomplete Salesforce query; totals are not verified.');
-  return parsed.result.records;
-}
-
-// ---------------------------------------------------------------------------
-// SKU classification
-// ---------------------------------------------------------------------------
-
-function classifySku(skuName: string, rules: SkuClassification): 'platform' | 'shape' | 'other' {
-  const upper = skuName.toUpperCase();
-  for (const prefix of rules.shape) {
-    if (upper.startsWith(prefix.toUpperCase())) return 'shape';
-  }
-  for (const prefix of rules.platform) {
-    if (upper.startsWith(prefix.toUpperCase())) return 'platform';
-  }
-  return 'other';
-}
-
-// ---------------------------------------------------------------------------
-// Record parsing
-// ---------------------------------------------------------------------------
-
-/** Read a possibly-dotted field path off a record, e.g. `Territory2.Name`. */
-function readPath(root: unknown, path: string): string {
-  let node: unknown = root;
-  for (const segment of path.split('.')) {
-    if (!node || typeof node !== 'object') return '';
-    node = (node as Record<string, unknown>)[segment];
-  }
-  return typeof node === 'string' ? node : '';
-}
-
-function parseLineItem(record: Record<string, unknown>, rules: SkuClassification, plan: PipelinePlan): LineItemRecord {
-  const opp = (record.Opportunity ?? {}) as Record<string, unknown>;
-  const acct = (opp.Account ?? {}) as Record<string, unknown>;
-  const product = (record.Product2 ?? {}) as Record<string, unknown>;
-  const skuName = (product.Name ?? '') as string;
-
-  return {
-    currency: typeof opp.CurrencyIsoCode === 'string' ? opp.CurrencyIsoCode : undefined,
-    opportunityId: (opp.Id ?? '') as string,
-    accountName: (acct.Name ?? '') as string,
-    territory: plan.territoryField ? readPath(opp, plan.territoryField) : '',
-    forecast: (opp.ForecastCategoryName ?? '') as string,
-    skuName,
-    fyb: (record[plan.lineItemValueField ?? ''] as number) ?? 0,
-    category: classifySku(skuName, rules),
-    closeDate: (opp.CloseDate as string) ?? undefined,
-    oppName: (opp.Name as string) ?? undefined,
-    stage: (opp.StageName as string) ?? undefined,
-    lastActivityDate: (opp.LastActivityDate as string) ?? undefined,
-    ownerName: ((opp.Owner as Record<string, unknown> | undefined)?.Name as string) ?? undefined,
-    nextStep: (opp.NextStep as string) ?? undefined,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Query builder
-// ---------------------------------------------------------------------------
-
-function buildSkuFilter(prefixes: string[]): string {
-  return prefixes.map((p) => `Product2.Name LIKE '${p}%'`).join(' OR ');
-}
-
-function buildUserFilter(userIds: string[]): string {
-  return userIds.length === 1 ? `UserId = '${userIds[0]}'` : `UserId IN (${userIds.map((id) => `'${id}'`).join(',')})`;
-}
-
-// ---------------------------------------------------------------------------
-// Aggregation
-// ---------------------------------------------------------------------------
-
-function emptyTotals(): SectionTotals {
-  return { platform: 0, shape: 0, other: 0 };
-}
-
-function aggregateLineItems(items: LineItemRecord[]): SectionData {
-  const accountMap = new Map<string, { totals: SectionTotals; territory: string }>();
-
-  for (const item of items) {
-    if (item.fyb <= 0) continue;
-    const existing = accountMap.get(item.accountName) ?? {
-      totals: emptyTotals(),
-      territory: item.territory,
-    };
-    existing.totals[item.category] += item.fyb;
-    if (!accountMap.has(item.accountName)) existing.territory = item.territory;
-    accountMap.set(item.accountName, existing);
-  }
-
-  // Preserve unclassified amounts as Other; quota eligibility remains separate.
-  const filtered = [...accountMap]
-    .filter(([, v]) => v.totals.platform + v.totals.shape + v.totals.other > 0)
-    .map(
-      ([name, v]): AccountRow => ({
-        name,
-        territory: v.territory,
-        ...v.totals,
-      }),
+export type SfQueryFn = (soql: string, orgAlias?: string) => Promise<Record<string, unknown>[]>;
+const defaultQuery: SfQueryFn = async (soql, org) => {
+  const raw = (
+    await execSfJson(
+      makeExecApi(process.cwd()),
+      ['data', 'query', '--query', soql, ...(org ? ['--target-org', org] : [])],
+      undefined,
+      soql,
     )
-    .sort((a, b) => b.platform + b.shape - (a.platform + a.shape));
-
-  const totals = emptyTotals();
-  for (const row of filtered) {
-    totals.platform += row.platform;
-    totals.shape += row.shape;
-    totals.other += row.other;
-  }
-
-  return {
-    accounts: filtered,
-    totals,
-    quotaTotal: totals.platform + totals.shape,
-  };
+  ).result as { records?: Record<string, unknown>[]; done?: boolean; totalSize?: number };
+  if (
+    !Array.isArray(raw?.records) ||
+    raw.done !== true ||
+    (typeof raw.totalSize === 'number' && raw.totalSize > raw.records.length)
+  )
+    throw new Error('Incomplete Salesforce query; totals are not verified.');
+  return raw.records;
+};
+export function readPath(record: unknown, path: string): unknown {
+  return path
+    .split('.')
+    .reduce<unknown>(
+      (value, field) => (value && typeof value === 'object' ? (value as Record<string, unknown>)[field] : undefined),
+      record,
+    );
 }
-
-function buildForecast(items: LineItemRecord[]): ForecastSummary {
-  const buckets: Record<string, number> = { Commit: 0, 'Best Case': 0, Pipeline: 0 };
-  for (const item of items) {
-    if (item.category === 'other' || item.fyb <= 0) continue;
-    if (item.forecast in buckets) buckets[item.forecast] += item.fyb;
-  }
-  return { commit: buckets.Commit, bestCase: buckets['Best Case'], pipeline: buckets.Pipeline };
+export function classifyProduct(record: Record<string, unknown>, root: string, groups: ProductGroup[]) {
+  const matched = groups.filter((group) =>
+    group.rules.some((rule) => {
+      if (!rule.field.startsWith(`${root}.`)) return false;
+      const value = readPath(record, rule.field.slice(root.length + 1));
+      return rule.match === 'exact'
+        ? value === rule.value
+        : typeof value === 'string' && typeof rule.value === 'string' && value.startsWith(rule.value);
+    }),
+  );
+  return matched.length === 1 ? matched[0] : undefined;
 }
-
-/** Aggregate net new line items by opportunity and return the top N by quota-eligible amount. */
-function buildTopDeals(items: LineItemRecord[], limit = 5): DealSummary[] {
-  const oppMap = new Map<
-    string,
-    {
-      name: string;
-      accountName: string;
-      stage: string;
-      closeDate: string;
-      forecast: string;
-      amount: number;
-      ownerName: string;
-      nextStep: string;
-    }
-  >();
+interface Item {
+  id: string;
+  account: string;
+  territory: string;
+  amount: number;
+  category: string;
+  quotaEligible?: boolean;
+  currency: string;
+  record: Record<string, unknown>;
+}
+const emptySection = (): SectionData => ({
+  accounts: [],
+  totals: Object.assign(Object.create(null), { Uncategorized: 0 }),
+  total: 0,
+  quotaUnknownAmount: 0,
+});
+function aggregate(items: Item[]): SectionData {
+  const section = emptySection(),
+    accounts = new Map<string, { name: string; territory: string; totals: Record<string, number>; total: number }>();
+  let quotaTotal = 0,
+    unknown = 0,
+    total = 0;
+  let quotaComplete = true;
   for (const item of items) {
-    if (item.category === 'other' || item.fyb <= 0) continue;
-    const existing = oppMap.get(item.opportunityId);
-    if (existing) {
-      existing.amount += item.fyb;
-    } else {
-      oppMap.set(item.opportunityId, {
-        name: item.oppName ?? item.accountName,
-        accountName: item.accountName,
-        stage: item.stage ?? '',
-        closeDate: item.closeDate ?? '',
-        forecast: item.forecast,
-        amount: item.fyb,
-        ownerName: item.ownerName ?? '',
-        nextStep: item.nextStep ?? '',
-      });
+    const key = `${item.account}\0${item.territory}`,
+      row = accounts.get(key) ?? {
+        name: item.account,
+        territory: item.territory,
+        totals: Object.create(null),
+        total: 0,
+      };
+    row.totals[item.category] = (row.totals[item.category] ?? 0) + item.amount;
+    row.total += item.amount;
+    accounts.set(key, row);
+    section.totals[item.category] = (section.totals[item.category] ?? 0) + item.amount;
+    total += item.amount;
+    if (item.quotaEligible === true) quotaTotal += item.amount;
+    else if (item.quotaEligible === undefined) {
+      quotaComplete = false;
+      unknown += Math.abs(item.amount);
     }
   }
-  return [...oppMap.entries()]
-    .sort(([, a], [, b]) => b.amount - a.amount)
-    .slice(0, limit)
-    .map(([id, d]) => ({
-      oppId: id,
-      name: d.name,
-      accountName: d.accountName,
-      stage: d.stage,
-      closeDate: d.closeDate,
-      forecast: d.forecast,
-      amount: d.amount,
-      ownerName: d.ownerName,
-      nextStep: d.nextStep || undefined,
+  section.total = total;
+  section.accounts = [...accounts.values()].sort((a, b) => b.total - a.total);
+  section.quotaUnknownAmount = unknown;
+  if (quotaComplete && items.length) section.quotaTotal = quotaTotal;
+  return section;
+}
+function deals(items: Item[]): DealSummary[] {
+  return [...items]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5)
+    .map((item) => ({
+      oppId: item.id,
+      name: String(item.record.Name ?? item.id),
+      accountName: item.account,
+      stage: String(item.record.StageName ?? ''),
+      closeDate: String(item.record.CloseDate ?? ''),
+      forecast: String(item.record.ForecastCategoryName ?? ''),
+      amount: item.amount,
+      ownerName: String(readPath(item.record, 'Owner.Name') ?? ''),
+      nextStep: typeof item.record.NextStep === 'string' ? item.record.NextStep : undefined,
     }));
 }
-
-/** Build close-date distribution buckets from net new line items (quota-eligible only). */
-function buildCloseDistribution(items: LineItemRecord[]): CloseMonthBucket[] {
-  const buckets = new Map<
-    string,
-    { amount: number; commit: number; bestCase: number; pipeline: number; oppIds: Set<string> }
-  >();
+function distribution(items: Item[]): CloseMonthBucket[] {
+  const buckets = new Map<string, { amount: number; ids: Set<string> }>();
   for (const item of items) {
-    if (item.category === 'other' || item.fyb <= 0 || !item.closeDate) continue;
-    const ym = item.closeDate.slice(0, 7); // YYYY-MM
-    const existing = buckets.get(ym) ?? {
-      amount: 0,
-      commit: 0,
-      bestCase: 0,
-      pipeline: 0,
-      oppIds: new Set<string>(),
-    };
-    existing.amount += item.fyb;
-    existing.oppIds.add(item.opportunityId);
-    if (item.forecast === 'Commit') existing.commit += item.fyb;
-    else if (item.forecast === 'Best Case') existing.bestCase += item.fyb;
-    else if (item.forecast === 'Pipeline') existing.pipeline += item.fyb;
-    buckets.set(ym, existing);
+    const date = item.record.CloseDate;
+    if (typeof date !== 'string') continue;
+    const key = date.slice(0, 7),
+      bucket = buckets.get(key) ?? { amount: 0, ids: new Set<string>() };
+    bucket.amount += item.amount;
+    bucket.ids.add(item.id);
+    buckets.set(key, bucket);
   }
-  return [...buckets.entries()]
+  return [...buckets]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([ym, data]) => {
-      const d = new Date(`${ym}-01T00:00:00`);
-      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      return {
-        label,
-        yearMonth: ym,
-        amount: data.amount,
-        commit: data.commit,
-        bestCase: data.bestCase,
-        pipeline: data.pipeline,
-        oppCount: data.oppIds.size,
-      };
-    });
+    .map(([yearMonth, bucket]) => ({ yearMonth, label: yearMonth, amount: bucket.amount, oppCount: bucket.ids.size }));
 }
-
-/** Parse OpportunityFieldHistory records into PipelineChange entries. */
-function parseHistoryRecords(records: Record<string, unknown>[]): PipelineChange[] {
-  return records
-    .map((r): PipelineChange | null => {
-      const opp = (r.Opportunity ?? {}) as Record<string, unknown>;
-      const acct = (opp.Account ?? {}) as Record<string, unknown>;
-      const field = r.Field as string;
-      if (field !== 'Amount' && field !== 'ForecastCategoryName' && field !== 'StageName') return null;
-      return {
-        oppId: (r.OpportunityId as string) ?? '',
-        dealName: ((opp.Name as string) ?? '').trim(),
-        accountName: ((acct.Name as string) ?? '').trim(),
-        field,
-        oldValue: String(r.OldValue ?? '\u2014'),
-        newValue: String(r.NewValue ?? '\u2014'),
-        date: ((r.CreatedDate as string) ?? '').slice(0, 10),
-      };
-    })
-    .filter((c): c is PipelineChange => c !== null);
+function numeric(record: Record<string, unknown>, path: string) {
+  const value = readPath(record, path);
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    throw new Error(`Amount was not returned as a finite number: ${path}. Totals are not verified.`);
+  return value;
 }
-
-// ---------------------------------------------------------------------------
-// Anomaly detection
-// ---------------------------------------------------------------------------
-
-function detectAnomalies(
-  netNew: LineItemRecord[],
-  booked: LineItemRecord[],
-  renewals: LineItemRecord[],
-  classification: SkuClassification,
-): DataAnomaly[] {
-  const anomalies: DataAnomaly[] = [];
-  const all = [...netNew, ...booked];
-
-  // 1. SKUs classified as 'other' — may be missing from classification rules
-  const otherSkus = new Set<string>();
-  for (const item of all) {
-    if (item.category === 'other') otherSkus.add(item.skuName);
-  }
-  if (otherSkus.size > 0) {
-    anomalies.push({
-      severity: 'info',
-      category: 'sku-classification',
-      message: `${otherSkus.size} SKU(s) are not classified as Platform or Shape/DI`,
-      details: [...otherSkus].sort().join(', '),
-    });
-  }
-
-  // 2. Opportunities with no territory assigned
-  const noTerritory = new Set<string>();
-  for (const item of netNew) {
-    if (!item.territory) noTerritory.add(item.accountName);
-  }
-  if (noTerritory.size > 0) {
-    anomalies.push({
-      severity: 'warning',
-      category: 'missing-territory',
-      message: `${noTerritory.size} account(s) have open pipeline with no territory assigned`,
-      details: [...noTerritory].sort().join(', '),
-    });
-  }
-
-  // 3. Accounts with all pipeline in 'Pipeline' forecast only (no Commit or Best Case)
-  // This may indicate deals that haven't been qualified or forecasted properly
-  const acctForecasts = new Map<string, Set<string>>();
-  for (const item of netNew) {
-    if (!acctForecasts.has(item.accountName)) acctForecasts.set(item.accountName, new Set());
-    acctForecasts.get(item.accountName)?.add(item.forecast);
-  }
-  const pipelineOnly = [...acctForecasts]
-    .filter(([, fcs]) => fcs.size === 1 && fcs.has('Pipeline'))
-    .map(([name]) => name);
-  if (pipelineOnly.length > 3) {
-    anomalies.push({
-      severity: 'info',
-      category: 'forecast-hygiene',
-      message: `${pipelineOnly.length} account(s) have all open pipeline in 'Pipeline' stage only (no Commit or Best Case)`,
-      details: pipelineOnly.sort().join(', '),
-    });
-  }
-
-  // 4. Detect $0 FYB line items that were filtered out — indicates formula problems
-  // We can't see them in this dataset, but note the classification in the report
-  const classifiedSkus = [...classification.platform, ...classification.shape];
-  if (classifiedSkus.length < 3) {
-    anomalies.push({
-      severity: 'warning',
-      category: 'sku-config',
-      message: 'Very few SKU classification rules defined — may miss products',
-      details: 'Run xcsh://salesforce?refresh=true to rediscover from pipeline data',
-    });
-  }
-
-  // 5. Open deals with close dates that have slipped past TODAY (requires CloseDate in data)
-  const today = new Date().toISOString().slice(0, 10);
-  const slippedAccounts = new Map<string, string>(); // accountName → earliest slipped closeDate
-  for (const item of netNew) {
-    if (item.closeDate && item.closeDate < today) {
-      const existing = slippedAccounts.get(item.accountName);
-      if (!existing || item.closeDate < existing) {
-        slippedAccounts.set(item.accountName, item.closeDate);
-      }
-    }
-  }
-  if (slippedAccounts.size > 0) {
-    const details = [...slippedAccounts.entries()]
-      .sort(([, a], [, b]) => a.localeCompare(b))
-      .map(([name, date]) => `${name} (${date})`)
-      .join(', ');
-    anomalies.push({
-      severity: 'warning',
-      category: 'slipped-close-date',
-      message: `${slippedAccounts.size} account(s) have open pipeline with close dates in the past`,
-      details,
-    });
-  }
-
-  // 6. Stalled deals — open pipeline with no activity in >30 days
-  // Use the MOST RECENT activity date per account — if any deal has recent activity,
-  // the account is not stalled.
-  const staleThreshold = new Date();
-  staleThreshold.setDate(staleThreshold.getDate() - 30);
-  const staleStr = staleThreshold.toISOString().slice(0, 10);
-  const acctLastActivity = new Map<string, string | null>(); // accountName → best lastActivityDate
-  for (const item of netNew) {
-    const existing = acctLastActivity.get(item.accountName);
-    const lad = item.lastActivityDate ?? null;
-    if (existing === undefined) {
-      acctLastActivity.set(item.accountName, lad);
-    } else if (lad && (!existing || lad > existing)) {
-      acctLastActivity.set(item.accountName, lad);
-    }
-  }
-  const stalledAccounts = new Map<string, string>();
-  for (const [name, lad] of acctLastActivity) {
-    if (!lad) {
-      stalledAccounts.set(name, '(no activity recorded)');
-    } else if (lad < staleStr) {
-      stalledAccounts.set(name, lad);
-    }
-  }
-  if (stalledAccounts.size > 0) {
-    const details = [...stalledAccounts.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, date]) => `${name} (${date})`)
-      .join(', ');
-    anomalies.push({
-      severity: 'warning',
-      category: 'stalled-deals',
-      message: `${stalledAccounts.size} account(s) have open pipeline with no activity in >30 days`,
-      details,
-    });
-  }
-
-  // 7. Urgent renewals — closing within 30 days
-  const urgentThreshold = new Date();
-  urgentThreshold.setDate(urgentThreshold.getDate() + 30);
-  const urgentStr = urgentThreshold.toISOString().slice(0, 10);
-  const urgentRenewals = new Map<string, string>(); // accountName → closeDate
-  for (const item of renewals) {
-    if (item.closeDate && item.closeDate <= urgentStr) {
-      const existing = urgentRenewals.get(item.accountName);
-      if (!existing || item.closeDate < existing) {
-        urgentRenewals.set(item.accountName, item.closeDate);
-      }
-    }
-  }
-  if (urgentRenewals.size > 0) {
-    const details = [...urgentRenewals.entries()]
-      .sort(([, a], [, b]) => a.localeCompare(b))
-      .map(([name, date]) => `${name} (${date})`)
-      .join(', ');
-    anomalies.push({
-      severity: 'warning',
-      category: 'urgent-renewals',
-      message: `${urgentRenewals.size} account(s) have renewals closing within 30 days`,
-      details,
-    });
-  }
-
-  return anomalies;
-}
-
-// ---------------------------------------------------------------------------
-// Main generator
-// ---------------------------------------------------------------------------
-
-export type SfQueryFn = (soql: string, orgAlias?: string) => Promise<Record<string, unknown>[]>;
-
 export async function generatePipelineReport(
   options: PipelineReportOptions,
-  queryFn?: SfQueryFn,
+  run: SfQueryFn = defaultQuery,
 ): Promise<PipelineReportData> {
-  const sourceQueries: { query: string; records: Record<string, unknown>[] }[] = [];
-  const executeQuery: SfQueryFn = queryFn ?? runSfQuery;
-  const query: SfQueryFn = async (soql, org) => {
-    const records = await executeQuery(soql, org);
+  if (!options.userIds.length || options.userIds.some((id) => !/^005[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/.test(id)))
+    throw new Error('Verified Salesforce user IDs are required.');
+  const caps = options.capabilities ?? {};
+  const mappings: ReportMappings = options.mappings ?? {
+    opportunityAmount: 'Opportunity.Amount',
+    lineItemAmount:
+      caps.lineItemFields?.includes('TotalPrice') && caps.queryable?.OpportunityLineItem
+        ? 'OpportunityLineItem.TotalPrice'
+        : undefined,
+    productGroups: [],
+  };
+  const plan = planPipelineQueries(caps, mappings);
+  const unavailable = [...(options.unavailable ?? []), ...plan.unavailable],
+    sourceQueries: NonNullable<PipelineReportData['sourceQueries']> = [];
+  const query: SfQueryFn = async (soql) => {
+    const records = sanitize(await run(soql, options.orgAlias));
+    if (!Array.isArray(records)) throw new Error('Invalid Salesforce records; totals are not verified.');
     sourceQueries.push({ query: soql, records });
     return records;
   };
-  const {
-    userIds,
-    orgAlias,
-    quarterStart,
-    quarterEnd,
-    skuPrefixes = DEFAULT_SKU_PREFIXES,
-    skuClassification = DEFAULT_SKU_CLASSIFICATION,
-  } = options;
-  // staleCutoff: if set, in-play shows all non-stale pipeline regardless of close quarter
-  // if not set, in-play is scoped to current quarter close dates
-  const staleCutoff = options.staleCutoff;
-
-  const userFilter = buildUserFilter(userIds);
-  // SOQL does not allow OR between a semi-join subselect and other fields inside
-  // parentheses ("Semi join sub-selects are only allowed at the top level").
-  // The OpportunityTeamMember subselect already covers both SE and AE via userIds.
-  const skuFilter = buildSkuFilter(skuPrefixes);
-
-  // Every org-specific field below is named by the plan, never assumed. A field the org does
-  // not have is simply absent from the SELECT — naming one fails the entire query.
-  const plan = planPipelineQueries(options.capabilities ?? {});
-  const hasCurrency = options.capabilities?.opportunityFields?.includes('CurrencyIsoCode');
-
-  const fields = [
-    'Product2.Name',
-    plan.lineItemValueField,
-    'Opportunity.Id',
-    'Opportunity.Name',
-    'Opportunity.Account.Name',
-    plan.territoryField ? `Opportunity.${plan.territoryField}` : undefined,
-    'Opportunity.ForecastCategoryName',
-    'Opportunity.StageName',
-    'Opportunity.IsClosed',
-    'Opportunity.IsWon',
-    'Opportunity.CloseDate',
-    'Opportunity.LastActivityDate',
-    'Opportunity.Owner.Name',
-    'Opportunity.NextStep',
-    hasCurrency ? 'Opportunity.CurrencyIsoCode' : undefined,
-  ]
-    .filter((f): f is string => Boolean(f))
-    .join(', ');
-  const commonFilters = [
-    plan.lineItemRenewalFilterField ? `${plan.lineItemRenewalFilterField} = false` : undefined,
-    "Opportunity.ForecastCategoryName != 'Omitted'",
-    plan.lineItemValueField ? `${plan.lineItemValueField} > 0` : undefined,
-    `(${skuFilter})`,
-  ]
-    .filter((f): f is string => Boolean(f))
-    .join(' AND ');
-  const quarterDateFilter = `Opportunity.CloseDate >= ${quarterStart} AND Opportunity.CloseDate <= ${quarterEnd}`;
-  const inPlayDateFilter = staleCutoff ? `Opportunity.CloseDate >= ${staleCutoff}` : quarterDateFilter;
-
-  const oliTeamScope = `OpportunityId IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
-
-  // Combined OLI query: net new (open, in-play dates) + booked (won, quarter dates) in one SOQL.
-  // The OR between regular conditions is allowed (SOQL only restricts OR with semi-join subselects).
-  const combinedDateFilter = `((Opportunity.IsClosed = false AND ${inPlayDateFilter}) OR (Opportunity.IsWon = true AND ${quarterDateFilter}))`;
-
-  // Build renewals query alongside OLI query (no dependency between them). Value and
-  // classification fields are included only when the org has them; Amount is standard and
-  // always available as the value of last resort.
-  const renewalFields = [
-    'Id',
-    'Account.Name',
-    ...plan.renewalValueFields,
-    'Amount',
-    plan.segmentationField,
-    plan.useCaseField,
-    'ForecastCategoryName',
-    plan.territoryField,
-    'CloseDate',
-    'Name',
-    'StageName',
-    'Owner.Name',
-    'NextStep',
-    'LastActivityDate',
-    hasCurrency ? 'CurrencyIsoCode' : undefined,
-  ]
-    .filter((f): f is string => Boolean(f))
-    .join(', ');
-  const renewalDateFilter = staleCutoff
-    ? `CloseDate >= ${staleCutoff}`
-    : `CloseDate >= ${quarterStart} AND CloseDate <= ${quarterEnd}`;
-  const renewalValueFilter = [...plan.renewalValueFields.map((f) => `${f} > 1`), 'Amount > 1'].join(' OR ');
-  const renewalWhere = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter}) AND IsClosed = false AND ${plan.renewalFlagField} = true AND ${renewalDateFilter} AND ForecastCategoryName != 'Omitted' AND (${renewalValueFilter})`;
-  const renewalOrderField = plan.renewalValueFields[0] ?? 'Amount';
-
-  // Fiscal year. Derived from the report's quarter dates, not wall-clock, so the FY context
-  // matches the requested period. The opening month is org configuration — Salesforce lets an
-  // org start its year in any month — so it is supplied rather than assumed; January is the
-  // Salesforce default and the fallback here.
-  const fyStartMonth = options.capabilities?.fiscalYearStartMonth ?? 1;
-  const qStartDate = new Date(`${quarterStart}T00:00:00`);
-  const qMonth = qStartDate.getMonth() + 1; // 1-12
-  const qYear = qStartDate.getFullYear();
-  const fyStartYear = qMonth >= fyStartMonth ? qYear : qYear - 1;
-  const fyStart = options.fiscalYearStart ?? `${fyStartYear}-${String(fyStartMonth).padStart(2, '0')}-01`;
-  // A year that opens in January ends in the same calendar year; one that opens later is
-  // labelled by the year it ends in, which is the common convention.
-  const fyLabel = options.fiscalYearEnd
-    ? `FY${Number(options.fiscalYearEnd.slice(0, 4)) % 100}`
-    : `FY${(fyStartMonth === 1 ? fyStartYear : fyStartYear + 1) % 100}`;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const oppTeamScope = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
-  const fyBookedQuery = `SELECT SUM(Amount) total FROM Opportunity WHERE ${oppTeamScope} AND IsWon = true AND CloseDate >= ${fyStart} AND CloseDate <= ${todayStr}`;
-
-  // Three parallel queries: combined OLI + renewals + FY booked. The first two are skipped
-  // outright when the org lacks their fields — issuing a query that cannot succeed wastes a
-  // round trip and, worse, renders its empty result as an empty pipeline.
-  const [oliRecords, renewalRecords, fyBookedResult] = await Promise.all([
-    plan.useLineItems
-      ? query(
-          `SELECT ${fields} FROM OpportunityLineItem WHERE ${oliTeamScope} AND ${combinedDateFilter} AND ${commonFilters}`,
-          orgAlias,
-        )
-      : Promise.resolve([] as Record<string, unknown>[]),
-    plan.useRenewals
-      ? query(
-          `SELECT ${renewalFields} FROM Opportunity WHERE ${renewalWhere} ORDER BY ${renewalOrderField} DESC NULLS LAST`,
-          orgAlias,
-        )
-      : Promise.resolve([] as Record<string, unknown>[]),
-    query(fyBookedQuery, orgAlias),
-  ]);
-  const fyBookedTotal = (fyBookedResult[0]?.total as number) ?? 0;
-
-  // --- Split combined OLI records + fallback when empty ---
-  let netNewItems: LineItemRecord[];
-  let bookedItems: LineItemRecord[];
-
-  if (oliRecords.length > 0) {
-    netNewItems = [];
-    bookedItems = [];
-    for (const r of oliRecords) {
-      const item = parseLineItem(r, skuClassification, plan);
-      const opp = (r.Opportunity ?? {}) as Record<string, unknown>;
-      if (opp.IsWon as boolean) {
-        bookedItems.push(item);
-      } else if (!(opp.IsClosed as boolean)) {
-        netNewItems.push(item);
+  const known = new Set(caps.opportunityFields ?? []);
+  for (const required of ['Id', 'OwnerId', 'IsClosed', 'IsWon', 'CloseDate'])
+    if (!known.has(required)) throw new Error(`Required Opportunity schema unavailable: ${required}`);
+  const fields = new Set(['Id', 'OwnerId', 'IsClosed', 'IsWon', 'CloseDate', plan.opportunityValueField]);
+  for (const optional of ['Name', 'StageName', 'ForecastCategoryName', 'CurrencyIsoCode', 'NextStep'])
+    if (known.has(optional)) fields.add(optional);
+  for (const path of ['Account.Name', 'Owner.Name'])
+    if (caps.resolvedFieldPaths?.includes(`Opportunity.${path}`)) fields.add(path);
+  for (const field of [
+    mappings.territory,
+    mappings.renewal?.field,
+    ...mappings.productGroups.flatMap((g) => g.rules.map((r) => r.field)),
+  ])
+    if (field?.startsWith('Opportunity.')) fields.add(field.slice('Opportunity.'.length));
+  const users = options.userIds.map(soqlString).join(', '),
+    select = `SELECT ${[...fields].join(', ')} FROM Opportunity`;
+  const earliest = [options.fiscalYearStart, options.quarterStart]
+    .filter((date): date is string => Boolean(date))
+    .sort()[0];
+  // TODAY is evaluated by Salesforce, so fiscal bookings follow the selected org's date.
+  const scope = `((IsClosed = false${options.staleCutoff ? ` AND CloseDate >= ${options.staleCutoff}` : ''})${earliest ? ` OR (IsWon = true AND CloseDate >= ${earliest} AND CloseDate <= TODAY)` : ''})`;
+  const owner = await query(`${select} WHERE OwnerId IN (${users}) AND ${scope}`);
+  let team: Record<string, unknown>[] = [],
+    teamSupported = caps.queryable?.OpportunityTeamMember === true;
+  if (teamSupported) {
+    try {
+      team = await query(
+        `${select} WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId IN (${users})) AND ${scope}`,
+      );
+    } catch (error) {
+      if (!/INVALID_TYPE|INSUFFICIENT_ACCESS|permission|not accessible|not supported/i.test(String(error))) throw error;
+      teamSupported = false;
+      unavailable.push(`Team membership: ${sanitize(String(error))}`);
+    }
+  } else unavailable.push('Team membership is unavailable; coverage is owner only.');
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const record of [...owner, ...team]) {
+    if (typeof record.Id !== 'string' || !record.Id)
+      throw new Error('Opportunity identifier is missing; totals are not verified.');
+    if (typeof record.IsClosed !== 'boolean' || typeof record.IsWon !== 'boolean')
+      throw new Error('Opportunity status is missing; totals are not verified.');
+    byId.set(record.Id, record);
+  }
+  const all = [...byId.values()];
+  const parse = (record: Record<string, unknown>): Item => {
+    const group = classifyProduct(record, 'Opportunity', mappings.productGroups);
+    return {
+      id: String(record.Id),
+      account: String(readPath(record, 'Account.Name') ?? 'Account unavailable'),
+      territory: mappings.territory
+        ? String(readPath(record, mappings.territory.slice('Opportunity.'.length)) ?? '')
+        : '',
+      amount: numeric(record, plan.opportunityValueField),
+      category: group?.name ?? 'Uncategorized',
+      quotaEligible: group?.quotaEligible,
+      currency: typeof record.CurrencyIsoCode === 'string' ? record.CurrencyIsoCode : 'unverified',
+      record,
+    };
+  };
+  const items = all.map(parse),
+    productItems: Item[] = [];
+  let lineItemCount = 0;
+  const lineItemField = plan.lineItemValueField;
+  let productsComplete = Boolean(plan.useLineItems && lineItemField);
+  try {
+    if (plan.useLineItems && lineItemField && all.length) {
+      const fieldSet = new Set(['Id', 'OpportunityId', lineItemField]);
+      if (caps.lineItemFields?.includes('CurrencyIsoCode')) fieldSet.add('CurrencyIsoCode');
+      for (const group of mappings.productGroups)
+        for (const rule of group.rules) {
+          if (rule.field.startsWith('OpportunityLineItem.'))
+            fieldSet.add(rule.field.slice('OpportunityLineItem.'.length));
+          if (rule.field.startsWith('Product2.')) fieldSet.add(rule.field);
+        }
+      const ids = [...byId.keys()],
+        seen = new Set<string>();
+      for (let offset = 0; offset < ids.length; offset += 200) {
+        const lines = await query(
+          `SELECT ${[...fieldSet].join(', ')} FROM OpportunityLineItem WHERE OpportunityId IN (${ids
+            .slice(offset, offset + 200)
+            .map(soqlString)
+            .join(', ')})`,
+        );
+        for (const line of lines) {
+          if (typeof line.Id !== 'string' || typeof line.OpportunityId !== 'string' || !byId.has(line.OpportunityId))
+            throw new Error('Line-item identity/coverage is invalid; product totals are not verified.');
+          if (seen.has(line.Id)) continue;
+          seen.add(line.Id);
+          lineItemCount++;
+          const matchedOpportunity = byId.get(line.OpportunityId);
+          if (!matchedOpportunity) throw new Error('Line-item opportunity coverage is missing.');
+          const opportunity = parse(matchedOpportunity);
+          const candidates = mappings.productGroups.map((group) => ({
+            ...group,
+            rules: group.rules.map((rule) =>
+              rule.field.startsWith('Product2.') ? { ...rule, field: `OpportunityLineItem.${rule.field}` } : rule,
+            ),
+          }));
+          const group = classifyProduct(line, 'OpportunityLineItem', candidates);
+          productItems.push({
+            ...opportunity,
+            currency: caps.lineItemFields?.includes('CurrencyIsoCode')
+              ? String(line.CurrencyIsoCode ?? 'unverified')
+              : opportunity.currency,
+            amount: numeric(line, lineItemField),
+            category: group?.name ?? 'Uncategorized',
+            quotaEligible: group?.quotaEligible,
+          });
+        }
       }
     }
-  } else {
-    // Opportunity-level fallback when OLI queries return no data.
-    // Collects renewal IDs first so we can exclude them — renewals have their own query
-    // and would double-count if included in net new/booked.
-    const renewalIds = new Set<string>();
-    for (const r of renewalRecords) {
-      const id = (r.Id ?? '') as string;
-      if (id) renewalIds.add(id);
+  } catch (error) {
+    if (/AbortError|ToolAbortError|REQUEST_LIMIT_EXCEEDED|429|rate limit/i.test(String(error))) throw error;
+    productsComplete = false;
+    productItems.length = 0;
+    lineItemCount = 0;
+    unavailable.push(`Product breakdown is unavailable; values are not verified: ${sanitize(String(error))}`);
+  }
+  if (!options.quarterStart || !options.quarterEnd)
+    unavailable.push('Quarter bookings: fiscal periods are unavailable.');
+  if (!options.fiscalYearStart || !options.fiscalYearEnd)
+    unavailable.push('Fiscal-year bookings: fiscal periods are unavailable.');
+  const open = (item: Item) => item.record.IsClosed === false;
+  const renewal = (item: Item) =>
+    mappings.renewal &&
+    readPath(item.record, mappings.renewal.field.slice('Opportunity.'.length)) === mappings.renewal.value;
+  const currencies = [...new Set([...items, ...productItems].map((i) => i.currency))].sort();
+  if (!currencies.length) currencies.push('unverified');
+  const quarterStart = options.quarterStart,
+    quarterEnd = options.quarterEnd,
+    fiscalYearStart = options.fiscalYearStart;
+  const groups: CurrencyReport[] = currencies.map((currency) => {
+    const scoped = items.filter((i) => i.currency === currency),
+      opened = scoped.filter(open),
+      fresh = mappings.renewal ? opened.filter((i) => !renewal(i)) : opened;
+    const renewed = opened.filter(renewal),
+      forecast: Record<string, number> = Object.create(null);
+    for (const item of fresh) {
+      const category = String(item.record.ForecastCategoryName ?? 'Unknown');
+      forecast[category] = (forecast[category] ?? 0) + item.amount;
     }
-    const oppFields =
-      'Id, Name, Account.Name, Amount, ForecastCategoryName, StageName, CloseDate, LastActivityDate, Owner.Name, IsClosed, IsWon' +
-      (hasCurrency ? ', CurrencyIsoCode' : '');
-    const oppTeamScope = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
-    const oppDateFilter = staleCutoff
-      ? `CloseDate >= ${staleCutoff}`
-      : `CloseDate >= ${quarterStart} AND CloseDate <= ${quarterEnd}`;
-    const oppWhere = `${oppTeamScope} AND ForecastCategoryName != 'Omitted' AND Amount > 0 AND IsClosed = false AND ${oppDateFilter}`;
-    const bookedWhere = `${oppTeamScope} AND ForecastCategoryName != 'Omitted' AND Amount > 0 AND IsWon = true AND CloseDate >= ${quarterStart} AND CloseDate <= ${quarterEnd}`;
-
-    const [fallbackNetNew, fallbackBooked] = await Promise.all([
-      query(`SELECT ${oppFields} FROM Opportunity WHERE ${oppWhere} ORDER BY Amount DESC NULLS LAST`, orgAlias),
-      query(`SELECT ${oppFields} FROM Opportunity WHERE ${bookedWhere} ORDER BY Amount DESC NULLS LAST`, orgAlias),
-    ]);
-
-    function parseOppFallback(records: Record<string, unknown>[]): LineItemRecord[] {
-      const items: LineItemRecord[] = [];
-      const seen = new Set<string>();
-      for (const r of records) {
-        const id = (r.Id ?? '') as string;
-        if (seen.has(id) || renewalIds.has(id)) continue;
-        seen.add(id);
-        const acct = ((r.Account as Record<string, unknown> | undefined)?.Name ?? '') as string;
-        const fc = (r.ForecastCategoryName ?? '') as string;
-        const amt = (r.Amount as number) ?? 0;
-        if (amt <= 0) continue;
-        const owner = (r.Owner as Record<string, unknown> | undefined)?.Name;
-        items.push({
-          currency: typeof r.CurrencyIsoCode === 'string' ? r.CurrencyIsoCode : undefined,
-          opportunityId: id,
-          accountName: acct,
-          territory: '',
-          forecast: fc,
-          skuName: 'Opportunity-level',
-          fyb: amt,
-          category: 'other',
-          closeDate: (r.CloseDate as string) ?? undefined,
-          oppName: (r.Name as string) ?? undefined,
-          stage: (r.StageName as string) ?? undefined,
-          lastActivityDate: (r.LastActivityDate as string) ?? undefined,
-          ownerName: (owner as string) ?? undefined,
-        });
-      }
-      return items;
-    }
-
-    netNewItems = parseOppFallback(fallbackNetNew);
-    bookedItems = parseOppFallback(fallbackBooked);
-  }
-
-  // History query: run AFTER OLI to use specific opp IDs (avoids slow semi-join on FieldHistory).
-  // Only runs in the normal OLI path — in the fallback path we've already spent 5 queries
-  // (3 parallel + 2 fallback) and would exceed the 5-query constraint.
-  const allOppIds = new Set<string>();
-  for (const item of [...netNewItems, ...bookedItems]) {
-    if (item.opportunityId) allOppIds.add(item.opportunityId);
-  }
-  let historyRecords: Record<string, unknown>[] = [];
-  if (oliRecords.length > 0 && allOppIds.size > 0) {
-    const idList = [...allOppIds].map((id) => `'${id}'`).join(',');
-    const historyFields =
-      'OpportunityId, Opportunity.Name, Opportunity.Account.Name, Field, OldValue, NewValue, CreatedDate';
-    const historyWhere = `OpportunityId IN (${idList}) AND Field IN ('Amount','ForecastCategoryName','StageName') AND CreatedDate = LAST_N_DAYS:7`;
-    historyRecords = await query(
-      `SELECT ${historyFields} FROM OpportunityFieldHistory WHERE ${historyWhere} ORDER BY CreatedDate DESC LIMIT 50`,
-      orgAlias,
-    );
-  }
-
-  // Parse and classify renewal opportunities, dedup by Id
-  const seenIds = new Set<string>();
-  const renewalItems: LineItemRecord[] = [];
-  for (const r of renewalRecords) {
-    const id = (r.Id ?? '') as string;
-    if (seenIds.has(id)) continue;
-    seenIds.add(id);
-    const acct = ((r.Account as Record<string, unknown> | undefined)?.Name ?? '') as string;
-    const terr = plan.territoryField ? readPath(r, plan.territoryField) : '';
-    const fc = (r.ForecastCategoryName ?? '') as string;
-    // Prefer the org's own value fields in plan order, then the standard Amount.
-    const amt = (r.Amount as number) ?? 0;
-    let val = 0;
-    for (const f of plan.renewalValueFields) {
-      const candidate = (r[f] as number) ?? 0;
-      if (candidate > 0) {
-        val = candidate;
-        break;
-      }
-    }
-    if (val <= 0) val = amt;
-    if (val <= 0) continue;
-
-    // Classify by the org's segmentation fields when it has them; otherwise every renewal
-    // lands in 'other', which is honest — there is nothing to classify on.
-    const seg = (plan.segmentationField ? ((r[plan.segmentationField] as string) ?? '') : '').toLowerCase();
-    const uc = (plan.useCaseField ? ((r[plan.useCaseField] as string) ?? '') : '').toLowerCase();
-    let category: 'platform' | 'shape' | 'other' = 'other';
-    if (seg.includes('xc') || seg.includes('cspp') || uc.includes('distributed cloud')) {
-      category = 'platform';
-    } else if (seg.includes('point')) {
-      category = seg.includes('xc') ? 'platform' : 'shape';
-    } else if (seg.includes('ela')) {
-      // ELA renewals: classify as platform if use case is XC-related
-      category = uc.includes('distributed cloud') ? 'platform' : 'other';
-    }
-
-    renewalItems.push({
-      currency: typeof r.CurrencyIsoCode === 'string' ? r.CurrencyIsoCode : undefined,
-      opportunityId: id,
-      accountName: acct,
-      territory: terr,
-      forecast: fc,
-      skuName: (plan.segmentationField ? ((r[plan.segmentationField] as string) ?? '') : '') as string,
-      fyb: val,
-      category,
-      closeDate: (r.CloseDate as string) ?? undefined,
-      oppName: (r.Name as string) ?? undefined,
-      stage: (r.StageName as string) ?? undefined,
-      ownerName: (r.Owner as { Name?: string } | undefined)?.Name,
-      nextStep: (r.NextStep as string) ?? undefined,
-      lastActivityDate: (r.LastActivityDate as string) ?? undefined,
-    });
-  }
-
-  // Collect distinct SKUs
-  const allSkus = new Set<string>();
-  for (const item of [...netNewItems, ...bookedItems]) {
-    if (item.skuName) allSkus.add(item.skuName);
-  }
-  // Detect anomalies
-  const anomalies = detectAnomalies(netNewItems, bookedItems, renewalItems, skuClassification);
-  const currencies = [
-    ...new Set([...netNewItems, ...bookedItems, ...renewalItems].map((item) => item.currency ?? 'unverified')),
-  ].sort();
-  const currencyBreakdown = currencies.map((currency) => {
-    const selected = (items: LineItemRecord[]) => items.filter((item) => (item.currency ?? 'unverified') === currency);
-    const netNew = selected(netNewItems),
-      booked = selected(bookedItems),
-      renewals = selected(renewalItems);
+    const booked =
+      quarterStart && quarterEnd
+        ? scoped.filter(
+            (i) =>
+              i.record.IsWon === true &&
+              typeof i.record.CloseDate === 'string' &&
+              i.record.CloseDate >= quarterStart &&
+              i.record.CloseDate <= quarterEnd,
+          )
+        : undefined;
+    const end = options.fiscalYearEnd;
+    const fy =
+      fiscalYearStart && end
+        ? scoped
+            .filter(
+              (i) =>
+                i.record.IsWon === true &&
+                typeof i.record.CloseDate === 'string' &&
+                i.record.CloseDate >= fiscalYearStart &&
+                i.record.CloseDate <= end,
+            )
+            .reduce((sum, i) => sum + i.amount, 0)
+        : undefined;
     return {
       currency,
-      netNew: aggregateLineItems(netNew),
-      booked: aggregateLineItems(booked),
-      renewals: aggregateLineItems(renewals),
-      forecast: buildForecast(netNew),
-      topDeals: buildTopDeals(netNew),
-      topRenewals: buildTopDeals(renewals),
-      closeDistribution: buildCloseDistribution(netNew),
-      renewalDistribution: buildCloseDistribution(renewals),
+      netNew: aggregate(fresh),
+      booked: booked ? aggregate(booked) : undefined,
+      renewals: mappings.renewal ? aggregate(renewed) : undefined,
+      productBreakdown: productsComplete
+        ? aggregate(productItems.filter((i) => i.currency === currency && open(i)))
+        : undefined,
+      forecast,
+      topDeals: deals(fresh),
+      topRenewals: mappings.renewal ? deals(renewed) : undefined,
+      closeDistribution: distribution(fresh),
+      renewalDistribution: mappings.renewal ? distribution(renewed) : undefined,
+      fyBookedTotal: fy,
     };
   });
-  if (currencies.length > 1)
-    anomalies.push({
-      severity: 'warning',
-      category: 'mixed_currencies',
-      message:
-        'Returned records span currencies. Use the separate currency tables; combined monetary totals are not valid.',
-    });
-  if (oliRecords.length === 0 && (netNewItems.length || bookedItems.length))
-    anomalies.push({
-      severity: 'warning',
-      category: 'unverified_product_classification',
-      message:
-        'Opportunity-level fallback amounts have no SKU evidence. Product classification and quota eligibility are unverified; amounts appear under Other.',
-    });
-
+  const ownerIds = new Set(owner.map((r) => r.Id)),
+    teamIds = new Set(team.map((r) => r.Id));
   return {
-    generated: new Date().toISOString(),
-    openScopeStart: staleCutoff ?? quarterStart,
-    quarter: { start: quarterStart, end: quarterEnd },
-    territories: options.confirmedTerritories ?? [],
-    teamMembers: options.teamMemberNames ?? [],
-    netNew: aggregateLineItems(netNewItems),
-    booked: aggregateLineItems(bookedItems),
-    renewals: aggregateLineItems(renewalItems),
-    forecast: buildForecast(netNewItems),
-    lineItemCount: netNewItems.length + bookedItems.length + renewalItems.length,
-    skusFound: [...allSkus].sort(),
-    anomalies,
-    topDeals: buildTopDeals(netNewItems),
-    topRenewals: renewalItems.length > 0 ? buildTopDeals(renewalItems) : undefined,
-    closeDistribution: buildCloseDistribution(netNewItems),
-    renewalDistribution: renewalItems.length > 0 ? buildCloseDistribution(renewalItems) : undefined,
-    fyBookedTotal,
-    fyLabel,
-    recentChanges: parseHistoryRecords(historyRecords),
-    unavailable: plan.unavailable,
+    ...(groups.length === 1
+      ? groups[0]
+      : { netNew: { accounts: [], totals: {} }, forecast: {}, topDeals: [], closeDistribution: [] }),
+    currency: groups.length === 1 && groups[0].currency !== 'unverified' ? groups[0].currency : undefined,
+    currencyBreakdown: groups,
     sourceQueries,
-    currency: currencies.length === 1 && currencies[0] !== 'unverified' ? currencies[0] : undefined,
-    currencyBreakdown,
+    generated: new Date().toISOString(),
+    quarter: { start: options.quarterStart, end: options.quarterEnd },
+    openScopeStart: options.staleCutoff,
+    territories: [...new Set(items.map((i) => i.territory).filter(Boolean))],
+    teamMembers: options.teamMemberNames ?? [],
+    lineItemCount,
+    skusFound: [],
+    anomalies: items.some((i) => i.category === 'Uncategorized' && i.amount !== 0)
+      ? [
+          {
+            severity: 'info',
+            category: 'unverified_product_classification',
+            message: 'Uncategorized amounts remain included; quota eligibility is unknown.',
+          },
+        ]
+      : [],
+    fyLabel: options.fiscalYearEnd ? `FY${options.fiscalYearEnd.slice(0, 4)}` : undefined,
+    unavailable,
+    amountField: mappings.opportunityAmount,
+    productAmountField: plan.useLineItems ? mappings.lineItemAmount : undefined,
+    coverage: {
+      scope: teamSupported ? 'owner or team' : 'owner only',
+      owner: ownerIds.size,
+      team: teamIds.size,
+      overlap: [...ownerIds].filter((id) => teamIds.has(id)).length,
+      distinct: byId.size,
+    },
   };
 }

@@ -1,23 +1,25 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { recordSalesforceCommand } from '../sf/command-evidence';
-import type { SfFieldDescription, SfSObjectDescription } from '../sf/describe';
-import { normalizeDescribe } from '../sf/describe';
+import {
+  clearConfigurationCache,
+  configurationFingerprint,
+  loadOrgConfiguration,
+  type OrgIdentity,
+  pipelineCapabilities,
+  queryRecords,
+  resolveIdentity,
+} from '../configuration';
+import { generatePipelineReport } from '../pipeline-report/generator';
+import type { PipelineReportData } from '../pipeline-report/types';
+import type { SfFieldDescription } from '../sf/describe';
+import { sanitize } from '../sf/sanitize';
 import type { SfRawResult } from '../sf/types';
 export type SalesforceExecutor = (args: readonly string[], signal?: AbortSignal) => Promise<SfRawResult>;
 let salesforceExecutor: SalesforceExecutor | undefined;
 export function configureSalesforceExecutor(executor?: SalesforceExecutor): void {
   salesforceExecutor = executor;
-}
-async function runSalesforce(args: readonly string[]): Promise<SfRawResult> {
-  if (!salesforceExecutor) throw new Error('Salesforce host executor is unavailable');
-  discoveryScope.getStore()?.throwIfAborted();
-  const target = discoveryOrgScope.getStore();
-  const argv = target ? [...args, '--target-org', target] : args;
-  recordSalesforceCommand(argv);
-  return salesforceExecutor(argv, discoveryScope.getStore());
+  clearConfigurationCache();
 }
 const discoveryScope = new AsyncLocalStorage<AbortSignal>();
-const discoveryOrgScope = new AsyncLocalStorage<string>();
 
 // ---------------------------------------------------------------------------
 // Canonical xcsh person profile access supplied by the extension API.
@@ -25,7 +27,7 @@ const discoveryOrgScope = new AsyncLocalStorage<string>();
 
 let personProfileGet: (() => Promise<UserProfile>) | undefined;
 let salesforceContextGet: (() => Promise<SalesforceContext | null>) | undefined;
-let enrichedContexts = new WeakMap<SalesforceContext, SalesforceContext>();
+const reportContexts = new Map<string, { context: SalesforceContext; expires: number }>();
 
 export function configurePersonProfile(get?: () => Promise<UserProfile>): void {
   personProfileGet = get;
@@ -33,7 +35,53 @@ export function configurePersonProfile(get?: () => Promise<UserProfile>): void {
 
 export function configureSalesforceContext(get?: () => Promise<SalesforceContext | null>): void {
   salesforceContextGet = get;
-  enrichedContexts = new WeakMap();
+  reportContexts.clear();
+}
+
+/** Fresh report summaries may inform context; reports themselves never reuse these summaries. */
+export async function rememberSalesforceReport(
+  identity: OrgIdentity,
+  report: PipelineReportData,
+  configurationRevision: string,
+) {
+  const key = `${identity.orgId}:${identity.userId}:${await configurationFingerprint()}`;
+  const records = new Map<string, Record<string, unknown>>();
+  for (const source of report.sourceQueries ?? [])
+    for (const row of source.records) {
+      if (typeof row.Id === 'string' && row.IsClosed === false) records.set(row.Id, row);
+    }
+  const summary = report.currencyBreakdown?.length === 1 ? report.currencyBreakdown[0] : undefined;
+  const counts = new Map<string, number>();
+  for (const row of records.values()) {
+    const name = (row.Account as { Name?: string } | undefined)?.Name;
+    if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const context: SalesforceContext = {
+    ...identity,
+    configurationRevision,
+    discoveryPending: false,
+    collectedAt: report.generated,
+    territories: report.territories,
+    activeAccounts: [...counts].map(([name, oppCount]) => ({ name, oppCount })),
+    pipelineSummary: summary
+      ? {
+          total: summary.netNew.total ?? 0,
+          dealCount: records.size,
+          byForecast: Object.fromEntries(
+            Object.entries(summary.forecast).map(([name, amount]) => [
+              name,
+              { amount, count: [...records.values()].filter((row) => row.ForecastCategoryName === name).length },
+            ]),
+          ),
+        }
+      : undefined,
+  };
+  reportContexts.set(key, { context, expires: Date.now() + 5 * 60_000 });
+  if (reportContexts.size > 20) {
+    const first = reportContexts.keys().next().value;
+    if (first) reportContexts.delete(first);
+  }
+  return context;
 }
 
 export async function readPersonFacts(): Promise<UserProfile> {
@@ -55,15 +103,6 @@ export interface UserProfile {
   quota?: number;
   role?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Utility inlines (replacing pi-utils imports)
-// ---------------------------------------------------------------------------
-
-const logger = {
-  debug: (..._args: unknown[]) => {},
-  warn: (..._args: unknown[]) => {},
-};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,6 +145,8 @@ export interface SalesforceContext {
   /** Identity is ready; report scope and schema will be discovered on demand. */
   discoveryPending?: boolean;
   // Identity
+  orgId?: string;
+  configurationRevision?: string;
   userId: string;
   username: string;
   userType?: string;
@@ -159,7 +200,7 @@ export interface SalesforceContext {
   /** Every OpportunityLineItem field API name; lets the pipeline report skip SKU-level queries
    *  the org cannot answer instead of issuing them and rendering the failure as no pipeline. */
   lineItemFields?: string[];
-  /** Territory field chosen empirically for grouping; absent when the org has no usable one. */
+  /** Territory field confirmed in private setup for grouping; absent when the org has no usable one. */
   territoryField?: string;
 
   // Pipeline summary
@@ -192,7 +233,7 @@ export interface SalesforceHint {
   partnerName?: string;
   /** Partner role label, e.g. 'AE', 'SE', 'CSM' */
   partnerRole?: string;
-  /** Org alias for SOQL queries, e.g. 'SFDC' */
+  /** Selected organization alias, if one is configured. */
   orgAlias?: string;
   /** Partner Salesforce UserId for AE-owned deal queries */
   partnerId?: string;
@@ -221,7 +262,15 @@ const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 export async function loadSalesforceContext(): Promise<SalesforceContext | null> {
   const context = salesforceContextGet ? await salesforceContextGet() : null;
-  return context ? (enrichedContexts.get(context) ?? context) : null;
+  if (!context || !salesforceExecutor) return context;
+  const current = await seedSalesforceContext();
+  if (!current) return null;
+  const key = `${current.orgId}:${current.userId}:${await configurationFingerprint()}`;
+  const cached = reportContexts.get(key);
+  if (cached && cached.expires > Date.now()) return cached.context;
+  if (context.orgId !== current.orgId || context.userId !== current.userId || context.username !== current.username)
+    return current;
+  return context;
 }
 
 export function salesforceContextIsStale(ctx: SalesforceContext): boolean {
@@ -234,57 +283,11 @@ export function salesforceContextIsStale(ctx: SalesforceContext): boolean {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function runSfQuery(soql: string): Promise<Record<string, unknown>[]> {
-  try {
-    const result = await runSalesforce(['data', 'query', '--query', soql, '--json']);
-    if (result.exitCode !== 0) return [];
-    const parsed = JSON.parse(result.stdout.toString()) as {
-      result?: { records?: Record<string, unknown>[] };
-    };
-    return parsed.result?.records ?? [];
-  } catch (err: unknown) {
-    logger.debug('SOQL query failed', { error: err });
-    return [];
-  }
-}
-
-async function getOrgInfo(): Promise<{ username: string; instanceUrl: string; alias: string } | null> {
-  try {
-    const result = await runSalesforce(['org', 'display', '--json']);
-    if (result.exitCode !== 0) return null;
-    const parsed = JSON.parse(result.stdout.toString()) as {
-      result?: { username?: string; instanceUrl?: string; alias?: string };
-    };
-    const r = parsed.result;
-    if (!r?.username || !r?.instanceUrl) return null;
-    return { username: r.username, instanceUrl: r.instanceUrl, alias: r.alias ?? '' };
-  } catch {
-    return null;
-  }
-}
-
-async function describeSObject(sobject: string): Promise<SfSObjectDescription | null> {
-  try {
-    const result = await runSalesforce(['sobject', 'describe', '--sobject', sobject, '--json']);
-    if (result.exitCode !== 0) return null;
-    const parsed = JSON.parse(result.stdout.toString()) as { result?: unknown };
-    if (!parsed.result) return null;
-    return normalizeDescribe(parsed.result);
-  } catch {
-    return null;
-  }
-}
-
 // Territory field selection.
 //
-// There is no standard Opportunity territory field, and a real org can carry twenty or more
-// territory-ish custom fields at different granularities. Naming a specific one only ever works
-// for the org it was copied from. Nor can a name heuristic alone decide: the same org holds
-// `ETM_Core_Territory__c`, `Territory_Grouping__c`, `Territory_Name__c` and a dozen more, several
-// of which are empty in practice.
-//
-// So: narrow by schema (below), then choose by DATA (pickBestTerritoryField) — whichever
-// candidate actually covers the most of this user's pipeline wins.
+// Organizations expose different custom territory fields and granularities. These helpers
+// rank schema and coverage candidates for review; they do not confirm business meaning.
+// Runtime reports use the private configuration's confirmed mapping and verified user scope.
 
 /** Territory-ish, but never a usable grouping value. */
 const TERRITORY_NAME_EXCLUSIONS = [/code/i, /error/i, /exclude/i, /^old_/i, /_del__c$/i, /type__c$/i, /owner/i];
@@ -350,7 +353,7 @@ export interface TerritoryFieldProbe {
  * 2. Then the FINER partition (more distinct values). Among fields annotating the same deals,
  *    the one that separates them more carries more information; at the degenerate end, a field
  *    with a single value covers everything and distinguishes nothing. Measured against a real
- *    org this is what separates a genuine territory (`AMER: Major Accounts ... Red 9`) from a
+ *    org this is what separates a genuine territory (`Synthetic local territory`) from a
  *    region rollup (`USA` / `Canada`) that happens to be populated just as widely.
  * 3. Then the lexically first name, purely so a re-run picks the same field.
  */
@@ -359,235 +362,6 @@ export function pickBestTerritoryField(probes: TerritoryFieldProbe[]): Territory
   return probes
     .filter((p) => p.counts.size > 0 && covered(p) > 0)
     .sort((a, b) => covered(b) - covered(a) || b.counts.size - a.counts.size || a.field.localeCompare(b.field))[0];
-}
-
-// ---------------------------------------------------------------------------
-// Discovery probes
-// ---------------------------------------------------------------------------
-
-/** Walk a dotted SOQL path (`Territory2.Name`) through the nested record shape it returns. */
-function readPath(root: unknown, path: string): string | undefined {
-  let node: unknown = root;
-  for (const segment of path.split('.')) {
-    if (!node || typeof node !== 'object') return undefined;
-    node = (node as Record<string, unknown>)[segment];
-  }
-  return typeof node === 'string' ? node : undefined;
-}
-
-/** Group this user's open pipeline by one candidate field. Empty when the field holds no data. */
-async function probeTerritoryField(userId: string, field: string): Promise<TerritoryFieldProbe> {
-  const records = await runSfQuery(
-    `SELECT Opportunity.${field} FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false AND Opportunity.${field} != null`,
-  );
-  const counts = new Map<string, number>();
-  for (const r of records) {
-    const value = readPath(r.Opportunity, field);
-    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-  return { field, counts };
-}
-
-async function discoverTerritories(
-  userId: string,
-  described: SfSObjectDescription | null,
-): Promise<Partial<SalesforceContext>> {
-  const candidates = rankTerritoryFieldCandidates(described?.fields ?? []);
-  if (candidates.length === 0) return {};
-
-  const probes = await Promise.all(
-    candidates.map((field) => probeTerritoryField(userId, field).catch(() => ({ field, counts: new Map() }))),
-  );
-  const best = pickBestTerritoryField(probes);
-  if (!best) return { territories: [] };
-
-  const teamCounts = best.counts;
-  const territories = [...teamCounts.keys()].sort();
-
-  const totalCounts = new Map<string, number>();
-  const countPromises = territories.map(async (t) => {
-    const escaped = t.replace(/'/g, "''");
-    const recs = await runSfQuery(
-      `SELECT COUNT(Id) FROM Opportunity WHERE ${best.field} = '${escaped}' AND IsClosed = false`,
-    );
-    const cnt = (recs[0]?.expr0 ?? 0) as number;
-    totalCounts.set(t, cnt);
-  });
-  await Promise.all(countPromises);
-
-  const territoryDetails: TerritoryDetail[] = territories.map((name) => {
-    const teamOpps = teamCounts.get(name) ?? 0;
-    const totalOpps = totalCounts.get(name) ?? 0;
-    const coverage = totalOpps > 0 ? Math.round((teamOpps / totalOpps) * 100) : 0;
-    return { name, teamOpps, totalOpps, coverage };
-  });
-
-  territoryDetails.sort((a, b) => b.teamOpps - a.teamOpps);
-
-  return { territories, territoryDetails, territoryField: best.field };
-}
-
-async function discoverAccounts(userId: string): Promise<Partial<SalesforceContext>> {
-  const records = await runSfQuery(
-    `SELECT COUNT(Id) cnt, Opportunity.Account.Name FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false GROUP BY Opportunity.Account.Name ORDER BY COUNT(Id) DESC LIMIT 30`,
-  );
-  const accounts = records
-    .map((r) => {
-      const name =
-        ((r as Record<string, unknown>).Name as string | undefined) ??
-        (((r as Record<string, unknown>).Account as Record<string, unknown> | undefined)?.Name as string | undefined);
-      const cnt = (r.cnt ?? r.expr0) as number | undefined;
-      if (!name || cnt == null) return null;
-      return { name, oppCount: cnt };
-    })
-    .filter(Boolean) as Array<{ name: string; oppCount: number }>;
-  return { activeAccounts: accounts };
-}
-
-/**
- * Optional named fields this plugin knows how to consume. Feature-detected against the discovered
- * catalog, never assumed: an org without them simply gets no segmentation breakdown, rather than
- * a failed query.
- */
-const PRODUCT_SEGMENTATION_FIELD = 'Product_Segmentation__c';
-
-async function discoverSegmentations(
-  userId: string,
-  described: SfSObjectDescription | null,
-): Promise<Partial<SalesforceContext>> {
-  if (!described?.fields.some((f) => f.name === PRODUCT_SEGMENTATION_FIELD)) return {};
-  const records = await runSfQuery(
-    `SELECT Product_Segmentation__c FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '${userId}') AND IsClosed = false AND Product_Segmentation__c != null`,
-  );
-  const unique = [...new Set(records.map((r) => r.Product_Segmentation__c as string).filter(Boolean))].sort();
-  return { productSegmentations: unique };
-}
-
-async function discoverForecasts(userId: string): Promise<Partial<SalesforceContext>> {
-  const records = await runSfQuery(
-    `SELECT Opportunity.ForecastCategoryName, COUNT(Id) cnt FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false GROUP BY Opportunity.ForecastCategoryName`,
-  );
-  const unique = [
-    ...new Set(
-      records
-        .map((r) => {
-          const opp = r.Opportunity as Record<string, unknown> | undefined;
-          return (opp?.ForecastCategoryName ?? r.ForecastCategoryName) as string | undefined;
-        })
-        .filter(Boolean) as string[],
-    ),
-  ];
-  return { forecastCategories: unique };
-}
-
-async function discoverStages(userId: string): Promise<Partial<SalesforceContext>> {
-  const records = await runSfQuery(
-    `SELECT Opportunity.StageName, COUNT(Id) cnt FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false GROUP BY Opportunity.StageName ORDER BY COUNT(Id) DESC`,
-  );
-  const unique = [
-    ...new Set(
-      records
-        .map((r) => {
-          const opp = r.Opportunity as Record<string, unknown> | undefined;
-          return (opp?.StageName ?? r.StageName) as string | undefined;
-        })
-        .filter(Boolean) as string[],
-    ),
-  ];
-  return { stages: unique };
-}
-
-async function discoverPipelineSummary(userId: string): Promise<Partial<SalesforceContext>> {
-  const records = await runSfQuery(
-    `SELECT ForecastCategoryName, SUM(Amount) total, COUNT(Id) cnt FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '${userId}') AND IsClosed = false GROUP BY ForecastCategoryName ORDER BY SUM(Amount) DESC`,
-  );
-  const byForecast: Record<string, { amount: number; count: number }> = {};
-  let total = 0;
-  let dealCount = 0;
-  for (const r of records) {
-    const cat = r.ForecastCategoryName as string | undefined;
-    if (!cat) continue;
-    const amount = (r.total ?? 0) as number;
-    const count = (r.cnt ?? r.expr0 ?? 0) as number;
-    byForecast[cat] = { amount, count };
-    total += amount;
-    dealCount += count;
-  }
-  return { pipelineSummary: { byForecast, total, dealCount } };
-}
-
-async function discoverTeamRoles(userId: string): Promise<Partial<SalesforceContext>> {
-  const records = await runSfQuery(
-    `SELECT TeamMemberRole, COUNT(Id) cnt FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false GROUP BY TeamMemberRole`,
-  );
-  const unique = [...new Set(records.map((r) => r.TeamMemberRole as string | undefined).filter(Boolean) as string[])];
-  return { teamRoles: unique };
-}
-
-/** Infer a short role label from a Salesforce User title. Generic -- no company-specific logic. */
-function inferRoleFromTitle(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('solution') || t.includes('systems engineer') || t.includes('pre-sales') || t.includes('presales'))
-    return 'SE';
-  if (t.includes('account') && (t.includes('executive') || t.includes('manager'))) return 'AE';
-  if (t.includes('account') && t.includes('mgr')) return 'AE';
-  if (t.includes('customer success')) return 'CSM';
-  if (t.includes('architect')) return 'SA';
-  if (t.includes('sales') && t.includes('engineer')) return 'SE';
-  if (t.includes('territory') && (t.includes('manager') || t.includes('mgr'))) return 'AE';
-  return 'Partner';
-}
-
-async function discoverPartner(userId: string): Promise<Partial<SalesforceContext>> {
-  const records = await runSfQuery(
-    `SELECT UserId, User.Name, User.Title, COUNT(Id) cnt FROM OpportunityTeamMember WHERE OpportunityId IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false) AND UserId != '${userId}' GROUP BY UserId, User.Name, User.Title ORDER BY COUNT(Id) DESC LIMIT 3`,
-  );
-  if (records.length === 0) return {};
-
-  const top = records[0];
-  const userObj = top.User as Record<string, unknown> | undefined;
-  const name = (userObj?.Name ?? top.Name ?? '') as string;
-  const title = (userObj?.Title ?? top.Title ?? '') as string;
-  const id = (top.UserId ?? '') as string;
-  if (!name || !id) return {};
-
-  const role = inferRoleFromTitle(title);
-
-  return {
-    discoveredPartner: { id, name, title: title || undefined, role },
-  };
-}
-
-async function discoverRoleAndTeam(userId: string): Promise<Partial<SalesforceContext>> {
-  const userRecords = await runSfQuery(
-    `SELECT UserRole.Name, ManagerId, Manager.Name FROM User WHERE Id = '${userId}'`,
-  );
-  if (userRecords.length === 0) return {};
-  const user = userRecords[0];
-  const roleObj = user.UserRole as Record<string, unknown> | undefined;
-  const managerObj = user.Manager as Record<string, unknown> | undefined;
-  const roleName = (roleObj?.Name as string | undefined) ?? undefined;
-  const managerId = (user.ManagerId as string | undefined) ?? undefined;
-  const managerName = (managerObj?.Name as string | undefined) ?? undefined;
-
-  const result: Partial<SalesforceContext> = { roleName, managerId, managerName };
-
-  if (roleName) {
-    result.discoveredRole = inferRoleFromTitle(roleName);
-  }
-
-  if (managerId) {
-    const teamRecords = await runSfQuery(
-      `SELECT Id, Name, Title FROM User WHERE ManagerId = '${managerId}' AND IsActive = true ORDER BY Name`,
-    );
-    result.team = teamRecords.map((r) => ({
-      id: r.Id as string,
-      name: r.Name as string,
-      title: (r.Title as string | undefined) ?? undefined,
-    }));
-  }
-
-  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -602,83 +376,69 @@ export async function discoverSalesforceContext(
   bounded.throwIfAborted();
   return discoveryScope.run(bounded, () => discoverContext(identity));
 }
+function contextApi() {
+  return {
+    exec: async (_command: string, args: string[], options?: { signal?: AbortSignal }) => {
+      if (!salesforceExecutor) throw new Error('Salesforce host executor is unavailable');
+      return sanitize(await salesforceExecutor(args, options?.signal));
+    },
+  };
+}
 async function discoverIdentity(): Promise<SalesforceContext | null> {
   if (!salesforceExecutor) return null;
-  const orgInfo = await getOrgInfo();
-  discoveryScope.getStore()?.throwIfAborted();
-  if (!orgInfo) return null;
-
-  const escapedUsername = orgInfo.username.replace(/'/g, "\\'");
-  const currentUser = await runSfQuery(`SELECT Id, UserType FROM User WHERE Username = '${escapedUsername}' LIMIT 1`);
-  const userId = String(currentUser[0]?.Id ?? '');
-  if (!userId) return null;
-  discoveryScope.getStore()?.throwIfAborted();
-  return {
-    userId,
-    username: orgInfo.username,
-    userType: typeof currentUser[0]?.UserType === 'string' ? currentUser[0].UserType : undefined,
-    instanceUrl: orgInfo.instanceUrl,
-    orgAlias: orgInfo.alias || undefined,
-    collectedAt: new Date().toISOString(),
-    discoveryPending: true,
-  };
+  const identity = await resolveIdentity(contextApi(), undefined, discoveryScope.getStore());
+  return { ...identity, collectedAt: new Date().toISOString(), discoveryPending: true };
 }
-
 async function discoverContext(identity?: SalesforceContext): Promise<SalesforceContext | null> {
   const base = identity ?? (await discoverIdentity());
-  if (!base) return null;
-  const { userId } = base;
-  // Report discovery has its own caller deadline, separate from profile readiness.
-  const [described, describedLineItem] = await Promise.all([
-    describeSObject('Opportunity'),
-    describeSObject('OpportunityLineItem'),
-  ]);
-  discoveryScope.getStore()?.throwIfAborted();
-
-  const results = await Promise.all([
-    discoverTerritories(userId, described).catch(() => ({})),
-    discoverAccounts(userId).catch(() => ({})),
-    discoverSegmentations(userId, described).catch(() => ({})),
-    discoverForecasts(userId).catch(() => ({})),
-    discoverStages(userId).catch(() => ({})),
-    discoverPipelineSummary(userId).catch(() => ({})),
-    discoverTeamRoles(userId).catch(() => ({})),
-    discoverRoleAndTeam(userId).catch(() => ({})),
-    discoverPartner(userId).catch(() => ({})),
-  ]);
-
-  const merged: SalesforceContext = {
+  if (!base || !base.orgId) return null;
+  const selected: OrgIdentity = {
+    orgId: base.orgId,
+    userId: base.userId,
+    username: base.username,
+    instanceUrl: base.instanceUrl,
+  };
+  const signal = discoveryScope.getStore(),
+    api = contextApi();
+  const config = await loadOrgConfiguration(api, selected, signal);
+  const described = config.discovery.objects.Opportunity;
+  const report = await generatePipelineReport(
+    {
+      userIds: [base.userId],
+      orgAlias: base.username,
+      mappings: config.mappings,
+      unavailable: config.discovery.unavailable,
+      capabilities: pipelineCapabilities(config),
+    },
+    (query) => queryRecords(api, query, selected, signal),
+  );
+  const reportContext = await rememberSalesforceReport(selected, report, config.revision);
+  return {
     ...base,
-    discoveryPending: false,
+    ...reportContext,
     opportunityFields: described?.fields.map((f) => f.name),
-    lineItemFields: describedLineItem?.fields.map((f) => f.name),
+    lineItemFields: config.discovery.objects.OpportunityLineItem?.fields.map((f) => f.name),
+    territoryField: config.mappings.territory?.slice('Opportunity.'.length),
+    stages: described?.fields.find((f) => f.name === 'StageName')?.picklistValues,
+    forecastCategories: described?.fields.find((f) => f.name === 'ForecastCategoryName')?.picklistValues,
     collectedAt: new Date().toISOString(),
   };
-  for (const partial of results) {
-    Object.assign(merged, partial);
-  }
-
-  discoveryScope.getStore()?.throwIfAborted();
-  return merged;
 }
-
 export async function seedSalesforceContext(signal?: AbortSignal): Promise<SalesforceContext | null> {
   const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000);
   bounded.throwIfAborted();
   return discoveryScope.run(bounded, discoverIdentity);
 }
-
 export async function enrichSalesforceContext(
   context: SalesforceContext,
   signal?: AbortSignal,
 ): Promise<SalesforceContext> {
   signal?.throwIfAborted();
-  if (!context.discoveryPending) return context;
-  const cached = enrichedContexts.get(context);
-  if (cached) return cached;
-  const enriched = await discoveryOrgScope.run(context.username, () => discoverSalesforceContext(signal, context));
+  const selected = await resolveIdentity(contextApi(), undefined, signal);
+  if (context.orgId !== selected.orgId || context.userId !== selected.userId || context.username !== selected.username)
+    throw new Error('Salesforce organization changed; discard the previous context.');
+  const enriched = await discoverSalesforceContext(signal, context);
   if (!enriched) throw new Error('Salesforce report context discovery is unavailable.');
-  enrichedContexts.set(context, enriched);
   return enriched;
 }
 
@@ -881,7 +641,7 @@ export function renderSalesforceContextMarkdown(
     );
     sections.push(
       ctx.territoryField
-        ? `Territory grouping field: \`${ctx.territoryField}\` (selected by pipeline coverage).`
+        ? `Territory grouping field: \`${ctx.territoryField}\` (confirmed in private setup).`
         : 'No usable territory grouping field found on Opportunity.',
     );
   }

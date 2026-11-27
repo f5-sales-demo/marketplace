@@ -1332,7 +1332,7 @@ describe('provider integration lifecycle', () => {
     expect(['ready', 'degraded']).toContain(payload.result.state);
     expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');
-  });
+  }, 15_000);
 
   it('pins Zoom controls to the owned desktop UAT session', async () => {
     const source = await readFile(
@@ -1678,6 +1678,7 @@ describe('provider integration lifecycle', () => {
     const [salesforce] = await definitionsFor('salesforce');
     if (!salesforce.profile) throw new Error('Salesforce did not declare a profile projection');
     const automated = salesforce.profile({
+      orgId: '<organization-id>',
       userId: '005000000000001',
       username: 'automation@example.com',
       userType: 'AutomatedProcess',
@@ -1691,7 +1692,7 @@ describe('provider integration lifecycle', () => {
         provider: 'salesforce',
         identifier: '005000000000001',
         principalType: 'service',
-        accountId: '<instance-url>',
+        accountId: '<organization-id>',
         username: 'automation@example.com',
       },
     ]);

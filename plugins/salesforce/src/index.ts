@@ -1,8 +1,10 @@
+import { createPinnedExecApi, prepareSalesforceConfiguration } from './configuration';
 import { mapSalesforceToProfile } from './context/profile-mapper';
 import type { SalesforceContext, UserProfile } from './context/salesforce-context';
 import { prepareLoginUrl } from './login-url';
 import { presentTool } from './presentation';
 import { type PresentationContext, sessionSymbols } from './presentation/icons';
+import { sanitize } from './sf/sanitize';
 import type { PluginHost } from './tools/plugin-host';
 import type { SfToolDetails } from './tools/shared';
 import { detectErrorType, errorResult, makeExecApi, renderError } from './tools/shared';
@@ -38,7 +40,7 @@ export function withErrorType<T extends { name?: string; execute: (...args: neve
         return await originalExecute(...args);
       } catch (err) {
         if (err instanceof Error && (err.name === 'AbortError' || err.name === 'ToolAbortError')) throw err;
-        return errorResult(renderError(err), { tool: toolName, errorType: detectErrorType(err) });
+        return errorResult(sanitize(renderError(err)), { tool: toolName, errorType: detectErrorType(err) });
       }
     }) as T['execute'],
   };
@@ -107,7 +109,7 @@ const providerSetup = {
   steps: [
     {
       kind: 'login',
-      argv: ['sf', 'org', 'login', 'web', '--set-default', '--alias', 'SFDC'],
+      argv: ['sf', 'org', 'login', 'web', '--set-default'],
       timeoutMs: 300_000,
       stdin: 'inherit',
     },
@@ -117,7 +119,7 @@ const providerSetup = {
 const factory = async (pi: CanonicalExtensionAPI) => {
   const symbols = sessionSymbols();
   if (!pi.host || !pi.software)
-    throw new Error('Salesforce plugin requires xcsh 22.4.6 or later with the host/software API');
+    throw new Error('Salesforce plugin requires xcsh 25.1.0 or later with reviewed integration configuration');
   if (!pi.personProfile || typeof pi.personProfile.get !== 'function') {
     throw new Error('Salesforce plugin requires the xcsh personProfile API');
   }
@@ -160,6 +162,21 @@ const factory = async (pi: CanonicalExtensionAPI) => {
         },
       };
     },
+    async prepareConfiguration(signal?: AbortSignal) {
+      return prepareSalesforceConfiguration(
+        {
+          exec: async (_command, args, options) => {
+            const result = await pi.exec(pi.host.findExecutable('sf') ?? 'sf', args, {
+              signal: options?.signal,
+              timeout: 30_000,
+            });
+            return { ...result, exitCode: result.code };
+          },
+        },
+        undefined,
+        signal,
+      );
+    },
     async probe(signal?: AbortSignal) {
       if (!pi.host.findExecutable('sf')) return { state: 'setup_required', reason: 'cli_missing' };
       const org = await pi.exec(pi.host.findExecutable('sf') ?? 'sf', ['org', 'display', '--json'], {
@@ -184,8 +201,17 @@ const factory = async (pi: CanonicalExtensionAPI) => {
         return { state: 'setup_required', reason: 'not_authenticated' };
       }
       const { seedSalesforceContext } = await import('./context/salesforce-context');
-      const value = await seedSalesforceContext(signal);
-      return value ? { state: 'ready', value } : { state: 'error', reason: 'invalid_response' };
+      try {
+        const value = await seedSalesforceContext(signal);
+        return value ? { state: 'ready', value } : { state: 'error', reason: 'invalid_response' };
+      } catch (error) {
+        signal?.throwIfAborted();
+        const message = sanitize(String(error));
+        if (/rate limit|REQUEST_LIMIT_EXCEEDED|too many requests|429/i.test(message))
+          return { state: 'rate_limited', reason: 'rate_limited' };
+        if (/expired|INVALID_SESSION_ID/i.test(message)) return { state: 'setup_required', reason: 'expired' };
+        return { state: 'error', reason: 'invalid_response' };
+      }
     },
     profile(value: SalesforceContext) {
       const userType = value.userType?.toLowerCase();
@@ -199,7 +225,7 @@ const factory = async (pi: CanonicalExtensionAPI) => {
               provider: 'salesforce',
               identifier: value.userId,
               principalType,
-              accountId: value.instanceUrl,
+              accountId: value.orgId,
               username: value.username,
             },
           ],
@@ -219,6 +245,7 @@ const factory = async (pi: CanonicalExtensionAPI) => {
   } catch {}
 
   if (sfAvailable) {
+    const pinnedApi = (cwd: string) => createPinnedExecApi(makeExecApi(cwd, pi.host.findExecutable));
     const { createSfQueryTool } = await import('./tools/sf-query');
     const { createSfOrgDisplayTool } = await import('./tools/sf-org-display');
     const { createSfPipelineReportTool } = await import('./tools/sf-pipeline-report');
@@ -226,12 +253,12 @@ const factory = async (pi: CanonicalExtensionAPI) => {
     const { createSfExecTool } = await import('./tools/sf-exec');
     const { createSfDescribeTool } = await import('./tools/sf-describe');
     for (const tool of [
-      createSfQueryTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
-      createSfDescribeTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
+      createSfQueryTool(pi, pinnedApi),
+      createSfDescribeTool(pi, pinnedApi),
       createSfOrgDisplayTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
       createSfPipelineReportTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
       createSfHelpTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
-      createSfExecTool(pi, (cwd) => makeExecApi(cwd, pi.host.findExecutable)),
+      createSfExecTool(pi, pinnedApi),
     ])
       pi.registerTool(presentTool(withErrorType(tool), pi.presentation, symbols.resolve));
 

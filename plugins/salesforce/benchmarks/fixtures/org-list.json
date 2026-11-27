@@ -3,7 +3,7 @@
   "result": {
     "nonScratchOrgs": [
       {
-        "alias": "SFDC",
+        "alias": "example-org",
         "username": "demo@example.com",
         "orgId": "00D000000000001EAA",
         "instanceUrl": "https://f5--demo.my.salesforce.com",

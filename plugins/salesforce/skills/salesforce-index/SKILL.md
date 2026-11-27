@@ -51,7 +51,7 @@ product relevance, qualification or ad-hoc SOQL, use `sf_query` and
 sf_query's project/account evidence chain: verify the account, keep org scope,
 define recency, confirm custom schema and product evidence, preserve currencies,
 and report coverage and uncertainty. Use `sf_pipeline_report` for the user's
-team pipeline rather than a specific customer investigation.
+owner-or-team pipeline rather than a specific customer investigation.
 
 ### Salesforce Development (afv-library skills)
 

@@ -31,6 +31,7 @@ export async function qualifySalesforceLifecycle(runtimeRoot: string, pluginRoot
     if (!condition) throw new Error(`Salesforce qualification failed: ${label}`);
   };
   const identity: SalesforceContext = {
+    orgId: '00D000000000001',
     userId: '005000000000001',
     username: 'synthetic@example.com',
     userType: 'Standard',
@@ -86,7 +87,9 @@ export async function qualifySalesforceLifecycle(runtimeRoot: string, pluginRoot
         calls.push(argv);
         if (response.code !== 0 || response.stdout) return response;
         const result =
-          argv[0] === 'org' ? identity : { records: [{ Id: identity.userId, UserType: identity.userType }] };
+          argv[0] === 'org'
+            ? { ...identity, id: identity.orgId }
+            : { records: [{ Id: identity.userId, UserType: identity.userType }], done: true };
         return { code: 0, stdout: JSON.stringify({ status: 0, result }), stderr: '' };
       },
       registerTool: (tool: Tool) => tools.push(tool),
@@ -134,7 +137,7 @@ export async function qualifySalesforceLifecycle(runtimeRoot: string, pluginRoot
     check(plan.steps.length === 1 && plan.steps[0].kind === 'login', 'human login review');
     check(
       plan.steps[0].argv.join(' ') ===
-        'sf org login web --set-default --alias SFDC --instance-url https://example.my.salesforce.com',
+        'sf org login web --set-default --instance-url https://example.my.salesforce.com',
       'reviewed login argv',
     );
     scenarios.push('setup-review-only');

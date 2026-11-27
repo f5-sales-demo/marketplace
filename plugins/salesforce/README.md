@@ -7,7 +7,7 @@ and keyboard controls.
 
 ## Prerequisites
 
-- xcsh 23.5.1 or later and Salesforce CLI (`sf`). Setup reuses a working CLI.
+- xcsh 25.1.0 or later and Salesforce CLI (`sf`). Setup reuses a working CLI.
   Missing CLI setup uses Homebrew without sudo on macOS or a verified official
   per-user archive on Linux. An unsupported host or unavailable package reports
   readiness guidance instead of claiming success.
@@ -15,8 +15,30 @@ and keyboard controls.
 - Optional Salesforce development skills from
   [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library).
 
-Run `xcsh plugin setup salesforce` to review setup and authenticate. Existing
-read-only queries do not require changing the login or default org.
+Run `xcsh plugin setup salesforce` to review authentication and discover private org configuration. Valid authentication is reused; repeating setup refreshes metadata and preserves confirmed choices. Browser OAuth is reviewed only when authentication is needed. Salesforce CLI project/global defaults select the org unless a tool explicitly selects one.
+
+## Private configuration
+
+Setup saves versioned metadata and confirmed report mappings to `~/.xcsh/private/salesforce/config.json`.
+`SF_PIPELINE_CONFIG` may select another absolute user-owned file. Directories are private (0700), files are
+private (0600), and replacement is atomic. Concurrent edits, cancellation, invalid mappings and write failures
+preserve the current file. Probes and tools never rewrite configuration.
+
+Entries are keyed by verified organization ID and separate discovery from report mappings. Discovery retains identity, accessible object names, relevant field descriptions, fiscal periods and optional territory/product candidates. It saves no account or opportunity records and no authentication secrets.
+
+The default revenue fields are `Opportunity.Amount` and supported `OpportunityLineItem.TotalPrice`. Custom
+revenue, renewal predicates, territory paths, product groups and quota eligibility require confirmation
+against the selected schema. Product groups use exact-value or prefix rules with validated field paths. Leave
+optional business meanings unresolved, or enter `-` to clear a saved optional field/predicate and `[]` to
+clear groups.
+
+For example, after confirming that the field is available, a group can be entered as:
+
+```json
+[{"name":"Services","quotaEligible":false,"rules":[{"field":"Product2.Family","match":"exact","value":"Services"}]}]
+```
+
+This is a synthetic mapping example, not a shipped product rule. Unmatched or ambiguous products remain Uncategorized. Cache keys include the org, user and configuration revision; changing the CLI default or reassigning an alias cannot reuse another org's IDs or scope.
 
 ## Native tools
 
@@ -25,7 +47,7 @@ read-only queries do not require changing the login or default org.
 | `sf_query` | Ad-hoc SOQL and account/opportunity investigation |
 | `sf_describe` | Confirm field names, types, picklists and child relationships |
 | `sf_org_display` | Show safe org identity and connection fields |
-| `sf_pipeline_report` | Team-scoped pipeline, bookings, renewals and anomalies |
+| `sf_pipeline_report` | Owner-or-team pipeline, separate product values and supported fiscal sections |
 | `sf_help` | Read CLI command help |
 | `sf_exec` | Execute an allowlisted read-only command with exact arguments |
 
@@ -37,8 +59,7 @@ Authentication, permission and network failures remain visible errors.
 Ask xcsh to read the project, identify the customer, and find recent opportunities.
 The workflow verifies local account evidence against Salesforce, distinguishes
 ambiguous matches, and queries the verified account in one selected org. It
-states the recency window and uses schema/product evidence to distinguish
-Distributed Cloud opportunities. A customer investigation is account-scoped;
+states the recency window and uses confirmed schema and product mappings. A customer investigation is account-scoped;
 it does not silently restrict results to personal opportunity-team membership.
 
 Expect opportunity name/link, stage, amount with currency, owner, close and
@@ -75,18 +96,11 @@ and exact argv, shell quoting, complete output and diagnostics stay expandable.
 
 ## Pipeline reports
 
-The report discovers the selected org's fiscal calendar, scopes queries to the
-verified user's OpportunityTeamMember membership, and shows quarter dates and
-team/territory context. A different target org discovers its own identity and
-schema. Territory labels do not expand the query to every territory account.
+Default personal coverage includes opportunities owned by the verified user or listing that user as a team member. Separate queries are deduplicated by opportunity ID. Owner, team and overlap counts are reported. Missing team access gives explicit owner-only coverage. Person-profile IDs, partners and inferred territories never expand this scope.
 
-Reports include net-new and booked totals, supported renewals, forecast and
-close-date distribution, top deals, recent field history when queried, and data
-quality warnings. Schema-dependent sections list unavailable fields. Failed or
-incomplete queries produce an error; they never become verified zero totals.
-Opportunity fallback amounts without SKU evidence appear under Other and carry
-an unverified product/quota warning. Zero FY bookings remains visible. Full
-source queries and returned rows remain available in expanded details.
+Opportunity amounts and line-item product amounts stay separate because they may measure different revenue. All unmatched amounts remain in their respective totals. Quota totals appear only when all included amounts have explicit eligibility. Different currencies stay separate.
+
+Reports include open pipeline, supported quarter/fiscal bookings, confirmed renewals, forecast, close-date distribution and top deals. Missing fiscal periods or optional capabilities show unavailable coverage. Failed or incomplete queries never become verified zero totals. Full sanitized source queries and returned rows remain available in expanded evidence.
 
 ## Verification
 
@@ -133,11 +147,12 @@ xcsh plugin setup salesforce
 
 ## Environment Variables
 
-| Variable              | Purpose                                            |
-| --------------------- | -------------------------------------------------- |
-| `SF_ORG_INSTANCE_URL` | Login endpoint for reviewed browser authentication |
-| `SF_TARGET_ORG`       | Existing Salesforce target-org selection           |
-| `SFDX_AUTH_URL`       | Provider-managed authentication input              |
+| Variable              | Purpose                                              |
+| --------------------- | ---------------------------------------------------- |
+| `SF_PIPELINE_CONFIG`  | Optional absolute path for private org configuration |
+| `SF_ORG_INSTANCE_URL` | Login endpoint for reviewed browser authentication   |
+| `SF_TARGET_ORG`       | Existing Salesforce target-org selection             |
+| `SFDX_AUTH_URL`       | Provider-managed authentication input                |
 
 ## Usage Examples
 

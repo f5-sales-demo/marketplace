@@ -1,6 +1,7 @@
 import type { PipelineReportData } from '../pipeline-report/types';
 import { type CommandEvidence, commandEvidenceText, commandScope } from '../sf/command-evidence';
 import { SfAuthError, type SfExecApi, SfNoDefaultOrgError, SfQueryError, SfSessionExpiredError } from '../sf/exec';
+import { sanitize } from '../sf/sanitize';
 import type { SfOrg, SfQueryResult, SfRawResult } from '../sf/types';
 
 // ---------------------------------------------------------------------------
@@ -53,7 +54,7 @@ export function detectErrorType(err: unknown): SfErrorType {
 // Local renderer for the central withErrorType wrapper. Kept LOCAL (not imported
 // from @f5-sales-demo/xcsh) because that import fails in the compiled plugin.
 export function renderError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return sanitize(err instanceof Error ? err.message : String(err));
 }
 
 // ---------------------------------------------------------------------------
@@ -184,11 +185,11 @@ export function withCommandEvidence<T extends { name: string; execute: (...args:
         }
         // Snapshot before returning: late asynchronous work must not mutate delivered evidence.
         const snapshot = { commands: evidence.commands.map((argv) => [...argv]), withheld: evidence.withheld };
-        return {
+        return sanitize({
           ...result,
           content: [...result.content, { type: 'text', text: commandEvidenceText(snapshot) }],
           details: { ...result.details, commandEvidence: snapshot },
-        };
+        });
       });
     }) as T['execute'],
   };

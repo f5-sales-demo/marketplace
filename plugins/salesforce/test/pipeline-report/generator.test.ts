@@ -1,145 +1,146 @@
-import { describe, expect, it } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { generatePipelineReport } from '../../src/pipeline-report/generator';
-import type { PipelineReportOptions } from '../../src/pipeline-report/types';
+import { renderPipelineReport } from '../../src/pipeline-report/renderer';
+import { standardCapabilities, syntheticOpportunity, syntheticPeriods } from '../synthetic';
 
-// Records every SOQL the generator issues, so a test can assert what was NOT asked for as well
-// as what came back. `respond` maps a query to its rows; anything unmatched returns [].
-function recordingQuery(respond: (soql: string) => Record<string, unknown>[] | undefined) {
-  const queries: string[] = [];
-  const fn = async (soql: string) => {
-    queries.push(soql);
-    return respond(soql) ?? [];
-  };
-  return { fn, queries };
-}
-
-const BASE: PipelineReportOptions = {
+const options = {
   userIds: ['005000000000001'],
-  quarterStart: '2026-05-01',
-  quarterEnd: '2026-07-31',
+  orgAlias: 'reader@example.com',
+  quarterStart: syntheticPeriods[0].StartDate,
+  quarterEnd: syntheticPeriods[0].EndDate,
+  fiscalYearStart: syntheticPeriods[1].StartDate,
+  fiscalYearEnd: syntheticPeriods[1].EndDate,
+  capabilities: standardCapabilities,
 };
 
-const BARE_OPPORTUNITY = [
-  'Id',
-  'Name',
-  'Amount',
-  'CloseDate',
-  'ForecastCategoryName',
-  'StageName',
-  'IsClosed',
-  'IsWon',
-];
-const BARE_LINE_ITEM = ['Id', 'Quantity', 'UnitPrice', 'TotalPrice'];
-
-function oppRow(over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    Id: '006000000000001',
-    Name: 'Example Corp Expansion',
-    Account: { Name: 'Example Corp' },
-    Amount: 120000,
-    ForecastCategoryName: 'Commit',
-    StageName: 'Negotiation',
-    CloseDate: '2026-06-15',
-    Owner: { Name: 'Dana Reyes' },
-    IsClosed: false,
-    IsWon: false,
-    ...over,
-  };
-}
-
-describe('generatePipelineReport — an org without the custom schema', () => {
-  const capabilities = { opportunityFields: BARE_OPPORTUNITY, lineItemFields: BARE_LINE_ITEM };
-
-  it('never issues a query naming a field the org does not have', async () => {
-    const { fn, queries } = recordingQuery((soql) =>
-      soql.includes('FROM Opportunity ') && soql.includes('IsClosed = false') ? [oppRow()] : undefined,
-    );
-    await generatePipelineReport({ ...BASE, capabilities }, fn);
-
-    const all = queries.join('\n');
-    for (const field of [
-      'FYB_Total_Price__c',
-      'Subscription_Renewal__c',
-      'Renewal__c',
-      'True_ACV__c',
-      'Upsell_ACV__c',
-      'Product_Segmentation__c',
-      'Use_Case_Category__c',
-      'Territory_Credited_District_del__c',
-    ]) {
-      expect(all).not.toContain(field);
-    }
-  });
-
-  it('does not query OpportunityLineItem at all', async () => {
-    const { fn, queries } = recordingQuery(() => undefined);
-    await generatePipelineReport({ ...BASE, capabilities }, fn);
-    expect(queries.some((q) => q.includes('FROM OpportunityLineItem'))).toBe(false);
-  });
-
-  it('still produces a populated report from standard fields', async () => {
-    const { fn } = recordingQuery((soql) =>
-      soql.includes('FROM Opportunity ') && soql.includes('IsClosed = false') ? [oppRow()] : undefined,
-    );
-    const data = await generatePipelineReport({ ...BASE, capabilities }, fn);
-    expect(data.netNew.accounts.length).toBe(1);
-    expect(data.netNew.accounts[0].name).toBe('Example Corp');
-    expect(data.netNew.totals.platform).toBe(0);
-    expect(data.netNew.totals.other).toBe(120000);
-  });
-
-  it('records the sections it could not build, rather than omitting them silently', async () => {
-    const { fn } = recordingQuery(() => undefined);
-    const data = await generatePipelineReport({ ...BASE, capabilities }, fn);
-    expect(data.unavailable?.join(' ')).toContain('renewal');
-  });
+test('standard-only pipeline retains zero, negative and unfamiliar amounts in opportunity totals', async () => {
+  const data = await generatePipelineReport(options, async (q) =>
+    q.includes('WHERE OwnerId')
+      ? [
+          syntheticOpportunity(),
+          syntheticOpportunity('006000000000002', 0),
+          syntheticOpportunity('006000000000003', -10),
+        ]
+      : [],
+  );
+  expect(data.netNew.total).toBe(90);
+  expect(data.netNew.totals.Uncategorized).toBe(90);
+  expect(data.topDeals).toHaveLength(3);
+  expect(data.renewals).toBeUndefined();
+  expect(renderPipelineReport(data, '')).toContain('Unknown');
 });
-
-describe('generatePipelineReport — an org with the custom schema', () => {
-  const capabilities = {
-    opportunityFields: [
-      ...BARE_OPPORTUNITY,
-      'Renewal__c',
-      'True_ACV__c',
-      'Upsell_ACV__c',
-      'Product_Segmentation__c',
-      'Use_Case_Category__c',
+test('confirmed products use line-item values without replacing opportunity amounts or losing unclassified amounts', async () => {
+  const mappings = {
+    opportunityAmount: 'Opportunity.Amount',
+    lineItemAmount: 'OpportunityLineItem.TotalPrice',
+    productGroups: [
+      {
+        name: 'Services',
+        quotaEligible: true,
+        rules: [{ field: 'Product2.Name', match: 'prefix' as const, value: 'Service' }],
+      },
     ],
-    lineItemFields: ['Id', 'FYB_Total_Price__c', 'Subscription_Renewal__c'],
-    territoryField: 'ETM_Core_Territory__c',
   };
-
-  it('queries line items and renewals, and uses the resolved territory field', async () => {
-    const { fn, queries } = recordingQuery(() => undefined);
-    await generatePipelineReport({ ...BASE, capabilities }, fn);
-    const all = queries.join('\n');
-    expect(all).toContain('FROM OpportunityLineItem');
-    expect(all).toContain('FYB_Total_Price__c');
-    expect(all).toContain('Renewal__c');
-    expect(all).toContain('ETM_Core_Territory__c');
-    // The field this used to hardcode belongs to one org and is not even groupable.
-    expect(all).not.toContain('Territory_Credited_District_del__c');
-  });
-
-  it('reports nothing as unavailable', async () => {
-    const { fn } = recordingQuery(() => undefined);
-    const data = await generatePipelineReport({ ...BASE, capabilities }, fn);
-    expect(data.unavailable ?? []).toEqual([]);
-  });
+  const data = await generatePipelineReport({ ...options, mappings }, async (q) =>
+    q.includes('FROM OpportunityLineItem')
+      ? [
+          {
+            Id: '00k000000000001',
+            OpportunityId: '006000000000001',
+            TotalPrice: 25,
+            Product2: { Name: 'Service annual' },
+          },
+          { Id: '00k000000000002', OpportunityId: '006000000000001', TotalPrice: 10, Product2: { Name: 'Unfamiliar' } },
+        ]
+      : q.includes('WHERE OwnerId')
+        ? [syntheticOpportunity()]
+        : [],
+  );
+  expect(data.netNew.total).toBe(100);
+  expect(data.productBreakdown?.total).toBe(35);
+  expect(data.productBreakdown?.totals).toMatchObject({ Services: 25, Uncategorized: 10 });
+  expect(data.productBreakdown?.quotaTotal).toBeUndefined();
 });
-
-describe('generatePipelineReport — fiscal year', () => {
-  it('defaults to a January fiscal year rather than assuming one org calendar', async () => {
-    const { fn } = recordingQuery(() => undefined);
-    const data = await generatePipelineReport({ ...BASE, capabilities: {} }, fn);
-    expect(data.fyLabel).toBe('FY26');
-  });
-
-  it('honours a configured fiscal year start month', async () => {
-    const { fn, queries } = recordingQuery(() => undefined);
-    // November start: a quarter beginning 2026-05-01 falls in the FY that opened 2025-11-01.
-    const data = await generatePipelineReport({ ...BASE, capabilities: { fiscalYearStartMonth: 11 } }, fn);
-    expect(data.fyLabel).toBe('FY26');
-    expect(queries.join('\n')).toContain('2025-11-01');
-  });
+test('overlapping group rules remain unclassified and exact matches preserve case', async () => {
+  const data = await generatePipelineReport(
+    {
+      ...options,
+      mappings: {
+        opportunityAmount: 'Opportunity.Amount',
+        productGroups: ['A', 'B'].map((name) => ({
+          name,
+          quotaEligible: true,
+          rules: [{ field: 'Opportunity.Name', match: 'exact' as const, value: 'Synthetic opportunity' }],
+        })),
+      },
+    },
+    async (q) => (q.includes('WHERE OwnerId') ? [syntheticOpportunity()] : []),
+  );
+  expect(data.netNew.totals.Uncategorized).toBe(100);
+  expect(data.netNew.quotaTotal).toBeUndefined();
+});
+test('confirmed opportunity renewal predicates and custom values are honored with complete summaries', async () => {
+  const data = await generatePipelineReport(
+    {
+      ...options,
+      capabilities: {
+        ...standardCapabilities,
+        opportunityFields: [...standardCapabilities.opportunityFields, 'Flag__c', 'SyntheticAmount__c'],
+      },
+      mappings: {
+        opportunityAmount: 'Opportunity.SyntheticAmount__c',
+        renewal: { field: 'Opportunity.Flag__c', value: true },
+        productGroups: [],
+      },
+    },
+    async (q) =>
+      q.includes('WHERE OwnerId')
+        ? [
+            syntheticOpportunity('006000000000001', 1, {
+              Flag__c: true,
+              SyntheticAmount__c: 200,
+              StageName: 'Validation',
+              NextStep: 'Confirm terms',
+            }),
+          ]
+        : [],
+  );
+  expect(data.netNew.total).toBe(0);
+  expect(data.renewals?.total).toBe(200);
+  expect(data.topRenewals?.[0]).toMatchObject({ amount: 200, stage: 'Validation', nextStep: 'Confirm terms' });
+});
+test('unavailable fiscal periods leave bookings unavailable while preserving open pipeline', async () => {
+  const data = await generatePipelineReport(
+    {
+      ...options,
+      quarterStart: undefined,
+      quarterEnd: undefined,
+      fiscalYearStart: undefined,
+      fiscalYearEnd: undefined,
+    },
+    async (q) => (q.includes('WHERE OwnerId') ? [syntheticOpportunity()] : []),
+  );
+  expect(data.netNew.total).toBe(100);
+  expect(data.booked).toBeUndefined();
+  expect(data.fyBookedTotal).toBeUndefined();
+  expect(data.unavailable?.join(' ')).toContain('fiscal periods');
+});
+test('empty complete queries verify zero open totals with unknown quota meaning', async () => {
+  const data = await generatePipelineReport(options, async () => []);
+  expect(data.netNew.total).toBe(0);
+  expect(data.netNew.quotaTotal).toBeUndefined();
+});
+test('missing returned amount or status does not become zero or open', async () => {
+  for (const record of [syntheticOpportunity('006000000000001', NaN), { Id: '006000000000001', Amount: 100 }])
+    await expect(generatePipelineReport(options, async () => [record])).rejects.toThrow();
+});
+test('quarter and fiscal boundaries cross a year without a guessed fiscal start month', async () => {
+  const data = await generatePipelineReport(options, async (q) =>
+    q.includes('WHERE OwnerId')
+      ? [syntheticOpportunity('006000000000001', 100, { IsClosed: true, IsWon: true, CloseDate: '2026-11-01' })]
+      : [],
+  );
+  expect(data.booked?.total).toBe(100);
+  expect(data.fyBookedTotal).toBe(100);
+  expect(data.fyLabel).toBe('FY2027');
 });

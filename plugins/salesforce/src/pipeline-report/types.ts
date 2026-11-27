@@ -1,100 +1,33 @@
+import type { ReportMappings } from '../configuration';
 import type { OrgCapabilities } from './capabilities';
-
-/** SKU prefix groups used to classify line items into quota categories. */
-export interface SkuClassification {
-  /** SKU name prefixes that count as Platform (XC/Distributed Cloud) */
-  platform: string[];
-  /** SKU name prefixes that count as Shape/DI (Point products) */
-  shape: string[];
-}
-
-/** Default classification — discoverable from actual pipeline data. */
-export const DEFAULT_SKU_CLASSIFICATION: SkuClassification = {
-  platform: ['F5-V-O', 'F5-XC', 'F5-FAS-WAF', 'F5-FAS-API', 'F5-UTIL', 'F5-CST', 'F5-ELA'],
-  shape: ['F5-SHP', 'F5-FAS-BOT', 'F5-FAS-DOS'],
-};
-
-/** All SKU prefixes that define the XC/Shape overlay product scope. */
-export const DEFAULT_SKU_PREFIXES = ['F5-V-O', 'F5-XC', 'F5-FAS', 'F5-SHP', 'F5-UTIL', 'F5-CST', 'F5-ELA'];
-
-export interface LineItemRecord {
-  currency?: string;
-  opportunityId: string;
-  accountName: string;
-  territory: string;
-  forecast: string;
-  skuName: string;
-  fyb: number;
-  category: 'platform' | 'shape' | 'other';
-  /** Opportunity close date (YYYY-MM-DD) when available. Used for At Risk detection. */
-  closeDate?: string;
-  /** Opportunity name — for deal-level reporting. */
-  oppName?: string;
-  /** Opportunity stage name. */
-  stage?: string;
-  /** Opportunity next step. */
-  nextStep?: string;
-  /** Last activity date (YYYY-MM-DD). Used for stalled deal detection. */
-  lastActivityDate?: string;
-  /** Opportunity owner name. */
-  ownerName?: string;
-}
-
 export interface PipelineReportOptions {
-  /** One or more Salesforce User IDs (AE + SE partner) for supplemental team-membership queries. */
   userIds: string[];
   orgAlias?: string;
-  quarterStart: string;
-  quarterEnd: string;
-  /** Exact selected-org Year period boundaries, including custom fiscal calendars. */
+  quarterStart?: string;
+  quarterEnd?: string;
   fiscalYearStart?: string;
   fiscalYearEnd?: string;
-  /** Stale cutoff for in-play pipeline. Defaults to quarterEnd (in-quarter only).
-   * Set to 12 months ago to show all non-stale open pipeline regardless of close quarter. */
   staleCutoff?: string;
-  /** Confirmed territories (operational field values). Primary query when set.
-   * Overlay teams should always set this — they're not tagged on most territory deals. */
-  confirmedTerritories?: string[];
-  /** Team member names for display (AE + SE). */
   teamMemberNames?: string[];
-  /** SKU prefixes to include. Defaults to DEFAULT_SKU_PREFIXES. */
-  skuPrefixes?: string[];
-  /** SKU classification rules. Defaults to DEFAULT_SKU_CLASSIFICATION. */
-  skuClassification?: SkuClassification;
-  /**
-   * What this org's schema actually supports, from the discovered field catalog. Omitted or
-   * empty means "not described", and every section is attempted as before.
-   */
   capabilities?: OrgCapabilities;
+  mappings?: ReportMappings;
+  unavailable?: string[];
 }
-
 export interface AccountRow {
-  currency?: string;
   name: string;
   territory: string;
-  platform: number;
-  shape: number;
-  other: number;
+  totals: Record<string, number>;
+  total: number;
 }
-
-export interface SectionTotals {
-  platform: number;
-  shape: number;
-  other: number;
-}
-
+export type SectionTotals = Record<string, number>;
 export interface SectionData {
   accounts: AccountRow[];
   totals: SectionTotals;
-  quotaTotal: number;
+  total?: number;
+  quotaTotal?: number;
+  quotaUnknownAmount?: number;
 }
-
-export interface ForecastSummary {
-  commit: number;
-  bestCase: number;
-  pipeline: number;
-}
-
+export type ForecastSummary = Record<string, number>;
 export interface DealSummary {
   oppId: string;
   name: string;
@@ -106,96 +39,46 @@ export interface DealSummary {
   ownerName: string;
   nextStep?: string;
 }
-
-/** Pipeline amount bucketed by close-date month. */
 export interface CloseMonthBucket {
-  /** Label, e.g. "May 2026" */
   label: string;
-  /** YYYY-MM prefix used for sorting */
   yearMonth: string;
-  /** Total quota-eligible amount closing in this month */
   amount: number;
-  /** Breakdown by forecast category */
-  commit: number;
-  bestCase: number;
-  pipeline: number;
-  /** Number of distinct opportunities closing in this month */
   oppCount: number;
 }
-
-export interface PipelineReportData {
-  /** Returned record currency. Aggregate FY bookings have a separate, unverified currency basis. */
-  currency?: string;
-  /** Per-currency figures are authoritative when record currencies differ. */
-  currencyBreakdown?: Array<{
-    currency: string;
-    netNew: SectionData;
-    booked: SectionData;
-    renewals: SectionData;
-    forecast: ForecastSummary;
-    topDeals: DealSummary[];
-    topRenewals: DealSummary[];
-    closeDistribution: CloseMonthBucket[];
-    renewalDistribution: CloseMonthBucket[];
-  }>;
-  /** Full query evidence retained for expanded inspection, including records outside top-N summaries. */
-  sourceQueries?: { query: string; records: Record<string, unknown>[] }[];
-  generated: string;
-  /** Inclusive CloseDate lower bound for open pipeline, which may span multiple quarters. */
-  openScopeStart?: string;
-  quarter: { start: string; end: string };
-  /** Territory coverage for display */
-  territories: string[];
-  /** Team member names for display */
-  teamMembers: string[];
-  /** Net New open pipeline by account (grouped by territory) */
-  netNew: SectionData;
-  /** Booked (won) this quarter by account */
-  booked: SectionData;
-  /** Open renewals by account (opportunity-level True_ACV, territory-scoped) */
-  renewals: SectionData;
-  /** Forecast summary for quota-eligible (Platform + Shape) — net new only */
-  forecast: ForecastSummary;
-  /** Total line items processed */
-  lineItemCount: number;
-  /** Distinct SKUs found */
-  skusFound: string[];
-  /** Data quality anomalies detected during report generation */
-  anomalies: DataAnomaly[];
-  /** Top open deals by amount (net new only, up to 5) */
-  topDeals: DealSummary[];
-  /** Top open renewals by amount (up to 5) */
-  topRenewals?: DealSummary[];
-  /** Net new pipeline amount bucketed by close-date month */
-  closeDistribution: CloseMonthBucket[];
-  /** Renewal pipeline amount bucketed by close-date month */
-  renewalDistribution?: CloseMonthBucket[];
-  /** FY-to-date booked total (Opportunity.Amount, closed-won from FY start to today) */
-  fyBookedTotal?: number;
-  /** Fiscal year label for display, e.g. "FY26" */
-  fyLabel?: string;
-  /** Recent pipeline field changes from OpportunityFieldHistory (last 7 days) */
-  recentChanges?: PipelineChange[];
-  /**
-   * Sections this org's schema could not support, with the field that was missing. Surfaced so
-   * an absent section reads as "not available here" rather than as an empty pipeline.
-   */
-  unavailable?: string[];
-}
-
-export interface PipelineChange {
-  oppId: string;
-  dealName: string;
-  accountName: string;
-  field: 'Amount' | 'ForecastCategoryName' | 'StageName';
-  oldValue: string;
-  newValue: string;
-  date: string;
-}
-
 export interface DataAnomaly {
   severity: 'info' | 'warning' | 'error';
   category: string;
   message: string;
   details?: string;
+}
+export interface CurrencyReport {
+  currency: string;
+  netNew: SectionData;
+  booked?: SectionData;
+  renewals?: SectionData;
+  productBreakdown?: SectionData;
+  forecast: ForecastSummary;
+  topDeals: DealSummary[];
+  topRenewals?: DealSummary[];
+  closeDistribution: CloseMonthBucket[];
+  renewalDistribution?: CloseMonthBucket[];
+  fyBookedTotal?: number;
+}
+export interface PipelineReportData extends Omit<CurrencyReport, 'currency'> {
+  currency?: string;
+  currencyBreakdown?: CurrencyReport[];
+  sourceQueries?: { query: string; records: Record<string, unknown>[] }[];
+  generated: string;
+  openScopeStart?: string;
+  quarter: { start?: string; end?: string };
+  territories: string[];
+  teamMembers: string[];
+  lineItemCount: number;
+  skusFound: string[];
+  anomalies: DataAnomaly[];
+  fyLabel?: string;
+  unavailable?: string[];
+  amountField: string;
+  productAmountField?: string;
+  coverage?: { scope: 'owner or team' | 'owner only'; owner: number; team: number; overlap: number; distinct: number };
 }

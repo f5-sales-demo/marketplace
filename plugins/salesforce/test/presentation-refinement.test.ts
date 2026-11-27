@@ -119,9 +119,10 @@ test('help orders purpose, usage, required inputs, optional flags and examples a
 });
 test('pipeline orders scope first, separates currencies, retains distributions and source evidence', () => {
   const section = {
-    totals: { platform: 1234.56789, shape: 0, other: 20 },
+    totals: { Services: 1234.56789, Hardware: 0, Uncategorized: 20 },
+    total: 1254.56789,
     quotaTotal: 1234.56789,
-    accounts: [{ name: 'Synthetic account', platform: 1234.56789, shape: 0, other: 20 }],
+    accounts: [{ name: 'Synthetic account', Services: 1234.56789, Hardware: 0, Uncategorized: 20 }],
   };
   const group = {
     netNew: section,

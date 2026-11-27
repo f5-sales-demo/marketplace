@@ -1,7 +1,7 @@
 import type { PresentationAPI } from '@f5-sales-demo/xcsh/presentation';
 import { toolArgv } from './command';
 import type { Args, Options, Result, Section, State, View } from './shared';
-import { data, evidence, fields, hint, label, literal, record, rows, table, texts, value } from './shared';
+import { data, evidence, fields, hint, label, literal, record, rows, table, texts } from './shared';
 
 export function pipelineView(p: PresentationAPI, result: Result, options: Options, args: Args): View {
   const details = record(result.details),
@@ -47,7 +47,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
         'sku-classification': 'Product classification needs review',
         'sku-config': 'Product classification needs review',
         unverified_product_classification:
-          'Product classification and quota eligibility unknown; amounts shown under Other',
+          'Product classification and quota eligibility unknown; amounts shown under Uncategorized',
         'missing-territory': 'Territory coverage needs review',
         'forecast-hygiene': 'Forecast needs review',
         'slipped-close-date': 'Close dates need review',
@@ -86,14 +86,13 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
           : {}),
         ...(report.openScopeStart !== undefined ? { 'Open pipeline from': report.openScopeStart } : {}),
         ...(coverage.length ? { Coverage: coverage.join(', ') } : {}),
+        'Opportunity amount field': report.amountField ?? 'Unknown',
+        'Opportunity coverage': record(report.coverage).scope ?? 'Unknown',
+        Opportunities: record(report.coverage).distinct ?? 'Unknown',
       },
       'Report scope',
     ),
   ];
-  if (report.fyBookedTotal !== undefined)
-    sections.push(
-      fields({ 'Reported amount': value(report.fyBookedTotal, true), Currency: 'Unknown' }, 'FY aggregate bookings'),
-    );
   for (const group of groups.length ? groups : [{ ...report, currency: report.currency ?? 'unverified' }]) {
     const currency = String(group.currency === 'unverified' || !group.currency ? 'Currency unknown' : group.currency);
     sections.push(hint(`Pipeline — ${currency}`));
@@ -104,16 +103,46 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
         .map((key) => {
           const section = record(group[key]);
           return {
-            section: ({ netNew: 'Net new', booked: 'Booked', renewals: 'Renewals' } as Args)[key],
-            ...record(section.totals),
-            quotaTotal: section.quotaTotal,
+            section: (
+              {
+                netNew: renewalsUnavailable ? 'Open pipeline' : 'Open non-renewals',
+                booked: 'Booked',
+                renewals: 'Renewals',
+              } as Args
+            )[key],
+            total: section.total,
+            quotaTotal: section.quotaTotal ?? 'Unknown',
           };
         }),
       'Pipeline summary',
-      ['section', 'platform', 'shape', 'other', 'quotaTotal'],
+      ['section', 'total', 'quotaTotal'],
     );
     if (summary.kind === 'table' && summary.rows.length) sections.push(summary);
     else states.push({ kind: 'info', text: 'Pipeline totals not returned' });
+    if (group.fyBookedTotal !== undefined)
+      sections.push(fields({ Amount: group.fyBookedTotal, Currency: currency }, 'Fiscal-year bookings'));
+    const grouped = ['netNew', 'booked', 'renewals'].flatMap((key) =>
+      Object.entries(record(record(group[key]).totals))
+        .filter(([, Amount]) => Amount !== 0)
+        .map(([Group, Amount]) => ({ Section: key === 'netNew' ? 'Open pipeline' : key, Group, Amount })),
+    );
+    if (grouped.length) sections.push(table(p, grouped, 'Opportunity groups'));
+    const product = record(group.productBreakdown);
+    if (Object.keys(product).length) {
+      sections.push(
+        fields(
+          { 'Amount field': report.productAmountField, 'Separate product total': product.total },
+          'Products in open pipeline',
+        ),
+      );
+      sections.push(
+        table(
+          p,
+          Object.entries(record(product.totals)).map(([Group, Amount]) => ({ Group, Amount })),
+          'Product groups',
+        ),
+      );
+    }
     const forecast = record(group.forecast);
     if (Object.keys(forecast).length)
       sections.push(
@@ -129,7 +158,7 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
     const empty: string[] = [];
     const absent: string[] = [];
     for (const [key, title] of [
-      ['netNew', 'Net new by account'],
+      ['netNew', 'Open pipeline by account'],
       ['booked', 'Booked by account'],
       ['renewals', 'Renewals by account'],
     ] as const) {
@@ -137,7 +166,19 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
       const accounts = record(group[key]).accounts;
       if (accounts === undefined || accounts === null) absent.push(title);
       else if (Array.isArray(accounts) && !accounts.length) empty.push(title);
-      else sections.push(...data(p, accounts, title));
+      else
+        sections.push(
+          ...data(
+            p,
+            rows(accounts).map((row) => ({
+              name: row.name,
+              territory: row.territory,
+              total: row.total,
+              ...record(row.totals),
+            })),
+            title,
+          ),
+        );
     }
     for (const [key, title] of [
       ['topDeals', 'Top deals'],
@@ -185,7 +226,10 @@ export function pipelineView(p: PresentationAPI, result: Result, options: Option
   }
   if (options.expanded) {
     sections.push(
-      literal({ ...scope, lineItemCount: report.lineItemCount, generated: report.generated }, 'Report details'),
+      literal(
+        { ...scope, coverage: report.coverage, lineItemCount: report.lineItemCount, generated: report.generated },
+        'Report details',
+      ),
       ...(report.recentChanges === undefined ? [] : [literal(report.recentChanges, 'Recent changes')]),
       ...(report.anomalies === undefined ? [] : [literal(report.anomalies, 'Classification and anomaly evidence')]),
     );

@@ -12,6 +12,7 @@ import { createSfOrgDisplayTool } from '../../src/tools/sf-org-display';
 import { createSfPipelineReportTool } from '../../src/tools/sf-pipeline-report';
 import { createSfQueryTool } from '../../src/tools/sf-query';
 import { initTheme, plain, registered } from '../shared-runtime';
+import { syntheticApi } from '../synthetic';
 
 const pi = { typebox: { Type } };
 const ctx = { cwd: '/tmp' };
@@ -129,36 +130,13 @@ it('records only attempted pipeline commands, including failed discovery', async
   expect(evidence(result)).toEqual({ commands: calls, withheld: 0 });
   expect(calls).toEqual([['sf', 'org', 'display', '--target-org', 'different', '--json']]);
 });
-it('records all actual pipeline queries on success without inventing commands', async () => {
-  configurePersonProfile(async () => ({}));
-  configureSalesforceContext(async () => ({ userId: '005000000000001', orgAlias: 'synthetic' }) as never);
+it('records fresh identity, schema and pipeline commands without inventing evidence', async () => {
   const calls: string[][] = [];
-  const tool = createSfPipelineReportTool(pi, () => ({
-    exec: async (command, args) => {
-      calls.push([command, ...args]);
-      const calendar = args.join(' ').includes('FROM Period');
-      return {
-        stdout: JSON.stringify({
-          status: 0,
-          result: {
-            done: true,
-            records: calendar
-              ? [
-                  { Type: 'Quarter', StartDate: '2026-08-01', EndDate: '2026-10-31' },
-                  { Type: 'Year', StartDate: '2025-11-01', EndDate: '2026-10-31' },
-                ]
-              : [],
-          },
-        }),
-        stderr: '',
-        exitCode: 0,
-      };
-    },
-  }));
+  const tool = createSfPipelineReportTool(pi, () => syntheticApi(calls));
   const result = await tool.execute('pipeline', {}, undefined, undefined, ctx);
   expect(result.isError).not.toBe(true);
-  expect(calls.length).toBeGreaterThan(1);
-  expect(evidence(result)).toEqual({ commands: calls, withheld: 0 });
+  expect(calls.length).toBeGreaterThan(2);
+  expect(evidence(result)).toEqual({ commands: calls.map((args) => ['sf', ...args]), withheld: 0 });
 });
 
 it('isolates concurrent tool invocations and snapshots completed evidence', async () => {
@@ -191,31 +169,20 @@ it('retains cancellation semantics', async () => {
     abort,
   );
 });
-it('captures injected context discovery commands in the same pipeline call', async () => {
-  configurePersonProfile(async () => ({}));
-  configureSalesforceContext(
-    async () => ({ userId: '005000000000001', orgAlias: 'synthetic', discoveryPending: true }) as never,
-  );
-  const discovery: string[][] = [];
-  configureSalesforceExecutor(async (args) => {
-    discovery.push(['sf', ...args]);
-    return {
-      stdout: JSON.stringify({ status: 1, message: 'Synthetic unavailable discovery' }),
-      stderr: '',
-      exitCode: 1,
-    };
-  });
-  const queries: string[][] = [];
+it('failed identity discovery retains the actual failure command and never publishes a report', async () => {
+  const calls: string[][] = [];
   const tool = createSfPipelineReportTool(pi, () => ({
     exec: async (command, args) => {
-      queries.push([command, ...args]);
-      return { stdout: JSON.stringify({ status: 1, message: 'Synthetic failed calendar' }), stderr: '', exitCode: 1 };
+      calls.push([command, ...args]);
+      return { stdout: JSON.stringify({ status: 1, message: 'Synthetic identity failure' }), stderr: '', exitCode: 1 };
     },
   }));
-  const result = await tool.execute('discover', {}, undefined, undefined, ctx);
-  expect(discovery.length).toBeGreaterThan(0);
-  expect(evidence(result).commands).toEqual([...discovery, ...queries]);
+  const result = await tool.execute('failed', {}, undefined, undefined, ctx);
+  expect(result.isError).toBe(true);
+  expect(result.details).not.toHaveProperty('pipelineReport');
+  expect(evidence(result).commands).toEqual(calls);
 });
+
 it('shared rendering keeps model evidence out of duplicated human output', async () => {
   initTheme();
   const tool = createSfQueryTool(pi, () => ({
