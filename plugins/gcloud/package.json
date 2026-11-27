@@ -1,26 +1,35 @@
 {
   "name": "@f5-sales-demo/xcsh-gcloud",
-  "version": "1.6.2",
-  "description": "Google Cloud authentication, CLI tools and gated Customer Edge readiness for xcsh",
+  "version": "1.7.100",
+  "description": "Google Cloud authentication, CLI tools and gated Customer Edge lifecycle for xcsh",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "typecheck": "bun node_modules/typescript-compiler/bin/tsc --noEmit"
   },
   "xcsh": {
     "name": "GCloud",
-    "version": "1.6.2",
+    "version": "1.7.100",
     "extensions": [
-      "src/index.ts"
+      "runtime/index.js"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=23.8.0"
+    "@f5-sales-demo/xcsh": ">=25.1.1"
   },
   "devDependencies": {
-    "@sinclair/typebox": "^0.34.52",
-    "bun-types": "^1.4.4",
-    "@f5-sales-demo/xcsh": "23.9.3"
+    "@f5-sales-demo/xcsh": "25.1.1",
+    "@sinclair/typebox": "0.34.52",
+    "@tobilu/qmd": "2.9.0",
+    "@types/bun": "1.4.5",
+    "@types/tar-stream": "3.1.5",
+    "bun-types": "1.4.5",
+    "typescript": "7.0.2",
+    "typescript-compiler": "npm:typescript@7.0.2"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "overrides": {
+    "google-auth-library": "11.3.4"
+  }
 }

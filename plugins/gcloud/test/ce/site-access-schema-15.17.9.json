@@ -1,0 +1,45 @@
+{
+  "provider": "f5-sales-demo/xcsh",
+  "version": "15.17.9",
+  "resource": "xcsh_securemesh_site_v2",
+  "sourceSchemaSha256": "0ec08dc6886cf059a75db7462d33286ed24963536f09a96cde7d224ca28f2c30",
+  "admin": {
+    "nesting_mode": "single",
+    "ssh_key": {
+      "type": "string",
+      "description": "Provided Public SSH key can be used for accessing nodes of the site. When provided, customers can SSH to the nodes of this Customer Edge site using admin as the user.",
+      "description_kind": "markdown",
+      "optional": true
+    }
+  },
+  "services": {
+    "nesting_mode": "single",
+    "item_nesting_mode": "list",
+    "attributes": {
+      "network_type": {
+        "type": "string",
+        "description": "[Enum: VIRTUAL_NETWORK_SITE_LOCAL|VIRTUAL_NETWORK_SITE_LOCAL_INSIDE|VIRTUAL_NETWORK_PER_SITE|VIRTUAL_NETWORK_PUBLIC|VIRTUAL_NETWORK_GLOBAL|VIRTUAL_NETWORK_SITE_SERVICE|VIRTUAL_NETWORK_VER_INTERNAL|VIRTUAL_NETWORK_SITE_LOCAL_INSIDE_OUTSIDE|VIRTUAL_NETWORK_IP_AUTO|VIRTUAL_NETWORK_VOLTADN_PRIVATE_NETWORK|VIRTUAL_NETWORK_SRV6_NETWORK|VIRTUAL_NETWORK_IP_FABRIC|VIRTUAL_NETWORK_SEGMENT|VIRTUAL_NETWORK_MANAGEMENT] Different types of virtual networks understood by the system Virtual-network of type VIRTUAL_NETWORK_SITE_LOCAL provides connectivity to public (outside) network. This is an insecure network and is connected to public internet via NAT Gateways/firwalls Virtual-network of this type is local to.. Possible values are `VIRTUAL_NETWORK_SITE_LOCAL`, `VIRTUAL_NETWORK_SITE_LOCAL_INSIDE`, `VIRTUAL_NETWORK_PER_SITE`, `VIRTUAL_NETWORK_PUBLIC`, `VIRTUAL_NETWORK_GLOBAL`, `VIRTUAL_NETWORK_SITE_SERVICE`, `VIRTUAL_NETWORK_VER_INTERNAL`, `VIRTUAL_NETWORK_SITE_LOCAL_INSIDE_OUTSIDE`, `VIRTUAL_NETWORK_IP_AUTO`, `VIRTUAL_NETWORK_VOLTADN_PRIVATE_NETWORK`, `VIRTUAL_NETWORK_SRV6_NETWORK`, `VIRTUAL_NETWORK_IP_FABRIC`, `VIRTUAL_NETWORK_SEGMENT`, `VIRTUAL_NETWORK_MANAGEMENT`. Defaults to `VIRTUAL_NETWORK_SITE_LOCAL`.",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "ssh": {
+        "type": ["object", {}],
+        "description": "Enable this option",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "dns": {
+        "type": ["object", {}],
+        "description": "Enable this option",
+        "description_kind": "markdown",
+        "optional": true
+      },
+      "web_user_interface": {
+        "type": ["object", {}],
+        "description": "Enable this option",
+        "description_kind": "markdown",
+        "optional": true
+      }
+    }
+  }
+}

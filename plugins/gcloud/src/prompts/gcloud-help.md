@@ -8,6 +8,11 @@ Use this tool to discover available groups, commands, and flags for Google Cloud
 
 Pass the command path (without the `gcloud` prefix) to get help. The tool appends `--help` for you.
 
+Paths beginning with `alpha` or `beta` automatically prepare the matching missing
+SDK command group before loading help. Installation uses noninteractive CLI
+arguments and verifies local component state. An unavailable component manager
+returns explicit package-manager recovery guidance.
+
 **Example:** To see help for the `compute instances` group:
 
 ```json

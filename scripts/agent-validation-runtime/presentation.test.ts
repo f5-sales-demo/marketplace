@@ -19,13 +19,52 @@ const root = resolve(import.meta.dir, '../..');
 const runtime = await Bun.file(join(import.meta.dir, 'node_modules/@f5-sales-demo/xcsh/package.json')).json();
 describe('full marketplace presentation through installed-plugin discovery', () => {
   let home: string;
+  test('a future minimum refuses installed discovery before loading plugin code', async () => {
+    home = await mkdtemp(join(tmpdir(), 'xcsh-future-minimum-'));
+    await mkdir(join(home, '.xcsh/plugins'), { recursive: true });
+    const pluginRoot = join(home, 'future-plugin');
+    await mkdir(join(pluginRoot, '.xcsh-plugin'), { recursive: true });
+    const parts = runtime.version.split('.').map(Number);
+    expect(parts).toHaveLength(3);
+    const futureMinimum = `${parts[0]}.${parts[1]}.${parts[2] + 1}`;
+    const marker = join(pluginRoot, 'code-loaded.private.txt');
+    const manifest = await Bun.file(join(root, 'plugins/salesforce/.xcsh-plugin/plugin.json')).json();
+    await writeFile(
+      join(pluginRoot, '.xcsh-plugin/plugin.json'),
+      JSON.stringify({
+        ...manifest,
+        name: 'future-runtime-fixture',
+        version: '1.0.0',
+        minimumRuntimeVersion: futureMinimum,
+        extensions: ['probe.ts'],
+      }),
+    );
+    await writeFile(
+      join(pluginRoot, 'probe.ts'),
+      `import {writeFileSync} from 'node:fs'; export default function () {writeFileSync(${JSON.stringify(marker)}, 'unexpected import');}`,
+    );
+    await writeFile(
+      join(home, '.xcsh/plugins/installed_plugins.json'),
+      JSON.stringify({
+        version: 2,
+        plugins: { 'future-runtime-fixture@fixture': [{ scope: 'user', installPath: pluginRoot, version: '1.0.0' }] },
+      }),
+    );
+    const result = await discoverAndLoadExtensions([], home, undefined, [], home);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].path).toBe(pluginRoot);
+    expect(result.errors[0].error).toContain(`requires xcsh ${futureMinimum} or later`);
+    expect(result.extensions.filter((extension) => extension.path.startsWith(pluginRoot))).toHaveLength(0);
+    expect(await Bun.file(marker).exists()).toBe(false);
+  });
+
   const originalPath = process.env.PATH;
   afterEach(async () => {
     clearXcshPluginRootsCache({ rewarm: false });
     process.env.PATH = originalPath;
     if (home) await rm(home, { recursive: true, force: true });
   });
-  test('retained catalog plugins preserve presentation data while higher minimums use their isolated lane', async () => {
+  test('current published runtime preserves presentation data for every admitted catalog plugin', async () => {
     home = await mkdtemp(join(tmpdir(), 'xcsh-plugin-view-'));
     await mkdir(join(home, '.xcsh', 'plugins'), { recursive: true });
     const catalog = await Bun.file(join(root, '.xcsh-plugin', 'marketplace.json')).json();
@@ -50,17 +89,18 @@ describe('full marketplace presentation through installed-plugin discovery', () 
         (plugin: { minimumRuntimeVersion: string }) =>
           !Bun.semver.satisfies(runtime.version, `>=${plugin.minimumRuntimeVersion}`),
       );
-      expect(higherMinimums.map((plugin: { name: string }) => plugin.name)).toEqual(['salesforce']);
+      expect(higherMinimums.map((plugin: { name: string }) => plugin.name)).toEqual([]);
       expect(result.errors).toHaveLength(higherMinimums.length);
       for (const failure of result.errors) {
-        expect(failure.path).toBe(resolve(root, 'plugins/salesforce'));
-        expect(failure.error).toContain('requires xcsh 25.1.0 or later');
+        const plugin = higherMinimums.find((entry: { source: string }) => failure.path === resolve(root, entry.source));
+        expect(plugin).toBeDefined();
+        expect(failure.error).toContain(`requires xcsh ${plugin.minimumRuntimeVersion} or later`);
       }
       const tools = result.extensions
         .filter((extension) => extension.path.startsWith(root))
         .flatMap((extension) => [...extension.tools.values()]);
       expect(tools.length).toBeGreaterThan(40);
-      expect(tools.filter((tool) => tool.definition.name.startsWith('sf_'))).toHaveLength(0);
+      expect(tools.filter((tool) => tool.definition.name.startsWith('sf_'))).toHaveLength(6);
       for (const registered of tools) {
         expect(registered.definition.presentation).toBeDefined();
         const output = {

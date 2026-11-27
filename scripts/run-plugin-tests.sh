@@ -36,13 +36,28 @@ if ! bash scripts/check-plugin-runtime-dependencies.sh --repair; then
   exit 1
 fi
 
+# Verify driver coverage and CLI attribution before running the actual suites.
+bash tests/test-run-plugin-tests-native-only.sh || exit 1
+bash tests/test-hermetic-cli-diagnostic.sh || exit 1
+bash tests/test-hermetic-python-startup.sh || exit 1
+
 # Agent declarations are checked against an exact published xcsh parser and registry.
 (cd scripts/agent-validation-runtime && bun install --frozen-lockfile) || exit 1
 XCSH_VALIDATION_PACKAGE="$REPO_ROOT/scripts/agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/package.json" \
   bun scripts/validate-agent-permissions.ts || exit 1
 # Inventory discovery is isolated because registrations populate process-wide caches.
-bun test tests/presentation-tracker.test.ts tests/presentation-ownership.test.ts tests/installed-salesforce-verifier.test.ts tests/native-capture-contract.test.ts tests/marketplace-qualification.test.ts tests/marketplace-observer.test.ts tests/salesforce-lifecycle-qualification.test.ts tests/salesforce-fixture-outcomes.test.ts || exit 1
+bun test tests/presentation-tracker.test.ts tests/presentation-ownership.test.ts tests/installed-salesforce-verifier.test.ts tests/native-capture-contract.test.ts tests/gcp-ce-runtime.test.ts tests/gcp-bootstrap-bridge.test.ts tests/marketplace-qualification.test.ts tests/marketplace-observer.test.ts tests/salesforce-lifecycle-qualification.test.ts tests/salesforce-fixture-outcomes.test.ts || exit 1
+# Ordinary PYTHONPATH imports cannot qualify isolated native actor startup.
+python3 -B scripts/ci_gcp_test_prerequisites.py verify-runtime || exit 1
 python3 tests/test_native_capture_tools.py || exit 1
+
+# Keep the exact native fixture archive available for prerequisite regressions.
+if [[ -z "${CE_TEST_PYTHON_ARCHIVE:-}" ]]; then
+  gcp_fixture_temp=$(mktemp -d)
+  CE_TEST_PYTHON_ARCHIVE=$(python3 -B scripts/ci_gcp_test_prerequisites.py install --runner-root "$gcp_fixture_temp" --print-archive) || exit 1
+  export CE_TEST_PYTHON_ARCHIVE
+fi
+python3 -B -m pytest -q tests/test_ci_gcp_test_prerequisites.py || exit 1
 bun test scripts/presentation-inventory.test.ts scripts/salesforce-campaign-observer.test.ts scripts/observed-lifecycle-component.test.ts scripts/observe-marketplace-lifecycle.test.ts || exit 1
 (cd scripts/agent-validation-runtime && bun test .) || exit 1
 
@@ -83,7 +98,15 @@ for _entry in "${_path_entries[@]}"; do
       [ "$_name" = "$_cli" ] && continue 2
     done
     # First one wins, which preserves the precedence the original PATH had.
-    [ -e "$SANITIZED_BIN/$_name" ] || _links+=("$_exe")
+    [ -e "$SANITIZED_BIN/$_name" ] && continue
+    if [[ "$_name" =~ ^python([0-9]+(\.[0-9]+)*)?$ ]]; then
+      # Standalone Python must retain its original path and venv configuration.
+      # An executable symlink in this directory loses the relocated stdlib root.
+      printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$_exe" >"$SANITIZED_BIN/$_name"
+      chmod 700 "$SANITIZED_BIN/$_name"
+    else
+      _links+=("$_exe")
+    fi
   done
   # Creating one process per executable made this setup take minutes on developer
   # workstations with large PATH directories. ln accepts multiple sources when the final
@@ -113,16 +136,25 @@ done
 
 failed=()
 
-for suite in plugins/*/scripts/tests/run-tests.sh; do
-  [ -f "$suite" ] || continue
-  plugin="$(basename "$(dirname "$(dirname "$(dirname "$suite")")")")"
+for plugin_dir in plugins/*/; do
+  plugin="$(basename "$plugin_dir")"
+  suite="${plugin_dir}scripts/tests/run-tests.sh"
+  has_bun_tests=0
+  if find "$plugin_dir" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q .; then
+    has_bun_tests=1
+  fi
+  # Native-only plugins such as Terraform have no shell wrapper. Their Bun
+  # suites are still required in the normal pass with real cloud CLIs absent.
+  [ -f "$suite" ] || [ "$has_bun_tests" -eq 1 ] || continue
   printf '\n==> %s\n' "$plugin"
 
   ok=0
-  bash "$suite" || ok=1
+  if [ -f "$suite" ]; then
+    bash "$suite" || ok=1
+  fi
 
   # Only run bun tests where the plugin actually has some.
-  if find "plugins/$plugin" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q .; then
+  if [ "$has_bun_tests" -eq 1 ]; then
     # Every Bun-tested plugin must declare an exact reproducible dependency graph. Without
     # a lockfile, imports can resolve from workstation leftovers and hide a broken checkout.
     if [ ! -f "plugins/$plugin/bun.lock" ]; then
@@ -136,6 +168,11 @@ for suite in plugins/*/scripts/tests/run-tests.sh; do
     if ! (cd "plugins/$plugin" && bun install --frozen-lockfile); then
       printf 'FATAL: dependency installation failed for %s\n' "$plugin" >&2
       exit 1
+    fi
+    # These native late-entry cases retain a real two-hour monotonic origin.
+    # A fresh CI VM must acquire that history before creating their source scopes.
+    if [[ "$plugin" == terraform ]]; then
+      python3 -B scripts/ci_gcp_test_prerequisites.py wait-clock || exit 1
     fi
     (cd "plugins/$plugin" && bun test .) || ok=1
   fi

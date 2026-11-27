@@ -37,10 +37,10 @@ fi
 
 LATEST="$WORK/latest-development"
 copy_runtime_state "$LATEST"
-jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.9.3"' \
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.10.8"' \
   "$LATEST/plugins/aws/package.json" >"$LATEST/package.tmp"
 mv "$LATEST/package.tmp" "$LATEST/plugins/aws/package.json"
-sed 's/@f5-sales-demo\/xcsh@23\.5\.1/@f5-sales-demo\/xcsh@23.9.3/g; s/@f5-sales-demo\/pi-utils@23\.5\.1/@f5-sales-demo\/pi-utils@23.9.3/g' \
+sed 's/@f5-sales-demo\/xcsh@23\.9\.3/@f5-sales-demo\/xcsh@23.10.8/g; s/@f5-sales-demo\/pi-utils@23\.9\.3/@f5-sales-demo\/pi-utils@23.10.8/g' \
   "$LATEST/plugins/aws/bun.lock" >"$LATEST/lock.tmp"
 mv "$LATEST/lock.tmp" "$LATEST/plugins/aws/bun.lock"
 if REPO_ROOT="$LATEST" bash "$CHECK" >/dev/null; then
@@ -48,6 +48,35 @@ if REPO_ROOT="$LATEST" bash "$CHECK" >/dev/null; then
 else
   fail "latest development pin must pass with original minimum peer"
 fi
+
+# The GCP lane was qualified independently; it must not admit other plugins or future pins.
+UNQUALIFIED_GCP="$WORK/unqualified-gcp-development"
+copy_runtime_state "$UNQUALIFIED_GCP"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "25.1.2"' \
+  "$UNQUALIFIED_GCP/plugins/gcloud/package.json" >"$UNQUALIFIED_GCP/package.tmp"
+mv "$UNQUALIFIED_GCP/package.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/package.json"
+sed 's/@f5-sales-demo\/xcsh@25\.1\.1/@f5-sales-demo\/xcsh@25.1.2/g; s/@f5-sales-demo\/pi-utils@25\.1\.1/@f5-sales-demo\/pi-utils@25.1.2/g' \
+  "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock" >"$UNQUALIFIED_GCP/lock.tmp"
+mv "$UNQUALIFIED_GCP/lock.tmp" "$UNQUALIFIED_GCP/plugins/gcloud/bun.lock"
+if REPO_ROOT="$UNQUALIFIED_GCP" bash "$CHECK" >"$UNQUALIFIED_GCP/check.log" 2>&1; then
+  fail "an unqualified future GCP SDK pin must fail"
+fi
+grep -q 'gcloud development runtime must' "$UNQUALIFIED_GCP/check.log" || fail "future GCP pin must refuse at qualification"
+pass "future GCP SDK pin refuses without altering retained profiles"
+
+FOREIGN_GCP="$WORK/foreign-gcp-development"
+copy_runtime_state "$FOREIGN_GCP"
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "23.10.13"' \
+  "$FOREIGN_GCP/plugins/aws/package.json" >"$FOREIGN_GCP/package.tmp"
+mv "$FOREIGN_GCP/package.tmp" "$FOREIGN_GCP/plugins/aws/package.json"
+sed 's/@f5-sales-demo\/xcsh@23\.9\.3/@f5-sales-demo\/xcsh@23.10.13/g; s/@f5-sales-demo\/pi-utils@23\.9\.3/@f5-sales-demo\/pi-utils@23.10.13/g' \
+  "$FOREIGN_GCP/plugins/aws/bun.lock" >"$FOREIGN_GCP/lock.tmp"
+mv "$FOREIGN_GCP/lock.tmp" "$FOREIGN_GCP/plugins/aws/bun.lock"
+if REPO_ROOT="$FOREIGN_GCP" bash "$CHECK" >"$FOREIGN_GCP/check.log" 2>&1; then
+  fail "the qualified GCP SDK lane must not migrate an unrelated plugin"
+fi
+grep -q 'aws development runtime must' "$FOREIGN_GCP/check.log" || fail "foreign GCP pin must refuse at qualification"
+pass "qualified GCP SDK pin does not admit unrelated plugins"
 
 STALE="$WORK/stale-development"
 copy_runtime_state "$STALE"
@@ -215,10 +244,18 @@ fi
 mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
 cp "$CHECK" "$BAD_INSTALL/scripts/check-plugin-runtime-dependencies.sh"
 cp "$RUNNER" "$BAD_INSTALL/scripts/run-plugin-tests.sh"
+cp "$REPO_ROOT/scripts/ci_gcp_test_prerequisites.py" "$BAD_INSTALL/scripts/ci_gcp_test_prerequisites.py"
 mkdir -p "$BAD_INSTALL/scripts/agent-validation-runtime"
 # The canonical runner now includes a real Python capture regression before Bun suites.
 mkdir -p "$BAD_INSTALL/tests"
+# Run the real driver guards inside this isolated repository. Each guard creates
+# its own fixture, so retain its supporting driver instead of replacing checks.
+cp "$REPO_ROOT/tests/test-run-plugin-tests-native-only.sh" "$BAD_INSTALL/tests/test-run-plugin-tests-native-only.sh"
+cp "$REPO_ROOT/tests/test-hermetic-cli-diagnostic.sh" "$BAD_INSTALL/tests/test-hermetic-cli-diagnostic.sh"
+cp "$REPO_ROOT/tests/test-hermetic-python-startup.sh" "$BAD_INSTALL/tests/test-hermetic-python-startup.sh"
+cp "$REPO_ROOT/scripts/check-tests-are-hermetic.sh" "$BAD_INSTALL/scripts/check-tests-are-hermetic.sh"
 cp "$REPO_ROOT/tests/test_native_capture_tools.py" "$BAD_INSTALL/tests/test_native_capture_tools.py"
+cp "$REPO_ROOT/tests/test_ci_gcp_test_prerequisites.py" "$BAD_INSTALL/tests/test_ci_gcp_test_prerequisites.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-capture.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-campaign.py" "$BAD_INSTALL/scripts/drive-salesforce-campaign.py"
 cp "$REPO_ROOT/scripts/drive-salesforce-surface-capture.py" "$BAD_INSTALL/scripts/drive-salesforce-surface-capture.py"
@@ -260,10 +297,16 @@ pi_utils_version="$xcsh_version"
 anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"
-if [ "$xcsh_version" = "25.1.0" ]; then
+bun_types_version="1.4.4"
+if [ "$xcsh_version" = "25.1.0" ] || [ "$xcsh_version" = "25.1.1" ]; then
   anthropic_version="1.8.0"
   acp_version="2.6.0"
   google_genai_version="3.3.0"
+fi
+if [ "$xcsh_version" = "25.1.1" ]; then
+  bun_types_version="1.4.5"
+  mkdir -p node_modules/google-auth-library
+  printf '{"version":"11.3.4"}\n' >node_modules/google-auth-library/package.json
 fi
 jq -n --arg version "$xcsh_version" '{version: $version}' >node_modules/@f5-sales-demo/xcsh/package.json
 jq -n --arg version "$pi_utils_version" '{version: $version}' >node_modules/@f5-sales-demo/pi-utils/package.json
@@ -271,14 +314,44 @@ printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk
 printf '{"version":"%s"}\n' "$acp_version" >node_modules/@agentclientprotocol/sdk/package.json
 printf '{"version":"%s"}\n' "$google_genai_version" >node_modules/@google/genai/package.json
 printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
-printf '{"version":"1.4.4"}\n' >node_modules/bun-types/package.json
+printf '{"version":"%s"}\n' "$bun_types_version" >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
 cat >"$BAD_INSTALL/scripts/run-plugin-minimum-runtime.sh" <<'EOF'
 #!/usr/bin/env bash
 touch "$RUNNER_MINIMUM_TEST_MARKER"
 EOF
-if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" RUNNER_MINIMUM_TEST_MARKER="$BAD_INSTALL/minimum-ran" \
+export RUNNER_MINIMUM_TEST_MARKER="$BAD_INSTALL/minimum-ran"
+# This fixture verifies driver dispatch and dependency repair. Actual interpreter,
+# archive and isolated actor qualification run in the separate native regressions.
+fixture_python=$(command -v python3)
+cat >"$BAD_INSTALL/test-bin/python3" <<'PYTHON'
+#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  '-B scripts/ci_gcp_test_prerequisites.py verify-runtime')
+    [ -f scripts/ci_gcp_test_prerequisites.py ]
+    printf 'verify-runtime\n' >>"$GCP_PREREQUISITE_MARKER"
+    exit "${GCP_RUNTIME_RESULT:-0}"
+    ;;
+  '-B -m pytest -q tests/test_ci_gcp_test_prerequisites.py')
+    [ -f tests/test_ci_gcp_test_prerequisites.py ]
+    [ "$CE_TEST_PYTHON_ARCHIVE" = "$GCP_SYNTHETIC_ARCHIVE" ]
+    printf 'pytest\n' >>"$GCP_PREREQUISITE_MARKER"
+    exit "${GCP_PYTEST_RESULT:-0}"
+    ;;
+esac
+# Unexpected prerequisite actions may not start an archive download in this fixture.
+if [[ " $* " = *' ci_gcp_test_prerequisites.py '* ]] ||
+  [[ " $* " = *' scripts/ci_gcp_test_prerequisites.py '* ]]; then exit 65; fi
+exec "$GCP_FIXTURE_REAL_PYTHON" "$@"
+PYTHON
+chmod +x "$BAD_INSTALL/test-bin/python3"
+export GCP_FIXTURE_REAL_PYTHON="$fixture_python"
+export GCP_PREREQUISITE_MARKER="$BAD_INSTALL/gcp-prerequisite-calls"
+export GCP_SYNTHETIC_ARCHIVE="$BAD_INSTALL/synthetic-archive"
+export CE_TEST_PYTHON_ARCHIVE="$GCP_SYNTHETIC_ARCHIVE"
+if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
   bash "$BAD_INSTALL/scripts/run-plugin-tests.sh" >"$BAD_INSTALL/runner.log" 2>&1; then
   cat "$BAD_INSTALL/runner.log" >&2
   fail "the canonical plugin runner must repair stale physical dependencies"
@@ -294,3 +367,27 @@ if [ ! -e "$BAD_INSTALL/minimum-ran" ]; then
 else
   pass "the plugin runner executes the isolated minimum-runtime lane"
 fi
+if [ "$(cat "$GCP_PREREQUISITE_MARKER")" != $'verify-runtime\npytest' ]; then
+  fail "the repaired runner must invoke both exact GCP prerequisite checks"
+fi
+pass "dependency repair retains exact GCP prerequisite dispatch"
+
+rm "$BAD_INSTALL/suite-ran" "$BAD_INSTALL/minimum-ran" "$GCP_PREREQUISITE_MARKER"
+if PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
+  GCP_RUNTIME_RESULT=19 bash "$BAD_INSTALL/scripts/run-plugin-tests.sh" >"$BAD_INSTALL/runtime-refused.log" 2>&1; then
+  fail "an unavailable GCP runtime prerequisite must fail the runner"
+fi
+if [ -e "$BAD_INSTALL/suite-ran" ] || [ -e "$BAD_INSTALL/minimum-ran" ] || [ "$(cat "$GCP_PREREQUISITE_MARKER")" != verify-runtime ]; then
+  fail "plugin suites or pytest ran after a failed GCP runtime prerequisite"
+fi
+pass "GCP runtime prerequisite failure prevents plugin suites and later checks"
+
+rm "$GCP_PREREQUISITE_MARKER"
+if PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
+  GCP_PYTEST_RESULT=23 bash "$BAD_INSTALL/scripts/run-plugin-tests.sh" >"$BAD_INSTALL/pytest-refused.log" 2>&1; then
+  fail "failing GCP prerequisite regressions must fail the runner"
+fi
+if [ -e "$BAD_INSTALL/suite-ran" ] || [ -e "$BAD_INSTALL/minimum-ran" ] || [ "$(cat "$GCP_PREREQUISITE_MARKER")" != $'verify-runtime\npytest' ]; then
+  fail "plugin suites ran after failing GCP prerequisite regressions"
+fi
+pass "GCP prerequisite regression failure prevents plugin suites"

@@ -1,0 +1,358 @@
+import { randomUUID } from 'node:crypto';
+import type { Stats } from 'node:fs';
+import { lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { assertAbsentProcessGroup } from './bounded-process-group-scan';
+import { readLinuxProcessGroupRecord } from './linux-process-group';
+
+interface Claim {
+  schemaVersion: 1 | 2;
+  token: string;
+  pid: number;
+  bootId: string;
+  processStartTicks: string;
+  group?: number;
+}
+interface GroupLifetime extends Claim {
+  group: number;
+}
+export interface RecordedProcessGroupIdentity {
+  readonly pid: number;
+  readonly group: number;
+  readonly start: string;
+  readonly boot: string;
+}
+export interface ProcessLockOptions {
+  trackProcessGroup?: boolean;
+}
+
+// Linux procfs can report either code when a process exits during a read.
+// This applies only to process identity reads, never owned evidence files.
+function vanishedProcess(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'ENOENT' || code === 'ESRCH';
+}
+
+async function processGroup(pid: number): Promise<number> {
+  if (process.platform !== 'linux') throw new Error('Original executor group tracking requires Linux');
+  return readLinuxProcessGroupRecord(pid, () => readFile(`/proc/${pid}/stat`, 'utf8'));
+}
+
+async function readGroupLifetime(path: string, owner: Claim) {
+  const file = join(path, 'lifetime.json');
+  let metadata: Stats;
+  try {
+    metadata = await lstat(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' && owner.schemaVersion === 1) return undefined;
+    throw error;
+  }
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.nlink !== 1 ||
+    metadata.uid !== process.getuid?.() ||
+    (metadata.mode & 0o777) !== 0o400
+  )
+    throw new Error('Original executor lifetime evidence is invalid');
+  const raw = await readFile(file, 'utf8');
+  const row = JSON.parse(raw) as GroupLifetime;
+  if (
+    !row ||
+    Object.keys(row).sort().join(',') !== 'bootId,group,pid,processStartTicks,schemaVersion,token' ||
+    row.schemaVersion !== owner.schemaVersion ||
+    row.token !== owner.token ||
+    row.pid !== owner.pid ||
+    row.bootId !== owner.bootId ||
+    row.processStartTicks !== owner.processStartTicks ||
+    row.group !== owner.pid
+  )
+    throw new Error('Original executor lifetime does not join its owner');
+  return { row, raw, metadata };
+}
+
+async function requireGroupClosed(path: string, owner: Claim): Promise<void> {
+  try {
+    await lstat(join(path, 'capture-unresolved.json'));
+    throw new Error('Original executor capture closure remains unresolved');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  await requirePhysicalGroupClosed(path, owner);
+}
+
+async function requirePhysicalGroupClosed(path: string, owner: Claim): Promise<void> {
+  const original = await readGroupLifetime(path, owner);
+  if (!original) return; // Historical claims retain their original schema and behavior.
+  await assertRecordedProcessGroupAbsent({
+    pid: original.row.pid,
+    group: original.row.group,
+    start: original.row.processStartTicks,
+    boot: original.row.bootId,
+  });
+  const current = await readGroupLifetime(path, owner);
+  if (
+    !current ||
+    current.raw !== original.raw ||
+    current.metadata.dev !== original.metadata.dev ||
+    current.metadata.ino !== original.metadata.ino ||
+    current.metadata.ctimeMs !== original.metadata.ctimeMs ||
+    current.metadata.mtimeMs !== original.metadata.mtimeMs
+  )
+    throw new Error('Original executor lifetime changed during closure inspection');
+}
+
+/** Physical check of a verified original reader identity. Does not reclaim a
+ * lock, clear a failure flag or claim that capture/guest acceptance succeeded. */
+export async function assertRecordedProcessGroupAbsent(identity: RecordedProcessGroupIdentity): Promise<void> {
+  if (
+    !identity ||
+    Object.keys(identity).sort().join(',') !== 'boot,group,pid,start' ||
+    !Number.isSafeInteger(identity.pid) ||
+    identity.pid < 1 ||
+    identity.group !== identity.pid ||
+    typeof identity.start !== 'string' ||
+    !/^[0-9]+$/.test(identity.start) ||
+    typeof identity.boot !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(identity.boot)
+  )
+    throw new Error('Original recorded process group identity required');
+  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
+  if ((await bootId()) === identity.boot) {
+    await assertPhysicalProcessGroupAbsent(identity.group);
+  }
+}
+
+async function assertPhysicalProcessGroupAbsent(group: number): Promise<void> {
+  await assertAbsentProcessGroup(group, () => readdir('/proc'), processGroup);
+}
+
+/** Physical closure of a source-verified worker that may be a group member.
+ * Check the original PID separately because it may have left its recorded
+ * group. This grants no lock reclamation or capture acceptance. */
+export async function assertRecordedProcessGroupMemberAbsent(identity: RecordedProcessGroupIdentity): Promise<void> {
+  if (
+    !identity ||
+    Object.keys(identity).sort().join(',') !== 'boot,group,pid,start' ||
+    !Number.isSafeInteger(identity.pid) ||
+    identity.pid < 1 ||
+    !Number.isSafeInteger(identity.group) ||
+    identity.group < 1 ||
+    typeof identity.start !== 'string' ||
+    !/^[0-9]+$/.test(identity.start) ||
+    typeof identity.boot !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(identity.boot)
+  )
+    throw new Error('Original recorded process group member identity required');
+  if (process.platform !== 'linux') throw new Error('Original executor group evidence requires Linux');
+  const observedBoot = await bootId();
+  if (observedBoot !== identity.boot) return;
+  const assertWorkerAbsent = async () => {
+    if ((await processStartTicks(identity.pid)) === identity.start)
+      throw new Error('Original recorded process remains live');
+  };
+  await assertWorkerAbsent();
+  await assertPhysicalProcessGroupAbsent(identity.group);
+  await assertWorkerAbsent();
+  if ((await bootId()) !== observedBoot) throw new Error('Process boot changed during closure inspection');
+}
+
+/** Physical closure only. Does not resolve capture, reclaim the claim or change failed flags. */
+export async function assertExecutorProcessGroupAbsent(path: string): Promise<void> {
+  const owner = await readClaim(path);
+  if (owner.schemaVersion !== 2 || owner.group !== owner.pid)
+    throw new Error('Original tracked executor lifetime required for independent cleanup');
+  await requirePhysicalGroupClosed(path, owner);
+}
+
+/** Does not release or reclaim a lock; all recorded original group members must be absent. */
+export async function assertExecutorGroupClosed(path: string): Promise<void> {
+  await requireGroupClosed(path, await readClaim(path));
+}
+
+const tokenPattern = /^[a-f0-9-]{36}$/;
+const bootPattern = /^[a-f0-9-]{36}$/;
+
+async function bootId(): Promise<string> {
+  let value: string;
+  if (process.platform === 'darwin') {
+    const child = Bun.spawn(['/usr/sbin/sysctl', '-n', 'kern.bootsessionuuid'], { stdout: 'pipe', stderr: 'ignore' });
+    value = (await new Response(child.stdout).text()).trim().toLowerCase();
+    if ((await child.exited) !== 0) throw new Error('Process boot identity is unavailable');
+  } else {
+    value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+  }
+  if (!bootPattern.test(value)) throw new Error('Process boot identity is unavailable');
+  return value;
+}
+
+async function processStartTicks(pid: number): Promise<string | undefined> {
+  if (process.platform === 'darwin') {
+    // Darwin proc_bsdinfo exposes microsecond process-start identity, avoiding
+    // second-resolution ps output that cannot safely distinguish PID reuse.
+    const script = `import ctypes, sys
+class Info(ctypes.Structure):
+ _fields_=[('prefix',ctypes.c_uint32*12),('comm',ctypes.c_char*16),('name',ctypes.c_char*32),('tail',ctypes.c_uint32*6),('seconds',ctypes.c_uint64),('microseconds',ctypes.c_uint64)]
+lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+lib.proc_pidinfo.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_int]
+info=Info()
+result=lib.proc_pidinfo(int(sys.argv[1]),3,0,ctypes.byref(info),ctypes.sizeof(info))
+if result==ctypes.sizeof(info): print(info.seconds*1000000+info.microseconds)
+elif result==0 and ctypes.get_errno()==3: sys.exit(3)
+else: sys.exit(2)
+`;
+    const child = Bun.spawn(['/usr/bin/python3', '-c', script, String(pid)], { stdout: 'pipe', stderr: 'ignore' });
+    const start = (await new Response(child.stdout).text()).trim();
+    const code = await child.exited;
+    if (code === 3) return undefined;
+    if (code !== 0 || !/^\d+$/.test(start)) throw new Error('Process identity is unavailable');
+    return start;
+  }
+  try {
+    const value = await readFile(`/proc/${pid}/stat`, 'utf8');
+    const end = value.lastIndexOf(') ');
+    const fields =
+      end < 0
+        ? []
+        : value
+            .slice(end + 2)
+            .trim()
+            .split(/\s+/);
+    const start = fields[19];
+    if (!/^\d+$/.test(start ?? '')) throw new Error('Malformed process identity');
+    return start;
+  } catch (error) {
+    if (vanishedProcess(error)) return undefined;
+    throw error;
+  }
+}
+
+function claim(value: unknown): Claim {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(',') !==
+      ((value as Claim).schemaVersion === 2
+        ? 'bootId,group,pid,processStartTicks,schemaVersion,token'
+        : 'bootId,pid,processStartTicks,schemaVersion,token')
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  const row = value as Record<string, unknown>;
+  if (
+    (row.schemaVersion !== 1 && row.schemaVersion !== 2) ||
+    (row.schemaVersion === 2 && row.group !== row.pid) ||
+    typeof row.token !== 'string' ||
+    !tokenPattern.test(row.token) ||
+    !Number.isSafeInteger(row.pid) ||
+    Number(row.pid) < 1 ||
+    typeof row.bootId !== 'string' ||
+    !bootPattern.test(row.bootId) ||
+    typeof row.processStartTicks !== 'string' ||
+    !/^\d+$/.test(row.processStartTicks)
+  )
+    throw new Error('Operation lock evidence cannot be reconciled');
+  return row as unknown as Claim;
+}
+
+async function readClaim(path: string): Promise<Claim> {
+  const stat = await lstat(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.())
+    throw new Error('Operation lock evidence cannot be reconciled');
+  try {
+    const claimPath = join(path, 'claim.json');
+    const claimStat = await lstat(claimPath);
+    if (
+      !claimStat.isFile() ||
+      claimStat.isSymbolicLink() ||
+      claimStat.nlink !== 1 ||
+      claimStat.uid !== process.getuid?.() ||
+      (claimStat.mode & 0o077) !== 0
+    )
+      throw new Error('Operation lock evidence cannot be reconciled');
+    return claim(JSON.parse(await readFile(claimPath, 'utf8')));
+  } catch (error) {
+    if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === 'ENOENT')
+      throw new Error('Operation lock evidence cannot be reconciled');
+    throw error;
+  }
+}
+
+/**
+ * Acquire an atomic process-bound lock. A claim is reclaimed only when verified boot/process-start
+ * evidence proves that its owner no longer exists, so PID reuse cannot authorize removal.
+ */
+export async function acquireProcessLock(
+  path: string,
+  ownerPid = process.pid,
+  options: ProcessLockOptions = {},
+): Promise<() => Promise<void>> {
+  if (!path.startsWith('/') || !/^\.[a-z][a-z0-9-]*-lock$/.test(basename(path)))
+    throw new Error('Invalid operation lock path');
+  const currentBootId = await bootId();
+  if (!Number.isSafeInteger(ownerPid) || ownerPid < 1) throw new Error('Invalid executor process identity');
+  const currentStart = await processStartTicks(ownerPid);
+  if (!currentStart) throw new Error('Current process identity is unavailable');
+  const trackGroup = options.trackProcessGroup ?? false;
+  if (typeof trackGroup !== 'boolean') throw new Error('Explicit process group tracking option required');
+  const group = trackGroup ? await processGroup(ownerPid) : undefined;
+  const mine: Claim = {
+    schemaVersion: trackGroup ? 2 : 1,
+    token: randomUUID(),
+    pid: ownerPid,
+    bootId: currentBootId,
+    processStartTicks: currentStart,
+    ...(group === undefined ? {} : { group }),
+  };
+  const lifetime = group === undefined ? undefined : { ...mine, group };
+  if (lifetime && lifetime.group !== ownerPid) throw new Error('Executor must own a dedicated original process group');
+  const parent = dirname(path);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const candidate = join(parent, `${basename(path)}.claim-${mine.token}`);
+    await mkdir(candidate, { mode: 0o700 });
+    await writeFile(join(candidate, 'claim.json'), JSON.stringify(mine), { mode: 0o600, flag: 'wx' });
+    if (lifetime)
+      await writeFile(join(candidate, 'lifetime.json'), JSON.stringify(lifetime), { mode: 0o400, flag: 'wx' });
+    try {
+      await rename(candidate, path);
+      return async () => {
+        const owned = await readClaim(path);
+        if (
+          owned.token !== mine.token ||
+          owned.pid !== mine.pid ||
+          owned.schemaVersion !== mine.schemaVersion ||
+          owned.bootId !== mine.bootId ||
+          owned.processStartTicks !== mine.processStartTicks ||
+          owned.group !== mine.group
+        )
+          throw new Error('Operation lock ownership changed');
+        await requireGroupClosed(path, owned);
+        await rm(path, { recursive: true });
+      };
+    } catch (error) {
+      await rm(candidate, { recursive: true });
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST' && (error as NodeJS.ErrnoException).code !== 'ENOTEMPTY')
+        throw error;
+    }
+    let existing: Claim;
+    try {
+      existing = await readClaim(path);
+    } catch (error) {
+      // The previous owner can release between our atomic rename collision and observation.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
+    const liveStart = existing.bootId === currentBootId ? await processStartTicks(existing.pid) : undefined;
+    if (existing.bootId === currentBootId && liveStart === existing.processStartTicks)
+      throw new Error('Operation lock is held by a live process');
+    await requireGroupClosed(path, existing);
+    const stale = join(parent, `${basename(path)}.stale-${randomUUID()}`);
+    try {
+      await rename(path, stale);
+      await rm(stale, { recursive: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+  }
+  throw new Error('Operation lock could not be acquired');
+}

@@ -78,3 +78,51 @@ it('rejects foreign operation selfLink before checkpoint persistence', async () 
   ).rejects.toThrow('identity');
   expect(await s.read()).toBeUndefined();
 });
+
+it('reconciles exact regional and global operation identities with explicit flags', async () => {
+  for (const scope of [{ region: 'northamerica-northeast1' }, { global: true as const }]) {
+    const b = {
+      project: binding.project,
+      deploymentName: binding.deploymentName,
+      engine: binding.engine,
+      actionId: 'network-create',
+      ...scope,
+    };
+    const path = 'region' in scope ? `regions/${scope.region}` : 'global';
+    const op = {
+      ...operation,
+      selfLink: `https://www.googleapis.com/compute/v1/projects/test-project/${path}/operations/operation-123`,
+    };
+    const s = store();
+    await recordGcpOperation(s, b, op);
+    const calls: string[][] = [];
+    const result = await reconcileGcpOperation(
+      s,
+      {
+        exec: async (_cmd, args) => {
+          calls.push(args);
+          return { stdout: JSON.stringify({ ...op, status: 'DONE' }), stderr: '', exitCode: 0 };
+        },
+      },
+      b,
+    );
+    expect(result.state).toBe('done');
+    expect(calls[0]).toContain('region' in scope ? '--region=northamerica-northeast1' : '--global');
+    expect(calls[0].some((arg) => arg.startsWith('--zone='))).toBe(false);
+  }
+});
+it('rejects ambiguous scope, replacement operation and regressed terminal evidence', async () => {
+  const s = store();
+  await expect(recordGcpOperation(s, { ...binding, region: 'northamerica-northeast1' }, operation)).rejects.toThrow(
+    'scope',
+  );
+  await recordGcpOperation(s, binding, { ...operation, status: 'DONE' });
+  await expect(recordGcpOperation(s, binding, operation)).rejects.toThrow('Terminal');
+  await expect(
+    recordGcpOperation(s, binding, {
+      ...operation,
+      name: 'operation-456',
+      selfLink: operation.selfLink.replace('123', '456'),
+    }),
+  ).rejects.toThrow('overwritten');
+});
