@@ -1,27 +1,107 @@
-import type { PlatformToolApi } from '../types';
+import { requireCompleteInterfaceEvidence, requireQualifiedUpInterfaceEvidence } from '../ce/interface-admission';
+import { type CePlatformService, createCePlatformService } from '../ce/service';
+import type { PlatformToolApi, PlatformToolContext } from '../types';
 
-export function createF5xcCeV2StatusTool(pi: PlatformToolApi) {
+export function createF5xcCeV2StatusTool(
+  pi: PlatformToolApi,
+  makeService: (ctx?: PlatformToolContext) => CePlatformService = () => createCePlatformService(),
+) {
   const { Type } = pi.typebox;
   return {
     name: 'f5xc_ce_v2_status',
     label: 'F5 CE v2 Status',
-    description: 'Return the explicit availability result for Secure Mesh Site v2 runtime telemetry.',
-    parameters: Type.Object({ namespace: Type.String(), siteName: Type.String() }),
+    description:
+      'Observe interfaces using the active tenant and trusted deployment/MAC bindings. Published link state and evidence freshness are separate. Fetch time is not a CE heartbeat timestamp.',
+    parameters: Type.Object({
+      namespace: Type.String(),
+      siteName: Type.String(),
+      platformContext: Type.Optional(Type.String()),
+    }),
     async execute(
       _id: string,
-      _params: { namespace: string; siteName: string },
-      _signal: AbortSignal | undefined,
+      params: { namespace: string; siteName: string; platformContext?: string },
+      signal: AbortSignal | undefined,
       _update: unknown,
-      _ctx: unknown,
+      ctx: PlatformToolContext,
     ) {
+      const reason = 'binding-or-evidence-unavailable';
+      try {
+        if (params.namespace !== 'system') throw new Error('namespace');
+        const service = makeService(ctx);
+        const known = await service.siteBinding?.(params.siteName, params.platformContext);
+        if (!known?.expectedInterfaces.length) throw new Error('missing binding');
+        const runtime = await service.runtime(known.binding.owner.engine, params.platformContext);
+        if (runtime.contract.fingerprint !== known.contractFingerprint) throw new Error('stale binding');
+        const site = await runtime.observeOwnedSite(known.binding, signal);
+        if ((site.system_metadata as Record<string, unknown>).uid !== known.siteUid) throw new Error('rebuilt site');
+        const spec = site.spec as Record<
+          string,
+          { not_managed: { node_list: Array<{ hostname: string; interface_list: unknown[] }> } }
+        >;
+        const nodes = spec[known.binding.owner.provider].not_managed.node_list;
+        if (
+          !Array.isArray(nodes) ||
+          nodes.length !== known.binding.nodes.length ||
+          nodes.some((node) => !known.binding.nodes.includes(node.hostname) || !Array.isArray(node.interface_list)) ||
+          nodes.reduce((count, node) => count + node.interface_list.length, 0) !== known.expectedInterfaces.length
+        )
+          throw new Error('incomplete interface bindings');
+
+        const evidence =
+          known.binding.owner.provider === 'aws'
+            ? await runtime.observeAwsInterfaces(known.binding, known.expectedInterfaces, signal)
+            : await runtime.observeAzureInterfaces(known.binding, known.expectedInterfaces, signal);
+        if (!Array.isArray(evidence.interfaces)) throw new Error('malformed interface collection');
+        if (evidence.status !== 'unknown') requireCompleteInterfaceEvidence(evidence, known.expectedInterfaces);
+        // Qualification comes from the trusted observer, never public arguments or fetch time.
+        const freshnessVerified = evidence.status !== 'unknown' && evidence.freshness === 'verified';
+        const status = evidence.status === 'down' && !freshnessVerified ? 'unknown' : evidence.status;
+        let canSatisfyMutationGate = false;
+        try {
+          requireQualifiedUpInterfaceEvidence(evidence, known.expectedInterfaces);
+          canSatisfyMutationGate = true;
+        } catch {
+          // Readable complete state remains separate from permission to mutate.
+        }
+        const reportedLinkState = evidence.status === 'observed' ? 'up' : evidence.status;
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `CE ${params.siteName} interfaces: ${status}.${evidence.status === 'down' ? ' Published link state reports down.' : ''} ${freshnessVerified ? 'Interface sample freshness is verified.' : 'CE sample age remains unqualified.'}`,
+            },
+          ],
+          details: {
+            tool: 'f5xc_ce_v2_status',
+            status,
+            reportedLinkState,
+            reason:
+              evidence.status === 'down' && !freshnessVerified ? 'interface-sample-freshness-unqualified' : undefined,
+            siteUid: known.siteUid,
+            interfaces: evidence.status === 'unknown' ? [] : evidence.interfaces,
+            fetchedAt: evidence.observedAt,
+            ceSampleAge: 'unknown',
+            freshnessQualification: freshnessVerified ? 'verified' : 'pending-1930',
+            canSatisfyMutationGate,
+          },
+        };
+      } catch {
+        signal?.throwIfAborted();
+      }
       return {
         content: [
           {
             type: 'text' as const,
-            text: 'Secure Mesh Site v2 runtime status is unavailable until the separate F5 telemetry contract is published.',
+            text: `CE ${params.siteName} interface observations are unknown; verify context and deployment bindings.`,
           },
         ],
-        details: { tool: 'f5xc_ce_v2_status', capability: 'unavailable', reason: 'runtime_status' },
+        details: {
+          tool: 'f5xc_ce_v2_status',
+          status: 'unknown',
+          reason,
+          interfaces: [],
+          canSatisfyMutationGate: false,
+        },
       };
     },
   };
