@@ -6,31 +6,26 @@ export interface CloudInitAnalysis {
   sensitiveLineCount: number;
 }
 
-function yamlSafe(value: string): string {
-  return JSON.stringify(value);
-}
-
 export function renderCeCloudInit(input: { siteName: string; nodeName: string; token: string }): string {
-  const payload = Buffer.from(
-    JSON.stringify({
-      version: 2,
-      site: input.siteName,
-      node: input.nodeName,
-      bootstrap_token: input.token,
-    }),
-  ).toString('base64');
-  return [
-    '#cloud-config',
-    'write_files:',
-    '  - path: /etc/vpm/user_data',
-    "    permissions: '0600'",
-    '    owner: root:root',
-    '    encoding: b64',
-    `    content: ${payload}`,
-    'runcmd:',
-    `  - [ systemctl, restart, ${yamlSafe('vpm')} ]`,
-    '',
-  ].join('\n');
+  let envelope: Record<string, unknown>;
+  try {
+    envelope = JSON.parse(input.token);
+  } catch {
+    throw new Error('Azure requires platform-issued cloud-init material');
+  }
+  if (
+    envelope.version !== 2 ||
+    envelope.provider !== 'azure' ||
+    envelope.siteName !== input.siteName ||
+    envelope.nodeName !== input.nodeName ||
+    typeof envelope.configurationUid !== 'string' ||
+    !envelope.configurationUid ||
+    typeof envelope.cloudInit !== 'string' ||
+    !envelope.cloudInit.startsWith('#cloud-config') ||
+    /\{\{|\}\}|\/etc\/vpm\/config\.yaml/.test(envelope.cloudInit)
+  )
+    throw new Error('Issued Azure bootstrap identity or material differs');
+  return envelope.cloudInit;
 }
 
 export function analyzeCloudInit(source: string, secrets: string[] = []): CloudInitAnalysis {

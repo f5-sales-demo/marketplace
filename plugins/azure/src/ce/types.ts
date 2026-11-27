@@ -32,6 +32,8 @@ export interface AzureCeNicIntent {
 }
 
 export interface AzureCeSecurityRuleIntent {
+  access?: 'Allow' | 'Deny';
+  priority?: number;
   name: string;
   purpose: 'application-vip' | 'management' | 'intra-cluster' | 'platform-connectivity';
   direction: 'Inbound' | 'Outbound';
@@ -63,7 +65,14 @@ export interface AzureCeIntent {
   routing: { mode: AzureCeRoutingMode; destinationCidrs: string[]; localAsn?: number; peerAsn?: number };
   securityRules: AzureCeSecurityRuleIntent[];
   image: { publisher: string; offer: string; plan: string };
-  vm: { size: string; zones?: string[] };
+  vm: {
+    size: string;
+    zones?: string[];
+    osDiskSizeGb?: number;
+    shutdownAfterHours?: number;
+    adminUsername?: string;
+    sshPublicKey?: string;
+  };
   brownfield: { resourceIds: string[]; routeChanges: AzureCeBrownfieldRouteChange[] };
   replacementNode?: number;
 }
@@ -122,8 +131,8 @@ export interface AzureCeObservation {
     sourceReceipts: Array<{ url: string; normalizedSha256: string }>;
     sharedContract: {
       url: typeof AZURE_CE_SHARED_CONTRACT_URL;
-      contractId: 'f5xc-ce-automation';
-      contractVersion: 'v1';
+      contractId: 'f5xc-ce-automation-policy';
+      contractVersion: 'v2';
       normalizedSha256: string;
     };
   };
@@ -140,6 +149,7 @@ export type AzureCeActionKind =
   | 'nic-create'
   | 'nic-update'
   | 'vm-create'
+  | 'vm-shutdown-arm'
   | 'vm-start'
   | 'vm-stop'
   | 'vm-deallocate'
@@ -216,6 +226,8 @@ export interface AzureCePlan extends AzureCePlanDraft {
 }
 
 export interface AzureCeCheckpoint {
+  startedAt?: string;
+  shutdownDeadline?: string;
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   planId: string;
   planSha256: string;

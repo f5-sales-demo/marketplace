@@ -9,6 +9,7 @@ import type {
 import { AZURE_CE_SCHEMA_VERSION, AZURE_CE_SHARED_CONTRACT_URL } from './types';
 
 export interface AzureComputeDiscoveryInput {
+  region?: string;
   subscriptionId: string;
   publisher?: string;
   offer?: string;
@@ -64,11 +65,11 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
         const normalized = normalizeResearchDocument(body);
         if (
           url === AZURE_CE_SHARED_CONTRACT_URL &&
-          (!/^contract_id: f5xc-ce-automation$/m.test(normalized) ||
-            !/^contract_version: v1$/m.test(normalized) ||
-            !normalized.includes('f5xc-ce-automation/v1'))
+          (!/^contract_id: f5xc-ce-automation-policy$/m.test(normalized) ||
+            !/^contract_version: v2$/m.test(normalized) ||
+            !normalized.includes('f5xc-ce-automation-policy/v2'))
         )
-          throw new Error('document did not advertise f5xc-ce-automation/v1');
+          throw new Error('document did not advertise f5xc-ce-automation-policy/v2');
         return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
         throw new Error(
@@ -91,8 +92,8 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
     sourceReceipts,
     sharedContract: {
       url: AZURE_CE_SHARED_CONTRACT_URL,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: contract.normalizedSha256,
     },
   };
@@ -124,6 +125,13 @@ async function json<T>(api: AzExecApi, args: string[]): Promise<T> {
   }
 }
 
+function quotaCount(value: unknown): number | undefined {
+  const normalized = typeof value === 'string' ? value.trim() : value;
+  if (typeof normalized !== 'number' && (typeof normalized !== 'string' || !/^\d+$/.test(normalized))) return undefined;
+  const count = Number(normalized);
+  return Number.isSafeInteger(count) && count >= 0 ? count : undefined;
+}
+
 async function quotaAvailable(api: AzExecApi, region: string, subscriptionId: string): Promise<number | undefined> {
   const result = await api.exec('az', [
     'vm',
@@ -138,12 +146,16 @@ async function quotaAvailable(api: AzExecApi, region: string, subscriptionId: st
   if (result.exitCode !== 0) return undefined;
   try {
     const usages = JSON.parse(result.stdout) as Array<Record<string, unknown>>;
-    const cores = usages.find((usage) =>
-      String((usage.name as Record<string, unknown> | undefined)?.value ?? '')
-        .toLowerCase()
-        .includes('cores'),
+    const cores = usages.find(
+      (usage) =>
+        String((usage.name as Record<string, unknown> | undefined)?.value ?? '')
+          .trim()
+          .toLowerCase() === 'cores',
     );
-    return Math.max(0, Number(cores?.limit ?? 0) - Number(cores?.currentValue ?? 0));
+    const limit = quotaCount(cores?.limit);
+    const current = quotaCount(cores?.currentValue);
+    if (limit === undefined || current === undefined) return undefined;
+    return Math.max(0, limit - current);
   } catch {
     return undefined;
   }
@@ -474,8 +486,10 @@ export async function discoverAzureCompute(
         String((location.metadata as Record<string, unknown> | undefined)?.regionType ?? 'Physical') === 'Physical',
     )
     .map((location) => normalizeLocation(location.name))
+    .filter((region) => !input.region || region === normalizeLocation(input.region))
     .filter(Boolean)
     .sort();
+  if (!physicalRegions.length) throw new Error('Requested Azure region is unavailable; substitution is not permitted');
   const selected = await resolveMarketplaceImage(api, physicalRegions, subscriptionId, input);
   const urn = selected.urn;
   const terms = await json<Record<string, unknown>>(api, [

@@ -1,10 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
+import { type AzureSmsv2Contract, bindIssuedCloudInit, observeAzureRegistration } from './native-azure';
 import { resolveSmsv2ReleaseContract, type Smsv2KvmImageResolution } from './release-contract';
 
 export interface CeV2Capabilities {
+  providerOperations?: Partial<Record<'aws' | 'azure', string[]>>;
   smsv2ContractVersion: 'v2';
   supportedProviders: Array<'aws' | 'azure'>;
-  bootstrapDrivers: Array<'console'>;
+  bootstrapDrivers: Array<'console' | 'api'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
   kvmImageResolution: Smsv2KvmImageResolution;
@@ -38,6 +41,7 @@ export interface CeV2BgpPeer {
 }
 
 export interface CeV2SiteConfig {
+  nodes?: Array<{ hostname: string; interfaces: Array<{ name: string; mac: string; device: string }> }>;
   provider: 'aws' | 'azure';
   haMode: 'one-node' | 'three-node';
   interfaces: CeV2Interface[];
@@ -50,6 +54,8 @@ export interface CeV2SiteConfig {
 }
 
 export interface CeV2SiteRequest {
+  provider?: 'aws' | 'azure';
+  expectedNode?: { hostname: string; instanceId: string; mac: string };
   namespace: string;
   siteName: string;
   config?: CeV2SiteConfig;
@@ -57,12 +63,13 @@ export interface CeV2SiteRequest {
 }
 
 export interface CeV2Driver {
+  revokeBootstrap?(request: CeV2SiteRequest & { tokenName: string }): Promise<void>;
   capabilities(): Promise<CeV2Capabilities>;
   site(action: 'create' | 'read' | 'update' | 'delete', request: CeV2SiteRequest): Promise<Record<string, unknown>>;
   checkoutBootstrap(
     request: CeV2SiteRequest & { nodeName: string; expiresInSeconds: number },
     allowConsole: boolean,
-  ): Promise<{ token: string; driver: 'console' }>;
+  ): Promise<{ token: string; driver: 'console' | 'api'; upstreamTokenName?: string }>;
   status(request: CeV2SiteRequest): Promise<Record<string, unknown>>;
 }
 
@@ -95,6 +102,7 @@ export class HttpCeV2Driver implements CeV2Driver {
   readonly #consoleHelper: string | undefined;
   readonly #resolveContract: typeof resolveSmsv2ReleaseContract;
   #document?: CapabilityDocument;
+  #azure?: AzureSmsv2Contract;
 
   constructor(
     env: Record<string, string | undefined> = process.env,
@@ -133,11 +141,12 @@ export class HttpCeV2Driver implements CeV2Driver {
   async #capabilityDocument(): Promise<CapabilityDocument> {
     if (this.#document) return this.#document;
     const release = await this.#resolveContract();
+    this.#azure = release.azure;
     this.#document = {
       smsv2ContractVersion: 'v2',
-      supportedProviders: ['aws'],
-      bootstrapDrivers: ['console'],
-      providerNetworkingProfiles: {},
+      supportedProviders: this.#azure ? ['aws', 'azure'] : ['aws'],
+      bootstrapDrivers: this.#azure ? ['api', 'console'] : ['console'],
+      providerNetworkingProfiles: this.#azure ? { azure: ['direct-nic'] } : {},
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
       kvmImageResolution: release.kvmImageResolution,
       namespace: release.namespace,
@@ -170,6 +179,13 @@ export class HttpCeV2Driver implements CeV2Driver {
         (driver) => driver !== 'console' || Boolean(document.consoleFallback && this.#consoleHelper),
       ),
       providerNetworkingProfiles: document.providerNetworkingProfiles,
+      ...(this.#azure
+        ? {
+            providerOperations: {
+              azure: ['create', 'read', 'delete', 'bootstrap', 'registration', 'bootstrap-revoke'],
+            },
+          }
+        : {}),
       awsSmsv2TgwConnect: document.awsSmsv2TgwConnect,
       kvmImageResolution: document.kvmImageResolution,
     };
@@ -191,21 +207,87 @@ export class HttpCeV2Driver implements CeV2Driver {
         method: 'DELETE',
         headers: request.expectedEtag ? { 'If-Match': request.expectedEtag } : undefined,
       });
+    if (request.config?.provider === 'azure' && (!this.#azure || action !== 'create'))
+      throw new Error('Native Azure replacement is unavailable; only schema-validated creation is implemented');
+    const azureRequest =
+      request.config?.provider === 'azure' ? this.#azure!.createRequest(request.siteName, request.config) : undefined;
     return this.#request(action === 'create' ? collection : item, {
       method: action === 'create' ? 'POST' : 'PUT',
       headers: request.expectedEtag ? { 'If-Match': request.expectedEtag } : undefined,
-      body: JSON.stringify({
-        metadata: { name: request.siteName, namespace: request.namespace },
-        spec: request.config ?? {},
-      }),
+      body: JSON.stringify(
+        azureRequest ?? {
+          metadata: { name: request.siteName, namespace: request.namespace },
+          spec: request.config ?? {},
+        },
+      ),
     });
   }
 
   async checkoutBootstrap(
     request: CeV2SiteRequest & { nodeName: string; expiresInSeconds: number },
     allowConsole: boolean,
-  ): Promise<{ token: string; driver: 'console' }> {
+  ): Promise<{ token: string; driver: 'console' | 'api'; upstreamTokenName?: string }> {
     const document = await this.#capabilityDocument();
+    if (!Number.isInteger(request.expiresInSeconds) || request.expiresInSeconds < 1 || request.expiresInSeconds > 900)
+      throw new Error('Bootstrap reference expiry is invalid');
+    if (request.provider === 'azure') {
+      if (!this.#azure || request.namespace !== 'system') throw new Error('Verified Azure bootstrap is unavailable');
+      const site = await this.site('read', request);
+      const nodes = (site.spec as any)?.azure?.not_managed?.node_list;
+      const configurationUid = (site.system_metadata as any)?.uid;
+      if (
+        !Array.isArray(nodes) ||
+        nodes.length !== 1 ||
+        nodes[0].hostname !== request.nodeName ||
+        typeof configurationUid !== 'string' ||
+        !configurationUid
+      )
+        throw new Error('Bootstrap node or configuration identity differs');
+      const tokenName = `xcsh-${randomUUID()}`;
+      const tokenUrl = new URL('/api/register/namespaces/system/tokens', this.#base);
+      try {
+        const issued = await this.#request(tokenUrl, {
+          method: 'POST',
+          body: JSON.stringify(this.#azure.tokenRequest(request.siteName, tokenName)),
+        });
+        const spec = issued.spec as any;
+        if (spec?.site_name !== request.siteName || ![1, 'JWT'].includes(spec.type) || typeof spec.content !== 'string')
+          throw new Error('Issued JWT is not site-bound');
+        const query = new URLSearchParams({
+          provider: 'azure',
+          site_name: request.siteName,
+          enable_management_network: 'false',
+        });
+        const template = await this.#request(
+          new URL(`/api/register/namespaces/system/get-cloud-init-config?${query}`, this.#base),
+        );
+        const cloudInit = bindIssuedCloudInit(template, spec.content);
+        const recheck = await this.site('read', request);
+        if (
+          (recheck.system_metadata as any)?.uid !== configurationUid ||
+          JSON.stringify(recheck.spec) !== JSON.stringify(site.spec)
+        )
+          throw new Error('Site drifted during bootstrap checkout');
+        return {
+          token: JSON.stringify({
+            version: 2,
+            provider: 'azure',
+            siteName: request.siteName,
+            nodeName: request.nodeName,
+            configurationUid,
+            tokenName,
+            cloudInit,
+          }),
+          driver: 'api',
+          upstreamTokenName: tokenName,
+        };
+      } catch (error) {
+        await this.#request(new URL(`/api/register/namespaces/system/tokens/${tokenName}`, this.#base), {
+          method: 'DELETE',
+        }).catch(() => undefined);
+        throw error;
+      }
+    }
     if (!allowConsole) throw new Error('Headless bootstrap checkout is unavailable until F5 publishes a supported API');
     if (!document.consoleFallback || !this.#consoleHelper)
       throw new Error('Tenant has no supported CE v2 bootstrap checkout capability');
@@ -235,10 +317,76 @@ export class HttpCeV2Driver implements CeV2Driver {
     return { token: parsed.token, driver: 'console' };
   }
 
-  async status(_request: CeV2SiteRequest): Promise<Record<string, unknown>> {
+  async status(request: CeV2SiteRequest): Promise<Record<string, unknown>> {
+    await this.#capabilityDocument();
+    if (request.provider === 'azure' && this.#azure) {
+      const site = await this.site('read', request),
+        expected = request.expectedNode;
+      const node = (site.spec as any)?.azure?.not_managed?.node_list?.[0];
+      if (
+        !expected ||
+        (site.spec as any)?.azure?.not_managed?.node_list?.length !== 1 ||
+        node?.interface_list?.length !== 1 ||
+        node?.hostname !== expected.hostname ||
+        node?.interface_list?.[0]?.ethernet_interface?.mac !== expected.mac
+      )
+        return {
+          status: 'unknown',
+          reason: 'Azure node identity is required or differs',
+          operationalHealth: 'unknown',
+        };
+      const registration = await this.#request(
+        new URL(`/api/register/namespaces/system/registrations_by_site/${request.siteName}`, this.#base),
+      );
+      return {
+        registration: observeAzureRegistration(registration, request.siteName, expected.hostname, expected.instanceId),
+        operationalHealth: 'unknown',
+        reason: 'Published Azure operational-health semantics are unavailable',
+        observedAt: new Date().toISOString(),
+      };
+    }
     throw new Error(
       'Secure Mesh Site v2 runtime status is unavailable until the separate F5 telemetry contract is published',
     );
+  }
+
+  async revokeBootstrap(request: CeV2SiteRequest & { tokenName: string }): Promise<void> {
+    await this.#capabilityDocument();
+    if (
+      !this.#azure ||
+      request.namespace !== 'system' ||
+      !SAFE_NAME.test(request.tokenName) ||
+      !SAFE_NAME.test(request.siteName)
+    )
+      throw new Error('Verified bootstrap revocation identity is required');
+    const url = new URL(`/api/register/namespaces/system/tokens/${request.tokenName}`, this.#base);
+    let token: Record<string, unknown>;
+    try {
+      token = await this.#request(url);
+    } catch (error) {
+      if (
+        error instanceof CeCapabilityFailure &&
+        error.category === 'tenant_http' &&
+        error.message.endsWith('HTTP 404')
+      )
+        return;
+      throw error;
+    }
+    if ((token.spec as any)?.site_name !== request.siteName || ![1, 'JWT'].includes((token.spec as any)?.type))
+      throw new Error('Upstream token is not bound to the requested site');
+    await this.#request(url, { method: 'DELETE' });
+    try {
+      await this.#request(url);
+    } catch (error) {
+      if (
+        error instanceof CeCapabilityFailure &&
+        error.category === 'tenant_http' &&
+        error.message.endsWith('HTTP 404')
+      )
+        return;
+      throw error;
+    }
+    throw new Error('Upstream bootstrap token absence is unverified');
   }
 }
 

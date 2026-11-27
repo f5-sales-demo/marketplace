@@ -13,6 +13,7 @@ export function createAzureComputeDiscoverTool(pi: PluginInterface, makeApi: (cw
       'Mandatory live research gate for F5 Customer Edge. Retrieves and hashes the canonical MCN contract plus current F5 and Microsoft guidance, then enumerates Azure Marketplace identifiers, exact image version, subscription-aware VM SKU/NIC/zones, quota, policy, Route Server support, brownfield proximity, and terms status.',
     parameters: Type.Object({
       subscriptionId: Type.String(),
+      region: Type.Optional(Type.String()),
       publisher: Type.Optional(Type.String()),
       offer: Type.Optional(Type.String()),
       plan: Type.Optional(Type.String()),
