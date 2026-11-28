@@ -14,6 +14,8 @@ and this project adheres to
 
 - **`meddpicc`** v7.8.3 removes imposed schedules, review cadence and urgency from English qualification guidance. Engine hints and workbooks use customer-confirmed impact and agreed milestones, preserve legacy deal definitions and missing dates, and retain existing translation identifiers (#1943).
 
+- **`salesforce`** v3.0.1 requires xcsh 25.2.0 for normal reviewed configuration setup on an authenticated org (#1941).
+
 - **`salesforce`** v3.0.0 discovers reviewed private org configuration, reuses valid authentication, pins verified user/org scope and reports generic owner-or-team pipeline with separate currencies and product values. Requires xcsh 25.1.0 (#1941).
   Breaking change: embedded organization aliases, custom-field/product assumptions and inferred renewal/quota rules are removed; optional business mappings require confirmation.
 

@@ -54,7 +54,7 @@ describe('full marketplace presentation through installed-plugin discovery', () 
       expect(result.errors).toHaveLength(higherMinimums.length);
       for (const failure of result.errors) {
         expect(failure.path).toBe(resolve(root, 'plugins/salesforce'));
-        expect(failure.error).toContain('requires xcsh 25.1.0 or later');
+        expect(failure.error).toContain('requires xcsh 25.2.0 or later');
       }
       const tools = result.extensions
         .filter((extension) => extension.path.startsWith(root))

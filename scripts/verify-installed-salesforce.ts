@@ -54,8 +54,9 @@ const pi = {
   },
   integrations: {
     register: (value: typeof definition) => {
+      if (!value) throw new Error('Installed integration definition is missing');
       definition = value;
-      return { get: async () => ({ state: 'setup_required' }) };
+      return { get: () => value.probe(AbortSignal.timeout(120_000)) };
     },
   },
 };

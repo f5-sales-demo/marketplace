@@ -62,16 +62,16 @@ fi
 
 CONFIGURATION="$WORK/salesforce-configuration-runtime"
 copy_runtime_state "$CONFIGURATION"
-jq '.minimumRuntimeVersion = "25.1.0"' \
+jq '.minimumRuntimeVersion = "25.2.0"' \
   "$CONFIGURATION/plugins/salesforce/.xcsh-plugin/plugin.json" >"$CONFIGURATION/plugin.tmp"
 mv "$CONFIGURATION/plugin.tmp" "$CONFIGURATION/plugins/salesforce/.xcsh-plugin/plugin.json"
-jq '.devDependencies["@f5-sales-demo/xcsh"] = "25.1.0"
-    | .devDependencies["@f5-sales-demo/pi-utils"] = "25.1.0"
-    | .peerDependencies["@f5-sales-demo/xcsh"] = ">=25.1.0"
-    | .peerDependencies["@f5-sales-demo/pi-utils"] = ">=25.1.0"' \
+jq '.devDependencies["@f5-sales-demo/xcsh"] = "25.2.0"
+    | .devDependencies["@f5-sales-demo/pi-utils"] = "25.2.0"
+    | .peerDependencies["@f5-sales-demo/xcsh"] = ">=25.2.0"
+    | .peerDependencies["@f5-sales-demo/pi-utils"] = ">=25.2.0"' \
   "$CONFIGURATION/plugins/salesforce/package.json" >"$CONFIGURATION/package.tmp"
 mv "$CONFIGURATION/package.tmp" "$CONFIGURATION/plugins/salesforce/package.json"
-sed 's/@f5-sales-demo\/xcsh@23\.8\.0/@f5-sales-demo\/xcsh@25.1.0/g; s/@f5-sales-demo\/pi-utils@23\.8\.0/@f5-sales-demo\/pi-utils@25.1.0/g; s/@anthropic-ai\/sdk@0\.124\.0/@anthropic-ai\/sdk@1.8.0/g; s/@agentclientprotocol\/sdk@1\.4\.0/@agentclientprotocol\/sdk@2.6.0/g; s/@google\/genai@2\.21\.0/@google\/genai@3.3.0/g' \
+sed 's/@f5-sales-demo\/xcsh@23\.8\.0/@f5-sales-demo\/xcsh@25.2.0/g; s/@f5-sales-demo\/pi-utils@23\.8\.0/@f5-sales-demo\/pi-utils@25.2.0/g; s/@anthropic-ai\/sdk@0\.124\.0/@anthropic-ai\/sdk@1.14.0/g; s/@agentclientprotocol\/sdk@1\.4\.0/@agentclientprotocol\/sdk@2.6.0/g; s/@google\/genai@2\.21\.0/@google\/genai@3.3.0/g' \
   "$CONFIGURATION/plugins/salesforce/bun.lock" >"$CONFIGURATION/lock.tmp"
 mv "$CONFIGURATION/lock.tmp" "$CONFIGURATION/plugins/salesforce/bun.lock"
 if REPO_ROOT="$CONFIGURATION" bash "$CHECK" >/dev/null; then
@@ -260,8 +260,8 @@ pi_utils_version="$xcsh_version"
 anthropic_version="0.124.0"
 acp_version="1.4.0"
 google_genai_version="2.21.0"
-if [ "$xcsh_version" = "25.1.0" ]; then
-  anthropic_version="1.8.0"
+if [ "$xcsh_version" = "25.2.0" ]; then
+  anthropic_version="1.14.0"
   acp_version="2.6.0"
   google_genai_version="3.3.0"
 fi
