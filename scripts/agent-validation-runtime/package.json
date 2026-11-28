@@ -2,9 +2,12 @@
   "name": "marketplace-agent-validation",
   "private": true,
   "dependencies": {
-    "@f5-sales-demo/xcsh": "23.8.0"
+    "@f5-sales-demo/xcsh": "25.2.3"
   },
   "devDependencies": {
-    "@tobilu/qmd": "2.8.3"
+    "@tobilu/qmd": "2.9.0"
+  },
+  "overrides": {
+    "google-auth-library": "11.3.4"
   }
 }

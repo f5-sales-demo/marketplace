@@ -1,5 +1,6 @@
 import { fingerprint } from './discovery';
 export interface GcpQualificationGates {
+  fundingReceipt?: import('./corporate-funding').GcpCorporateFundingReceipt;
   schemaVersion: 1;
   project: string;
   region: string;
@@ -13,7 +14,7 @@ export interface GcpQualificationGates {
   policy: { identity: 'f5xc-ce-automation-policy/v2'; sha256: string; verified: boolean };
   sharedRuntime: boolean;
   exactImageVerified: boolean;
-  legalAcceptance: 'accepted' | 'not-required' | 'unknown';
+  legalAcceptance: 'accepted' | 'not-required' | 'authorized-for-access-or-use' | 'unknown';
   iamVerified: boolean;
   quotaVerified: boolean;
   organizationPolicyVerified: boolean;
@@ -44,7 +45,7 @@ export function assertGcpLaunchGates(gates: GcpQualificationGates, reviewedHash:
     !gates.iamVerified ||
     !gates.quotaVerified ||
     !gates.organizationPolicyVerified ||
-    gates.legalAcceptance === 'unknown'
+    !['accepted', 'not-required', 'authorized-for-access-or-use'].includes(gates.legalAcceptance)
   )
     throw new Error('Launch prerequisites remain unavailable');
   if (gates.engine === 'terraform' && !gates.providerLocksVerified)

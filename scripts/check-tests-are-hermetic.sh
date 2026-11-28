@@ -35,12 +35,15 @@ command -v bun >/dev/null 2>&1 || {
 
 STUB_BIN="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN"' EXIT
+export XCSH_HERMETIC_STUB_CALLS="$STUB_BIN/cli-calls"
+: >"$XCSH_HERMETIC_STUB_CALLS"
 
 # The stubs are PREPENDED to the real PATH, so every genuine utility stays reachable and
 # only the cloud CLIs are shadowed. Rebuilding a minimal PATH instead would make a missing
 # ordinary utility look like a hermeticity failure.
 for cli in "${CLIS[@]}"; do
-  printf '#!/bin/sh\nsleep %s\n' "$SLEEP_SECONDS" >"$STUB_BIN/$cli"
+  # Record only the known executable name; arguments may contain private data.
+  printf '#!/bin/sh\nprintf "%%s\\n" "%s" >> "$XCSH_HERMETIC_STUB_CALLS"\nsleep %s\n' "$cli" "$SLEEP_SECONDS" >"$STUB_BIN/$cli"
   chmod +x "$STUB_BIN/$cli"
 done
 
@@ -56,12 +59,21 @@ for dir in plugins/*/; do
   fi
 done
 
+observed_calls=none
+if [ -s "$XCSH_HERMETIC_STUB_CALLS" ]; then
+  observed_calls=$(sort -u "$XCSH_HERMETIC_STUB_CALLS" | tr '\n' ' ')
+  observed_calls=${observed_calls% }
+fi
+printf '\nObserved CLI stub calls: %s\n' "$observed_calls"
+
 if [ "${#failed[@]}" -gt 0 ]; then
   cat >&2 <<EOF
 
-NOT HERMETIC: ${failed[*]}
+PLUGIN TEST FAILURES UNDER CLI ISOLATION: ${failed[*]}
 
-A test above spawned a real cloud CLI. Either:
+All real cloud CLIs were replaced with sleeping stubs. Inspect the failed tests
+and the observed calls above; a suite failure alone does not prove CLI execution.
+For tests that intentionally invoke a CLI:
   - it is a unit test, and should take an injected executor —
     createXTool(pi, () => ({ exec: async () => ({ stdout: '', stderr: '', exitCode: 0 }) }))
   - or it genuinely drives the CLI, and belongs behind a presence gate

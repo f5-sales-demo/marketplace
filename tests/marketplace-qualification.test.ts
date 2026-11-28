@@ -203,6 +203,7 @@ test('capture roots reject public permissions and symlinks', () => {
   const root = mkdtempSync(join(tmpdir(), 'qualification-root-'));
   try {
     mkdirSync(join(root, 'public'), { mode: 0o755 });
+    chmodSync(join(root, 'public'), 0o755);
     mkdirSync(join(root, 'private'), { mode: 0o700 });
     symlinkSync(join(root, 'private'), join(root, 'link'));
     expect(() => assertPrivateCaptureRoot(join(root, 'private'))).not.toThrow();

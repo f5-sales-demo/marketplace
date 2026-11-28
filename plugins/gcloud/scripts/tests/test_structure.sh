@@ -206,10 +206,18 @@ test_T1_12_src_index_exports_default_factory() {
   fi
 }
 
-# T1.13 — extension tool count (skipped: gcloud registers 0 tools)
+# T1.13 — execute the isolated bundled registration and owning-engine guards.
 test_T1_13_extension_registers_tools() {
-  echo "SKIP: gcloud does not register tools"
-  return 0
+  command -v bun >/dev/null 2>&1 || {
+    echo "Bun is required for GCloud registration verification"
+    return 1
+  }
+  local suite="$MARKETPLACE_ROOT/tests/gcp-ce-runtime.test.ts"
+  [ -f "$suite" ] || {
+    echo "GCloud runtime registration suite is missing"
+    return 1
+  }
+  bun test "$suite"
 }
 
 # T1.14 — tool factory files (skipped: no tools directory)

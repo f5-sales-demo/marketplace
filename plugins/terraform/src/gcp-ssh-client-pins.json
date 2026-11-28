@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "gcp-qualified-ssh-client-artifact",
+  "version": "10.6p2",
+  "platform": "linux-amd64",
+  "asset": "openssh-10.6p2-linux-amd64.zip",
+  "archiveSha256": "243b9555199a427ca90e939310d03917f380b470aaed14200c28101e797ec318",
+  "files": {
+    "ssh": {
+      "sha256": "f425fe4b88def329d36f44e37ab9418f944fbc5ed51e02c6518c844bd580f4c6"
+    },
+    "ssh-keyscan": {
+      "sha256": "85c27d97c78b55dc763d673a68e3187c33fa6c072e0c6c682fe5fe4621b25546"
+    },
+    "ssh-keygen": {
+      "sha256": "f3647cdae087762de51a6dec3446f11348c5168dafbe666a70e7b1d9821cbb0a"
+    }
+  },
+  "licenseSha256": "5bb5b160726ef5756e4f32fe95b35249c294962419650f48d05134b486d27ccb",
+  "buildSha256": "c6e9bb0f5623eb0e3d34a60732fd1d96b896115252099729e29fb2de51863e6a",
+  "installerSha256": "21f5cae7e24ee27935c1d004f6fbeec495786ae2af66f633ec1e390d2e2a8de9"
+}

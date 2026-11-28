@@ -16,10 +16,10 @@ fail() {
   exit 1
 }
 
-if grep -Fq 'bun_version=1.4.4' "$INSTALLER"; then
-  pass "plugin CI uses current Bun 1.4.4"
+if grep -Fq 'bun_version=1.4.5' "$INSTALLER"; then
+  pass "plugin CI uses current Bun 1.4.5"
 else
-  fail "plugin CI must use current Bun 1.4.4"
+  fail "plugin CI must use current Bun 1.4.5"
 fi
 
 if grep -Fq 'run: ./scripts/install-ci-bun.sh' "$WORKFLOW" &&
@@ -31,9 +31,9 @@ fi
 
 if [ -x "$INSTALLER" ] &&
   grep -Fq 'RUNNER_TEMP' "$INSTALLER" &&
-  grep -Fq 'bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c' \
+  grep -Fq '94559b3b528995a49452f9f2404cec74f2efd7d06e0a000a8cd214b02c3666eb' \
     "$INSTALLER" &&
-  grep -Fq 'baa6bb36f51d6e58561e02bbea825038a9df454f673d6d776e8bbf86f8c7850e' \
+  grep -Fq '18656a3bf0ea5641f5796ae4213b75255579a70a0fded2f337933785568cdf84' \
     "$INSTALLER"; then
   pass "Bun installer binds the verified artifact to runner temp"
 else

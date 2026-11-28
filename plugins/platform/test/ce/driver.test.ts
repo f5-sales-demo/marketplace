@@ -54,7 +54,7 @@ function driver() {
 describe('SMSv2 AWS CE driver', () => {
   it('uses only the verified typed system-namespace CRUD paths', async () => {
     const calls: Array<{ url: string; method: string }> = [];
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       calls.push({ url: String(input), method: init?.method ?? 'GET' });
       return new Response('{}', { status: 200 });
     }) as typeof fetch;
