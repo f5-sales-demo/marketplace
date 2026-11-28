@@ -14,7 +14,7 @@ fi
 
 EXPECTED_XCSH="23.5.1"
 LATEST_DEVELOPMENT_XCSH="23.9.3"
-SALESFORCE_CONFIGURATION_XCSH="25.1.0"
+SALESFORCE_CONFIGURATION_XCSH="25.2.0"
 EXPECTED_ANTHROPIC="0.124.0"
 EXPECTED_ACP="1.4.0"
 EXPECTED_GOOGLE_GENAI="2.21.0"
@@ -167,7 +167,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   if $salesforce_configuration; then
     # The reviewed configuration API needs this separately qualified runtime graph.
     # Other plugin families retain their existing runtime and provider dependencies.
-    expected_anthropic="1.8.0"
+    expected_anthropic="1.14.0"
     expected_acp="2.6.0"
     expected_google_genai="3.3.0"
   fi

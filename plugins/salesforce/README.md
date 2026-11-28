@@ -7,7 +7,7 @@ and keyboard controls.
 
 ## Prerequisites
 
-- xcsh 25.1.0 or later and Salesforce CLI (`sf`). Setup reuses a working CLI.
+- xcsh 25.2.0 or later and Salesforce CLI (`sf`). Setup reuses a working CLI.
   Missing CLI setup uses Homebrew without sudo on macOS or a verified official
   per-user archive on Linux. An unsupported host or unavailable package reports
   readiness guidance instead of claiming success.
