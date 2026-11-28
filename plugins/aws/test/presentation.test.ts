@@ -232,7 +232,7 @@ const ceEvidenceCases = [
   [
     'aws_compute_discover',
     {
-      observation: { identity: { Account: 'synthetic-account' }, agreement: { active: false }, regions: [] },
+      observation: { identity: { Account: 'example-account' }, agreement: { active: false }, regions: [] },
       artifactId: 'synthetic-artifact',
     },
     'Compute discovery',

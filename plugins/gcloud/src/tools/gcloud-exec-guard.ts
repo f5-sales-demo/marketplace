@@ -67,6 +67,8 @@ export const DANGEROUS_VERBS: ReadonlySet<string> = new Set([
 
 // Verbs that create, change, or destroy state.
 export const MUTATING_VERBS: ReadonlySet<string> = new Set([
+  'install',
+  'uninstall',
   'create',
   'delete',
   'update',

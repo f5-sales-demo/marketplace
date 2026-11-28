@@ -9,6 +9,7 @@ import { clearXcshPluginRootsCache } from './agent-validation-runtime/node_modul
 import { discoverAndLoadExtensions } from './agent-validation-runtime/node_modules/@f5-sales-demo/xcsh/src/extensibility/extensions/loader';
 import { rendererOwnershipErrors, sourceOwnershipErrors } from './presentation-ownership.mjs';
 import {
+  existingSourcePaths,
   parseRetiredTasks,
   parseTasks,
   reconcileTasks,
@@ -62,15 +63,15 @@ test('canonical presentation tracker covers actual registrations and every shipp
     expect(manifest.name).toBe(plugin.name);
     expect(manifest.version).toBe(plugin.version);
     expect(manifest.lifecycle).toEqual(plugin.lifecycle);
-    const paths = execFileSync(
-      'git',
-      ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', plugin.source],
-      { cwd: root },
-    )
-      .toString()
-      .split('\0')
-      .filter(Boolean)
-      .sort();
+    const paths = existingSourcePaths(
+      root,
+      execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', plugin.source], {
+        cwd: root,
+      })
+        .toString()
+        .split('\0')
+        .filter(Boolean),
+    );
     // Include all shipped dependencies/references; changes reopen acceptance conservatively.
     const fingerprint = hash(
       `${plugin.name === 'salesforce' ? salesforceRuntime : runtime}\n${paths.map((path) => `${path}\n${hash(readFileSync(join(root, path)))}`).join('\n')}`,

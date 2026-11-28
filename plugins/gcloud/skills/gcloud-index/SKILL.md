@@ -84,6 +84,10 @@ Agent(
 
 ## Important Notes
 
+- Commands and help paths beginning with `alpha` or `beta` automatically install
+  that missing SDK group noninteractively and verify it before execution. Report
+  component-manager failures with the returned recovery guidance. This prepares
+  local tooling; existing cloud write and credential guards still apply.
 - Always check authentication status before infrastructure operations
 - Direct tools and the optional cli-operator agent support gcloud CLI execution
 - Execute directly with typed native tools or guarded CLI operations

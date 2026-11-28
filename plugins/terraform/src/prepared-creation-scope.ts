@@ -1,0 +1,615 @@
+import { createHash, generateKeyPairSync, type KeyObject, sign } from 'node:crypto';
+import { constants } from 'node:fs';
+import { chmod, lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import type { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
+import { decodeEvidenceObject } from '../../platform/src/ce/evidence-json';
+import { acquireProcessLock } from '../../platform/src/ce/process-lock';
+import {
+  type BootstrapGrantDirectory,
+  type BootstrapGrantPublicationOptions,
+  collectOriginalBootstrapPublisherSource,
+  ownOriginalBootstrapPublisherDirectory,
+  publishSignedBootstrapGrant,
+  retainBootstrapGrantFile,
+} from './bootstrap-grant-publication';
+import {
+  assertOriginalGcpPreapplyBootstrapContext,
+  type OriginalGcpPreapplyBootstrapEvidence,
+  readOriginalGcpPreapplyBootstrapJwt,
+} from './gcp-preapply-bootstrap';
+import { checkoutOriginalGcpPreapplyBootstrap } from './gcp-preapply-checkout';
+import type { InstalledCaptureContext } from './installed-capture-context';
+import { type InstalledXcshCreationTarget, readOriginalInstalledXcshTarget } from './installed-xcsh-creation-reader';
+import { linuxMonotonicMs } from './linux-clock';
+import { assertSameOriginalInput, monitorOriginalInputs, type OriginalInputBinding } from './original-input-monitor';
+import { bindOriginalTerraformPlanInputs } from './original-plan-inputs';
+import {
+  assertOriginalTerraformPlanProjection,
+  assertOriginalTerraformPlanSourceProjection,
+  type Invocation,
+  type OriginalTerraformPlanProjection,
+} from './runner';
+
+export interface PreparedOriginalCreationScope {
+  readonly schemaVersion: 2;
+  readonly kind: 'prepared-original-creation-scope';
+}
+type Target = Readonly<{ type_name: string; name: string; namespace: string }>;
+interface Lease {
+  context: InstalledCaptureContext;
+  projection: OriginalTerraformPlanProjection;
+  assertPlanInputs(): Promise<void>;
+  closureStarted: boolean;
+  resources: readonly Target[];
+  provider?: OriginalInputBinding;
+  scopeFile?: string;
+  directory?: string;
+  binding?: OriginalInputBinding;
+  bootstrap?: {
+    specification: Readonly<{
+      schema_version: 1;
+      directory: string;
+      public_key: string;
+      original_start_ms: number;
+      original_deadline_ms: number;
+    }>;
+    directoryIdentity: Readonly<{ dev: bigint; ino: bigint; uid: bigint; mode: bigint }>;
+    privateKey: KeyObject;
+    publisher: BootstrapGrantDirectory;
+  };
+  monitor?: Awaited<ReturnType<typeof monitorOriginalInputs>>;
+  refused: boolean;
+  closed: boolean;
+  consumed: boolean;
+  grantClaims?: Set<string>;
+  authorized: boolean;
+}
+const preparations = new WeakMap<object, Promise<PreparedOriginalCreationScope>>();
+const leases = new WeakMap<object, Lease>();
+const hash = (raw: Uint8Array) => createHash('sha256').update(raw).digest('hex');
+const failure = () => new Error('Trusted original prepared creation scope required');
+function lease(value: unknown): Lease {
+  const current = value && typeof value === 'object' ? leases.get(value) : undefined;
+  if (!current || current.refused || current.closed) throw failure();
+  return current;
+}
+async function privateDirectory(path: string) {
+  if (!isAbsolute(path) || resolve(path) !== path) throw failure();
+  let current = '/';
+  for (const part of path.split('/').filter(Boolean)) {
+    current = join(current, part);
+    if ((await lstat(current)).isSymbolicLink()) throw failure();
+  }
+  const st = await lstat(path, { bigint: true });
+  if (
+    !st.isDirectory() ||
+    st.uid !== BigInt(process.getuid?.() ?? -1) ||
+    (st.mode & 0o777n) !== 0o700n ||
+    (await realpath(path)) !== path
+  )
+    throw failure();
+  return st;
+}
+async function fileBinding(path: string): Promise<OriginalInputBinding> {
+  const st = await lstat(path, { bigint: true }),
+    parent = await privateDirectory(dirname(path));
+  if (
+    !st.isFile() ||
+    st.isSymbolicLink() ||
+    st.uid !== BigInt(process.getuid?.() ?? -1) ||
+    st.nlink !== 1n ||
+    (st.mode & 0o777n) !== 0o400n ||
+    st.size < 1n ||
+    st.size > 65536n ||
+    (await realpath(path)) !== path
+  )
+    throw failure();
+  const keys = ['dev', 'ino', 'uid', 'nlink', 'mode', 'size', 'mtimeNs', 'ctimeNs'] as const;
+  return Object.freeze({
+    path,
+    sha256: hash(await readFile(path)),
+    expectedIdentity: Object.freeze(
+      Object.fromEntries(keys.map((k) => [k, st[k].toString()])) as NonNullable<
+        OriginalInputBinding['expectedIdentity']
+      >,
+    ),
+    expectedParentIdentity: Object.freeze({
+      dev: parent.dev.toString(),
+      ino: parent.ino.toString(),
+      uid: parent.uid.toString(),
+      mode: parent.mode.toString(),
+    }),
+  });
+}
+function targets(projection: OriginalTerraformPlanProjection): readonly Target[] {
+  const values: Target[] = [];
+  const seen = new Set<string>();
+  for (const row of projection.resources) {
+    if (
+      row.mode !== 'managed' ||
+      !['xcsh_token', 'xcsh_securemesh_site_v2'].includes(row.type) ||
+      !row.actions.includes('create')
+    )
+      continue;
+    const name = row.fields.name,
+      namespace = row.fields.namespace;
+    if (
+      name?.status !== 'known' ||
+      namespace?.status !== 'known' ||
+      typeof name.value !== 'string' ||
+      typeof namespace.value !== 'string' ||
+      !/^[a-z0-9.-]{1,253}$/.test(name.value) ||
+      !/^[a-z0-9.-]{1,253}$/.test(namespace.value)
+    )
+      throw failure();
+    const target = Object.freeze({ type_name: row.type, name: name.value, namespace: namespace.value });
+    const key = JSON.stringify(target);
+    if (seen.has(key)) throw failure();
+    seen.add(key);
+    values.push(target);
+  }
+  if (values.length > 128) throw failure();
+  return Object.freeze(values.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+}
+/** Only a live owning runner projection and its admitted package can prepare a scope.
+ * Failures and partial files remain retained; a second actor cannot recreate a plan sink.
+ */
+export function prepareOriginalCreationScope(context: InstalledCaptureContext): Promise<PreparedOriginalCreationScope> {
+  if (!context || typeof context !== 'object') return Promise.reject(failure());
+  const pending = preparations.get(context);
+  if (pending)
+    return pending.then(async (packet) => {
+      if (lease(packet).consumed) throw failure();
+      await assertPreparedCreationScope(packet);
+      if (lease(packet).consumed) throw failure();
+      return packet;
+    });
+  const preparation = (async () => {
+    await context.assertWithinDeadline();
+    await context.assertInputs();
+    if (!context.readOriginalPlanSource) throw failure();
+    const projection = await context.readOriginalPlanSource();
+    await assertOriginalTerraformPlanProjection(projection);
+    if (
+      projection.directory !== context.executionDirectory ||
+      projection.scope.cloud !== 'gcp' ||
+      projection.scope.account !== context.owner.account ||
+      projection.scope.region !== context.owner.region ||
+      projection.receipt.engine !== 'terraform' ||
+      projection.receipt.deploymentId !== context.owner.deploymentId ||
+      context.owner.provider !== 'gcp' ||
+      context.owner.engine !== 'terraform' ||
+      projection.executionAuthorized !== false ||
+      !/^[a-f0-9]{64}$/.test(projection.receipt.planSha256) ||
+      context.inputs['workspace:main.tf.json']?.sha256 !== projection.receipt.configurationSha256 ||
+      context.inputs['workspace:.terraform.lock.hcl']?.sha256 !== projection.receipt.providerLockSha256
+    )
+      throw failure();
+    const resources = targets(projection);
+    const record: Lease = {
+      context,
+      projection,
+      assertPlanInputs: await bindOriginalTerraformPlanInputs(context, projection),
+      closureStarted: false,
+      resources,
+      refused: false,
+      closed: false,
+      consumed: false,
+      authorized: false,
+    };
+    if (resources.length) {
+      if (process.platform !== 'linux') throw failure();
+      const providers = await context.readProviderInputs();
+      const choices = Object.entries(providers).filter(([key]) =>
+        /^registry\.terraform\.io\/f5-sales-demo\/xcsh:terraform-provider-xcsh_v[0-9]+\.[0-9]+\.[0-9]+$/.test(key),
+      );
+      if (choices.length !== 1) throw failure();
+      const [key, provider] = choices[0];
+      const name = key.split(':')[1],
+        version = name.slice('terraform-provider-xcsh_v'.length);
+      if (
+        provider.path !==
+          join(
+            context.executionDirectory,
+            '.terraform/providers/registry.terraform.io/f5-sales-demo/xcsh',
+            version,
+            'linux_amd64',
+            name,
+          ) ||
+        !provider.expectedIdentity ||
+        !provider.expectedParentIdentity ||
+        !/^[a-f0-9]{64}$/.test(provider.sha256) ||
+        (BigInt(provider.expectedIdentity.mode) & 0o111n) === 0n
+      )
+        throw failure();
+      record.provider = provider;
+      await privateDirectory(context.executionDirectory);
+      const base = join(context.executionDirectory, '.xcsh-original-creation');
+      try {
+        await mkdir(base, { mode: 0o700 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      }
+      await privateDirectory(base);
+      const directory = join(base, projection.receipt.planSha256);
+      await mkdir(directory, { mode: 0o700 });
+      await privateDirectory(directory);
+      const bootstrapBase = join(context.executionDirectory, '.xcsh-original-bootstrap');
+      try {
+        await mkdir(bootstrapBase, { mode: 0o700 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      }
+      await privateDirectory(bootstrapBase);
+      const bootstrapDirectory = join(bootstrapBase, projection.receipt.planSha256);
+      await mkdir(bootstrapDirectory, { mode: 0o700 });
+      await chmod(bootstrapDirectory, 0o700);
+      const bootstrapIdentity = await privateDirectory(bootstrapDirectory);
+      const keyPair = generateKeyPairSync('ed25519');
+      const publicBytes = keyPair.publicKey.export({ format: 'der', type: 'spki' });
+      if (publicBytes.length !== 44 || publicBytes.subarray(0, 12).toString('hex') !== '302a300506032b6570032100')
+        throw failure();
+      record.bootstrap = {
+        specification: Object.freeze({
+          schema_version: 1 as const,
+          directory: bootstrapDirectory,
+          public_key: publicBytes.subarray(12).toString('base64').replace(/=+$/, ''),
+          original_start_ms: context.budget.start,
+          original_deadline_ms: context.budget.deadline,
+        }),
+        directoryIdentity: Object.freeze({
+          dev: bootstrapIdentity.dev,
+          ino: bootstrapIdentity.ino,
+          uid: bootstrapIdentity.uid,
+          mode: bootstrapIdentity.mode,
+        }),
+        privateKey: keyPair.privateKey,
+        publisher: await ownOriginalBootstrapPublisherDirectory(context, {
+          directory: bootstrapDirectory,
+          identity: {
+            dev: bootstrapIdentity.dev,
+            ino: bootstrapIdentity.ino,
+            uid: bootstrapIdentity.uid,
+            mode: bootstrapIdentity.mode,
+          },
+        }),
+      };
+      const scopeFile = join(directory, 'scope.json');
+      const raw = Buffer.from(
+        JSON.stringify({
+          schema_version: 2,
+          scope_sha256: projection.receipt.planSha256,
+          directory,
+          provider_executable_sha256: provider.sha256,
+          resources,
+          bootstrap_authorization: record.bootstrap.specification,
+        }),
+      );
+      if (raw.length > 65536) throw failure();
+      const file = await open(
+        scopeFile,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o400,
+      );
+      try {
+        await file.writeFile(raw);
+        await file.sync();
+      } finally {
+        await file.close();
+      }
+      for (const path of [directory, base, bootstrapDirectory, bootstrapBase]) {
+        const handle = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+        try {
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
+      }
+      record.directory = directory;
+      record.scopeFile = scopeFile;
+      record.binding = await fileBinding(scopeFile);
+      record.monitor = await monitorOriginalInputs({ scope: record.binding });
+    }
+    const packet = Object.freeze({ schemaVersion: 2 as const, kind: 'prepared-original-creation-scope' as const });
+    leases.set(packet, record);
+    try {
+      await assertPreparedCreationScope(packet);
+    } catch (error) {
+      record.refused = true;
+      record.monitor?.close();
+      throw error;
+    }
+    return packet;
+  })();
+  preparations.set(context, preparation);
+  return preparation;
+}
+async function verifyPreparedCreationScopeInputs(current: Lease, requireLivePlan: boolean): Promise<void> {
+  try {
+    await current.context.assertInputs();
+    if (requireLivePlan) await assertOriginalTerraformPlanProjection(current.projection);
+    await current.assertPlanInputs();
+    if (current.provider) {
+      const providers = await current.context.readProviderInputs();
+      const matches = Object.values(providers).filter((p) => p.path === current.provider?.path);
+      if (matches.length !== 1) throw failure();
+      assertSameOriginalInput(current.provider, matches[0]);
+    }
+    const bootstrap = current.bootstrap;
+    if (bootstrap) {
+      const actual = await privateDirectory(bootstrap.specification.directory);
+      if (
+        ['dev', 'ino', 'uid', 'mode'].some(
+          (key) =>
+            actual[key as keyof typeof bootstrap.directoryIdentity] !==
+            current.bootstrap?.directoryIdentity[key as keyof typeof bootstrap.directoryIdentity],
+        )
+      )
+        throw failure();
+      if (
+        bootstrap.specification.original_start_ms !== current.context.budget.start ||
+        bootstrap.specification.original_deadline_ms !== current.context.budget.deadline
+      )
+        throw failure();
+    }
+    await current.monitor?.assertOriginal();
+    if (current.scopeFile) {
+      if (!current.binding) throw failure();
+      assertSameOriginalInput(current.binding, await fileBinding(current.scopeFile));
+      await current.monitor?.assertOriginal();
+    }
+    await current.context.assertInputs();
+  } catch {
+    current.refused = true;
+    current.authorized = false;
+    throw failure();
+  }
+}
+/** Live source corroboration for final capture; closure cannot restore this authority. */
+export async function assertPreparedCreationScopeInputs(packet: unknown): Promise<void> {
+  const current = lease(packet);
+  if (current.closureStarted) throw failure();
+  await verifyPreparedCreationScopeInputs(current, true);
+  if (current.closureStarted) throw failure();
+}
+
+/** Revoke execution before verifying the original durable inputs. This supports
+ * cleanup after runner retirement, never publication, source reads or replay. */
+export async function assertPreparedCreationScopeClosureInputs(packet: unknown): Promise<void> {
+  const current = lease(packet);
+  current.authorized = false;
+  current.closureStarted = true;
+  await verifyPreparedCreationScopeInputs(current, false);
+}
+export async function assertPreparedCreationScope(packet: unknown): Promise<void> {
+  const current = lease(packet);
+  current.authorized = false;
+  await current.context.assertWithinDeadline();
+  await assertPreparedCreationScopeInputs(packet);
+  if (current.closureStarted) throw failure();
+  current.authorized = true;
+}
+/** Bind an internal capture consumer to this exact original source context. */
+export function assertPreparedCreationScopeContext(packet: unknown, context: InstalledCaptureContext): void {
+  if (lease(packet).context !== context) throw failure();
+}
+export async function inspectPreparedCreationScope(packet: unknown) {
+  await assertPreparedCreationScopeInputs(packet);
+  const current = lease(packet);
+  return Object.freeze({
+    resources: current.resources,
+    scopeFile: current.scopeFile,
+    directory: current.directory,
+    scope: current.binding,
+    provider: current.provider,
+    planSha256: current.projection.receipt.planSha256,
+    bootstrapAuthorization: current.bootstrap?.specification,
+  });
+}
+/** Consume only inside the exact compiler after async original-input checks. */
+export function consumePreparedCreationScope(
+  packet: unknown,
+  request: Invocation,
+  environment: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const current = lease(packet),
+    now = linuxMonotonicMs();
+  if (
+    !current.authorized ||
+    current.closureStarted ||
+    current.consumed ||
+    now < current.context.budget.start ||
+    now >= current.context.budget.deadline ||
+    request.cwd !== current.context.executionDirectory
+  )
+    throw failure();
+  assertOriginalTerraformPlanSourceProjection(request.originalPlanSource, current.projection);
+  for (const key of ['GOOGLE_APPLICATION_CREDENTIALS', 'XCSH_API_URL', 'XCSH_API_TOKEN'] as const)
+    if (environment[key] !== current.context.environment[key]) throw failure();
+  current.consumed = true;
+  current.authorized = false;
+  return current.scopeFile;
+}
+export function closePreparedCreationScope(packet: unknown): void {
+  const current = packet && typeof packet === 'object' ? leases.get(packet) : undefined;
+  if (!current || current.closed) return;
+  current.closed = true;
+  current.authorized = false;
+  current.monitor?.close();
+}
+
+/** Source-only bootstrap release. A durable claim precedes shared one-use checkout;
+ * failed or uncertain issuance cannot be retried with the same original nonce.
+ * The provider independently verifies and consumes the grant before releasing JWT content.
+ */
+/** Closure inspection keeps the original issuer after plan revocation; it restores no plan authority. */
+export async function collectOriginalPreparedBootstrapPublisherSource(value: unknown) {
+  const current = value && typeof value === 'object' ? leases.get(value) : undefined;
+  if (!current) throw new Error('Original source-issued prepared bootstrap scope required');
+  if (!current.bootstrap)
+    return Object.freeze({ name: 'bootstrap-publisher', attemptCount: 0, witnesses: Object.freeze([]) });
+  return collectOriginalBootstrapPublisherSource(current.bootstrap.publisher);
+}
+
+export async function publishOriginalGcpBootstrapGrant(
+  input: {
+    packet: unknown;
+    token: InstalledXcshCreationTarget;
+    evidence: OriginalGcpPreapplyBootstrapEvidence;
+    store: Pick<CeDeploymentStore, 'owner' | 'directory' | 'verify' | 'read' | 'write'>;
+  },
+  options: BootstrapGrantPublicationOptions = {},
+) {
+  const current = lease(input.packet),
+    evidence = input.evidence,
+    token = input.token,
+    store = input.store,
+    bootstrap = current.bootstrap;
+  if (!current.consumed || !bootstrap || !current.binding) throw failure();
+  await assertOriginalGcpPreapplyBootstrapContext(evidence, current.context);
+  const raw = await readOriginalInstalledXcshTarget(token);
+  const creation = decodeEvidenceObject(raw),
+    receipt = creation.receipt as Record<string, unknown>;
+  if (
+    receipt?.schema_version !== 1 ||
+    creation.scopeSha256 !== current.projection.receipt.planSha256 ||
+    creation.scopeFileSha256 !== current.binding.sha256 ||
+    receipt.scope_sha256 !== current.projection.receipt.planSha256 ||
+    receipt.scope_file_sha256 !== current.binding.sha256 ||
+    token.requestSha256 !== evidence.readerRequestSha256 ||
+    token.evidenceSha256 !== evidence.tokenReaderEvidenceSha256 ||
+    token.creationIdentitySha256 !== evidence.tokenCreationSha256 ||
+    token.target.type_name !== 'xcsh_token' ||
+    token.target.name !== evidence.bootstrap.tokenName ||
+    token.target.namespace !== 'system' ||
+    evidence.planSha256 !== current.projection.receipt.planSha256 ||
+    JSON.stringify(token.executor) !== JSON.stringify(evidence.executor) ||
+    receipt.creation_identity_sha256 !== evidence.tokenCreationSha256 ||
+    typeof receipt.nonce !== 'string' ||
+    !/^[a-f0-9]{32}$/.test(receipt.nonce)
+  )
+    throw new Error('Original bootstrap token and reader scope differ');
+  const nonce = receipt.nonce,
+    directory = store.directory,
+    expiresAt = Date.parse(evidence.bootstrap.expiresAt);
+  const jwt = await readOriginalGcpPreapplyBootstrapJwt(evidence);
+  const jwtSha256 = hash(Buffer.from(jwt));
+  if (jwtSha256 !== evidence.bootstrap.jwtSha256 || !Number.isSafeInteger(expiresAt) || expiresAt <= Date.now())
+    throw new Error('Fresh original bootstrap token required');
+  const guard = async () => {
+    const observedMs = linuxMonotonicMs();
+    if (
+      observedMs < current.context.budget.start ||
+      observedMs >= current.context.budget.deadline ||
+      current.context.budget.deadline - current.context.budget.start !== 7200000
+    )
+      throw new Error('Original bootstrap grant budget exhausted');
+    await assertPreparedCreationScope(input.packet);
+    await assertOriginalGcpPreapplyBootstrapContext(evidence, current.context);
+    if (
+      !(await readOriginalInstalledXcshTarget(token)).equals(raw) ||
+      (await readOriginalGcpPreapplyBootstrapJwt(evidence)) !== jwt ||
+      expiresAt <= Date.now()
+    )
+      throw new Error('Original bootstrap token changed or expired');
+    await store.verify();
+    if (
+      store.directory !== directory ||
+      (['provider', 'engine', 'account', 'region', 'deploymentId'] as const).some(
+        (key) =>
+          store.owner[key] !== current.context.owner[key] ||
+          evidence.bootstrap.owner[key] !== current.context.owner[key],
+      )
+    )
+      throw new Error('Original bootstrap grant storage scope differs');
+  };
+  await guard();
+  // Claim synchronously before another caller can pass the same nonce gate.
+  current.grantClaims ??= new Set();
+  if (current.grantClaims.has(nonce))
+    throw new Error('Original bootstrap grant already claimed; reconcile without replay');
+  current.grantClaims.add(nonce);
+  const release = await acquireProcessLock(join(directory, '.gcp-original-bootstrap-grant-lock'));
+  try {
+    await guard();
+    const name = `gcp-original-bootstrap-grant-${evidence.bootstrap.nodeName}.json`;
+    try {
+      await store.read(name);
+      throw new Error('Original bootstrap grant already claimed; reconcile without replay');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    const claim = {
+      schemaVersion: 1,
+      kind: 'original-gcp-bootstrap-grant-claim',
+      owner: current.context.owner,
+      executor: evidence.executor,
+      nodeName: evidence.bootstrap.nodeName,
+      tokenName: evidence.bootstrap.tokenName,
+      planSha256: evidence.planSha256,
+      scopeFileSha256: current.binding.sha256,
+      readerRequestSha256: evidence.readerRequestSha256,
+      tokenEvidenceSha256: token.evidenceSha256,
+      tokenCreationSha256: evidence.tokenCreationSha256,
+      nonce,
+      jwtSha256,
+      originalStartMs: current.context.budget.start,
+      originalDeadlineMs: current.context.budget.deadline,
+    };
+    // An exclusive immutable marker also survives a replaced or uncertain store record.
+    await retainBootstrapGrantFile(
+      bootstrap.specification.directory,
+      `claim-${nonce}.json`,
+      Buffer.from(JSON.stringify(claim)),
+    );
+    await guard();
+    await store.write(name, { ...claim, state: 'claiming' });
+    await guard();
+    await checkoutOriginalGcpPreapplyBootstrap(evidence, store);
+    await guard();
+    const issuedMs = linuxMonotonicMs();
+    const payload = {
+      schema_version: 1,
+      kind: 'original-bootstrap-release',
+      scope_sha256: receipt.scope_sha256,
+      scope_file_sha256: receipt.scope_file_sha256,
+      target: receipt.target,
+      creation_identity_sha256: receipt.creation_identity_sha256,
+      process: receipt.process,
+      nonce,
+      content_sha256: jwtSha256,
+      issued_monotonic_ms: issuedMs,
+      expires_at_epoch_ms: expiresAt,
+    };
+    const message = Buffer.from(`XCSH_BOOTSTRAP_RELEASE_V1\n${JSON.stringify(payload)}`);
+    const signature = sign(null, message, bootstrap.privateKey).toString('base64').replace(/=+$/, '');
+    const envelope = Buffer.from(JSON.stringify({ payload, signature }));
+    const freshGuard = async () => {
+      await guard();
+      const now = linuxMonotonicMs();
+      if (now < issuedMs || now - issuedMs >= 300000) throw new Error('Original bootstrap grant freshness exhausted');
+    };
+    const published = await publishSignedBootstrapGrant(
+      current.context,
+      bootstrap.publisher,
+      nonce,
+      envelope,
+      freshGuard,
+      options,
+    );
+    await freshGuard();
+    await store.write(name, { ...claim, state: 'published', grantSha256: published.sha256 });
+    await freshGuard();
+    return Object.freeze({
+      schemaVersion: 1 as const,
+      kind: 'original-gcp-bootstrap-grant-published' as const,
+      ...published,
+      planSha256: evidence.planSha256,
+      nonce,
+      executionQualified: false as const,
+    });
+  } finally {
+    await release();
+  }
+}

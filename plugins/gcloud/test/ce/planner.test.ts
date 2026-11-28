@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { Type } from '@sinclair/typebox';
+import * as typebox from '@sinclair/typebox';
 import { discoverGcp, fingerprint, selectF5Images } from '../../src/ce/discovery';
 import { planGcpCe } from '../../src/ce/planner';
 import type { GcpCeDiscovery, GcpCeIntent } from '../../src/ce/types';
@@ -128,6 +128,27 @@ describe('GCP readiness boundary', () => {
     i.sites[0].nodes[1].interfaces[1].vrf = 'changed';
     expect(() => planGcpCe(i, discovery())).toThrow('homogeneous');
   });
+  it('accepts identical HA interfaces regardless of JSON field order but binds actual topology changes', () => {
+    const i = intent();
+    const node = i.sites[0].nodes[0];
+    i.sites[0].nodes.push({ ...structuredClone(node), name: 'node-b' }, { ...structuredClone(node), name: 'node-c' });
+    const d = discovery();
+    const original = planGcpCe(i, d).planHash;
+    i.sites[0].nodes[1].interfaces = node.interfaces.map((nic) => ({
+      cidr: nic.cidr,
+      subnet: nic.subnet,
+      network: nic.network,
+      vrf: nic.vrf,
+      role: nic.role,
+      index: nic.index,
+    }));
+    expect(planGcpCe(i, d).planHash).toBe(original);
+    for (const field of ['network', 'subnet', 'vrf'] as const) {
+      const changed = structuredClone(i);
+      changed.sites[0].nodes[1].interfaces[1][field] = 'changed';
+      expect(() => planGcpCe(changed, discovery())).toThrow('homogeneous');
+    }
+  });
   it('discovers current CE CRT image names as well as legacy CECRT names', () => {
     const current = {
       ...image,
@@ -196,10 +217,85 @@ const boundary = async () => ({
   reason: 'gcp_provider_not_published' as const,
 });
 describe('GCP typed tools', () => {
+  it('collects HA readiness preflight without admitting deployment or requesting approval', async () => {
+    const i = intent();
+    const node = i.sites[0].nodes[0];
+    i.sites[0].nodes.push({ ...structuredClone(node), name: 'node-b' }, { ...structuredClone(node), name: 'node-c' });
+    let collections = 0;
+    const tools = createGcpCeTools(
+      { typebox },
+      () => ({
+        exec: async (_command, args) => {
+          const value =
+            args[0] === 'billing'
+              ? { billingEnabled: true }
+              : args[0] === 'services'
+                ? [{ config: { name: 'compute.googleapis.com' } }, { config: { name: 'serviceusage.googleapis.com' } }]
+                : args[1] === 'regions'
+                  ? { quotas: [] }
+                  : args[1] === 'images'
+                    ? [image]
+                    : discovery().machineTypes;
+          return { stdout: JSON.stringify(value), stderr: '', exitCode: 0 };
+        },
+      }),
+      boundary,
+      async () => {
+        throw new Error('must not open a mutation runtime');
+      },
+      async (observed) => {
+        collections++;
+        expect(fingerprint(observed)).toBe(fingerprint(i));
+        return {
+          schemaVersion: 1,
+          project: i.project,
+          region: i.region,
+          intentFingerprint: fingerprint(i),
+          observedAt: new Date().toISOString(),
+          receipts: [],
+          checks: {
+            iam: 'verified',
+            quota: 'verified',
+            organizationPolicy: 'verified',
+            image: 'verified',
+            machineNicLimit: 'verified',
+            zone: 'verified',
+            licenseUseFee: 'none',
+            legalAcceptance: 'unknown',
+            zoneCapacity: 'not-reserved',
+          },
+        };
+      },
+      async () => ({
+        identity: 'f5xc-ce-automation-policy/v2',
+        url: 'https://example.test/policy',
+        normalizedSha256: fingerprint('policy'),
+        observedAt: new Date().toISOString(),
+      }),
+      undefined,
+      async () => {
+        throw new Error('funding unavailable');
+      },
+    );
+    const tool = tools.find((t) => t.name === 'gcp_ce_plan');
+    if (!tool) throw new Error('missing plan tool');
+    const result = await tool.execute('id', { project: i.project, region: i.region, intent: i }, undefined, null, {
+      cwd: '/tmp',
+    });
+    expect(collections).toBe(1);
+    expect(result.isError).not.toBe(true);
+    expect(result.details.plan).toMatchObject({
+      executable: false,
+      approval: 'not-requested',
+      actions: [],
+      preflight: { intentFingerprint: fingerprint(i) },
+    });
+    expect(result.details.mutationAttempted).not.toBe(true);
+  });
   it('rejects every mutation before any cloud command', async () => {
     let calls = 0;
     const tools = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => ({
         exec: async () => {
           calls++;
@@ -220,7 +316,7 @@ describe('GCP typed tools', () => {
   it('rejects wrong engine before discovery', async () => {
     let calls = 0;
     const t = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => ({
         exec: async () => {
           calls++;
@@ -242,7 +338,7 @@ describe('GCP typed tools', () => {
   });
   it('allowlists inventory and keeps label ownership and health unknown', async () => {
     const t = createGcpCeTools(
-      { typebox: { Type } },
+      { typebox },
       () => ({
         exec: async () => ({
           stdout: JSON.stringify([
@@ -283,4 +379,75 @@ it('binds current policy receipt into the readiness plan hash', () => {
   const withPolicy = planGcpCe(i, d, Date.now(), receipt);
   expect(withPolicy.unavailable).not.toContain('current_policy_release_not_bound');
   expect(withPolicy.planHash).not.toBe(planGcpCe(i, d).planHash);
+});
+
+for (const requestedEngine of [undefined, 'native', 'terraform'] as const)
+  it(`reports exact owning-engine mismatch before any cloud adapter: ${requestedEngine ?? 'native-default'}`, async () => {
+    let adapters = 0;
+    let reads = 0;
+    const tool = createGcpCeTools(
+      { typebox },
+      () => {
+        adapters++;
+        return {
+          exec: async () => {
+            reads++;
+            throw new Error('unexpected cloud read');
+          },
+        };
+      },
+      boundary,
+    ).find((candidate) => candidate.name === 'gcp_ce_plan');
+    if (!tool) throw new Error('Missing plan tool');
+    const declared = intent();
+    declared.engine = requestedEngine === 'terraform' ? 'native' : 'terraform';
+    const result = await tool.execute(
+      'id',
+      {
+        project: declared.project,
+        region: declared.region,
+        ...(requestedEngine === undefined ? {} : { engine: requestedEngine }),
+        intent: declared,
+      },
+      undefined,
+      null,
+      { cwd: '/tmp' },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.details).toMatchObject({
+      reason: 'owning_engine_mismatch',
+      requestedEngine: requestedEngine ?? 'native',
+      owningEngine: declared.engine,
+      cloudReadAttempted: false,
+      mutationAttempted: false,
+    });
+    expect(adapters).toBe(0);
+    expect(reads).toBe(0);
+  });
+
+it('an invalid owning-engine value is refused without echoing its untrusted input', async () => {
+  let reads = 0;
+  const tool = createGcpCeTools(
+    { typebox },
+    () => ({
+      exec: async () => {
+        reads++;
+        throw new Error('unexpected cloud read');
+      },
+    }),
+    boundary,
+  ).find((candidate) => candidate.name === 'gcp_ce_plan');
+  if (!tool) throw new Error('Missing plan tool');
+  const declared = intent();
+  declared.engine = 'private-invalid-engine-canary' as never;
+  const result = await tool.execute(
+    'id',
+    { project: declared.project, region: declared.region, engine: 'terraform', intent: declared },
+    undefined,
+    null,
+    { cwd: '/tmp' },
+  );
+  expect(result.isError).toBe(true);
+  expect(JSON.stringify(result)).not.toContain('private-invalid-engine-canary');
+  expect(reads).toBe(0);
 });

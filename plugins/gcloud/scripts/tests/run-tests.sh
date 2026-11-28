@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test runner for the Salesforce plugin.
+# Test runner for the GCloud plugin.
 # Runs every test_*.sh in this directory; each file contains
 # bash functions named test_* that exit non-zero on failure.
 #

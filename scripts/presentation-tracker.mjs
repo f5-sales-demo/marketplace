@@ -2,6 +2,11 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
+/** A normal rebuild can remove tracked chunks before a developer stages deletions. */
+export function existingSourcePaths(root, candidates) {
+  return [...new Set(candidates)].filter((path) => path !== '' && existsSync(join(root, path))).sort();
+}
+
 export const surfaceGates = {
   capture:
     'Capture and inspect current installed output; record exact invocation, resolved runtime/plugin and host. Keep raw captures private; publish findings only.',
