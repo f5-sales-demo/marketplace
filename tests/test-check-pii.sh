@@ -9,6 +9,123 @@ SCANNER="${REPO_ROOT}/scripts/check-pii.sh"
 PYTHON_SCANNER="${REPO_ROOT}/scripts/check_pii.py"
 SYNTHETIC_USER=realperson
 
+# Run version-attribution regressions through the managed driver in every caller.
+python3 - "$PYTHON_SCANNER" <<'VERSIONREGRESSION'
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+import unittest
+from pathlib import Path
+
+SPEC = importlib.util.spec_from_file_location(
+    "software_version_scanner", Path(sys.argv[1])
+)
+assert SPEC
+assert SPEC.loader
+scanner = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = scanner
+SPEC.loader.exec_module(scanner)
+PUBLIC = ".".join(str(part) for part in (8, 8, 4, 4))
+V17 = ".".join(str(part) for part in (17, 0, 21, 1))
+V21 = ".".join(str(part) for part in (21, 0, 13, 1))
+
+
+class SoftwareVersionTests(unittest.TestCase):
+    def public_findings(self, text, path="catalog/any-toolchain.json"):
+        findings = set()
+        scanner.scan_text(path, text, findings)
+        return sorted(
+            item.line for item in findings if item.category == "public-ip-review"
+        )
+
+    def test_quoted_json_scalar_version_is_metadata(self):
+        assert self.public_findings(json.dumps({"version": f"{V21}"})) == []
+
+    def test_flat_multiline_json_version_array_is_metadata(self):
+        assert (
+            self.public_findings(
+                json.dumps({"versions": [f"{V17}", f"{V21}"]}, indent=2)
+            )
+            == []
+        )
+
+    def test_supported_java_output_and_json_escaped_quotes_are_versions(self):
+        for name in ("openjdk", "java"):
+            for value in (f"{V17}", f"{V21}+9-LTS"):
+                output = f'{name} version "{value}"'
+                with self.subTest(name=name, value=value):
+                    assert self.public_findings(output, "version-output.txt") == []
+                    assert self.public_findings(json.dumps({"expected": output})) == []
+
+    def test_actual_five_catalog_version_cases_are_all_classified(self):
+        catalog = {
+            "setup_actions": {"setup-runtime": {"versions": [f"{V17}"]}},
+            "tools": [
+                {"version": f"{V21}", "expected": f'openjdk version "{V21}"'},
+                {"version": f"{V17}", "expected": f'openjdk version "{V17}"'},
+            ],
+        }
+        assert self.public_findings(json.dumps(catalog, indent=2)) == []
+
+    def test_neighbor_endpoints_remain_reported_without_line_exclusion(self):
+        cases = [
+            json.dumps({"version": f"{V21}", "endpoint": PUBLIC}),
+            json.dumps({"expected": f'openjdk version "{V21}"; endpoint ' + PUBLIC}),
+            f'openjdk version "{V21}"; endpoint ' + PUBLIC,
+        ]
+        for text in cases:
+            with self.subTest(case=cases.index(text)):
+                assert self.public_findings(text) == [1]
+
+    def test_invalid_and_duplicate_json_cannot_attribute_version_roles(self):
+        for text in [
+            f'{{"version": "{V21}",}}',
+            f'{{"version": "{V21}", "version": "{V17}"}}',
+            f'{{"version": "{V21}", "invalid": NaN}}',
+            f'{{"version": "{V21}"',
+        ]:
+            with self.subTest(case=text[:16]):
+                assert self.public_findings(text) == [1]
+
+    def test_nested_mixed_and_scalar_version_arrays_do_not_gain_roles(self):
+        cases = [
+            ({"versions": [[f"{V17}"]]}, 1),
+            ({"versions": [f"{V17}", {"endpoint": PUBLIC}]}, 2),
+            ({"version": [f"{V17}"]}, 1),
+        ]
+        for value, count in cases:
+            with self.subTest(case=list(value)):
+                assert len(self.public_findings(json.dumps(value, indent=2))) == count
+
+    def test_urls_cidrs_and_serialized_metadata_are_not_literal_versions(self):
+        cases = [
+            {"version": "https://" + PUBLIC + "/endpoint"},
+            {"version": PUBLIC + "/32"},
+            {"description": json.dumps({"version": f"{V21}"})},
+            {"versions": ["endpoint " + PUBLIC]},
+            {"expected": f'openjdk version "{PUBLIC}/32"'},
+        ]
+        for value in cases:
+            with self.subTest(case=list(value)):
+                assert self.public_findings(json.dumps(value)) == [1]
+
+    def test_normalization_preserves_exact_neighbor_attribution(self):
+        text = (
+            "\x1b[36m"
+            + json.dumps({"version": f"{V21}", "endpoint": PUBLIC})
+            + "\x1b[0m"
+        )
+        assert self.public_findings(text) == [1]
+        version = json.dumps({"version": f"{V21}"}, indent=2)
+        assert self.public_findings(version.replace("\n", "\r")) == []
+        assert self.public_findings("\x1b[36m" + version + "\x1b[0m") == []
+
+
+unittest.main(argv=["software-version-regressions"])
+VERSIONREGRESSION
+
 # Address-field matches share the structured-value interface with identity fields.
 python3 - "$PYTHON_SCANNER" <<'PYTEST'
 import importlib.util
@@ -113,6 +230,75 @@ assert not failures, failures
 print(f"[OK] {len(cases)} provider identity and personal-name cases")
 PROVIDERTEST
 
+python3 - "$PYTHON_SCANNER" <<'ARCTEST'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("scanner_arc_regression", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+controller = "controllerServiceAccount:\n  name: arc-gha-rs-controller\n  namespace: arc-systems\n"
+cases = [
+    ("native controller binding", "fixture.yaml", controller, 0),
+    ("GitOps controller binding", "fixture.yml", "githubConfigSecret: example-secret\n" + controller, 0),
+    ("quoted controller scalars", "fixture.yaml", 'controllerServiceAccount:\n  name: "arc-gha-rs-controller"\n  namespace: \'arc-systems\' # controller\n', 0),
+    ("reversed controller fields", "fixture.yaml", "controllerServiceAccount:\n  namespace: arc-systems\n  name: arc-gha-rs-controller\n", 0),
+    ("ordinary namespace", "fixture.yaml", "namespace: arc-systems\n", 1),
+    ("tenant field", "fixture.yaml", "tenant: arc-systems\n", 1),
+    ("customer field", "fixture.yaml", "customer: arc-systems\n", 1),
+    ("foreign controller name", "fixture.yaml", controller.replace("arc-gha-rs-controller", "private-controller"), 1),
+    ("foreign controller namespace", "fixture.yaml", controller.replace("arc-systems", "private-namespace"), 1),
+    ("missing controller name", "fixture.yaml", controller.replace("  name: arc-gha-rs-controller\n", ""), 1),
+    ("duplicate controller name", "fixture.yaml", controller + "  name: private-controller\n", 1),
+    ("duplicate controller namespace", "fixture.yaml", controller + "  namespace: private-namespace\n", 2),
+    ("duplicate controller mapping", "fixture.yaml", controller + "controllerServiceAccount: {}\n", 1),
+    ("quoted duplicate controller mapping", "fixture.yaml", controller + '"controllerServiceAccount": {}\n', 1),
+    ("unknown controller metadata", "fixture.yaml", controller + "  owner: example-owner\n", 1),
+    ("nested namespace", "fixture.yaml", controller.replace("  namespace:", "  nested:\n    namespace:"), 1),
+    ("misindented controller name", "fixture.yaml", controller.replace("  name:", "    name:"), 1),
+    ("nested customer mapping", "fixture.yaml", "customer:\n" + "\n".join("  " + line for line in controller.splitlines()), 1),
+    ("namespace suffix", "fixture.yaml", controller.replace("arc-systems", "arc-systems-private"), 1),
+    ("anchored controller value", "fixture.yaml", controller.replace("namespace: arc-systems", "namespace: &controller arc-systems"), 1),
+    ("controller context in prose", "fixture.md", controller, 1),
+    ("separate customer value", "fixture.yaml", controller + "tenant: private-customer\n", 1),
+    ("separate ordinary namespace", "fixture.yaml", controller + "metadata:\n  namespace: arc-systems\n", 1),
+    ("separate email", "fixture.yaml", controller + "email: person@company.invalid\n", 1),
+    ("runtime namespace read", "fixture.sh", 'namespace=$(jq -er .namespace <<<"$spec")', 0),
+    ("quoted runtime filter", "fixture.sh", 'namespace=$(jq -r \' .namespace \' <<<"${spec}")', 0),
+    ("separate jq flags", "fixture.sh", '  namespace=$(jq -e -r .namespace <<<"$spec")', 0),
+    ("exported runtime read", "fixture.sh", 'export namespace=$(jq -re .namespace <<<"$spec")', 0),
+    ("dynamic tenant read", "fixture.sh", 'tenant=$(jq -er .tenant <<<"$context")', 0),
+    ("literal jq default", "fixture.sh", 'namespace=$(jq -er \'.namespace // "private-customer"\' <<<"$spec")', 1),
+    ("literal jq input", "fixture.sh", 'namespace=$(jq -er .namespace <<<\'{"namespace":"private-customer"}\')', 1),
+    ("literal jq output", "fixture.sh", 'namespace=$(jq -er \'"private-customer"\' <<<"$spec")', 1),
+    ("runtime filter mismatch", "fixture.sh", 'namespace=$(jq -er .tenant <<<"$spec")', 1),
+    ("runtime read composed with literal", "fixture.sh", 'namespace=$(jq -er .namespace <<<"$spec")-private-customer', 1),
+    ("literal assignment", "fixture.sh", "namespace=private-customer", 1),
+    ("unrelated command", "fixture.sh", "namespace=$(printf private-customer)", 1),
+    ("runtime read with adjacent literal", "fixture.sh", 'namespace=$(jq -er .namespace <<<"$spec"); tenant=private-customer', 1),
+    ("runtime expression in YAML", "fixture.yaml", 'namespace: $(jq -er .namespace <<<"$spec")', 1),
+    ("adjacent shell hash is literal output", "fixture.sh", 'namespace=$(jq -er .namespace <<<"$spec")#private-customer', 1),
+    ("separated shell comment", "fixture.sh", 'namespace=$(jq -er .namespace <<<"$spec") # generated value', 0),
+    ("literal suffix inside runtime input", "fixture.sh", 'namespace=$(jq -er .namespace <<<"${spec}-private-customer")', 1),
+    ("literal pipeline input", "fixture.sh", 'namespace=$(printf private-customer | jq -er .namespace)', 1),
+    ("controller alias mapping", "fixture.yaml", 'controllerServiceAccount: &controller\n  name: arc-gha-rs-controller\n  namespace: arc-systems\n', 1),
+    ("malformed controller scalar", "fixture.yaml", controller.replace("name: arc-gha-rs-controller", 'name: "arc-gha-rs-controller'), 1),
+
+]
+failures = []
+for label, path, text, expected in cases:
+    findings = set()
+    module.scan_text(path, text, findings)
+    passed = len(findings) == expected
+    print(f"[{'OK' if passed else 'FAIL'}] ARC classification: {label} ({len(findings)}/{expected})")
+    if not passed:
+        failures.append(label)
+assert not failures, failures
+print(f"[OK] {len(cases)} ARC infrastructure and dynamic-read privacy cases")
+ARCTEST
+
 FAIL=0
 WORK=$(mktemp -d)
 cleanup() { rm -rf "$WORK"; }
@@ -191,7 +377,8 @@ assert_customer_identifier() {
     FAIL=1
     return
   fi
-  if python3 - "${WORK}/stdout" <<'PY'; then
+  if {
+    python3 - "${WORK}/stdout" <<'PY'
 import json
 import sys
 
@@ -199,6 +386,7 @@ findings = json.load(open(sys.argv[1], encoding="utf-8"))["findings"]
 if len(findings) != 1 or findings[0]["category"] != "customer-identifier":
     raise SystemExit(1)
 PY
+  }; then
     echo "[OK] $label -> one customer-identifier finding"
   else
     echo "[FAIL] $label — expected exactly one customer-identifier finding"
@@ -218,7 +406,8 @@ assert_single_finding() {
     FAIL=1
     return
   fi
-  if python3 - "${WORK}/stdout" "$category" "$severity" <<'PY'; then
+  if {
+    python3 - "${WORK}/stdout" "$category" "$severity" <<'PY'
 import json
 import sys
 
@@ -228,6 +417,7 @@ actual = [(finding["category"], finding["severity"]) for finding in findings]
 if actual != [expected]:
     raise SystemExit(1)
 PY
+  }; then
     echo "[OK] $label -> one $severity $category finding"
   else
     echo "[FAIL] $label — expected exactly one $severity $category finding"
@@ -432,13 +622,15 @@ EOF
 git -C "$repo" add -A
 git -C "$repo" commit -qm source-field-display-label-boundary
 assert_violation "display labels remain enforced outside structural aliases" "$repo" --scope head --mode enforce
-if ! python3 - "${WORK}/stdout" <<'PYTEST'; then
+if ! {
+  python3 - "${WORK}/stdout" <<'PYTEST'
 import sys
 from pathlib import Path
 output = Path(sys.argv[1]).read_text()
 assert all(f"fixture.ts:{line}" in output for line in range(1, 5)), output
 assert "data.json:1" in output, output
 PYTEST
+}; then
   echo "[FAIL] non-structural display labels remain enforced"
   FAIL=1
 fi
@@ -457,13 +649,15 @@ EOF
 git -C "$repo" add -A
 git -C "$repo" commit -qm source-field-alias-boundary
 assert_violation "comments, serialized records and identity fixtures remain enforced" "$repo" --scope head --mode enforce
-if ! python3 - "${WORK}/stdout" <<'PYTEST'; then
+if ! {
+  python3 - "${WORK}/stdout" <<'PYTEST'
 import sys
 from pathlib import Path
 output = Path(sys.argv[1]).read_text()
 assert all(f"fixture.ts:{line}" in output for line in range(1, 6)), output
 assert "generated.json:1" in output, output
 PYTEST
+}; then
   echo "[FAIL] each non-structural field remains enforced"
   FAIL=1
 fi
